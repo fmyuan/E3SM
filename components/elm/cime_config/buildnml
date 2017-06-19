@@ -35,6 +35,7 @@ def buildnml(case, caseroot, compname):
     elm_bldnml_opts     = case.get_value("ELM_BLDNML_OPTS")
     elm_nml_use_case    = case.get_value("ELM_NML_USE_CASE")
     elm_force_coldstart = case.get_value("ELM_FORCE_COLDSTART")
+    elm_ad_spinup       = case.get_value("ELM_ACCELERATED_SPINUP")
     comp_interface      = case.get_value("COMP_INTERFACE")
     comp_glc            = case.get_value("COMP_GLC")
     din_loc_root        = case.get_value("DIN_LOC_ROOT")
@@ -53,7 +54,7 @@ def buildnml(case, caseroot, compname):
     run_refcase         = case.get_value("RUN_REFCASE")
     run_refdate         = case.get_value("RUN_REFDATE")
     run_reftod          = case.get_value("RUN_REFTOD")
-    casebuild		= case.get_value("CASEBUILD")
+    casebuild           = case.get_value("CASEBUILD")
 
     elmconf_dir = os.path.join(casebuild, "elmconf")
 
@@ -197,6 +198,10 @@ def buildnml(case, caseroot, compname):
         # check if the case still attempts to use user_nl_clm, stop proceeding if detected
         if os.path.exists(os.path.join(caseroot, "user_nl_clm")):
            sys.exit("\n *** STOP: It appears you are still using user_nl_clm, please change it to user_nl_elm. ***\n")
+
+        # add 'ad_spinup' runtime options
+        if "-bgc_spinup" not in sysmod and elm_ad_spinup != "UNSET":
+            sysmod += " -bgc_spinup {}".format(elm_ad_spinup)
 
         # TODO: clm/bld/build-namelist needs to be converted to python
         run_cmd_no_fail(sysmod, from_dir=elmconf_dir)
