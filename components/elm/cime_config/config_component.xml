@@ -22,6 +22,9 @@
       <value compset="_ELM%[^_]*BC" >-phys clm4_5 -cppdefs -DMODAL_AER</value>
       <value compset="1950_EAM%CMIP6-[LH]R[^_]*_ELM%[^_]*BC"                >-phys clm4_5 -cppdefs '-DMODAL_AER -DAPPLY_POST_DECK_BUGFIXES'</value>
       <value compset="2010_EAM%CMIP6-[LH]R[^_]*_ELM%[^_]*BC"                >-phys clm4_5 -cppdefs '-DMODAL_AER -DAPPLY_POST_DECK_BUGFIXES'</value>
+      <!-- ELMCN coupling with PFLOTRAN vertical-only mode. NB - needed to exclude PF if 'BC' combined, as above-->
+      <value compset="_ELM%[^_]*PF.*(BC).*"     >-cppdefs '-DMODAL_AER -DCLM_PFLOTRAN -DCOLUMN_MODE'</value>
+      <value compset="_ELM%[^_]*PF(?!.*(BC).*)" >-cppdefs '-DCLM_PFLOTRAN -DCOLUMN_MODE'</value>
     </values>
     <group>build_component_clm</group>
     <file>env_build.xml</file>
