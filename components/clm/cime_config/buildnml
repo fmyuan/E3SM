@@ -34,6 +34,7 @@ def buildnml(case, caseroot, compname):
     clm_nml_use_case    = case.get_value("CLM_NML_USE_CASE")
     clm_force_coldstart = case.get_value("CLM_FORCE_COLDSTART")
     clm_ad_spinup       = case.get_value("CLM_ACCELERATED_SPINUP")
+    clm_interface_mode  = case.get_value("CLM_INTERFACE_MODE")
     comp_interface      = case.get_value("COMP_INTERFACE")
     comp_glc            = case.get_value("COMP_GLC")
     din_loc_root        = case.get_value("DIN_LOC_ROOT")
@@ -118,6 +119,10 @@ def buildnml(case, caseroot, compname):
     if clm_ad_spinup == "on" \
        and ad_spinup not in clm_bldnml_opts and "1850" in compset:
         clm_bldnml_opts = clm_bldnml_opts + ad_spinup
+    
+    # adding clm_interface_mode into $CLM_BLDNML_OPTS
+    if clm_interface_mode != "off" and "-clm_interface_mode" not in clm_bldnml_opts:
+        clm_bldnml_opts = clm_bldnml_opts + " -clm_interface_mode " + clm_interface_mode
 
     inst_string = ""
     for inst_counter in range(1, ninst_lnd + 1):
