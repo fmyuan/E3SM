@@ -217,6 +217,19 @@
       precedence over any settings for finidat in the $CASEROOT/user_clm_clm file.</desc>
   </entry>
 
+  <entry id="ELM_INTERFACE_MODE">
+    <type>char</type>
+    <valid_values>off,bgc,pflotran</valid_values>
+    <default_value>off</default_value>
+    <group>run_component_clm</group>
+    <file>env_run.xml</file>
+    <desc>CLM build-namelist options for ' -elm_interface_mode'
+         FOR run-time options to apply for new ELM capabilities via elm-interface.
+         VALID options: (1) off (default); 
+                        (2) bgc - run native elm BGC via interface (for purpose of testing interface);
+                        (3) pflotran - run coupled elm-pflotran via interface (coupled module(s) upon pflotran.in).</desc>
+  </entry>
+
   <description>
     <desc compset="_ELM"               >clm4.5 physics:</desc>
     <desc compset="_ELM%[^_]*SP"       >clm4.5 Satellite phenology:</desc>

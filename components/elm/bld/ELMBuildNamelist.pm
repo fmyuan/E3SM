@@ -237,6 +237,9 @@ OPTIONS
      -vichydro                Toggle to turn on VIC hydrologic parameterizations (default is off)
                               This turns on the namelist variable: use_vichydro
      -betr_mode               Turn on betr model for tracer transport in soil. [on|off] default is off.
+     -elm_interface_mode      Turn on and specify ELM interface mode. [off|bgc|pflotran] default is off.
+                                 bgc      = run native bgc via the interface (for test purpose)
+                                 pflotran = run coupled ELM-PFLOTRAN via the interface (BGC/H/TH coupling upon pflotran_elm.in)
 
 
 Note: The precedence for setting the values of namelist variables is (highest to lowest):
@@ -274,7 +277,7 @@ sub process_commandline {
                clm_demand            => "null",
                help                  => 0,
                glc_nec               => "default",
-	       fsnowoptics           => "default",
+	           fsnowoptics           => "default",
                glc_present           => 0,
                glc_smb               => "default",
                l_ncpl                => undef,
@@ -305,6 +308,7 @@ sub process_commandline {
                nutrient              => "default",
                nutrient_comp_pathway => "default",
                soil_decomp           => "default",
+               elm_interface_mode    => "off",
              );
 
   GetOptions(
@@ -356,6 +360,7 @@ sub process_commandline {
              "nutrient=s"                => \$opts{'nutrient'},
              "nutrient_comp_pathway=s"   => \$opts{'nutrient_comp_pathway'},
              "soil_decomp=s"             => \$opts{'soil_decomp'},
+             "elm_interface_mode=s"      => \$opts{'elm_interface_mode'},
             )  or usage();
 
   # Give usage message.
@@ -679,6 +684,7 @@ sub process_namelist_commandline_options {
   setup_cmdl_bgc_spinup($opts, $nl_flags, $definition, $defaults, $nl, $cfg, $physv);
   setup_cmdl_vichydro($opts, $nl_flags, $definition, $defaults, $nl, $physv);
   setup_cmdl_betr_mode($opts, $nl_flags, $definition, $defaults, $nl, $physv);
+  setup_cmdl_elm_interface($opts, $nl_flags, $definition, $defaults, $nl, $physv);
 }
 
 #-------------------------------------------------------------------------------
@@ -897,6 +903,110 @@ sub setup_cmdl_betr_mode {
 
     }
   }
+}
+
+
+#-------------------------------------------------------------------------------
+sub setup_cmdl_elm_interface {
+  #
+  #
+  my ($opts, $nl_flags, $definition, $defaults, $nl, $physv) = @_;
+
+  my $val;
+  my $var = "elm_interface_mode";
+
+  $val = $opts->{$var};
+
+  if ($val ne "off"){
+
+        $var = "use_elm_interface";
+        my $group = $definition->get_group_name($var);
+        $nl->set_variable_value($group, $var, ".true.");
+        
+        if ($val eq "bgc") {
+           message("Using clm-interface mode: use_elm_bgc =.true.");
+
+           if ($nl_flags->{"bgc_mode"} eq "sp"){
+             fatal_error("-elm_interface_mode option of 'bgc' can ONLY be used with ELM with -bgc cn|bgc");
+           
+           } else {
+
+             $var = "use_elm_bgc";
+             $nl->set_variable_value($group, $var, ".true.");
+
+             $var = "use_pflotran";
+             $nl->set_variable_value($group, $var, ".false.");
+           }
+           
+        } else {
+           
+           # note: pflotran TH mode can be working with 'bgc_mode = sp'
+           if ($val eq "pflotran"){
+               message("\n==================================================");
+               message("Using elm-interface mode: use_pflotran =.true.");
+               $var = "use_elm_bgc";
+               $nl->set_variable_value($group, $var, ".false.");
+
+               $var = "use_pflotran";
+               $nl->set_variable_value($group, $var, ".true.");                          
+
+               if ( $nl_flags->{"bgc_mode"} eq "cn" ){
+                  message("use_pflotran =.true. for CN coupling is via additional dataType of use_nitrif_denitrif=.true.");
+                  $var = "use_nitrif_denitrif";
+                  $nl->set_variable_value($group, $var, ".true.");
+               }
+
+               $var = "pflotran_inputdir";
+               my $group2 = $definition->get_group_name($var);
+               $val = $nl->get_value($var);
+               if(string_is_undef_or_empty($val)) {
+               	  $val = $nl_flags->{'inputdata_rootdir'}.'/'.$defaults->get_value($var);
+                  $nl->set_variable_value($group2, $var, quote_string($val));
+               }              
+               message("pflotran input directory: ".$val);
+               
+               $var = "pflotran_prefix";
+               $val = $nl->get_value($var);
+               if(string_is_undef_or_empty($val)) {
+               	  $val = $defaults->get_value($var);
+                  $nl->set_variable_value($group2, $var, quote_string($val));
+               }
+               message("pflotran input deck file: '".$val.".in'");
+ 
+               message("==================================================\n");
+                             
+           } else {
+               fatal_error("-elm_interface_mode option can ONLY be off|bgc|pflotran");
+          	
+           }
+        }        
+        
+  } else {
+      # ' -elm_interface_mode off' in env_run.xml
+      # but somehow namelist 'use_pflotran' was set to '.true.'
+      # which currently only good via 'elm-interface'
+      if ( $nl->get_value("use_pflotran") eq ".true." ) {
+        if ($nl->get_value("use_elm_interface") ne ".true." ) {
+           my $errorinfo = "\nNamelist 'use_pflotran=.true.' contradicts the command line option '-elm_interface_mode off'\n".
+      	                     "Please set ELM namelist 'use_pflotran' via -elm_interface_mode pflotran";
+       	   fatal_error ($errorinfo);   	
+        } else {
+      	   message ("WARNING: both 'use_pflotran' and 'use_elm_interface' are set to true in a way by experts");
+      	   message ("WARNING: Please be sure pflotran inputs set correctly and libpflotran are existed in correctly-set path");
+        }
+      }
+
+      if ( $nl->get_value("use_elm_bgc") eq ".true." ) {
+        if ($nl->get_value("use_elm_interface") ne ".true." ) {
+          my $errorinfo = "\nNamelist 'use_elm_bgc=.true.' contradicts the command line option '-elm_interface_mode off'\n".
+      	               "Please set ELM namelist 'use_elm_bgc' via -elm_interface_mode bgc\n".
+       	               "OR, add 'use_elm_interface = .true' in 'usr_nl_elm'";
+       	  fatal_error ($errorinfo);   	
+        }
+      }
+    	
+  }
+    
 }
 
 
@@ -3113,21 +3223,21 @@ sub setup_logic_snowpack {
 
 #-------------------------------------------------------------------------------
 sub setup_logic_pflotran {
-    # clm_pflotran_inparm
-    # PFLOTRAN model if bgc=CN or CNDV and CLM4.5 physics
+    # elm_pflotran_inparm
+    # PFLOTRAN model input files
     #
     my ($test_files, $nl_flags, $definition, $defaults, $nl, $physv) = @_;
 
-
-  if ( $nl_flags->{'use_pflotran'}  eq '.true.' ) {
-    add_default($test_files, $nl_flags->{'inputdata_rootdir'}, $definition, $defaults, $nl, 'pflotran_inputdir' );
-    add_default($test_files, $nl_flags->{'inputdata_rootdir'}, $definition, $defaults, $nl, 'pflotran_prefix' );
-    #
-    # Check if $pflotran_prefix is set in $inputdata_rootdir/$pflotran      #
-    my $pflotran_inputdir = $nl->get_value('pflotran_inputdir');
-    my $pflotran_prefix = $nl->get_value('pflotran_prefix');
-    # (TODO) something here, but not yet at this momment.
-  }
+    if ( $nl_flags->{'use_pflotran'}  eq '.true.' ) {
+        add_default($test_files, $nl_flags->{'inputdata_rootdir'}, $definition, $defaults, $nl, 'pflotran_inputdir' );
+        add_default($test_files, $nl_flags->{'inputdata_rootdir'}, $definition, $defaults, $nl, 'pflotran_prefix' );
+        #
+        # Check if $pflotran_prefix is set in $inputdata_rootdir/$pflotran_inputdir      #
+        my $pflotran_inputdir = $nl->get_value('pflotran_inputdir');
+        my $pflotran_prefix = $nl->get_value('pflotran_prefix');
+             # (TODO) something here, but not yet at this momment.      
+    
+    }
 } # end setup_logic_pflotran
 
 #-------------------------------------------------------------------------------
