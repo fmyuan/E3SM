@@ -1,0 +1,100 @@
+
+# Compilation flags
+export ARCHFLAGS="-arch arm64"
+
+export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/X11/bin:/Library/Apple/usr/bin
+
+export DYLD_LIBRARY_PATH=/user/local/lib:/usr/lib:/opt/X11/lib:/Library/Apple/usr/lib
+
+#SDK by command: $xcode-select --install, to install command-line-tools for mac os
+export SDK_ROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
+export PATH=$SDK_ROOT/usr/bin:$PATH
+export DYLD_LIBRARY_PATH=$SDK_ROOT/usr/lib:$DYLD_LIBRARY_PATH
+
+# =======================================================================================================
+# Customized for envs to run ELM/PFLOTRAN/ATS mostly, starting from 2024-04-22
+
+echo "PATH: $PATH"
+echo "DYLD_LIBRARY_PATH: $DYLD_LIBRARY_PATH"
+echo "PYTHONPATH: $PYTHONPATH" 
+
+# blas-lapack library dir
+export BLASLAPACK_LIBDIR=$SDK_ROOT/usr/lib
+
+# cmake
+export PATH=/Applications/CMake.app/Contents/bin:$PATH
+
+# python3 updated (OS or XCODE is with python3.9.6)
+export PATH=/Library/Frameworks/Python.framework/Versions/3.12/bin:$PATH
+export DYLD_LIBRARY_PATH=/Library/Frameworks/Python.framework/Versions/3.12/lib:$DYLD_LIBRARY_PATH
+
+
+#------------------------------------------------------------------
+
+# gnu-tools, built with clang/clang++
+export PATH=/usr/local/autotools/bin:$PATH
+export DYLD_LIBRARY_PATH=/usr/local/autotools/lib:$DYLD_LIBRARY_PATH
+
+
+#GCC based compiler/mpi/libs packages
+export PACKAGE_ROOT=/usr/local/gcc-x
+
+# GCC built with clang/clang++
+export FC_ROOT=$PACKAGE_ROOT/gcc-x-clang
+export CC_ROOT=$PACKAGE_ROOT/gcc-x-clang
+if [ -d $CC_ROOT ] ; then
+  export PATH=$CC_ROOT/bin:$PATH
+  export DYLD_LIBRARY_PATH=$CC_ROOT/lib:$DYLD_LIBRARY_PATH
+fi;
+
+
+# MPI built with GCC
+export MPINAME=mpich
+export MPI_CURRENT=mpich-4.x
+
+export HDF5_CURRENT=hdf5-1.12-parallel
+export NETCDF4_CURRENT=netcdf-4.x-hdf5-parallel
+
+
+if [ -d $PACKAGE_ROOT/${MPINAME}-x-gcc/$MPI_CURRENT ] ; then
+  export MPI_ROOT=$PACKAGE_ROOT/${MPINAME}-x-gcc/$MPI_CURRENT
+  export PATH=$MPI_ROOT/bin:$PATH
+  export DYLD_LIBRARY_PATH=$MPI_ROOT/lib:$DYLD_LIBRARY_PATH
+
+  #---------------------------------------------------------------
+  
+  # hdf5-parallel
+  if [ -d $PACKAGE_ROOT/${MPINAME}-x-gcc/$HDF5_CURRENT ] ; then
+    export HDF5_PATH=$PACKAGE_ROOT/${MPINAME}-x-gcc/$HDF5_CURRENT
+    export PATH=$HDF5_PATH/bin:$PATH
+    export DYLD_LIBRARY_PATH=$HDF5_PATH/lib:$DYLD_LIBRARY_PATH
+
+  fi
+
+  # netcdf-4.x-hdf5 (parallel)
+  if [ -d $PACKAGE_ROOT/${MPINAME}-x-gcc/$NETCDF4_CURRENT ] ; then
+    export NETCDF_PATH=$PACKAGE_ROOT/${MPINAME}-x-gcc/$NETCDF4_CURRENT
+    export PATH=$NETCDF_PATH/bin:$PATH
+    export DYLD_LIBRARY_PATH=$NETCDF_PATH/lib:$DYLD_LIBRARY_PATH
+
+    export NETCDF_C_PATH=$NETCDF_PATH
+    export NETCDF_FORTRAN_PATH=$NETCDF_PATH
+    export NETCDF_CXX_PATH=$NETCDF_PATH
+
+  fi
+
+  #---------------------------------------------------------------  
+
+
+fi;
+
+#------------------------------------------------------------------
+
+# in case LD_LIBRARY_PATH still needed for some apps
+export LD_LIBRARY_PATH=$DYLD_LIBRARY_PATH
+
+#-----------------------------------------------------------------
+
+# =======================================================================================================
+
+
