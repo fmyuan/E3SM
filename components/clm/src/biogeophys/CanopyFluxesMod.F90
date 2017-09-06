@@ -321,9 +321,9 @@ contains
     !------------------------------------------------------------------------------
 
     associate(                                                               & 
-         snl                  => col_pp%snl                                   , & ! Input:  [integer  (:)   ]  number of snow layers                                                  
-         dayl                 => grc_pp%dayl                                  , & ! Input:  [real(r8) (:)   ]  daylength (s)
-         max_dayl             => grc_pp%max_dayl                              , & ! Input:  [real(r8) (:)   ]  maximum daylength for this grid cell (s)
+         snl                  => col_pp%snl                                , & ! Input:  [integer  (:)   ]  number of snow layers
+         dayl                 => grc_pp%dayl                               , & ! Input:  [real(r8) (:)   ]  daylength (s)
+         max_dayl             => grc_pp%max_dayl                           , & ! Input:  [real(r8) (:)   ]  maximum daylength for this grid cell (s)
 
          forc_lwrad           => top_af%lwrad                              , & ! Input:  [real(r8) (:)   ]  downward infrared (longwave) radiation (W/m**2)                       
          forc_q               => top_as%qbot                               , & ! Input:  [real(r8) (:)   ]  atmospheric specific humidity (kg/kg)                                 
@@ -337,11 +337,11 @@ contains
          forc_pc13o2          => top_as%pc13o2bot                          , & ! Input:  [real(r8) (:)   ]  partial pressure c13o2 (Pa)                                           
          forc_po2             => top_as%po2bot                             , & ! Input:  [real(r8) (:)   ]  partial pressure o2 (Pa)                                              
 
-         dleaf                => veg_vp%dleaf                          , & ! Input:  [real(r8) (:)   ]  characteristic leaf dimension (m)                                     
-         smpso                => veg_vp%smpso                          , & ! Input:  [real(r8) (:)   ]  soil water potential at full stomatal opening (mm)                    
-         smpsc                => veg_vp%smpsc                          , & ! Input:  [real(r8) (:)   ]  soil water potential at full stomatal closure (mm)                    
+         dleaf                => veg_vp%dleaf                              , & ! Input:  [real(r8) (:)   ]  characteristic leaf dimension (m)
+         smpso                => veg_vp%smpso                              , & ! Input:  [real(r8) (:)   ]  soil water potential at full stomatal opening (mm)
+         smpsc                => veg_vp%smpsc                              , & ! Input:  [real(r8) (:)   ]  soil water potential at full stomatal closure (mm)
 
-         htvp                 => col_ef%htvp                  , & ! Input:  [real(r8) (:)   ]  latent heat of evaporation (/sublimation) [J/kg] (constant)                      
+         htvp                 => col_ef%htvp                               , & ! Input:  [real(r8) (:)   ]  latent heat of evaporation (/sublimation) [J/kg] (constant)
 
          sabv                 => solarabs_vars%sabv_patch                  , & ! Input:  [real(r8) (:)   ]  solar radiation absorbed by vegetation (W/m**2)                       
 
@@ -356,7 +356,7 @@ contains
          altmax_lastyear_indx => canopystate_vars%altmax_lastyear_indx_col , & ! Input:  [integer  (:)   ]  prior year maximum annual depth of thaw                                
          altmax_indx          => canopystate_vars%altmax_indx_col          , & ! Input:  [integer  (:)   ]  maximum annual depth of thaw                                           
 
-         dleaf_patch          => canopystate_vars%dleaf_patch                 , & ! Output: [real(r8) (:)   ]  mean leaf diameter for this patch/pft
+         dleaf_patch          => canopystate_vars%dleaf_patch              , & ! Output: [real(r8) (:)   ]  mean leaf diameter for this patch/pft
          watsat               => soilstate_vars%watsat_col                 , & ! Input:  [real(r8) (:,:) ]  volumetric soil water at saturation (porosity)   (constant)                     
          watdry               => soilstate_vars%watdry_col                 , & ! Input:  [real(r8) (:,:) ]  btran parameter for btran=0                      (constant)                                        
          watopt               => soilstate_vars%watopt_col                 , & ! Input:  [real(r8) (:,:) ]  btran parameter for btran=1                      (constant)                                      
@@ -386,10 +386,11 @@ contains
          t_veg                => veg_es%t_veg                , & ! Output: [real(r8) (:)   ]  vegetation temperature (Kelvin)                                       
          t_ref2m              => veg_es%t_ref2m              , & ! Output: [real(r8) (:)   ]  2 m height surface air temperature (Kelvin)                           
          t_ref2m_r            => veg_es%t_ref2m_r            , & ! Output: [real(r8) (:)   ]  Rural 2 m height surface air temperature (Kelvin)                     
+         t_nearsurf           => veg_es%t_nearsurf           , & ! Output: [real(r8) (:)   ]  mixed air/veg. temperature near surface (for coupling with PFLOTRAN as BC) [Kelvin]
 
-         frac_h2osfc          => col_ws%frac_h2osfc           , & ! Input:  [real(r8) (:)   ]  fraction of surface water                                             
-         fwet                 => veg_ws%fwet                , & ! Input:  [real(r8) (:)   ]  fraction of canopy that is wet (0 to 1)                               
-         fdry                 => veg_ws%fdry                , & ! Input:  [real(r8) (:)   ]  fraction of foliage that is green and dry [-]                         
+         frac_h2osfc          => col_ws%frac_h2osfc           , & ! Input:  [real(r8) (:)   ]  fraction of surface water
+         fwet                 => veg_ws%fwet                  , & ! Input:  [real(r8) (:)   ]  fraction of canopy that is wet (0 to 1)
+         fdry                 => veg_ws%fdry                  , & ! Input:  [real(r8) (:)   ]  fraction of foliage that is green and dry [-]
          frac_sno             => col_ws%frac_sno_eff          , & ! Input:  [real(r8) (:)   ]  fraction of ground covered by snow (0 to 1)                           
          snow_depth           => col_ws%snow_depth            , & ! Input:  [real(r8) (:)   ]  snow height (m)                                                       
          qg_snow              => col_ws%qg_snow               , & ! Input:  [real(r8) (:)   ]  specific humidity at snow surface [kg/kg]                             
@@ -419,7 +420,6 @@ contains
 
          rssun                => photosyns_vars%rssun_patch                , & ! Output: [real(r8) (:)   ]  leaf sunlit stomatal resistance (s/m) (output from Photosynthesis)
          rssha                => photosyns_vars%rssha_patch                , & ! Output: [real(r8) (:)   ]  leaf shaded stomatal resistance (s/m) (output from Photosynthesis)
-
          grnd_ch4_cond        => ch4_vars%grnd_ch4_cond_patch              , & ! Output: [real(r8) (:)   ]  tracer conductance for boundary layer [m/s] 
 
          btran2               => energyflux_vars%btran2_patch              , & ! Output: [real(r8) (:)   ]  F. Li and S. Levis                                                     
@@ -1142,6 +1142,10 @@ contains
 
          delt_soil  = wtal(p)*t_soisno(c,1)-wtl0(p)*t_veg(p)-wta0(p)*thm(p)
          eflx_sh_soil(p) = cpair*forc_rho(t)*wtg(p)*delt_soil
+
+         ! save the mixed 't_veg' and 'thm' (which used above to cal. SH between soil and air under canopy)
+         ! for using as top soil thermal BC for coupling with PFLOTRAN subsurface
+         t_nearsurf(p) = (wtl0(p)*t_veg(p)+wta0(p)*thm(p))/wtal(p)
 
          delt_h2osfc  = wtal(p)*t_h2osfc(c)-wtl0(p)*t_veg(p)-wta0(p)*thm(p)
          eflx_sh_h2osfc(p) = cpair*forc_rho(t)*wtg(p)*delt_h2osfc

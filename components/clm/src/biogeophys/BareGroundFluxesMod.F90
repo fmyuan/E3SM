@@ -146,6 +146,9 @@ contains
          h2osoi_ice       =>    col_ws%h2osoi_ice        , & ! Input:  [real(r8) (:,:) ]  ice lens (kg/m2)
          h2osoi_liq       =>    col_ws%h2osoi_liq        , & ! Input:  [real(r8) (:,:) ]  liquid water (kg/m2)
 
+
+         t_nearsurf       =>    veg_es%t_nearsurf        , & ! Output: [real(r8) (:)   ]  mixed air/veg. temperature [K] near surface (for coupling with PFLOTRAN as BC)
+
          grnd_ch4_cond    =>    ch4_vars%grnd_ch4_cond_patch          , & ! Output: [real(r8) (:)   ]  tracer conductance for boundary layer [m/s]
 
          eflx_sh_snow     =>    veg_ef%eflx_sh_snow    , & ! Output: [real(r8) (:)   ]  sensible heat flux from snow (W/m**2) [+ to atm]
@@ -318,6 +321,10 @@ contains
          eflx_sh_snow(p)   = -raih*(thm(p)-t_soisno(c,snl(c)+1))
          eflx_sh_soil(p)   = -raih*(thm(p)-t_soisno(c,1))
          eflx_sh_h2osfc(p) = -raih*(thm(p)-t_h2osfc(c))
+
+         ! save 'thm' for using as top soil thermal BC for coupling with PFLOTRAN subsurface
+         ! because here it's used for SH calculation for non-veg-covered bare-soil patch
+         t_nearsurf(p)    = thm(p)
 
          ! water fluxes from soil
          qflx_evap_soi(p)  = -raiw*dqh(p)

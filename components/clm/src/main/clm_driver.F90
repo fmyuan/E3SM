@@ -29,7 +29,7 @@ module clm_driver
   use BalanceCheckMod        , only : BeginGridWaterBalance, GridBalanceCheck
   !
   use CanopyTemperatureMod   , only : CanopyTemperature ! (formerly Biogeophysics1Mod)
-  use SoilTemperatureMod     , only : SoilTemperature
+  use SoilTemperatureMod     , only : SoilTemperature, SoilThermalPostPflotran
   use LakeTemperatureMod     , only : LakeTemperature
   !
   use BareGroundFluxesMod    , only : BareGroundFluxes
@@ -996,6 +996,13 @@ contains
                                waterflux_vars, waterstate_vars, soilhydrology_vars,  &
                                aerosol_vars, soil_water_retention_curve)
 
+                       end if
+
+                       if (pf_tmode) then
+                           call SoilThermalPostPflotran(bounds_clump,                &
+                               filter(nc)%num_nolakec, filter(nc)%nolakec,           &
+                               urbanparams_vars, waterstate_vars, waterflux_vars,    &
+                               soilstate_vars, energyflux_vars,  temperature_vars)
                        end if
 
                     end if

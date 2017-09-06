@@ -51,6 +51,7 @@ module VegetationDataType
     real(r8), pointer :: t_ref2m            (:) => null() ! 2 m height surface air temperature (K)
     real(r8), pointer :: t_ref2m_r          (:) => null() ! rural 2 m height surface air temperature (K)
     real(r8), pointer :: t_ref2m_u          (:) => null() ! urban 2 m height surface air temperature (K)
+    real(r8), pointer :: t_nearsurf         (:) => null() ! near-surface air temperature averaged over bare or vegetated patch (K)
     ! temperature summary and accumulator variables
     real(r8), pointer :: t_a10              (:) => null() ! 10-day running mean of the 2 m temperature (K)
     real(r8), pointer :: t_a10min           (:) => null() ! 10-day running mean of min 2-m temperature
@@ -1051,6 +1052,7 @@ module VegetationDataType
     allocate(this%t_ref2m            (begp:endp))                   ; this%t_ref2m            (:)   = nan
     allocate(this%t_ref2m_r          (begp:endp))                   ; this%t_ref2m_r          (:)   = nan
     allocate(this%t_ref2m_u          (begp:endp))                   ; this%t_ref2m_u          (:)   = nan
+    allocate(this%t_nearsurf         (begp:endp))                   ; this%t_nearsurf         (:)   = nan
     allocate(this%t_a10              (begp:endp))                   ; this%t_a10              (:)   = nan
     allocate(this%t_a10min           (begp:endp))                   ; this%t_a10min           (:)   = nan
     allocate(this%t_a5min            (begp:endp))                   ; this%t_a5min            (:)   = nan
@@ -1111,6 +1113,7 @@ module VegetationDataType
             avgflag='A', long_name='10-day running mean of min 2-m temperature', &
             ptr_patch=this%t_a10min, default='inactive')
     end if
+
 
     if (use_cn .and.  crop_prog )then
        this%t_a5min(begp:endp) = spval

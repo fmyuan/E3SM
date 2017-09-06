@@ -104,7 +104,7 @@ module TemperatureType
      real(r8), pointer :: t_soil_col_1d            (:)   ! 1D temperature of soil layers (Kelvin)
 
      ! For coupling with pflotran
-     real(r8), pointer :: t_nearsurf_col           (:)   ! near-surface air temperature averaged over bare-veg as BC  (Kelvin)
+     real(r8), pointer :: t_nearsurf_col           (:)   ! near-surface air temperature averaged over bare soil-veg as a BC for pflotran (Kelvin)
 
    contains
 
@@ -242,7 +242,7 @@ contains
     allocate(this%t_soil_col_1d            ((endc-begc+1)*nlevgrnd))         ; this%t_soil_col_1d            (:)   = nan
 
     ! for coupling with pflotran
-    allocate(this%t_nearsurf_col           (begc:endc))                      ; this%t_nearsurf_col           (:)   = nan
+     allocate(this%t_nearsurf_col           (begc:endc))                      ; this%t_nearsurf_col           (:)   = nan
 
   end subroutine InitAllocate
 
