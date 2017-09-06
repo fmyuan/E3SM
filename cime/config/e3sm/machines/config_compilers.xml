@@ -367,22 +367,26 @@ for mct, etc.
          collect2: error: ld returned 1 exit status 
     -->
     <base> -mcmodel=small </base>
+    <append compile_threaded="true"> -fopenmp </append>
+    <append DEBUG="TRUE"> -g -Wall -Og -fbacktrace -fcheck=bounds -ffpe-trap=invalid,zero,overflow</append>
+    <append DEBUG="FALSE"> -O </append>
+    <append MODEL="csm_share"> -std=c99 </append>
     <append> -I$(NETCDF_PATH)/include -I$(HDF5_PATH)/include </append>
   </CFLAGS>
   <FFLAGS>
     <base> -mcmodel=small -fconvert=big-endian -ffree-line-length-none -ffixed-line-length-none </base>
+    <append compile_threaded="true"> -fopenmp </append>
+    <append DEBUG="TRUE"> -g -Wall -Og -fbacktrace -fcheck=bounds -ffpe-trap=invalid,zero,overflow</append>
+    <append DEBUG="FALSE"> -O </append>
     <append> -I$(NETCDF_PATH)/include -I$(HDF5_PATH)/include </append>
-    <!-- A NOTE here: $(PFLOTRAN_INC) may contain both PETSC and actual PFLOTRAN include dir, or only PETSC include dir -->
-    <append MODEL="clm"> $(PFLOTRAN_INC) </append>
   </FFLAGS>
   <LDFLAGS>
+    <append compile_threaded="true"> -fopenmp </append>
     <append> -framework Accelerate </append>
     <append MODEL="driver">-L$(NETCDF_PATH)/lib -lnetcdff -lnetcdf </append>
     <append MODEL="driver">-L$(HDF5_PATH)/lib -lhdf5_hl -lhdf5 -lhdf5hl_fortran -lhdf5_fortran </append>
-    <!-- append>-L$(PNETCDF_PATH)/lib -lpnetcdf </append> -->
-    <append>-L$(CC_ROOT)/lib -lgomp </append>
-    <!-- A NOTE here: $(PFLOTRAN_LIB) may contain both PETSC libraries and actual PFLOTRAN libray, or only PETSC libraries -->
-    <append MODEL="driver"> $(PFLOTRAN_LIB) </append>
+    <append MODEL="driver">-L$(PNETCDF_PATH)/lib -lpnetcdf </append>
+    <append>-L$(CC_ROOT)/lib -lgomp </append> 
   </LDFLAGS>
   <SLIBS>
     <append>$SHELL{$ENV{NETCDF_PATH}/bin/nf-config --flibs} -framework Accelerate </append>
@@ -411,7 +415,6 @@ for mct, etc.
   <MPICXX>$(MPI_ROOT)/bin/mpicxx</MPICXX>
   <MPIFC>$(MPI_ROOT)/bin/mpifort</MPIFC>
 </compiler>
-
 
 <compiler COMPILER="pathscale">
   <CFLAGS>
@@ -719,11 +722,13 @@ for mct, etc.
   <CPPDEFS>
     <append> -DSYSDARWIN </append>
   </CPPDEFS>
-  <!-- The following may cause duplicate symbol issue, especially with Mac OSX high sierra
+  <!-- The following may cause duplicate symbol issue, especially with Mac OSX high sierra -->
+  <!-- NOTE: it's observed when coupled with pflotran, which uses PETSc library
   <LDFLAGS>
     <append MODEL="driver"> -all_load </append>
   </LDFLAGS>
   -->
+  
 </compiler>
 
 <compiler OS="Darwin" COMPILER="intel">
@@ -1211,76 +1216,6 @@ for mct, etc.
   <SLIBS>
     <append> -L$ENV{NETCDF_HOME}/lib/ -lnetcdff -lnetcdf -lcurl -llapack -lblas </append>
   </SLIBS>
-</compiler>
-
-<compiler MACH="edison" COMPILER="intel">
-  <CONFIG_ARGS>
-    <base> --host=Linux </base>
-  </CONFIG_ARGS>
-  <FFLAGS>
-    <base> -convert big_endian -assume byterecl -ftz -traceback -assume realloc_lhs -fp-model consistent -fimf-use-svml </base>
-    <append DEBUG="FALSE"> -O2 -debug minimal -qno-opt-dynamic-align </append>
-  </FFLAGS>
-  <PETSC_PATH>$ENV{PETSC_DIR}</PETSC_PATH>
-  <SCC> icc </SCC>
-  <SCXX> icpc </SCXX>
-  <SFC> ifort </SFC>
-  <SLIBS>
-    <append> -L$ENV{NETCDF_DIR} -lnetcdff -Wl,--as-needed,-L$ENV{NETCDF_DIR}/lib -lnetcdff -lnetcdf </append>
-    <append> -mkl -lpthread </append>
-  </SLIBS>
-</compiler>
-
-<!-- Edison still has intel18 compiler option for backward compat -->
-<compiler MACH="edison" COMPILER="intel18">
-  <CFLAGS>
-    <base> -O2 -fp-model precise -std=gnu99 </base>
-    <append compile_threaded="true"> -qopenmp </append>
-    <append DEBUG="FALSE"> -O2 -debug minimal </append>
-    <append DEBUG="TRUE"> -O0 -g </append>
-  </CFLAGS>
-  <CONFIG_ARGS>
-    <base> --host=Linux </base>
-  </CONFIG_ARGS>
-  <CPPDEFS>
-    <append> -DFORTRANUNDERSCORE -DNO_R16 -DCPRINTEL</append>
-  </CPPDEFS>
-  <CXX_LDFLAGS>
-    <base> -cxxlib </base>
-  </CXX_LDFLAGS>
-  <CXX_LINKER>FORTRAN</CXX_LINKER>
-  <FC_AUTO_R8>
-    <base> -r8 </base>
-  </FC_AUTO_R8>
-  <FFLAGS>
-    <base> -convert big_endian -assume byterecl -ftz -traceback -assume realloc_lhs -fp-model consistent -fimf-use-svml </base>
-    <append compile_threaded="true"> -qopenmp </append>
-    <append DEBUG="TRUE"> -O0 -g -check uninit -check bounds -check pointers -fpe0 -check noarg_temp_created </append>
-    <append DEBUG="FALSE"> -O2 -debug minimal -qno-opt-dynamic-align </append>
-  </FFLAGS>
-  <FFLAGS_NOOPT>
-    <base> -O0 </base>
-    <append compile_threaded="true"> -qopenmp </append>
-  </FFLAGS_NOOPT>
-  <FIXEDFLAGS>
-    <base> -fixed -132 </base>
-  </FIXEDFLAGS>
-  <FREEFLAGS>
-    <base> -free </base>
-  </FREEFLAGS>
-  <HAS_F2008_CONTIGUOUS>TRUE</HAS_F2008_CONTIGUOUS>
-  <LDFLAGS>
-    <append compile_threaded="true"> -qopenmp </append>
-  </LDFLAGS>
-  <PETSC_PATH>$ENV{PETSC_DIR}</PETSC_PATH>
-  <SCC> icc </SCC>
-  <SCXX> icpc </SCXX>
-  <SFC> ifort </SFC>
-  <SLIBS>
-    <append> -L$ENV{NETCDF_DIR} -lnetcdff -Wl,--as-needed,-L$ENV{NETCDF_DIR}/lib -lnetcdff -lnetcdf </append>
-    <append> -mkl -lpthread </append>
-  </SLIBS>
-  <SUPPORTS_CXX>TRUE</SUPPORTS_CXX>
 </compiler>
 
 <compiler MACH="eos" COMPILER="intel">
