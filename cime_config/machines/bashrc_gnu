@@ -1,0 +1,86 @@
+export PATH=/usr/sbin:/sbin:/usr/bin:/bin:/opt/X11/bin
+export PATH=/usr/local/CMake.app/Contents/bin:$PATH
+export LD_LIBRARY_PATH=/usr/lib:/opt/X11/lib
+
+export PATH=/Library/Frameworks/Python.framework/Versions/3.6/bin:$PATH
+
+# blas-lapack library dir
+export BLASLAPACK_DIR=/usr/local/blas-lapack-dir
+export LD_LIBRARY_PATH=$BLASLAPACK_DIR:$LD_LIBRARY_PATH
+
+##--------------------------------------------------------------------------------------------------##
+
+export PATH=/usr/local/bin:$PATH
+export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+
+# GNU tools, built with clang/clang++
+export PATH=/usr/local/gnutools/bin:$PATH
+export LD_LIBRARY_PATH=/usr/local/autotools/lib:$LD_LIBRARY_PATH
+
+# whole package of GCC, built by clang/clang++
+export PACKAGE_ROOT=/usr/local/gcc-x
+export FC_ROOT=$PACKAGE_ROOT/gcc-x-clang
+export CC_ROOT=$PACKAGE_ROOT/gcc-x-clang
+if [ -d $CC_ROOT ] ; then
+  export PATH=$CC_ROOT/bin:$PATH
+  export LD_LIBRARY_PATH=$CC_ROOT/lib:$LD_LIBRARY_PATH
+fi;
+
+##--------------------------------------------------------------------------------------------------##
+#############  NOTE: the following are built using clang OR gcc, and gfortran #########
+
+# MPICH-3.3 or openmpi-4
+export MPINAME=mpich
+export MPI_CURRENT=mpich-3.3
+if [ -d $PACKAGE_ROOT/$MPI_CURRENT ] ; then
+  export MPI_ROOT=$PACKAGE_ROOT/$MPI_CURRENT
+  export PATH=$MPI_ROOT/bin:$PATH
+  export LD_LIBRARY_PATH=$MPI_ROOT/lib:$LD_LIBRARY_PATH
+fi;
+
+  # HDF5-1.10 built with mpich/gcc or mpich/clang-gfortran
+  # a note here - HDF5-1.10 seems have unknown issues with pflotran
+  export HDF5_CURRENT=hdf5-1.10
+  if [ -d $PACKAGE_ROOT/$HDF5_CURRENT ] ; then
+    export HDF5_PATH=$PACKAGE_ROOT/$HDF5_CURRENT
+    export PATH=$HDF5_PATH/bin:$PATH
+    export LD_LIBRARY_PATH=$HDF5_PATH/lib:$LD_LIBRARY_PATH
+  fi;
+
+  # NETCDF-4.x built with HDF5 and mpich
+  export NC_CURRENT=netcdf-4.x-hdf5
+  if [ -d $PACKAGE_ROOT/$NC_CURRENT ] ; then
+    export NETCDF_PATH=$PACKAGE_ROOT/$NC_CURRENT
+    export PATH=$NETCDF_PATH/bin:$PATH
+    export LD_LIBRARY_PATH=$NETCDF_PATH/lib:$LD_LIBRARY_PATH 
+
+    export NETCDF_C_PATH=$NETCDF_PATH
+    export NETCDF_FORTRAN_PATH=$NETCDF_PATH
+  
+  fi;
+
+  export PNETCDF_CURRENT=pnetcdf-1.11.2
+  if [ -d $PACKAGE_ROOT/$PNETCDF_CURRENT ] ; then
+    export PNETCDF_PATH=$PACKAGE_ROOT/$PNETCDF_CURRENT
+    export PATH=$PNETCDF_PATH/bin:$PATH
+    export LD_LIBRARY_PATH=$PNETCDF_PATH/lib:$LD_LIBRARY_PATH
+  else
+    export PNETCDF_PATH=
+  fi;
+
+#-------------------------------------------------------------------
+# Jupyter Notebook installation
+export PATH=/Users/f9y/Library/Python/3.6/bin:$PATH
+
+#-----------------------------------------------------------------
+# Mac doesn't automatically set all ENV for GUI applications
+# have to by 'launchd'
+launchctl setenv PATH $PATH
+launchctl setenv CC_ROOT $CC_ROOT
+launchctl setenv FC_ROOT $FC_ROOT
+launchctl setenv HDF5_PATH $HDF5_PATH
+launchctl setenv NETCDF_PATH $NETCDF_PATH
+launchctl setenv MPI_ROOT $MPI_ROOT
+launchctl setenv LD_LIBRARY_PATH $LD_LIBRARY_PATH
+launchctl setenv PYTHONPATH $PYTHONPATH
+
