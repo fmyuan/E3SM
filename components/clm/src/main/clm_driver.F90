@@ -955,25 +955,35 @@ contains
                            ch4_vars)
 
 
-                 if (use_pflotran .and. pf_cmode) then
+                 if (use_pflotran) then
                     call t_startf('pflotran')
                     ! -------------------------------------------------------------------------
                     ! PFLOTRAN calling for solving below-ground and ground-surface processes,
                     ! including thermal, hydrological and biogeochemical processes
                     ! STEP-2: (1) pass data from clm_interface_data to pflotran
-                    ! STEP-2: (2) run pflotran
+                    ! STEP-2: (2) run pflotran one clm time-step
                     ! STEP-2: (3) update clm_interface_data from pflotran
                     ! -------------------------------------------------------------------------
                     call clm_pf_run(clm_interface_data, bounds_clump, filter, nc)
 
                     ! STEP-3: update CLM from clm_interface_data
-                    call update_bgc_data_pf2clm(clm_interface_data%bgc,         &
+                    if (pf_cmode) then
+                       call update_bgc_data_pf2clm(clm_interface_data%bgc,      &
                            bounds_clump,filter(nc)%num_soilc, filter(nc)%soilc, &
                            filter(nc)%num_soilp, filter(nc)%soilp,              &
                            cnstate_vars, carbonflux_vars, carbonstate_vars,     &
                            nitrogenflux_vars, nitrogenstate_vars,               &
                            phosphorusflux_vars, phosphorusstate_vars,           &
                            ch4_vars)
+                    end if
+
+                    if (pf_tmode .or. pf_hmode) then
+                       call update_th_data_pf2clm(clm_interface_data%th,        &
+                           bounds_clump,filter(nc)%num_soilc, filter(nc)%soilc, &
+                           waterstate_vars, waterflux_vars,                     &
+                           temperature_vars, energyflux_vars,                   &
+                           soilstate_vars, soilhydrology_vars)
+                    end if
 
                     call t_stopf('pflotran')
 
