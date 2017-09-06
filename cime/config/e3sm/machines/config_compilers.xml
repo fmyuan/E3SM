@@ -358,6 +358,19 @@ for mct, etc.
   <SFC> nagfor </SFC>
 </compiler>
 
+<compiler COMPILER="gnu" MACH="mymac" >
+  <NETCDF_PATH> $(NETCDF_PATH)</NETCDF_PATH>
+  <ADD_LDFLAGS compile_threaded="true"> -L $(GCC_ROOT)/lib/gcc/x86_64-apple-darwin15.4.0/5.3.0 -fopenmp </ADD_LDFLAGS>
+  <ADD_LDFLAGS>-framework Accelerate</ADD_LDFLAGS>
+  <ADD_SLIBS>$(shell $(NETCDF_PATH)/bin/nf-config --flibs) -framework Accelerate</ADD_SLIBS>
+  <SFC>$(GCC_ROOT)/bin/gfortran</SFC>
+  <SCC>$(GCC_ROOT)/bin/gcc</SCC>
+  <SCXX>$(GCC_ROOT)/bin/g++</SCXX>
+  <MPICC>$(MPI_ROOT)/bin/mpicc</MPICC>
+  <MPICXX>$(MPI_ROOT)/bin/mpicxx</MPICXX>
+  <MPIFC>$(MPI_ROOT)/bin/mpif90</MPIFC>
+</compiler>
+
 <compiler COMPILER="pathscale">
   <CFLAGS>
     <append compile_threaded="true"> -mp </append>
@@ -1540,22 +1553,6 @@ ntel/x86_64/2013/composer_xe_2013/composer_xe_2013_sp1.3.174/mkl/include </base>
     <append compile_threaded="true"> -L$ENV{IBM_MAIN_DIR}/xlf/bg/14.1/bglib64 -lxlfmath -lxlf90_r -lxlopt -lxl -L$ENV{IBM_MAIN_DIR}/xlsmp/bg/3.1/bglib64 -lxlsmp </append>
   </SLIBS>
   <SUPPORTS_CXX>TRUE</SUPPORTS_CXX>
-</compiler>
-
-<compiler MACH="oic5" COMPILER="gnu">
-  <MPICC>/projects/cesm/devtools/mpich-3.0.4-gcc4.8.1/bin/mpicc</MPICC>
-  <MPIFC>/projects/cesm/devtools/mpich-3.0.4-gcc4.8.1/bin/mpif90</MPIFC>
-  <NETCDF_PATH>/projects/cesm/devtools/netcdf-4.1.3-gcc4.8.1-mpich3.0.4/</NETCDF_PATH>
-  <SCC>/projects/cesm/devtools/gcc-4.8.1/bin/gcc</SCC>
-  <SCXX>/projects/cesm/devtools/gcc-4.8.1/bin/g++</SCXX>
-  <SFC>/projects/cesm/devtools/gcc-4.8.1/bin/gfortran</SFC>
-  <SLIBS>
-    <append>-L/user/lib64 -llapack -lblas -lnetcdff </append>
-  </SLIBS>
-</compiler>
-
-<compiler MACH="oic5" COMPILER="pgi">
-  <NETCDF_PATH>/home/zdr/opt/netcdf-4.1.3_pgf95</NETCDF_PATH>
 </compiler>
 
 <compiler MACH="olympus" COMPILER="intel">
