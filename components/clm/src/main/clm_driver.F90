@@ -38,7 +38,7 @@ module clm_driver
   use UrbanFluxesMod         , only : UrbanFluxes 
   use LakeFluxesMod          , only : LakeFluxes
   !
-  use HydrologyNoDrainageMod , only : HydrologyNoDrainage ! (formerly Hydrology2Mod)
+  use HydrologyNoDrainageMod , only : HydrologyNoDrainage, HydrologyPostPFLOTRAN ! (formerly Hydrology2Mod)
   use HydrologyDrainageMod   , only : HydrologyDrainage   ! (formerly Hydrology2Mod)
   use CanopyHydrologyMod     , only : CanopyHydrology     ! (formerly Hydrology1Mod)
   use LakeHydrologyMod       , only : LakeHydrology
@@ -145,7 +145,7 @@ module clm_driver
   use VegetationDataType     , only : veg_ps, veg_pf  
 
   !----------------------------------------------------------------------------
-  ! bgc interface & pflotran:
+  ! clm interface & pflotran:
   use clm_varctl             , only : use_clm_interface
   use clm_instMod            , only : clm_interface_data
   use clm_interface_funcsMod , only : get_clm_data
@@ -947,7 +947,7 @@ contains
                            filter(nc)%num_soilc, filter(nc)%soilc,                      &
                            filter(nc)%num_soilp, filter(nc)%soilp,                      &
                            atm2lnd_vars, soilstate_vars,                                &
-                           waterstate_vars, waterflux_vars,                             &
+                           waterstate_vars, waterflux_vars, soilhydrology_vars,         &
                            temperature_vars, energyflux_vars,                           &
                            cnstate_vars, carbonflux_vars, carbonstate_vars,             &
                            nitrogenflux_vars, nitrogenstate_vars,                       &
@@ -983,6 +983,21 @@ contains
                            waterstate_vars, waterflux_vars,                     &
                            temperature_vars, energyflux_vars,                   &
                            soilstate_vars, soilhydrology_vars)
+
+                       if (pf_hmode) then
+                           call HydrologyPostPFLOTRAN(bounds_clump,                  &
+                               filter(nc)%num_nolakec, filter(nc)%nolakec,           &
+                               filter(nc)%num_hydrologyc, filter(nc)%hydrologyc,     &
+                               filter(nc)%num_hydrononsoic, filter(nc)%hydrononsoic, &
+                               filter(nc)%num_urbanc, filter(nc)%urbanc,             &
+                               filter(nc)%num_snowc, filter(nc)%snowc,               &
+                               filter(nc)%num_nosnowc, filter(nc)%nosnowc,           &
+                               soilstate_vars, temperature_vars,                     &
+                               waterflux_vars, waterstate_vars, soilhydrology_vars,  &
+                               aerosol_vars, soil_water_retention_curve)
+
+                       end if
+
                     end if
 
                     call t_stopf('pflotran')
@@ -1069,18 +1084,18 @@ contains
               col_es%t_soisno(bounds_clump%begc:bounds_clump%endc,1:nlevsoi), &
               soilstate_vars, waterstate_vars, soil_water_retention_curve)
 
-           call ep_betr%SetBiophysForcing(bounds_clump, col_pp, veg_pp,                         &
+           call ep_betr%SetBiophysForcing(bounds_clump, col_pp, veg_pp,                      &
              carbonflux_vars=carbonflux_vars,                                                &
              waterstate_vars=waterstate_vars,         waterflux_vars=waterflux_vars,         &
              temperature_vars=temperature_vars,       soilhydrology_vars=soilhydrology_vars, &
              atm2lnd_vars=atm2lnd_vars,               canopystate_vars=canopystate_vars,     &
-             chemstate_vars=chemstate_vars,           soilstate_vars=soilstate_vars, &
+             chemstate_vars=chemstate_vars,           soilstate_vars=soilstate_vars,         &
              cnstate_vars = cnstate_vars, carbonstate_vars=carbonstate_vars)
 
            if(is_active_betr_bgc)then
              call ep_betr%PlantSoilBGCSend(bounds_clump, col_pp, veg_pp, &
                filter(nc)%num_soilc,  filter(nc)%soilc, cnstate_vars, &
-               carbonflux_vars, c13_carbonflux_vars, c14_carbonflux_vars, nitrogenflux_vars, phosphorusflux_vars,&
+               carbonflux_vars, c13_carbonflux_vars, c14_carbonflux_vars, nitrogenflux_vars, phosphorusflux_vars, &
                PlantMicKinetics_vars)
            endif
            call ep_betr%StepWithoutDrainage(bounds_clump, col_pp, veg_pp)
@@ -1089,7 +1104,7 @@ contains
          if (use_lch4 .and. .not. is_active_betr_bgc) then
            !warning: do not call ch4 before AnnualUpdate, which will fail the ch4 model
            call t_startf('ch4')
-           call CH4 (bounds_clump,                                                                  &
+           call CH4 (bounds_clump,                                                                 &
                filter(nc)%num_soilc, filter(nc)%soilc,                                             &
                filter(nc)%num_lakec, filter(nc)%lakec,                                             &
                filter(nc)%num_soilp, filter(nc)%soilp,                                             &
@@ -1116,21 +1131,25 @@ contains
          ! here for non-soil hydrology columns
          call HydrologyDrainage(bounds_clump,                     &
             filter(nc)%num_nolakec, filter(nc)%nolakec,           &
+            filter(nc)%num_hydrologyc, filter(nc)%hydrologyc,     &
             filter(nc)%num_hydrononsoic, filter(nc)%hydrononsoic, &
             filter(nc)%num_urbanc, filter(nc)%urbanc,             &
             filter(nc)%num_do_smb_c, filter(nc)%do_smb_c,         &
             atm2lnd_vars, glc2lnd_vars, temperature_vars,         &
-            soilhydrology_vars, soilstate_vars, waterstate_vars, waterflux_vars,ep_betr)
+            soilhydrology_vars, soilstate_vars, waterstate_vars,  &
+            waterflux_vars, ep_betr)
 
        else
 
-         call HydrologyDrainage(bounds_clump,                 &
-            filter(nc)%num_nolakec, filter(nc)%nolakec,       &
-            filter(nc)%num_hydrologyc, filter(nc)%hydrologyc, &
-            filter(nc)%num_urbanc, filter(nc)%urbanc,         &                 
-            filter(nc)%num_do_smb_c, filter(nc)%do_smb_c,     &                
-            atm2lnd_vars, glc2lnd_vars, temperature_vars,     &
-            soilhydrology_vars, soilstate_vars, waterstate_vars, waterflux_vars,ep_betr)
+         call HydrologyDrainage(bounds_clump,                     &
+            filter(nc)%num_nolakec, filter(nc)%nolakec,           &
+            filter(nc)%num_hydrologyc, filter(nc)%hydrologyc,     &
+            filter(nc)%num_hydrononsoic, filter(nc)%hydrononsoic, &
+            filter(nc)%num_urbanc, filter(nc)%urbanc,             &
+            filter(nc)%num_do_smb_c, filter(nc)%do_smb_c,         &
+            atm2lnd_vars, glc2lnd_vars, temperature_vars,         &
+            soilhydrology_vars, soilstate_vars, waterstate_vars,  &
+            waterflux_vars, ep_betr)
 
        end if
 

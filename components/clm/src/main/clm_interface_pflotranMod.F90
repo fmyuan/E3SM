@@ -3338,13 +3338,13 @@ contains
       watsat          => clm_interface_data%watsat       , & ! volumetric soil water at saturation (porosity) (nlevgrnd)
       sucmin          => clm_interface_data%sucmin       , & ! restriction for min of soil potential (mm) (nlevgrnd)
       !
-      soilpsi         => clm_interface_data%th%soilpsi   , & ! soil water matric potential in each soil layer (Pa)
-      h2osoi_liq      => clm_interface_data%th%h2osoi_liq, & ! liquid water (kg/m2)
-      h2osoi_ice      => clm_interface_data%th%h2osoi_ice, & ! ice lens (kg/m2)
-      h2osoi_vol      => clm_interface_data%th%h2osoi_vol, & ! volumetric soil water (0<=h2osoi_vol<=watsat) [m3/m3]
-      zwt             => clm_interface_data%th%zwt       , & ! water table depth (m)
-      zwt_perched     => clm_interface_data%th%zwt_perched, & ! perched water table depth (m)
-      frost_table     => clm_interface_data%th%frost_table  & ! [Input]frost table depth (m)
+      soilpsi         => clm_interface_data%th%soilpsi     , & ! soil water matric potential in each soil layer (Pa)
+      h2osoi_liq      => clm_interface_data%th%h2osoi_liq  , & ! liquid water (kg/m2)
+      h2osoi_ice      => clm_interface_data%th%h2osoi_ice  , & ! ice lens (kg/m2)
+      h2osoi_vol      => clm_interface_data%th%h2osoi_vol  , & ! volumetric soil water (0<=h2osoi_vol<=watsat) [m3/m3]
+      zwt             => clm_interface_data%th%zwt         , & ! water table depth (m)
+      zwt_perched     => clm_interface_data%th%zwt_perched , & ! perched water table depth (m)
+      frost_table     => clm_interface_data%th%frost_table   & ! frost table depth (m)
      )
     !
     call VecGetArrayReadF90(clm_pf_idata%soillsat_clms, sat_liq_clm_loc, ierr)

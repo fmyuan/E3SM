@@ -33,12 +33,13 @@ module HydrologyDrainageMod
 contains
 
   !-----------------------------------------------------------------------
-  subroutine HydrologyDrainage(bounds,    &
-       num_nolakec, filter_nolakec,       &
-       num_hydrologyc, filter_hydrologyc, &
-       num_urbanc, filter_urbanc,         &
-       num_do_smb_c, filter_do_smb_c,     &
-       atm2lnd_vars, glc2lnd_vars, temperature_vars,    &
+  subroutine HydrologyDrainage(bounds,               &
+       num_nolakec, filter_nolakec,                  &
+       num_hydrologyc, filter_hydrologyc,            &
+       num_hydrononsoic, filter_hydrononsoic,        &
+       num_urbanc, filter_urbanc,                    &
+       num_do_smb_c, filter_do_smb_c,                &
+       atm2lnd_vars, glc2lnd_vars, temperature_vars, &
        soilhydrology_vars, soilstate_vars, waterstate_vars, waterflux_vars, ep_betr)
     !
     ! !DESCRIPTION:
@@ -54,6 +55,7 @@ contains
     use SoilHydrologyMod , only : CLMVICMap, Drainage
     use clm_varctl       , only : use_vsfm
     use BeTRSimulationALM, only : betr_simulation_alm_type
+    use clm_varctl       , only : use_pflotran, pf_hmode
     !
     ! !ARGUMENTS:
     type(bounds_type)        , intent(in)    :: bounds               
@@ -61,6 +63,8 @@ contains
     integer                  , intent(in)    :: filter_nolakec(:)    ! column filter for non-lake points
     integer                  , intent(in)    :: num_hydrologyc       ! number of column soil points in column filter
     integer                  , intent(in)    :: filter_hydrologyc(:) ! column filter for soil points
+    integer                  , intent(in)    :: num_hydrononsoic        ! number of non-soil landunit points in hydrology filter
+    integer                  , intent(in)    :: filter_hydrononsoic(:)  ! column filter for non-soil hydrology points
     integer                  , intent(in)    :: num_urbanc           ! number of column urban points in column filter
     integer                  , intent(in)    :: filter_urbanc(:)     ! column filter for urban points
     integer                  , intent(in)    :: num_do_smb_c         ! number of bareland columns in which SMB is calculated, in column filter    
@@ -80,8 +84,8 @@ contains
     !-----------------------------------------------------------------------
     
     associate(                                                                  &    
-         dz                     => col_pp%dz                                     , & ! Input:  [real(r8) (:,:) ]  layer thickness depth (m)                       
-         ctype                  => col_pp%itype                                  , & ! Input:  [integer  (:)   ]  column type                                        
+         dz                     => col_pp%dz                                  , & ! Input:  [real(r8) (:,:) ]  layer thickness depth (m)
+         ctype                  => col_pp%itype                               , & ! Input:  [integer  (:)   ]  column type
 
          qflx_floodg            => atm2lnd_vars%forc_flood_grc                , & ! Input:  [real(r8) (:)   ]  gridcell flux of flood water from RTM             
          forc_rain              => top_af%rain                                , & ! Input:  [real(r8) (:)   ]  rain rate (kg H2O/m**2/s, or mm liquid H2O/s)                                  
@@ -91,18 +95,18 @@ contains
 
          wa                     => soilhydrology_vars%wa_col                  , & ! Input:  [real(r8) (:)   ]  water in the unconfined aquifer (mm)              
          
-         h2osoi_liq_depth_intg  => col_ws%h2osoi_liq_depth_intg , & ! Output: [real(r8) (:)   ]  grid-level depth integrated liquid soil water
-         h2osoi_ice_depth_intg  => col_ws%h2osoi_ice_depth_intg , & ! Output: [real(r8) (:)   ]  grid-level depth integrated ice soil water
-         h2ocan                 => col_ws%h2ocan                 , & ! Input:  [real(r8) (:)   ]  canopy water (mm H2O)                             
-         h2osfc                 => col_ws%h2osfc                 , & ! Input:  [real(r8) (:)   ]  surface water (mm)                                
-         h2osno                 => col_ws%h2osno                 , & ! Input:  [real(r8) (:)   ]  snow water (mm H2O)                               
-         begwb                  => col_ws%begwb                  , & ! Input:  [real(r8) (:)   ]  water mass begining of the time step              
-         endwb                  => col_ws%endwb                  , & ! Output: [real(r8) (:)   ]  water mass end of the time step                   
-         h2osoi_ice             => col_ws%h2osoi_ice             , & ! Output: [real(r8) (:,:) ]  ice lens (kg/m2)                                
-         h2osoi_liq             => col_ws%h2osoi_liq             , & ! Output: [real(r8) (:,:) ]  liquid water (kg/m2)                            
-         h2osoi_vol             => col_ws%h2osoi_vol             , & ! Output: [real(r8) (:,:) ]  volumetric soil water (0<=h2osoi_vol<=watsat) [m3/m3]
-         snow_persistence       => col_ws%snow_persistence       , & ! Output: [real(r8) (:)   ]  counter for length of time snow-covered
-         total_plant_stored_h2o => col_ws%total_plant_stored_h2o , & ! Input [real(r8) (:) dynamic water stored in plants]
+         h2osoi_liq_depth_intg  => col_ws%h2osoi_liq_depth_intg   , & ! Output: [real(r8) (:)   ]  grid-level depth integrated liquid soil water
+         h2osoi_ice_depth_intg  => col_ws%h2osoi_ice_depth_intg   , & ! Output: [real(r8) (:)   ]  grid-level depth integrated ice soil water
+         h2ocan                 => col_ws%h2ocan                  , & ! Input:  [real(r8) (:)   ]  canopy water (mm H2O)
+         h2osfc                 => col_ws%h2osfc                  , & ! Input:  [real(r8) (:)   ]  surface water (mm)
+         h2osno                 => col_ws%h2osno                  , & ! Input:  [real(r8) (:)   ]  snow water (mm H2O)
+         begwb                  => col_ws%begwb                   , & ! Input:  [real(r8) (:)   ]  water mass begining of the time step
+         endwb                  => col_ws%endwb                   , & ! Output: [real(r8) (:)   ]  water mass end of the time step
+         h2osoi_ice             => col_ws%h2osoi_ice              , & ! Output: [real(r8) (:,:) ]  ice lens (kg/m2)
+         h2osoi_liq             => col_ws%h2osoi_liq              , & ! Output: [real(r8) (:,:) ]  liquid water (kg/m2)
+         h2osoi_vol             => col_ws%h2osoi_vol              , & ! Output: [real(r8) (:,:) ]  volumetric soil water (0<=h2osoi_vol<=watsat) [m3/m3]
+         snow_persistence       => col_ws%snow_persistence        , & ! Output: [real(r8) (:)   ]  counter for length of time snow-covered
+         total_plant_stored_h2o => col_ws%total_plant_stored_h2o  , & ! Input [real(r8) (:) dynamic water stored in plants]
          qflx_evap_tot          => col_wf%qflx_evap_tot           , & ! Input:  [real(r8) (:)   ]  qflx_evap_soi + qflx_evap_can + qflx_tran_veg     
          qflx_irrig             => col_wf%qflx_irrig              , & ! Input:  [real(r8) (:)   ]  irrigation flux (mm H2O /s)                       
          qflx_glcice_melt       => col_wf%qflx_glcice_melt        , & ! Input:  [real(r8) (:)]  ice melt (positive definite) (mm H2O/s)      
@@ -136,10 +140,23 @@ contains
       endif
 
       if (.not. use_vsfm) then
+        !------------------------------------------------------------------------------------
+        if (use_pflotran .and. pf_hmode) then
+         ! only call original 'Drainage' module for non-soil-hydrology column
+         call Drainage(bounds, num_hydrononsoic, filter_hydrononsoic, &
+              num_urbanc, filter_urbanc,&
+              temperature_vars, soilhydrology_vars, soilstate_vars, &
+              waterstate_vars, waterflux_vars)
+
+        else
+        !------------------------------------------------------------------------------------
          call Drainage(bounds, num_hydrologyc, filter_hydrologyc, &
               num_urbanc, filter_urbanc,&
               temperature_vars, soilhydrology_vars, soilstate_vars, &
               waterstate_vars, waterflux_vars)
+        !------------------------------------------------------------------------------------
+        endif
+        !------------------------------------------------------------------------------------
       endif
 
       if (use_betr) then

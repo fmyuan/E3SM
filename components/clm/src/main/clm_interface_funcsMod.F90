@@ -139,11 +139,11 @@ contains
 
 
 !--------------------------------------------------------------------------------------
-  subroutine get_clm_data(clm_idata,                              &
-           bounds, num_soilc, filter_soilc,                       &
+  subroutine get_clm_data(clm_idata, bounds,                      &
+           num_soilc, filter_soilc,                               &
            num_soilp, filter_soilp,                               &
            atm2lnd_vars, soilstate_vars,                          &
-           waterstate_vars, waterflux_vars,                       &
+           waterstate_vars, waterflux_vars, soilhydrology_vars,   &
            temperature_vars, energyflux_vars,                     &
            cnstate_vars, carbonflux_vars, carbonstate_vars,       &
            nitrogenflux_vars, nitrogenstate_vars,                 &
@@ -151,10 +151,10 @@ contains
            ch4_vars                                               &
            )
 
-
     ! global variables
     ! a note - those '_vars' from above as 'in' NOW should be removed sooner or later. (2019-03-13, fmy)
-    use ColumnDataType    , only : col_es, col_ef, col_ws, col_wf
+    use ColumnDataType    , only : col_es, col_ef
+    use ColumnDataType    , only : col_ws, col_wf
     use ColumnDataType    , only : col_cs, col_cf
     use ColumnDataType    , only : col_ns, col_nf
     use ColumnDataType    , only : col_ps, col_pf
@@ -169,6 +169,7 @@ contains
     integer                     , intent(in)    :: filter_soilp(:)   ! filter for soil patches
     type(atm2lnd_type)          , intent(in)    :: atm2lnd_vars
     type(soilstate_type)        , intent(in)    :: soilstate_vars
+    type(soilhydrology_type)    , intent(in)    :: soilhydrology_vars
 
     type(waterstate_type)       , intent(in)    :: waterstate_vars
     type(waterflux_type)        , intent(in)    :: waterflux_vars
@@ -783,7 +784,8 @@ contains
 !--------------------------------------------------------------------------------------
   subroutine update_soil_moisture(clm_idata_th,     &
            bounds, num_soilc, filter_soilc,         &
-           soilstate_vars, waterstate_vars, waterflux_vars)
+           soilstate_vars, soilhydrology_vars,      &
+           waterstate_vars, waterflux_vars)
 
   !
   ! !DESCRIPTION:
@@ -798,6 +800,8 @@ contains
     integer, intent(in) :: num_soilc        ! number of column soil points in column filter
     integer, intent(in) :: filter_soilc(:)  ! column filter for soil points
     type(soilstate_type),     intent(inout) :: soilstate_vars
+    type(soilhydrology_type), intent(inout) :: soilhydrology_vars
+
     type(column_water_state), intent(inout) :: waterstate_vars
     type(column_water_flux),  intent(inout) :: waterflux_vars
 
@@ -815,15 +819,20 @@ contains
          h2osoi_ice =>  waterstate_vars%h2osoi_ice      , &
          h2osoi_vol =>  waterstate_vars%h2osoi_vol      , &
          !
-         qflx_drain_perched     => waterflux_vars%qflx_drain_perched      , & ! Output: [real(r8) (:)   ]  sub-surface runoff from perched zwt (mm H2O /s)
-         qflx_rsub_sat          => waterflux_vars%qflx_rsub_sat           , & ! Output: [real(r8) (:)   ]  soil saturation excess flow (exfiltraion) [mm h2o/s]
-         qflx_drain             => waterflux_vars%qflx_drain              , & ! Output: [real(r8) (:)   ]  sub-surface runoff/drainage at bottom (mm H2O /s)
-         qflx_lateral           => waterflux_vars%qflx_lateral            , & ! Output: [real(r8) (:)   ]  sub-surface runoff/drainage laterally (mm H2O /s)
-         qflx_surf              => waterflux_vars%qflx_surf               , & ! Output: [real(r8) (:)   ]  soil surface runoff (mm H2O /s)
-         qflx_h2osfc_surf       => waterflux_vars%qflx_h2osfc_surf        , & ! Output: [real(r8) (:)   ]  surface (pond) water runoff (mm/s)
-         qflx_infl              => waterflux_vars%qflx_infl               , & ! Output: [real(r8) (:)   ]  infiltration (mm H2O /s)
-         qflx_qrgwl             => waterflux_vars%qflx_qrgwl              , & ! Output: [real(r8) (:)   ]  qflx_surf at glaciers, wetlands, lakes
-         qflx_runoff            => waterflux_vars%qflx_runoff               & ! Output: [real(r8) (:)   ]  total water losses to currents from column (qflx_drain+qflx_surf+qflx_qrgwl) (mm H2O /s)
+         qflx_drain_perched     => waterflux_vars%qflx_drain_perched      , & ! sub-surface runoff from perched zwt (mm H2O /s)
+         qflx_rsub_sat          => waterflux_vars%qflx_rsub_sat           , & ! soil saturation excess flow (exfiltraion) [mm h2o/s]
+         qflx_drain             => waterflux_vars%qflx_drain              , & ! sub-surface runoff/drainage at bottom (mm H2O /s)
+         qflx_lateral           => waterflux_vars%qflx_lateral            , & ! sub-surface runoff/drainage laterally (mm H2O /s)
+         qflx_surf              => waterflux_vars%qflx_surf               , & ! soil surface runoff (mm H2O /s)
+         qflx_h2osfc_surf       => waterflux_vars%qflx_h2osfc_surf        , & ! surface (pond) water runoff (mm/s)
+         qflx_infl              => waterflux_vars%qflx_infl               , & ! infiltration (mm H2O /s)
+         qflx_qrgwl             => waterflux_vars%qflx_qrgwl              , & ! qflx_surf at glaciers, wetlands, lakes
+         qflx_runoff            => waterflux_vars%qflx_runoff             , & ! total water losses to currents from column (qflx_drain+qflx_surf+qflx_qrgwl) (mm H2O /s)
+
+         zwt                    => soilhydrology_vars%zwt_col             , & ! water table depth (m)
+         zwt_perched            => soilhydrology_vars%zwt_perched_col     , & ! perched water table depth (m)
+         frost_table            => soilhydrology_vars%frost_table_col       & ! frost table depth (m)
+
     )
 
     ! states
@@ -838,6 +847,11 @@ contains
         h2osoi_liq(c,:) =  clm_idata_th%h2osoi_liq(c,:)
         h2osoi_ice(c,:) =  clm_idata_th%h2osoi_ice(c,:)
         h2osoi_vol(c,:) =  clm_idata_th%h2osoi_vol(c,:)
+
+        zwt(c)          =  clm_idata_th%zwt(c)
+        zwt_perched(c)  =  clm_idata_th%zwt_perched(c)
+        frost_table(c)  =  clm_idata_th%frost_table(c)
+
     end do
 
     ! fluxes
@@ -858,8 +872,8 @@ contains
         qflx_h2osfc_surf(c)   = clm_idata_th%qflx_h2osfc(c)
         qflx_lateral(c)       = clm_idata_th%qflx_lateral(c)
 
-        qflx_qrgwl(c)         = 0._r8
-        qflx_drain_perched(c) = 0._r8
+        qflx_qrgwl(c)         = 0._r8 ! not available
+        qflx_drain_perched(c) = 0._r8 ! not available
 
         ! add amount of ET adjusted by PFLOTRAN into 'qflx_surf' so that counted correctly in balance-checking
         ! NOTE: this is a work-around, especially when surface module not coupled with pflotran.
@@ -956,7 +970,7 @@ contains
     if (pf_hmode) then
         call update_soil_moisture(clm_idata_th,         &
                    bounds, num_soilc, filter_soilc,     &
-                   soilstate_vars,                      &
+                   soilstate_vars, soilhydrology_vars,  &
                    col_ws, col_wf)
     end if
 
