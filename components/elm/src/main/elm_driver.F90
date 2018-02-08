@@ -1104,7 +1104,7 @@ contains
 
                 call SatellitePhenology(bounds_clump,               &
                      filter(nc)%num_nolakep, filter(nc)%nolakep,    &
-                     waterstate_vars, canopystate_vars)
+                     waterstate_vars, canopystate_vars, temperature_vars, soilstate_vars)
              end if
 
           end if  ! end of if-use_cn   or if-use_fates
@@ -1252,7 +1252,7 @@ contains
        if (use_cn .and. doalb) then
            call VegStructUpdate(filter(nc)%num_soilp, filter(nc)%soilp,   &
                 frictionvel_vars, cnstate_vars, &
-                canopystate_vars, crop_vars)
+                canopystate_vars, crop_vars, soilhydrology_vars)
        end if
 
 
