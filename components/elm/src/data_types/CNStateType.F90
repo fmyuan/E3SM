@@ -116,6 +116,8 @@ module CNStateType
      real(r8), pointer :: onset_gddflag_patch          (:)     ! patch onset flag for growing degree day sum
      real(r8), pointer :: onset_fdd_patch              (:)     ! patch onset freezing degree days counter
      real(r8), pointer :: onset_gdd_patch              (:)     ! patch onset growing degree days
+     real(r8), pointer :: onset_chil_patch             (:)
+     real(r8), pointer :: dayl_temp                    (:)
      real(r8), pointer :: onset_swi_patch              (:)     ! patch onset soil water index
      real(r8), pointer :: offset_flag_patch            (:)     ! patch offset flag
      real(r8), pointer :: offset_counter_patch         (:)     ! patch offset days counter
@@ -303,6 +305,8 @@ contains
     allocate(this%onset_gddflag_patch         (begp:endp)) ;    this%onset_gddflag_patch         (:) = spval
     allocate(this%onset_fdd_patch             (begp:endp)) ;    this%onset_fdd_patch             (:) = spval
     allocate(this%onset_gdd_patch             (begp:endp)) ;    this%onset_gdd_patch             (:) = spval
+    allocate(this%onset_chil_patch            (begp:endp)) ;    this%onset_chil_patch            (:) = spval
+    allocate(this%dayl_temp                   (begp:endp)) ;    this%dayl_temp                   (:) = spval
     allocate(this%onset_swi_patch             (begp:endp)) ;    this%onset_swi_patch             (:) = spval
     allocate(this%offset_flag_patch           (begp:endp)) ;    this%offset_flag_patch           (:) = spval
     allocate(this%offset_counter_patch        (begp:endp)) ;    this%offset_counter_patch        (:) = spval
@@ -545,6 +549,11 @@ contains
     call hist_addfld1d (fname='ONSET_GDDFLAG', units='1', &
          avgflag='A', long_name='onset flag for growing degree day sum', &
          ptr_patch=this%onset_gddflag_patch, default='inactive')
+
+    this%onset_chil_patch(begp:endp) = spval
+    call hist_addfld1d (fname='ONSET_CHIL', units='none', &
+         avgflag='A', long_name='onset chilling day sum', &
+         ptr_patch=this%onset_chil_patch, default='inactive')
 
     this%onset_fdd_patch(begp:endp) = spval
     call hist_addfld1d (fname='ONSET_FDD', units='C degree-days', &
@@ -1064,6 +1073,8 @@ contains
           this%onset_gddflag_patch(p)         = spval
           this%onset_fdd_patch(p)             = spval
           this%onset_gdd_patch(p)             = spval
+          this%onset_chil_patch(p)            = spval
+          this%dayl_temp(p)                   = spval
           this%onset_swi_patch(p)             = spval
           this%offset_flag_patch(p)           = spval
           this%offset_counter_patch(p)        = spval
@@ -1110,6 +1121,8 @@ contains
           this%onset_gddflag_patch(p)  = 0._r8
           this%onset_fdd_patch(p)      = 0._r8
           this%onset_gdd_patch(p)      = 0._r8
+          this%onset_chil_patch(p)     = 0._r8
+          this%dayl_temp(p)            = 0._r8
           this%onset_swi_patch(p)      = 0._r8
           this%offset_flag_patch(p)    = 0._r8
           this%offset_counter_patch(p) = 0._r8
@@ -1211,6 +1224,11 @@ contains
          dim1name='pft', &
          long_name='onset growing degree days', units='days' , &
          interpinic_flag='interp', readvar=readvar, data=this%onset_gdd_patch) 
+
+    call restartvar(ncid=ncid, flag=flag, varname='onset_chil', xtype=ncd_double,  &
+         dim1name='pft', &
+         long_name='onset chilling day sum', units='days' , &
+         interpinic_flag='interp', readvar=readvar, data=this%onset_chil_patch)
 
     call restartvar(ncid=ncid, flag=flag, varname='onset_swi', xtype=ncd_double,  &
          dim1name='pft', &
