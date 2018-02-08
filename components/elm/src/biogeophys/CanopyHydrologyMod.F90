@@ -875,6 +875,11 @@ contains
                     enddo
                     !--  update the submerged areal fraction using the new d value
                     frac_h2osfc(c) = 0.5*(1.0_r8+erf(d/(sigma*sqrt(2.0))))
+
+#if (defined HUM_HOL)
+                    frac_h2osfc(c) = 0.99_r8
+#endif
+
                 endif ! end if polygonal test
              else ! if h2osfc(c) <= min_h2osfc
                 frac_h2osfc(c) = 0._r8

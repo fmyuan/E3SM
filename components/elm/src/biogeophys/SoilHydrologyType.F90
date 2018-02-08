@@ -896,6 +896,9 @@ contains
      ! preset values
      origflag = 0
      h2osfcflag = 1
+#if (defined HUM_HOL)
+     origflag = 1    
+#endif      
 
      if ( masterproc )then
 
