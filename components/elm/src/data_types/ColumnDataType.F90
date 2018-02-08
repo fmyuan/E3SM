@@ -516,6 +516,12 @@ module ColumnDataType
     real(r8), pointer :: qflx_over_supply     (:)   => null() ! col over supplied irrigation
     real(r8), pointer :: qflx_h2orof_drain    (:)   => null() ! drainage from floodplain inundation volume (mm H2O/s))
 
+    !Hummock-Hollow
+    real(r8), pointer :: qflx_lat_aqu_layer   (:,:) => null() ! lateral flow for each layer
+    real(r8), pointer :: qflx_lat_aqu         (:)   => null() ! total lateral flow
+    real(r8), pointer :: qflx_surf_input      (:)   => null() ! surface runoff input to hollow (mmH2O /s)
+    real(r8), pointer :: qflx_tran_veg_sat    (:)   => null() ! col vegetation transpiration (mm H2O/s) (+ = to atm)
+
     real(r8), pointer :: mflx_infl_1d         (:)   => null() ! infiltration source in top soil control volume (kg H2O /s)
     real(r8), pointer :: mflx_dew_1d          (:)   => null() ! liquid+snow dew source in top soil control volume (kg H2O /s)
     real(r8), pointer :: mflx_et_1d           (:)   => null() ! evapotranspiration sink from all soil coontrol volumes (kg H2O /s)
@@ -5737,6 +5743,10 @@ contains
     allocate(this%qflx_over_supply       (begc:endc))             ; this%qflx_over_supply     (:)   = spval
     allocate(this%qflx_irr_demand        (begc:endc))             ; this%qflx_irr_demand      (:)   = spval
     allocate(this%qflx_h2orof_drain      (begc:endc))             ; this%qflx_h2orof_drain    (:)   = spval
+    allocate(this%qflx_surf_input        (begc:endc))             ; this%qflx_surf_input      (:)   = spval
+    allocate(this%qflx_lat_aqu           (begc:endc))             ; this%qflx_lat_aqu         (:)   = spval
+    allocate(this%qflx_lat_aqu_layer     (begc:endc,1:nlevgrnd))  ; this%qflx_lat_aqu_layer   (:,:) = spval
+    allocate(this%qflx_tran_veg_sat      (begc:endc))             ; this%qflx_tran_veg_sat    (:)   = spval
 
     !VSFM variables
     ncells = endc - begc + 1
@@ -5875,6 +5885,15 @@ contains
           avgflag='A', long_name='snow sinks (liquid water)', &
            ptr_col=this%snow_sinks, c2l_scale_type='urbanf')
 
+#if (defined HUM_HOL)
+    this%qflx_lat_aqu(begc:endc) = spval
+    call hist_addfld1d (fname='QFLX_LAT_AQU',  units='mm/s',  &
+          avgflag='A', &
+          long_name='total liquid water flux laterally from aqu column', &
+           ptr_col=this%qflx_lat_aqu, c2l_scale_type='urbanf', default='inactive')
+
+
+#endif
     !-----------------------------------------------------------------------
     ! set cold-start initial values for select members of col_wf
     !-----------------------------------------------------------------------
@@ -5898,6 +5917,13 @@ contains
           this%qflx_surf(c)  = 0._r8
        end if
     end do
+
+    this%qflx_tran_veg_sat(begc:endc) = 0._r8
+#if (defined HUM_HOL)
+    qflx_lat_aqu_layer(begc:endc,:) = 0._r8
+    qflx_lat_aqu      (begc:endc) = 0._r8
+    qflx_surf_input   (begc:endc) = 0._r8
+#endif
 
   end subroutine col_wf_init
 
