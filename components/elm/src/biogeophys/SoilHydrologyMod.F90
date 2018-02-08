@@ -98,6 +98,7 @@ contains
 
          h2osoi_ice       =>    col_ws%h2osoi_ice      , & ! Input:  [real(r8) (:,:) ]  ice lens (kg/m2)
          h2osoi_liq       =>    col_ws%h2osoi_liq      , & ! Output: [real(r8) (:,:) ]  liquid water (kg/m2)
+         h2osfc           =>    col_ws%h2osfc          , & !Output: [real(r8) (:)   ]  surface water (mm) 
 
          qflx_snow_h2osfc =>    col_wf%qflx_snow_h2osfc , & ! Input:  [real(r8) (:)   ]  snow falling on surface water (mm/s)
          qflx_floodc      =>    col_wf%qflx_floodc      , & ! Input:  [real(r8) (:)   ]  column flux of flood water from RTM
@@ -310,6 +311,9 @@ contains
      use ocn2lndType      , only : ocn2lnd_type
      use lnd2atmType      , only : lnd2atm_type
      use subgridAveMod    , only : c2g
+     use abortutils       , only : endrun
+     use elm_time_manager , only : get_curr_date, get_curr_time
+     use elm_varcon       , only : secspday
      !
      ! !ARGUMENTS:
      type(bounds_type)        , intent(in)    :: bounds
@@ -426,7 +430,9 @@ contains
           h2osfcflag           =>    soilhydrology_vars%h2osfcflag           , & ! Input:  logical
           pc_grid              =>    soilhydrology_vars%pc                   , & ! Input:  [real(r8) (:)   ]  threshold for outflow from surface water storage
           icefrac              =>    soilhydrology_vars%icefrac_col          , & ! Output: [real(r8) (:,:) ]  fraction of ice
-          h2osfc_p             =>    col_ws%h2osfc_p                           & ! Input:  [real(r8) (:,:) ]  h2osfc from previous timestep
+          h2osfc_p             =>    col_ws%h2osfc_p                         , & ! Input:  [real(r8) (:,:) ]  h2osfc from previous timestep
+          h2osoi_vol           =>    col_ws%h2osoi_vol                       , & ! Input: [real(r8) (:,:) ]  volumetric soil water (0<=h2osoi_vol<=watsat) [m3/m3]
+          zi                   =>    col_pp%zi                                 & ! Input: [real(r8) (:,:) ]  interface level below a "z" level (m)
               )
 
 
@@ -1222,6 +1228,7 @@ contains
           qflx_rsub_sat      =>    col_wf%qflx_rsub_sat      , & ! Output: [real(r8) (:)   ] soil saturation excess [mm h2o/s]
           qflx_drain_perched =>    col_wf%qflx_drain_perched , & ! Output: [real(r8) (:)   ] perched wt sub-surface runoff (mm H2O /s)
           qflx_lnd2ocn       =>    col_wf%qflx_lnd2ocn       , & ! Output: [real(r8) (:)   ] lateral flow from lnd to ocn (mm H2O /s)
+          qflx_drain_vr      =>    col_wf%qflx_drain_vr      , & ! Output: [real(r8) (:)   ] sub-surface runoff (mm H2O /time step)
 
           h2osoi_liq         =>    col_ws%h2osoi_liq        , & ! Output: [real(r8) (:,:) ] liquid water (kg/m2)
           h2osoi_ice         =>    col_ws%h2osoi_ice          & ! Output: [real(r8) (:,:) ] ice lens (kg/m2)
@@ -1252,6 +1259,7 @@ contains
           rsub_top(c)      = 0._r8
           fracice_rsub(c)  = 0._r8
           qflx_qrgwl(c)    = 0._r8
+          qflx_drain_vr(c,:) = 0._r8
        end do
 
        ! The layer index of the first unsaturated layer, i.e., the layer right above
@@ -1338,6 +1346,7 @@ contains
                 rsub_top_tot = rsub_top_tot - rsub_top_layer
 
                 h2osoi_liq(c,k) = h2osoi_liq(c,k) + rsub_top_layer
+                qflx_drain_vr(c,k) = qflx_drain_vr(c,k) - rsub_top_layer
 
                 if (rsub_top_tot >= 0.) then
                    zwt(c) = zwt(c) - rsub_top_layer/eff_porosity(c,k)/1000._r8
@@ -1422,6 +1431,7 @@ contains
                    rsub_top_tot = rsub_top_tot - rsub_top_layer
 
                    h2osoi_liq(c,k) = h2osoi_liq(c,k) + rsub_top_layer
+                   qflx_drain_vr(c,k) = qflx_drain_vr(c,k) - rsub_top_layer
 
                    if (rsub_top_tot >= 0.) then
                       zwt_perched(c) = zwt_perched(c) - rsub_top_layer/eff_porosity(c,k)/1000._r8
@@ -1515,6 +1525,7 @@ contains
                  rsub_top_layer=max(rsub_top_tot,-(s_y*(zi(c,nlevbed) - zwt(c))*1.e3_r8))
                  rsub_top_layer=min(rsub_top_layer,0._r8)
                  h2osoi_liq(c,nlevbed) = h2osoi_liq(c,nlevbed) + rsub_top_layer
+                 qflx_drain_vr(c,nlevbed) = qflx_drain_vr(c,nlevbed) - rsub_top_layer
                  rsub_top_tot = rsub_top_tot - rsub_top_layer
                  if (rsub_top_tot >= 0._r8) then
                     zwt(c) = zwt(c) - rsub_top_layer/s_y/1000._r8
@@ -1567,6 +1578,7 @@ contains
                          rsub_top_layer=min(rsub_top_layer,0._r8)
                          if (use_vsfm) rsub_top_layer = 0._r8
                          h2osoi_liq(c,j) = h2osoi_liq(c,j) + rsub_top_layer
+                         qflx_drain_vr(c,j) = qflx_drain_vr(c,j) - rsub_top_layer
 
                          rsub_top_tot = rsub_top_tot - rsub_top_layer
 
@@ -1679,6 +1691,8 @@ contains
                 ! use original code to send water to drainage (non-h2osfc case)
                 qflx_rsub_sat(c)     = xs1(c) / dtime
              endif
+             ! Not sure if it makes sense to include this in qflx_drain_vr?
+            !  qflx_drain_vr(c,1) = qflx_drain_vr(c,1) + xs1(c)
           endif
 
           if (use_vsfm) qflx_rsub_sat(c) = 0._r8
