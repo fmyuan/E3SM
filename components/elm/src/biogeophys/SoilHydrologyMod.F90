@@ -55,6 +55,9 @@ contains
     use elm_varpar      , only : nlevsoi, nlevgrnd, maxpatch_pft
     use elm_varpar      , only : nlayer, nlayert
     use elm_varctl      , only : use_var_soil_thick, use_IM2_hillslope_hydrology
+#if (defined HUM_HOL)
+    use pftvarcon       , only : humhol_ht
+#endif
     use SoilWaterMovementMod, only : zengdecker_2009_with_var_soil_thick
     !
     ! !ARGUMENTS:
@@ -98,6 +101,7 @@ contains
 
          h2osoi_ice       =>    col_ws%h2osoi_ice      , & ! Input:  [real(r8) (:,:) ]  ice lens (kg/m2)
          h2osoi_liq       =>    col_ws%h2osoi_liq      , & ! Output: [real(r8) (:,:) ]  liquid water (kg/m2)
+         h2osfc           =>    col_ws%h2osfc          , & !Output: [real(r8) (:)   ]  surface water (mm) 
 
          qflx_snow_h2osfc =>    col_wf%qflx_snow_h2osfc , & ! Input:  [real(r8) (:)   ]  snow falling on surface water (mm/s)
          qflx_floodc      =>    col_wf%qflx_floodc      , & ! Input:  [real(r8) (:)   ]  column flux of flood water from RTM
@@ -176,6 +180,9 @@ contains
          else
             fsat(c) = wtfact(c) * exp(-0.5_r8*fff(c)*zwt(c))
          end if
+#if (defined HUM_HOL)
+         fsat(c) = 1.0_r8 * exp(-3.0_r8/humhol_ht*(zwt(c)))   !at 30cm, hummock saturated at 5%
+#endif
 
          ! use perched water table to determine fsat (if present)
          if ( frost_table(c) > zwt(c)) then
@@ -184,10 +191,16 @@ contains
             else
                fsat(c) = wtfact(c) * exp(-0.5_r8*fff(c)*zwt(c))
             end if
+#if (defined HUM_HOL)
+            fsat(c) = 1.0_r8 * exp(-3.0_r8/humhol_ht*(zwt(c)))   !at 30cm, hummock saturated at 5%
+#endif
          else
             if ( frost_table(c) > zwt_perched(c)) then
                fsat(c) = wtfact(c) * exp(-0.5_r8*fff(c)*zwt_perched(c))!*( frost_table(c) - zwt_perched(c))/4.0
             endif
+#if (defined HUM_HOL)
+            fsat(c) = 1.0_r8 * exp(-3.0_r8/humhol_ht*(zwt(c)))   !at 30cm, hummock saturated at 5%
+#endif   
          endif
          if (origflag == 1) then
             if (use_vichydro) then
@@ -212,6 +225,15 @@ contains
             ! assume qinmax large relative to qflx_top_soil in control
             if (origflag == 1) then
                qflx_surf(c) =  fcov(c) * qflx_top_soil(c)
+
+#if (defined HUM_HOL)
+               if (c .eq. 1) then  !XS - only compute sfc runoff from hummock, send to hollow
+                  qflx_surf(c) =  fcov(c) * qflx_top_soil(c)
+               else
+                  qflx_surf(c) = 0._r8   !turn off surface runoff for hollow
+               endif
+#endif
+
             else
                ! only send fast runoff directly to streams
                qflx_surf(c) =   fsat(c) * qflx_top_soil(c)
@@ -309,6 +331,9 @@ contains
      use atm2lndType      , only : atm2lnd_type ! land river two way coupling
      use lnd2atmType      , only : lnd2atm_type
      use subgridAveMod    , only : c2g
+#if (defined HUM_HOL)
+     use pftvarcon        , only : humhol_ht, humhol_dist, hum_frac, qflx_h2osfc_surfrate
+#endif
      !
      ! !ARGUMENTS:
      type(bounds_type)        , intent(in)    :: bounds
@@ -361,6 +386,14 @@ contains
      real(r8) :: top_icefrac                                ! temporary, ice fraction in top VIC layers
      real(r8) :: h2osoi_left_vol1                           ! temporary, available volume in the first soil layer
      real(r8) :: pc                                         ! temporary, threhold for surface water storage to outflow
+     ! variables for HUM_HOL
+     real(r8) :: dzmm(bounds%begc:bounds%endc,1:nlevsoi)   ! layer thickness (mm)
+     real(r8) :: hol_frac
+     real(r8) :: ka_ho
+     real(r8) :: ka_hu
+     real(r8) :: zwt_ho, zwt_hu
+     real(r8) :: s_node
+     integer  :: jwt(bounds%begc:bounds%endc)               !
      !-----------------------------------------------------------------------
 
      associate(                                                    &
@@ -399,6 +432,9 @@ contains
           qflx_gross_infl_soil =>    col_wf%qflx_gross_infl_soil , & ! Output: [real(r8) (:)] gross infiltration (mm H2O/s)
           qflx_gross_evap_soil =>    col_wf%qflx_gross_evap_soil , & ! Output: [real(r8) (:)] gross evaporation (mm H2O/s)
           qflx_h2orof_drain    =>    col_wf%qflx_h2orof_drain    , & ! Output: [real(r8) (:)] drainange from floodplain inundation volume (mm H2O/s) 
+          qflx_lat_aqu         =>    col_wf%qflx_lat_aqu         , & ! Output: [real(r8) (:,:) ] total lateral flow 
+          qflx_lat_aqu_layer   =>    col_wf%qflx_lat_aqu_layer   , & ! Output: [real(r8) (:,:) ] lateral flow for each layer
+          qflx_surf_input      =>    col_wf%qflx_surf_input      , & ! Output: [real(r8) (:,:) ] Input to hollowInput to hollow from hummock surface runoff
 
           smpmin               =>    soilstate_vars%smpmin_col               , & ! Input:  [real(r8) (:)   ]  restriction for min of soil potential (mm)
           sucsat               =>    soilstate_vars%sucsat_col               , & ! Input:  [real(r8) (:,:) ]  minimum soil suction (mm)
@@ -421,7 +457,9 @@ contains
           i_0                  =>    soilhydrology_vars%i_0_col              , & ! Input:  [real(r8) (:)   ]  column average soil moisture in top VIC layers (mm)
           h2osfcflag           =>    soilhydrology_vars%h2osfcflag           , & ! Input:  logical
           pc_grid              =>    soilhydrology_vars%pc                   , & ! Input:  [real(r8) (:)   ]  threshold for outflow from surface water storage
-          icefrac              =>    soilhydrology_vars%icefrac_col            & ! Output: [real(r8) (:,:) ]  fraction of ice
+          icefrac              =>    soilhydrology_vars%icefrac_col          , & ! Output: [real(r8) (:,:) ]  fraction of ice
+          h2osoi_vol           =>    col_ws%h2osoi_vol                       , & ! Input: [real(r8) (:,:) ]  volumetric soil water (0<=h2osoi_vol<=watsat) [m3/m3]
+          zi                   =>    col_pp%zi                                 & ! Input: [real(r8) (:,:) ]  interface level below a "z" level (m)           
               )
 
 
@@ -436,6 +474,36 @@ contains
              icefrac(c,j) = min(1._r8,vol_ice(c,j)/watsat(c,j))
           end do
        end do
+
+#if (defined HUM_HOL) 
+       do j = 1,nlevsoi
+          do fc = 1, num_hydrologyc
+             c = filter_hydrologyc(fc)
+             dzmm(c,j) = dz(c,j)*1.e3_r8
+          end do
+       end do
+       ka_hu = 0._r8
+       ka_ho = 0._r8
+
+       !compute jwt index
+       ! The layer index of the first unsaturated layer, i.e., the layer right
+       ! above
+       ! the water table
+
+       do fc = 1, num_hydrologyc
+          c = filter_hydrologyc(fc)
+          jwt(c) = nlevsoi
+          ! allow jwt to equal zero when zwt is in top layer
+          do j = 1,nlevsoi
+             if(zwt(c) <= zi(c,j)) then
+                jwt(c) = j-1
+                exit
+             end if
+          enddo
+       enddo
+#endif
+
+
 
        do fc = 1, num_hydrologyc
           c  = filter_hydrologyc(fc)
@@ -468,10 +536,23 @@ contains
              endif
 
              !1. partition surface inputs between soil and h2osfc
+
+#if (defined HUM_HOL)
+             hol_frac = 1.0_r8 - hum_frac
+             if (c .eq. 1) then
+               qflx_surf_input(1) = 0._r8            !hummock
+               qflx_surf_input(2) = qflx_surf(1)*(hum_frac/hol_frac)     !hollow
+             end if
+             qflx_in_soil(c) = (1._r8 - frac_h2osfc(c)) * (qflx_top_soil(c) - qflx_surf(c) + qflx_surf_input(c))
+             qflx_in_h2osfc(c) = frac_h2osfc(c) * (qflx_top_soil(c) - qflx_surf(c) + qflx_surf_input(c))
+             qflx_gross_infl_soil(c) = qflx_in_soil(c)
+
+#else 
              qflx_in_soil(c) = (1._r8 - frac_h2osfc(c)) * (qflx_top_soil(c)  - qflx_surf(c))
              qflx_in_h2osfc(c) = frac_h2osfc(c) * (qflx_top_soil(c)  - qflx_surf(c))
              qflx_gross_infl_soil(c) = (1._r8 - frac_h2osfc(c)) * (qflx_top_soil(c)  - qflx_surf(c))
 
+#endif             
              !2. remove evaporation (snow treated in SnowHydrology)
              qflx_in_soil(c) = qflx_in_soil(c) - (1.0_r8 - fsno - frac_h2osfc(c))*qflx_evap(c)
              qflx_in_h2osfc(c) = qflx_in_h2osfc(c) - frac_h2osfc(c) * qflx_ev_h2osfc(c)
@@ -535,6 +616,14 @@ contains
              !4. soil infiltration and h2osfc "run-on"
              qflx_infl(c) = qflx_in_soil(c) - qflx_infl_excess(c)
              qflx_in_h2osfc(c) =  qflx_in_h2osfc(c) + qflx_infl_excess(c)
+
+#if (defined HUM_HOL)
+             if (c .eq. 1) then
+                qflx_surf(1) = qflx_surf(1) + qflx_in_h2osfc(c)
+                qflx_surf_input(2) = qflx_surf_input(2) + qflx_in_h2osfc(c)
+                qflx_in_h2osfc(c) = 0._r8    
+             end if
+#endif
              qflx_gross_infl_soil(c) = qflx_gross_infl_soil(c)- qflx_infl_excess(c)
 
              !5. surface runoff from h2osfc
@@ -580,12 +669,17 @@ contains
                 
              else
                 ! limit runoff to value of storage above S(pc)
+#if (defined HUM_HOL)
+                if (h2osfc(c) .gt. 0._r8) then
+                   qflx_h2osfc_surf(c) = min(qflx_h2osfc_surfrate*h2osfc(c)**2.0_r8,h2osfc(c) / dtime)
+#else
                 if(h2osfc(c) >= h2osfc_thresh(c) .and. h2osfcflag/=0) then
                    ! spatially variable k_wet
                    k_wet=1.0_r8 * sin((rpi/180._r8) * col_pp%topo_slope(c))
                    qflx_h2osfc_surf(c) = k_wet * frac_infclust * (h2osfc(c) - h2osfc_thresh(c))
 
                    qflx_h2osfc_surf(c)=min(qflx_h2osfc_surf(c),(h2osfc(c) - h2osfc_thresh(c))/dtime)
+#endif
                 else
                    qflx_h2osfc_surf(c)= 0._r8
                 endif
@@ -631,6 +725,57 @@ contains
              if(h2osfcflag==0) then
                 qflx_h2osfc_drain(c)= max(0._r8,h2osfc(c)/dtime) !ensure no h2osfc
              endif
+
+#if (defined HUM_HOL)
+             if(num_hydrologyc .ne. 2) call endrun(msg="Error: Must have 2 columns if HUM_HOL or MARSH is defined")
+             !compute lateral flux in aquifer
+             if (jwt(c) .lt. nlevsoi) then
+                do j=nlevsoi,jwt(c)+1,-1
+                  s_node = max(h2osoi_vol(c,j)/watsat(c,j), 0.01_r8)
+                  s_node = min(1.0_r8, s_node)
+                  s1 = 0.5_r8*(1.0+s_node)
+                  s1 = min(1._r8, s1)
+                  if (c .eq. 1) ka_hu = ka_hu+(hksat(c,j)*s1**(2._r8*bsw(c,j)+3._r8))* &
+                                dzmm(c,j)/sum(dzmm(c,jwt(c)+1:nlevsoi))
+                  if (c .eq. 2) ka_ho = ka_ho+(hksat(c,j)*s1**(2._r8*bsw(c,j)+3._r8))* &
+                                dzmm(c,j)/sum(dzmm(c,jwt(c)+1:nlevsoi))
+                end do
+             else
+                  s_node = max(h2osoi_vol(c,jwt(c))/watsat(c,jwt(c)), 0.01_r8)
+                  s_node = min(1.0_r8, s_node)
+                  s1 = 0.5_r8*(1.0+s_node)
+                  s1 = min(1._r8, s1)
+                  if (c .eq. 1) ka_hu = ka_hu+(hksat(c,jwt(c))*s1**(2._r8*bsw(c,jwt(c))+3._r8))
+                  if (c .eq. 2) ka_ho = ka_ho+(hksat(c,jwt(c))*s1**(2._r8*bsw(c,jwt(c))+3._r8))
+             end if
+
+             if (c.eq.1) then
+               zwt_hu = zwt(1)
+               zwt_hu = zwt_hu - h2osfc(1)/1000._r8
+             endif
+             if (c.eq.2) then
+               zwt_ho = zwt(2)
+               ka_ho = max(ka_ho, 1e-5_r8)
+               ka_hu = max(ka_hu, 1e-5_r8)
+               !DMR 9/21/15 - only inlcude h2osfc if water table near surfce, use
+               !harmonic mean 
+               if (zwt_ho < 0.03_r8) then 
+                 zwt_ho = zwt_ho - h2osfc(2)/1000._r8   !DMR 4/29/13
+               end if
+               !DMR 12/4/2015
+               if (icefrac(1,min(jwt(1)+1,nlevsoi)) .ge. 0.01_r8 .or. &
+                       icefrac(2,min(jwt(2)+1,nlevsoi)) .ge. 0.01_r8) then
+                 !turn off lateral transport if any ice is present at or below
+                 !water table
+                 qflx_lat_aqu(:) = 0._r8
+               else
+                 qflx_lat_aqu(1) =  2._r8/(1._r8/ka_hu+1._r8/ka_ho) * (zwt_hu-zwt_ho- &
+                     humhol_ht) / humhol_dist * sqrt(hol_frac/hum_frac)
+                 qflx_lat_aqu(2) = -2._r8/(1._r8/ka_hu+1._r8/ka_ho) * (zwt_hu-zwt_ho- &
+                     humhol_ht) / humhol_dist * sqrt(hum_frac/hol_frac)
+               endif
+             endif
+#endif
 
              !7. remove drainage from h2osfc and add to qflx_infl
              h2osfc(c) = h2osfc(c) - qflx_h2osfc_drain(c) * dtime
@@ -763,6 +908,8 @@ contains
      real(r8) :: q_perch_max
      real(r8) :: dflag=0._r8
      real(r8) :: qcharge_temp
+     real(r8) :: qflx_lat_aqu_tot
+
      !-----------------------------------------------------------------------
 
      associate(                                                            &
@@ -791,7 +938,12 @@ contains
 
           qflx_irrig         =>    col_wf%qflx_irrig         , & ! Input:  [real(r8) (:)   ]  irrigation flux (mm H2O /s)
           qflx_grnd_irrig_col=>    col_wf%qflx_grnd_irrig    , & ! Output: [real(r8) (:)   ]  col real groundwater irrigation flux (mm H2O /s)
-
+#if (defined HUM_HOL)
+          icefrac            =>    soilhydrology_vars%icefrac_col      , &  !Output: [real(r8) (:,:) ]      
+          qflx_surf_input    =>    col_wf%qflx_surf_input    , & ! Output: [real(r8) (:,:) ] surface runoff input to hollow (mmH2O/s)
+          qflx_lat_aqu       =>    col_wf%qflx_lat_aqu       , & ! Output: [real(r8) (:,:) ] total lateral flow
+          qflx_lat_aqu_layer =>    col_wf%qflx_lat_aqu_layer , & ! Output: [real(r8) (:,:) ] lateral flow for each layer
+#endif
           zwt                =>    soilhydrology_vars%zwt_col            , & ! Output: [real(r8) (:)   ]  water table depth (m)
           zwt_perched        =>    soilhydrology_vars%zwt_perched_col    , & ! Output: [real(r8) (:)   ]  perched water table depth (m)
           frost_table        =>    soilhydrology_vars%frost_table_col    , & ! Output: [real(r8) (:)   ]  frost table depth (m)
@@ -926,6 +1078,105 @@ contains
           qcharge(c) = qcharge_temp
        enddo
 
+#if (defined HUM_HOL)
+!Compute lateral fluxes between Hummock and Hollow (code by XS)
+! Water table changes due to lateral flux between hommock and hollow in aquifer 
+       do fc = 1, num_hydrologyc
+           c = filter_hydrologyc(fc)
+    
+    ! use analytical expression for aquifer specific yield
+             rous = watsat(c,nlevsoi) &
+                  * ( 1. - (1.+1.e3*zwt(c)/sucsat(c,nlevsoi))**(-1./bsw(c,nlevsoi)))
+             rous=max(rous,0.02_r8)
+    
+             qflx_rsub_sat(c) = 0._r8
+       !-  water table is below the soil column -----------------------------------
+             if(jwt(c) == nlevsoi) then
+              if (qflx_lat_aqu(c).gt.0._r8) then
+                wa(c)  = wa(c) + qflx_lat_aqu(c) * dtime
+               !wt(c)  = wa(c)
+                zwt(c) = zwt(c) - (qflx_lat_aqu(c) * dtime)/1000._r8/rous
+                h2osoi_liq(c,nlevsoi) =  h2osoi_liq(c,nlevsoi)+max(0._r8,(wa(c)-5000._r8))
+              wa(c)  = min(wa(c), 5000._r8)
+            else
+              wa(c)  = wa(c) + qflx_lat_aqu(c) * dtime
+             !wt(c)  = wa(c)
+              zwt(c) = zwt(c) - qflx_lat_aqu(c) *dtime/1000._r8/rous
+              h2osoi_liq(c,nlevsoi) =h2osoi_liq(c,nlevsoi)+max(0._r8,(wa(c)-5000._r8))
+             wa(c)  = min(wa(c), 5000._r8)
+           endif
+          else
+   !-- water table within soil layers 1-9  -------------------------------------
+   ! try to raise water table to account for lateral flux qflx_lat_aqu
+             qflx_lat_aqu_tot = qflx_lat_aqu(c)  * dtime
+             if(qflx_lat_aqu_tot > 0.) then !rising water table
+                do j = jwt(c)+1, 1,-1
+   ! use analytical expression for specific yield
+                   s_y = watsat(c,j) &
+                       * ( 1. -  (1.+1.e3*zwt(c)/sucsat(c,j))**(-1./bsw(c,j)))
+                   s_y=max(s_y,0.02_r8)
+   
+                   qflx_lat_aqu_layer(c,j)=min(qflx_lat_aqu_tot,(s_y*(zwt(c) - zi(c,j-1))*1.e3))
+                   qflx_lat_aqu_layer(c,j)=max(qflx_lat_aqu_layer(c,j),0._r8)
+                   h2osoi_liq(c,j) = h2osoi_liq(c,j) + qflx_lat_aqu_layer(c,j)
+                   qflx_lat_aqu_tot = qflx_lat_aqu_tot - qflx_lat_aqu_layer(c,j)
+   
+                   !new code test DMR 4/29/13
+                   if(s_y > 0._r8) zwt(c) = zwt(c) - qflx_lat_aqu_layer(c,j)/s_y/1000._r8
+                   if (qflx_lat_aqu_tot <= 0.) then
+                     exit
+                   else if (j .eq. 1) then
+                       ! if (c .eq. 2) then !hollow:  send excess to surface water
+                          h2osfc(c) = h2osfc(c) + qflx_lat_aqu_tot !DMR 6/13/13
+                       ! else               !hummock:  send to drainage
+                       !   qflx_rsub_sat(c) = qflx_lat_aqu_tot / dtime
+                       ! end if
+                   end if
+                 end do
+              else ! deepening water table (negative lateral flux)
+                !Remove from surface water first if available
+                if (h2osfc(c) .gt. 0 .and. maxval(icefrac(c,1:jwt(c)+1)) .le. 0.9) then
+                  h2osfc(c) = h2osfc(c) + qflx_lat_aqu_tot
+                  qflx_lat_aqu_tot = 0._r8
+                  if (h2osfc(c) .lt. 0) then
+                    qflx_lat_aqu_tot = h2osfc(c)
+                    h2osfc(c) = 0.
+                  end if
+                end if
+                do j = jwt(c)+1, nlevsoi
+   
+   ! use analytical expression for specific yield
+                   s_y = watsat(c,j) &
+                        * ( 1. -  (1.+1.e3*zwt(c)/sucsat(c,j))**(-1./bsw(c,j)))
+                   s_y=max(s_y,0.02_r8)
+                   qflx_lat_aqu_layer(c,j)=max(qflx_lat_aqu_tot,-(s_y*(zi(c,j) - zwt(c))*1.e3))
+                   qflx_lat_aqu_layer(c,j)=min(qflx_lat_aqu_layer(c,j),0._r8)
+                   h2osoi_liq(c,j) = h2osoi_liq(c,j) + qflx_lat_aqu_layer(c,j)
+                   qflx_lat_aqu_tot = qflx_lat_aqu_tot - qflx_lat_aqu_layer(c,j)
+   
+                   if (qflx_lat_aqu_tot >= 0.) then
+                      zwt(c) = zwt(c) - qflx_lat_aqu_layer(c,j)/s_y/1000._r8
+                      exit
+                   else
+                      zwt(c) = zi(c,j)
+                   endif
+   
+                enddo
+                if (qflx_lat_aqu_tot > 0.) zwt(c) = zwt(c) - qflx_lat_aqu_tot/1000._r8/rous
+             endif
+   !-- recompute jwt for following calculations  ---------------------------------
+   ! allow jwt to equal zero when zwt is in top layer
+             jwt(c) = nlevsoi
+             do j = 1,nlevsoi
+                if(zwt(c) <= zi(c,j)) then
+                   jwt(c) = j-1
+                   exit
+                end if
+             enddo
+          endif
+       enddo
+#endif
+
 
        !==  BASEFLOW ==================================================
        ! perched water table code
@@ -1055,6 +1306,9 @@ contains
      use pftvarcon        , only : rsub_top_globalmax
      use LandunitType      , only : lun_pp
      use landunit_varcon  , only : istice_mec, istice
+#if (defined HUM_HOL)
+     use pftvarcon        , only : humhol_ht
+#endif
      !
      ! !ARGUMENTS:
      type(bounds_type)        , intent(in)    :: bounds
@@ -1116,6 +1370,8 @@ contains
      real(r8) :: frac                     ! temporary variable for ARNO subsurface runoff calculation
      real(r8) :: rel_moist                ! relative moisture, temporary variable
      real(r8) :: wtsub_vic                ! summation of hk*dzmm for layers in the third VIC layer
+     real(r8) :: deep_seep                ! Deep seepage for SPRUCE
+
      !-----------------------------------------------------------------------
 
      associate(                                                            &
@@ -1165,6 +1421,11 @@ contains
           qflx_qrgwl         =>    col_wf%qflx_qrgwl         , & ! Output: [real(r8) (:)   ] qflx_surf at glaciers, wetlands, lakes (mm H2O /s)
           qflx_rsub_sat      =>    col_wf%qflx_rsub_sat      , & ! Output: [real(r8) (:)   ] soil saturation excess [mm h2o/s]
           qflx_drain_perched =>    col_wf%qflx_drain_perched , & ! Output: [real(r8) (:)   ] perched wt sub-surface runoff (mm H2O /s)
+#if (defined HUM_HOL)
+          qflx_surf_input    =>    col_wf%qflx_surf_input    , & ! Output: [real(r8) (:,:) ] surface runoff input to hollow (mmH2O/s)
+          qflx_lat_aqu       =>    col_wf%qflx_lat_aqu       , & ! Output: [real(r8) (:,:) ] total lateral flow
+          qflx_lat_aqu_layer =>    col_wf%qflx_lat_aqu_layer , & ! Output: [real(r8) (:,:) ] lateral flow for each layer
+#endif
 
           h2osoi_liq         =>    col_ws%h2osoi_liq        , & ! Output: [real(r8) (:,:) ] liquid water (kg/m2)
           h2osoi_ice         =>    col_ws%h2osoi_ice          & ! Output: [real(r8) (:,:) ] ice lens (kg/m2)
@@ -1400,6 +1661,9 @@ contains
                         - exp(-3._r8))/(1.0_r8-exp(-3._r8))
                    imped=(1._r8 - fracice_rsub(c))
                    rsub_top_max = 5.5e-3_r8
+#if (defined HUM_HOL)                   
+                   rsub_top_max = min(5.5e-3_r8, rsub_top_globalmax)
+#endif
                 end if
              else
                 if (use_vichydro) then
@@ -1411,6 +1675,29 @@ contains
                    rsub_top_max = min(10._r8 * sin((rpi/180.) * col_pp%topo_slope(c)), rsub_top_globalmax)
                 end if
              endif
+
+#if (defined HUM_HOL)
+          deep_seep = 0._r8 !100.0_r8 / 365._r8 / 86400._r8  !rate per second
+          !changes for hummock hollow topography
+          if (c .eq. 1) then !hummock
+            if (zwt(c) < (0.7_r8 + 3.0_r8 * humhol_ht/2.0_r8)) then
+               rsub_top(c)    = deep_seep + imped * rsub_top_max* exp(-fff(c)*zwt(c)) - &
+                 imped * rsub_top_max * exp(-fff(c)*(0.7_r8+3.0_r8*humhol_ht/2.0_r8))
+            else
+              rsub_top(c)    = deep_seep
+            endif
+          else           !hollow
+            if (zwt(c) < 0.7_r8 + humhol_ht/2.0_r8) then
+               rsub_top(c)    = deep_seep + imped * rsub_top_max*exp(-fff(c)*(zwt(c)+humhol_ht)) - &
+                 imped * rsub_top_max * exp(-fff(c)*(0.7_r8+3.0_r8*humhol_ht/2.0_r8))
+            else
+              rsub_top(c)    = deep_seep
+            endif
+          endif
+#else
+
+
+
              if (use_vichydro) then
                 ! ARNO model for the bottom soil layer (based on bottom soil layer
                 ! moisture from previous time step
@@ -1432,7 +1719,7 @@ contains
                    rsub_top(c)    = imped * rsub_top_max* exp(-fff(c)*zwt(c))
               end if
              end if
-
+#endif
              if (use_vsfm) rsub_top(c) = 0._r8
 
              ! use analytical expression for aquifer specific yield

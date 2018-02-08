@@ -294,6 +294,8 @@ module pftvarcon
   real(r8), allocatable :: bbbopt(:)           !Ball-Berry stomatal conductance intercept
   real(r8), allocatable :: mbbopt(:)           !Ball-Berry stomatal conductance slope
   real(r8), allocatable :: nstor(:)            !Nitrogen storage pool timescale
+  real(r8), allocatable :: crit_gdd1(:)        !Critical GDD intercept
+  real(r8), allocatable :: crit_gdd2(:)        !Critical GDD slope with MAT
   real(r8), allocatable :: br_xr(:)            !Base rate for excess respiration
   real(r8)              :: tc_stress           !Critial temperature for moisture stress
   real(r8), allocatable :: vcmax_np1(:)        !vcmax~np relationship coefficient
@@ -329,6 +331,27 @@ module pftvarcon
   real(r8), allocatable :: temp_iscft(:)       ! for file read, translated to logical afterwards
   real(r8), allocatable :: nfixer(:)           ! nitrogen fixer flag  (0 = inable, 1 = able to nitrogen fixation from atm. N2)
 
+  real(r8)              :: qflx_h2osfc_surfrate
+  real(r8)              :: humhol_ht
+  real(r8)              :: hum_frac
+  real(r8)              :: humhol_dist
+  !phenology
+  real(r8)              :: phen_a
+  real(r8)              :: phen_b
+  real(r8)              :: phen_c
+  real(r8)              :: phen_topt
+  real(r8)              :: phen_fstar
+  real(r8)              :: phen_cstar
+  real(r8)              :: phen_tforce
+  real(r8)              :: phen_tchil
+  real(r8)              :: phen_pstart
+  real(r8)              :: phen_tb
+  real(r8)              :: phen_ycrit
+  real(r8)              :: phen_spring
+  real(r8)              :: phen_autumn
+  real(r8)              :: phen_tbase
+  real(r8)              :: phen_tc
+  real(r8)              :: phen_crit_dayl
 
   !
   ! !PUBLIC MEMBER FUNCTIONS:
@@ -641,6 +664,8 @@ contains
     allocate( mbbopt             (0:mxpft) )
     allocate( nstor              (0:mxpft) )
     allocate( br_xr              (0:mxpft) )
+    allocate( crit_gdd1          (0:mxpft) )
+    allocate( crit_gdd2          (0:mxpft) )
     ! Ground cover for soil erosion
     allocate( gcbc_p             (0:mxpft) )
     allocate( gcbc_q             (0:mxpft) )
@@ -1032,6 +1057,49 @@ contains
     call ncd_io('rsub_top_globalmax', rsub_top_globalmax, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if (.not. readv) rsub_top_globalmax = 10._r8
     !if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+
+    call ncd_io('humhol_ht', humhol_ht, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    !if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+    call ncd_io('humhol_dist', humhol_dist, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    !if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+    call ncd_io('hum_frac', hum_frac, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    !if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+    call ncd_io('qflx_h2osfc_surfrate', qflx_h2osfc_surfrate, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    !if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+    call ncd_io('phen_a', phen_a, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    !if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+    call ncd_io('phen_b', phen_b, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    !if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+    call ncd_io('phen_c', phen_c, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    !if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+    call ncd_io('phen_topt', phen_topt, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    !if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+    call ncd_io('phen_fstar', phen_fstar, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    !if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+    call ncd_io('phen_cstar', phen_cstar, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    !if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+    call ncd_io('phen_tforce', phen_tforce, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    !if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+    call ncd_io('phen_tchil', phen_tchil, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    !if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+    call ncd_io('phen_pstart', phen_pstart, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    !if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+    call ncd_io('phen_tb', phen_tb, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    !if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+    call ncd_io('phen_ycrit', phen_ycrit, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    !if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+    call ncd_io('phen_spring', phen_spring, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if ( .not. readv) phen_spring = 0._r8
+    call ncd_io('phen_autumn', phen_autumn, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if ( .not. readv) phen_autumn = 0._r8
+    call ncd_io('phen_tbase', phen_tbase, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    !if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+    call ncd_io('phen_tc', phen_tc, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    !if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+    call ncd_io('crit_dayl', phen_crit_dayl, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    !if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft ! data'//errMsg(__FILE__,__LINE__))
+
+
     call ncd_io('fnr', fnr, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
     call ncd_io('act25', act25, 'read', ncid, readvar=readv, posNOTonfile=.true.)
@@ -1073,6 +1141,10 @@ contains
     call ncd_io('br_xr', br_xr, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     !if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
     if (.not. readv) br_xr(:) = 0._r8
+    call ncd_io('crit_gdd1', crit_gdd1, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if (.not. readv) crit_gdd1(:) = 4.8_r8
+    call ncd_io('crit_gdd2', crit_gdd2, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if (.not. readv) crit_gdd2(:) = 0.13_r8
     call ncd_io('tc_stress', tc_stress, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
     call ncd_io('gcbc_p',gcbc_p, 'read', ncid, readvar=readv, posNOTonfile=.true.)
@@ -1290,6 +1362,11 @@ contains
     ! when not using those indexing of PFT orders anymore in other codes than here.
     needleleaf(noveg+1:ndllf_dcd_brl_tree) = 1
     graminoid(nc3_arctic_grass:nc4_grass) = 1
+#if (defined HUM_HOL)
+    graminoid(nc3_arctic_grass)   = 0
+    nonvascular(nc3_arctic_grass) = 1   ! hard-weired PFT 12, c3_arctic_grass, as moss
+#endif
+
     iscft(npcropmin:max(npcropmax,nppercropmax)) = .true.
     nfixer(nsoybean)       = 1
     nfixer(nsoybeanirrig)  = 1
