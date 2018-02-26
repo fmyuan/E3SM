@@ -192,7 +192,7 @@ contains
     end if
 
     !-----------------------------------------------------------------------
-    ! pflotran: when both 'pf-bgc' and 'pf-h' on, no need to call CLM-CN's N leaching module
+    ! pflotran: when both 'pf-bgc' and 'pf-h' on, no need to call ELM-CN's N leaching module
     if (.not. (pf_cmode .and. pf_hmode)) then
      call NitrogenLeaching(bounds, num_soilc, filter_soilc, dt)
 
@@ -428,7 +428,7 @@ contains
     call t_stop_lnd(event)
 
     !-------------------------------------------------------------------------------------------------
-    ! plfotran: 'decomp_rate_constants' must be calculated before entering "clm_interface"
+    ! plfotran: 'decomp_rate_constants' must be calculated before entering "elm_interface"
     if (use_century_decomp) then
       call decomp_rate_constants_bgc(bounds, num_soilc, filter_soilc, &
            canopystate_vars, soilstate_vars, ch4_vars, cnstate_vars)
@@ -542,7 +542,8 @@ contains
     event = 'SoilLittDecompAlloc'
     call t_start_lnd(event)
     !----------------------------------------------------------------
-    if(.not.use_elm_interface) then
+    !if(.not.use_elm_interface) then ! 'use_elm_interface' may not include therma-hydrology
+    if( .not.use_elm_bgc .and. .not.(use_pflotran .and. pf_cmode) ) then
        ! directly run elm-bgc
        ! if (use_elm_interface & use_elm_bgc), then CNDecomAlloc is called in elm_driver
        call SoilLittDecompAlloc (bounds, num_soilc, filter_soilc,    &
