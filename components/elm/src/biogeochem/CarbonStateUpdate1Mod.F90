@@ -7,6 +7,7 @@ module CarbonStateUpdate1Mod
   use shr_kind_mod            , only : r8 => shr_kind_r8
   use decompMod               , only : bounds_type
   use elm_varpar              , only : ndecomp_cascade_transitions, nlevdecomp
+  use elm_varpar              , only : ndecomp_pools, nlevdecomp_full
   use elm_varpar              , only : i_met_lit, i_cel_lit, i_lig_lit, i_cwd
   use elm_varcon              , only : dzsoi_decomp
   use elm_varctl              , only : nu_com, use_c13, use_c14
@@ -96,7 +97,11 @@ contains
              c14_col_cs%prod100c(c) = c14_col_cs%prod100c(c) + c14_col_cf%dwt_prod100c_gain(c)*dt
              c14_col_cs%prod1c(c) = c14_col_cs%prod1c(c) + c14_col_cf%dwt_crop_productc_gain(c)*dt
           end if
-
+          
+          ! when coupling with PFLOTRAN, the following are portions of (root-)literfalling into soil
+          ! as source/sink terms (ColumnDataType.F90::col_cf_summary_pf).
+          ! So, don't directly update organic cpools here.
+          if (.not.(use_pflotran .and. pf_cmode)) then
           do j = 1,nlevdecomp
 
              col_cs%decomp_cpools_vr(c,j,i_met_lit) = col_cs%decomp_cpools_vr(c,j,i_met_lit) + &
@@ -131,6 +136,8 @@ contains
              end if
 
           end do
+          end if !if (.not.(use_pflotran .and. pf_cmode))
+
        end do
     end if
 

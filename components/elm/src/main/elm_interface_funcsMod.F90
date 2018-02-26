@@ -215,9 +215,9 @@ contains
 
     associate ( &
          ! Assign local pointer to derived subtypes components (column-level)
-         z                  => col_pp%z                                                , & !  [real(r8) (:,:)]  layer depth (m)
-         dz                 => col_pp%dz                                               , & !  [real(r8) (:,:)]  layer thickness depth (m)
-         zi                 => col_pp%zi                                               , & !
+         z                  => col_pp%z                                             , & !  [real(r8) (:,:)]  layer depth (m)
+         dz                 => col_pp%dz                                            , & !  [real(r8) (:,:)]  layer thickness depth (m)
+         zi                 => col_pp%zi                                            , & !
 
          bd                 => soilstate_vars%bd_col                                , & !
          bsw                => soilstate_vars%bsw_col                               , & !  [real(r8) (:,:)]  Clapp and Hornberger "b" (nlevgrnd)
@@ -250,7 +250,7 @@ contains
 
 !-------------------------------------------------------------------------------------
     ! constants:
-    elm_idata%bgc%ndecomp_pools          = ndecomp_pools
+    elm_idata%bgc%ndecomp_pools                        = ndecomp_pools
     elm_idata%bgc%decomp_pool_name(1:ndecomp_pools)    = decomp_pool_name(1:ndecomp_pools)
     elm_idata%bgc%floating_cn_ratio(1:ndecomp_pools)   = floating_cn_ratio(1:ndecomp_pools)
     elm_idata%bgc%floating_cp_ratio(1:ndecomp_pools)   = floating_cp_ratio(1:ndecomp_pools)
@@ -263,29 +263,29 @@ contains
     do fc = 1, num_soilc
         c = filter_soilc(fc)
 
-        elm_idata%z(c,:)                 = z(c,:)
-        elm_idata%zi(c,:)                = zi(c,:)
-        elm_idata%dz(c,:)                = dz(c,:)
-        elm_idata%bd_col(c,:)            = bd(c,:)
-        elm_idata%bsw_col(c,:)           = bsw(c,:)
-        elm_idata%hksat_col(c,:)         = hksat(c,:)
-        elm_idata%sucsat_col(c,:)        = sucsat(c,:)
-        elm_idata%watsat_col(c,:)        = watsat(c,:)
-        elm_idata%watfc_col(c,:)         = watfc(c,:)
-        elm_idata%watmin_col(c,:)        = watmin(c,:)
-        elm_idata%sucmin_col(c,:)        = sucmin(c,:)
+        elm_idata%z(c,:)             = z(c,:)
+        elm_idata%zi(c,:)            = zi(c,:)
+        elm_idata%dz(c,:)            = dz(c,:)
+        elm_idata%bd(c,:)            = bd(c,:)
+        elm_idata%bsw(c,:)           = bsw(c,:)
+        elm_idata%hksat(c,:)         = hksat(c,:)
+        elm_idata%sucsat(c,:)        = sucsat(c,:)
+        elm_idata%watsat(c,:)        = watsat(c,:)
+        elm_idata%watfc(c,:)         = watfc(c,:)
+        elm_idata%watmin(c,:)        = watmin(c,:)
+        elm_idata%sucmin(c,:)        = sucmin(c,:)
 
-        elm_idata%porosity_col(c,:)      = watsat(c,:)
-        elm_idata%eff_porosity_col(c,:)  = eff_porosity(c,:)
+        elm_idata%porosity(c,:)      = watsat(c,:)
+        elm_idata%eff_porosity(c,:)  = eff_porosity(c,:)
 
-        elm_idata%cellorg_col(c,:)       = cellorg(c,:)
+        elm_idata%cellorg(c,:)       = cellorg(c,:)
 
-        elm_idata%rootfr_col(c,:)        = rootfr(c,:)
+        elm_idata%rootfr(c,:)        = rootfr(c,:)
 
         !
         do k = 1, ndecomp_cascade_transitions
-            elm_idata%bgc%rf_decomp_cascade_col(c,:,k)           = rf_decomp_cascade(c,:,k)
-            elm_idata%bgc%pathfrac_decomp_cascade_col(c,:,k)     = pathfrac_decomp_cascade(c,:,k)
+            elm_idata%bgc%rf_decomp_cascade(c,:,k)           = rf_decomp_cascade(c,:,k)
+            elm_idata%bgc%pathfrac_decomp_cascade(c,:,k)     = pathfrac_decomp_cascade(c,:,k)
         end do
 
     end do
@@ -342,28 +342,28 @@ contains
 
 
     !--------------------------------------------------------------------------------------
-    ! grid:
-    elm_idata_th%forc_pbot_grc    = forc_pbot
+
+    elm_idata_th%forc_pbot    = forc_pbot
 
     do fc = 1,num_soilc
         c = filter_soilc(fc)
 
-        elm_idata_th%frac_sno_eff_col(c)         = frac_sno_eff(c)
-        elm_idata_th%frac_h2osfc_col(c)          = frac_h2osfc(c)
+        elm_idata_th%frac_sno_eff(c)         = frac_sno_eff(c)
+        elm_idata_th%frac_h2osfc(c)          = frac_h2osfc(c)
 
-        elm_idata_th%t_grnd_col(c)               = t_grnd(c)
-        elm_idata_th%t_h2osfc_col(c)             = t_h2osfc(c)
-        elm_idata_th%t_nearsurf_col(c)           = t_nearsurf(c)
+        elm_idata_th%t_grnd(c)               = t_grnd(c)
+        elm_idata_th%t_h2osfc(c)             = t_h2osfc(c)
+        elm_idata_th%t_nearsurf(c)           = t_nearsurf(c)
 
         do j = -nlevsno+1,nlevgrnd
             if(j>=1) then
-                elm_idata_th%soilpsi_col(c,j)        = soilpsi(c,j)
-                elm_idata_th%h2osoi_vol_col(c,j)     = h2osoi_vol(c,j)
+                elm_idata_th%soilpsi(c,j)        = soilpsi(c,j)
+                elm_idata_th%h2osoi_vol(c,j)     = h2osoi_vol(c,j)
             endif
 
-            elm_idata_th%h2osoi_liq_col(c,j)         = h2osoi_liq(c,j)
-            elm_idata_th%h2osoi_ice_col(c,j)         = h2osoi_ice(c,j)
-            elm_idata_th%t_soisno_col(c,j)           = t_soisno(c,j)
+            elm_idata_th%h2osoi_liq(c,j)         = h2osoi_liq(c,j)
+            elm_idata_th%h2osoi_ice(c,j)         = h2osoi_ice(c,j)
+            elm_idata_th%t_soisno(c,j)           = t_soisno(c,j)
         end do
 
     end do
@@ -426,24 +426,24 @@ contains
     do fc = 1,num_soilc
         c = filter_soilc(fc)
 
-        elm_idata_th%qflx_top_soil_col(c)        = qflx_top_soil(c)
-        elm_idata_th%qflx_evap_soil_col(c)       = qflx_evap_soil(c)
-        elm_idata_th%qflx_evap_h2osfc_col(c)     = qflx_evap_h2osfc(c)
-        elm_idata_th%qflx_evap_snow_col(c)       = qflx_evap_snow(c)
-        elm_idata_th%qflx_subl_snow_col(c)       = qflx_subl_snow(c)
-        elm_idata_th%qflx_tran_veg_col(c)        = qflx_tran_veg(c)
+        elm_idata_th%qflx_top_soil(c)        = qflx_top_soil(c)
+        elm_idata_th%qflx_evap_soil(c)       = qflx_evap_soil(c)
+        elm_idata_th%qflx_evap_h2osfc(c)     = qflx_evap_h2osfc(c)
+        elm_idata_th%qflx_evap_snow(c)       = qflx_evap_snow(c)
+        elm_idata_th%qflx_subl_snow(c)       = qflx_subl_snow(c)
+        elm_idata_th%qflx_tran_veg(c)        = qflx_tran_veg(c)
 
         do j = 1,nlevgrnd
-            elm_idata_th%qflx_rootsoil_col(c,j)  = qflx_rootsoil(c,j)
+            elm_idata_th%qflx_rootsoil(c,j)  = qflx_rootsoil(c,j)
         end do
 
-        elm_idata_th%htvp_col(c)                 = htvp(c)
-        elm_idata_th%eflx_bot_col(c)             = eflx_bot(c)
-        elm_idata_th%eflx_soil_grnd_col(c)       = eflx_soil_grnd(c)
-        elm_idata_th%eflx_fgr0_snow_col(c)       = eflx_fgr0_snow(c)
-        elm_idata_th%eflx_fgr0_h2osfc_col(c)     = eflx_fgr0_h2osfc(c)
-        elm_idata_th%eflx_fgr0_soil_col(c)       = eflx_fgr0_soil(c)
-        elm_idata_th%eflx_rnet_soil_col(c)       = eflx_rnet_soil(c)
+        elm_idata_th%htvp(c)                 = htvp(c)
+        elm_idata_th%eflx_bot(c)             = eflx_bot(c)
+        elm_idata_th%eflx_soil_grnd(c)       = eflx_soil_grnd(c)
+        elm_idata_th%eflx_fgr0_snow(c)       = eflx_fgr0_snow(c)
+        elm_idata_th%eflx_fgr0_h2osfc(c)     = eflx_fgr0_h2osfc(c)
+        elm_idata_th%eflx_fgr0_soil(c)       = eflx_fgr0_soil(c)
+        elm_idata_th%eflx_rnet_soil(c)       = eflx_rnet_soil(c)
 
     end do
 
@@ -506,36 +506,36 @@ contains
     )
 !
 
-    elm_bgc_data%forc_pco2_grc(:)                   = forc_pco2(:)
-    elm_bgc_data%forc_pch4_grc(:)                   = forc_pch4(:)
+    elm_bgc_data%forc_pco2(:)                   = forc_pco2(:)
+    elm_bgc_data%forc_pch4(:)                   = forc_pch4(:)
 
     do fc = 1, num_soilc
         c = filter_soilc(fc)
             do k = 1, ndecomp_pools
-                elm_bgc_data%decomp_cpools_vr_col(c,:,k)    = decomp_cpools_vr(c,:,k)
-                elm_bgc_data%decomp_npools_vr_col(c,:,k)    = decomp_npools_vr(c,:,k)
-                elm_bgc_data%decomp_ppools_vr_col(c,:,k)    = decomp_ppools_vr(c,:,k)
+                elm_bgc_data%decomp_cpools_vr(c,:,k)    = decomp_cpools_vr(c,:,k)
+                elm_bgc_data%decomp_npools_vr(c,:,k)    = decomp_npools_vr(c,:,k)
+                elm_bgc_data%decomp_ppools_vr(c,:,k)    = decomp_ppools_vr(c,:,k)
 
             end do
 
-            elm_bgc_data%smin_no3_vr_col(c,:)           = smin_no3_vr(c,:)
-            elm_bgc_data%smin_nh4_vr_col(c,:)           = smin_nh4_vr(c,:)
-            elm_bgc_data%smin_nh4sorb_vr_col(c,:)       = smin_nh4sorb_vr(c,:)
+            elm_bgc_data%smin_no3_vr(c,:)           = smin_no3_vr(c,:)
+            elm_bgc_data%smin_nh4_vr(c,:)           = smin_nh4_vr(c,:)
+            elm_bgc_data%smin_nh4sorb_vr(c,:)       = smin_nh4sorb_vr(c,:)
 
-            elm_bgc_data%solutionp_vr_col(c,:)          = solutionp_vr(c,:)
-            elm_bgc_data%labilep_vr_col(c,:)            = labilep_vr(c,:)
-            elm_bgc_data%secondp_vr_col(c,:)            = secondp_vr(c,:)
-            elm_bgc_data%sminp_vr_col(c,:)              = solutionp_vr(c,:) + labilep_vr(c,:) + secondp_vr(c,:)
-            elm_bgc_data%occlp_vr_col(c,:)              = occlp_vr(c,:)
-            elm_bgc_data%primp_vr_col(c,:)              = primp_vr(c,:)
+            elm_bgc_data%solutionp_vr(c,:)          = solutionp_vr(c,:)
+            elm_bgc_data%labilep_vr(c,:)            = labilep_vr(c,:)
+            elm_bgc_data%secondp_vr(c,:)            = secondp_vr(c,:)
+            elm_bgc_data%sminp_vr(c,:)              = solutionp_vr(c,:) + labilep_vr(c,:) + secondp_vr(c,:)
+            elm_bgc_data%occlp_vr(c,:)              = occlp_vr(c,:)
+            elm_bgc_data%primp_vr(c,:)              = primp_vr(c,:)
 
-            elm_bgc_data%finundated_col(c)              = finundated(c)
-            elm_bgc_data%o2stress_unsat_col(c,:)        = o2stress_unsat(c,:)
-            elm_bgc_data%o2stress_sat_col(c,:)          = o2stress_sat(c,:)
-            elm_bgc_data%o2_decomp_depth_unsat_col(c,:) = o2_decomp_depth_unsat(c,:)
-            elm_bgc_data%conc_o2_unsat_col(c,:)         = conc_o2_unsat(c,:)
-            elm_bgc_data%o2_decomp_depth_sat_col(c,:)   = o2_decomp_depth_sat(c,:)
-            elm_bgc_data%conc_o2_sat_col(c,:)           = conc_o2_sat(c,:)
+            elm_bgc_data%finundated(c)              = finundated(c)
+            elm_bgc_data%o2stress_unsat(c,:)        = o2stress_unsat(c,:)
+            elm_bgc_data%o2stress_sat(c,:)          = o2stress_sat(c,:)
+            elm_bgc_data%o2_decomp_depth_unsat(c,:) = o2_decomp_depth_unsat(c,:)
+            elm_bgc_data%conc_o2_unsat(c,:)         = conc_o2_unsat(c,:)
+            elm_bgc_data%o2_decomp_depth_sat(c,:)   = o2_decomp_depth_sat(c,:)
+            elm_bgc_data%conc_o2_sat(c,:)           = conc_o2_sat(c,:)
 
     end do
 
@@ -606,24 +606,24 @@ contains
       soyfixn_to_sminn                 => col_nf%soyfixn_to_sminn                , &
       supplement_to_sminn_vr           => col_nf%supplement_to_sminn_vr          , &
       !
-      nfixation_prof                   => cnstate_vars%nfixation_prof_col                       , &
-      ndep_prof                        => cnstate_vars%ndep_prof_col                            , &
+      nfixation_prof                   => cnstate_vars%nfixation_prof_col        , &
+      ndep_prof                        => cnstate_vars%ndep_prof_col             , &
 
-      decomp_k_scalar                  => cnstate_vars%scalaravg_col                            , &
+      decomp_k_scalar                  => cnstate_vars%scalaravg_col             , &
 
       no3_net_transport_vr             => col_nf%no3_net_transport_vr            , &
       nh4_net_transport_vr             => col_nf%nh4_net_transport_vr            , &
-      col_plant_ndemand_vr             => col_nf%plant_ndemand_vr                , &
+      plant_ndemand_vr                 => col_nf%plant_ndemand_vr                , &
 
-      plant_ndemand_col                => col_nf%plant_ndemand                   , &
-      plant_pdemand_col                => col_pf%plant_pdemand                 , &
+      plant_ndemand                    => col_nf%plant_ndemand                   , &
+      plant_pdemand                    => col_pf%plant_pdemand                   , &
 
-      col_plant_pdemand_vr             => col_pf%plant_pdemand_vr              , &
-      pdep_to_sminp                    => col_pf%pdep_to_sminp                 , &
+      plant_pdemand_vr                 => col_pf%plant_pdemand_vr                , &
+      pdep_to_sminp                    => col_pf%pdep_to_sminp                   , &
       ! assume pdep_prof = ndep_prof
-      fert_p_to_sminp                  => col_pf%fert_p_to_sminp               , &
-      supplement_to_sminp_vr           => col_pf%supplement_to_sminp_vr        , &
-      sminp_net_transport_vr           => col_pf%sminp_net_transport_vr          &
+      fert_p_to_sminp                  => col_pf%fert_p_to_sminp                 , &
+      supplement_to_sminp_vr           => col_pf%supplement_to_sminp_vr          , &
+      sminp_net_transport_vr           => col_pf%sminp_net_transport_vr            &
     )
 
     !
@@ -637,56 +637,56 @@ contains
     do fc = 1,num_soilc
         c = filter_soilc(fc)
 
-        elm_bgc_data%t_scalar_col(c,:) = t_scalar(c,:)
-        elm_bgc_data%w_scalar_col(c,:) = w_scalar(c,:)
-        elm_bgc_data%o_scalar_col(c,:) = o_scalar(c,:)
+        elm_bgc_data%t_scalar(c,:) = t_scalar(c,:)
+        elm_bgc_data%w_scalar(c,:) = w_scalar(c,:)
+        elm_bgc_data%o_scalar(c,:) = o_scalar(c,:)
 
 
-        elm_bgc_data%plant_ndemand_col(c)   = plant_ndemand_col(c)
-        elm_bgc_data%plant_pdemand_col(c)   = plant_pdemand_col(c)
+        elm_bgc_data%plant_ndemand(c)   = plant_ndemand(c)
+        elm_bgc_data%plant_pdemand(c)   = plant_pdemand(c)
 
         fnh4_dep  = max(0._r8, min(1.0_r8, 1._r8/(r_nh4_no3_dep(c)+1._r8)))
         fnh4_fert = max(0._r8, min(1.0_r8, 1._r8/(r_nh4_no3_fert(c)+1._r8)))
 
         do k = 1, ndecomp_pools
-            elm_bgc_data%externalc_to_decomp_cpools_col(c,:,k)  = externalc_to_decomp_cpools_vr(c,:,k)
-            elm_bgc_data%externaln_to_decomp_npools_col(c,:,k)  = externaln_to_decomp_npools_vr(c,:,k)
-            elm_bgc_data%externalp_to_decomp_ppools_col(c,:,k)  = externalp_to_decomp_ppools_vr(c,:,k)
+            elm_bgc_data%externalc_to_decomp_cpools(c,:,k)  = externalc_to_decomp_cpools_vr(c,:,k)
+            elm_bgc_data%externaln_to_decomp_npools(c,:,k)  = externaln_to_decomp_npools_vr(c,:,k)
+            elm_bgc_data%externalp_to_decomp_ppools(c,:,k)  = externalp_to_decomp_ppools_vr(c,:,k)
        end do
 
        ! the following is for CTC ad-spinup.
        ! There is a 'time' control here, so MUST be called each time-step,
        ! and then better put the code here rather than in 'get_elm_bgc_state'
        if (spinup_state == 1 .and. year >= 40 .and. nu_com .eq. 'RD') then
-            elm_bgc_data%sitefactor_kd_vr_col(c,:) = decomp_k_scalar(c,:)
+            elm_bgc_data%sitefactor_kd_vr(c,:) = decomp_k_scalar(c,:)
        else
-            elm_bgc_data%sitefactor_kd_vr_col(c,:) = 1.0_r8
+            elm_bgc_data%sitefactor_kd_vr(c,:) = 1.0_r8
        end if
 
 
 
-       elm_bgc_data%externaln_to_nh4_col(c,:)          =   fnh4_dep*ndep_to_sminn(c) * ndep_prof(c,:) +  &
-                                                           fnh4_fert*fert_to_sminn(c) * ndep_prof(c,:) + &
-                                                           fnh4_fert*supplement_to_sminn_vr(c,:) +       &
-                                                           nfix_to_sminn(c) * nfixation_prof(c,:) +      &
-                                                           soyfixn_to_sminn(c) * nfixation_prof(c,:)
+       elm_bgc_data%externaln_to_nh4(c,:)          = fnh4_dep*ndep_to_sminn(c) * ndep_prof(c,:) +  &
+                                                     fnh4_fert*fert_to_sminn(c) * ndep_prof(c,:) + &
+                                                     fnh4_fert*supplement_to_sminn_vr(c,:) +       &
+                                                     nfix_to_sminn(c) * nfixation_prof(c,:) +      &
+                                                     soyfixn_to_sminn(c) * nfixation_prof(c,:)
 
-       elm_bgc_data%externaln_to_no3_col(c,:)          =   (1._r8-fnh4_dep)*ndep_to_sminn(c) * ndep_prof(c, :) +  &
-                                                           (1._r8-fnh4_fert)*fert_to_sminn(c) * ndep_prof(c, :) + &
-                                                           (1._r8-fnh4_fert)*supplement_to_sminn_vr(c,:)
+       elm_bgc_data%externaln_to_no3(c,:)          = (1._r8-fnh4_dep)*ndep_to_sminn(c) * ndep_prof(c, :) +  &
+                                                     (1._r8-fnh4_fert)*fert_to_sminn(c) * ndep_prof(c, :) + &
+                                                     (1._r8-fnh4_fert)*supplement_to_sminn_vr(c,:)
 
 
 
-       elm_bgc_data%externalp_to_primp_col(c,:)        =   pdep_to_sminp(c)*ndep_prof(c, :)
-       elm_bgc_data%externalp_to_labilep_col(c,:)      =   fert_p_to_sminp(c)*ndep_prof(c, :)
-       elm_bgc_data%externalp_to_solutionp_col(c,:)    =   supplement_to_sminp_vr(c,:)
+       elm_bgc_data%externalp_to_primp(c,:)        = pdep_to_sminp(c)*ndep_prof(c, :)
+       elm_bgc_data%externalp_to_labilep(c,:)      = fert_p_to_sminp(c)*ndep_prof(c, :)
+       elm_bgc_data%externalp_to_solutionp(c,:)    = supplement_to_sminp_vr(c,:)
 
-       elm_bgc_data%no3_net_transport_vr_col(c,:)      = no3_net_transport_vr(c,:)
-       elm_bgc_data%nh4_net_transport_vr_col(c,:)      = nh4_net_transport_vr(c,:)
-       elm_bgc_data%sminp_net_transport_vr_col(c,:)    = sminp_net_transport_vr(c,:)  !from solutionp
+       elm_bgc_data%no3_net_transport_vr(c,:)      = no3_net_transport_vr(c,:)
+       elm_bgc_data%nh4_net_transport_vr(c,:)      = nh4_net_transport_vr(c,:)
+       elm_bgc_data%sminp_net_transport_vr(c,:)    = sminp_net_transport_vr(c,:)  !from solutionp
 
-       elm_bgc_data%plant_ndemand_vr_col(c,:)          = col_plant_ndemand_vr(c,:)
-       elm_bgc_data%plant_pdemand_vr_col(c,:)          = col_plant_pdemand_vr(c,:)
+       elm_bgc_data%plant_ndemand_vr(c,:)          = plant_ndemand_vr(c,:)
+       elm_bgc_data%plant_pdemand_vr(c,:)          = plant_pdemand_vr(c,:)
 
     end do ! fc = 1,num_soilc
 
@@ -722,21 +722,21 @@ contains
   !EOP
   !-----------------------------------------------------------------------
     associate ( &
-         soilpsi_col    =>  soilstate_vars%soilpsi_col          , &
+         soilpsi    =>  soilstate_vars%soilpsi_col          , &
          !
-         h2osoi_liq_col =>  col_ws%h2osoi_liq      , &
-         h2osoi_ice_col =>  col_ws%h2osoi_ice      , &
-         h2osoi_vol_col =>  col_ws%h2osoi_vol        &
+         h2osoi_liq =>  col_ws%h2osoi_liq      , &
+         h2osoi_ice =>  col_ws%h2osoi_ice      , &
+         h2osoi_vol =>  col_ws%h2osoi_vol        &
     )
 
     do fc = 1,num_soilc
         c = filter_soilc(fc)
 
-        soilpsi_col(c,:)    =  elm_idata_th%soilpsi_col(c,:)
+        soilpsi(c,:)    =  elm_idata_th%soilpsi(c,:)
 
-        h2osoi_liq_col(c,:) =  elm_idata_th%h2osoi_liq_col(c,:)
-        h2osoi_ice_col(c,:) =  elm_idata_th%h2osoi_ice_col(c,:)
-        h2osoi_vol_col(c,:) =  elm_idata_th%h2osoi_vol_col(c,:)
+        h2osoi_liq(c,:) =  elm_idata_th%h2osoi_liq(c,:)
+        h2osoi_ice(c,:) =  elm_idata_th%h2osoi_ice(c,:)
+        h2osoi_vol(c,:) =  elm_idata_th%h2osoi_vol(c,:)
     end do
 
     end associate
@@ -772,7 +772,7 @@ contains
 
     do fc = 1,num_soilc
         c = filter_soilc(fc)
-        t_soisno(c,:)   = elm_idata_th%t_soisno_col(c,:)
+        t_soisno(c,:)   = elm_idata_th%t_soisno(c,:)
     end do
 
     end associate
@@ -844,9 +844,9 @@ contains
     do fc = 1, num_soilc
         c = filter_soilc(fc)
             do k = 1, ndecomp_pools
-                decomp_cpools_vr(c,:,k) = elm_bgc_data%decomp_cpools_vr_col(c,:,k)
-                decomp_npools_vr(c,:,k) = elm_bgc_data%decomp_npools_vr_col(c,:,k)
-                decomp_ppools_vr(c,:,k) = elm_bgc_data%decomp_ppools_vr_col(c,:,k)
+                decomp_cpools_vr(c,:,k) = elm_bgc_data%decomp_cpools_vr(c,:,k)
+                decomp_npools_vr(c,:,k) = elm_bgc_data%decomp_npools_vr(c,:,k)
+                decomp_ppools_vr(c,:,k) = elm_bgc_data%decomp_ppools_vr(c,:,k)
             end do
     end do
 
@@ -893,17 +893,17 @@ contains
 !
     do fc = 1, num_soilc
         c = filter_soilc(fc)
-            smin_no3_vr(c,:)        = elm_bgc_data%smin_no3_vr_col(c,:)
-            smin_nh4_vr(c,:)        = elm_bgc_data%smin_nh4_vr_col(c,:)
-            smin_nh4sorb_vr(c,:)    = elm_bgc_data%smin_nh4sorb_vr_col(c,:)
-            sminn_vr(c,:)           = elm_bgc_data%sminn_vr_col(c,:)
+            smin_no3_vr(c,:)        = elm_bgc_data%smin_no3_vr(c,:)
+            smin_nh4_vr(c,:)        = elm_bgc_data%smin_nh4_vr(c,:)
+            smin_nh4sorb_vr(c,:)    = elm_bgc_data%smin_nh4sorb_vr(c,:)
+            sminn_vr(c,:)           = elm_bgc_data%sminn_vr(c,:)
 
-            solutionp_vr(c,:)       = elm_bgc_data%solutionp_vr_col(c,:)
-            labilep_vr(c,:)         = elm_bgc_data%labilep_vr_col(c,:)
-            secondp_vr(c,:)         = elm_bgc_data%secondp_vr_col(c,:)
-            sminp_vr(c,:)           = elm_bgc_data%sminp_vr_col(c,:)
-            occlp_vr(c,:)           = elm_bgc_data%occlp_vr_col(c,:)
-            primp_vr(c,:)           = elm_bgc_data%primp_vr_col(c,:)
+            solutionp_vr(c,:)       = elm_bgc_data%solutionp_vr(c,:)
+            labilep_vr(c,:)         = elm_bgc_data%labilep_vr(c,:)
+            secondp_vr(c,:)         = elm_bgc_data%secondp_vr(c,:)
+            sminp_vr(c,:)           = elm_bgc_data%sminp_vr(c,:)
+            occlp_vr(c,:)           = elm_bgc_data%occlp_vr(c,:)
+            primp_vr(c,:)           = elm_bgc_data%primp_vr(c,:)
     end do
 
     end associate
@@ -936,9 +936,9 @@ contains
     do fc = 1, num_soilc
         c = filter_soilc(fc)
             do k = 1, ndecomp_pools
-                decomp_cpools_sourcesink_vr(c,:,k) = elm_bgc_data%decomp_cpools_sourcesink_col(c,:,k)
-                decomp_npools_sourcesink_vr(c,:,k) = elm_bgc_data%decomp_npools_sourcesink_col(c,:,k)
-                decomp_ppools_sourcesink_vr(c,:,k) = elm_bgc_data%decomp_ppools_sourcesink_col(c,:,k)
+                decomp_cpools_sourcesink_vr(c,:,k) = elm_bgc_data%decomp_cpools_sourcesink(c,:,k)
+                decomp_npools_sourcesink_vr(c,:,k) = elm_bgc_data%decomp_npools_sourcesink(c,:,k)
+                decomp_ppools_sourcesink_vr(c,:,k) = elm_bgc_data%decomp_ppools_sourcesink(c,:,k)
             end do
     end do
     end associate
@@ -963,35 +963,35 @@ contains
     character(len=256) :: subname = "update_bgc_flux_decomp_cascade"
 
     associate ( &
-     phr_vr                           => col_cf%phr_vr                                 , & ! Output: [real(r8) (:,:)   ]  potential HR (gC/m3/s)
-     fphr                             => col_cf%fphr                                   , & ! Output: [real(r8) (:,:)   ]  fraction of potential SOM + LITTER heterotrophic
+     phr_vr                       => col_cf%phr_vr                                 , & ! Output: [real(r8) (:,:)   ]  potential HR (gC/m3/s)
+     fphr                         => col_cf%fphr                                   , & ! Output: [real(r8) (:,:)   ]  fraction of potential SOM + LITTER heterotrophic
 
-     decomp_cascade_hr_vr_col         => col_cf%decomp_cascade_hr_vr                   , &
+     decomp_cascade_hr_vr         => col_cf%decomp_cascade_hr_vr                   , &
 
-     decomp_cascade_ctransfer_vr_col  => col_cf%decomp_cascade_ctransfer_vr            , &
-     decomp_cascade_ntransfer_vr_col  => col_nf%decomp_cascade_ntransfer_vr          , &
-     decomp_cascade_ptransfer_vr_col  => col_pf%decomp_cascade_ptransfer_vr        , &
+     decomp_cascade_ctransfer_vr  => col_cf%decomp_cascade_ctransfer_vr            , &
+     decomp_cascade_ntransfer_vr  => col_nf%decomp_cascade_ntransfer_vr            , &
+     decomp_cascade_ptransfer_vr  => col_pf%decomp_cascade_ptransfer_vr            , &
 
-     decomp_cascade_sminn_flux_vr_col => col_nf%decomp_cascade_sminn_flux_vr         , & ! Output: [real(r8) (:,:,:) ]  vert-res mineral N flux for transition along decomposition cascade (gN/m3/s)
-     decomp_cascade_sminp_flux_vr_col => col_pf%decomp_cascade_sminp_flux_vr       , & ! Output: [real(r8) (:,:,:) ]  vert-res mineral P flux for transition along decomposition cascade (gP/m3/s)
+     decomp_cascade_sminn_flux_vr => col_nf%decomp_cascade_sminn_flux_vr           , & ! Output: [real(r8) (:,:,:) ]  vert-res mineral N flux for transition along decomposition cascade (gN/m3/s)
+     decomp_cascade_sminp_flux_vr => col_pf%decomp_cascade_sminp_flux_vr           , & ! Output: [real(r8) (:,:,:) ]  vert-res mineral P flux for transition along decomposition cascade (gP/m3/s)
 
-     sminn_to_denit_decomp_cascade_vr_col => col_nf%sminn_to_denit_decomp_cascade_vr   & ! Output: [real(r8) (:,:,:) ]
+     sminn_to_denit_decomp_cascade_vr => col_nf%sminn_to_denit_decomp_cascade_vr     & ! Output: [real(r8) (:,:,:) ]
      )
 
     do fc = 1, num_soilc
         c = filter_soilc(fc)
-            phr_vr(c,:) = elm_bgc_data%phr_vr_col(c,:)
-            fphr(c,:)   = elm_bgc_data%fphr_col(c,:)
+            phr_vr(c,:) = elm_bgc_data%phr_vr(c,:)
+            fphr(c,:)   = elm_bgc_data%fphr(c,:)
 
             do k = 1, ndecomp_cascade_transitions
-                decomp_cascade_hr_vr_col(c,:,k)         = elm_bgc_data%decomp_cascade_hr_vr_col(c,:,k)
-                decomp_cascade_ctransfer_vr_col(c,:,k)  = elm_bgc_data%decomp_cascade_ctransfer_vr_col(c,:,k)
-                decomp_cascade_ntransfer_vr_col(c,:,k)  = elm_bgc_data%decomp_cascade_ntransfer_vr_col(c,:,k)
-                decomp_cascade_ptransfer_vr_col(c,:,k)  = elm_bgc_data%decomp_cascade_ptransfer_vr_col(c,:,k)
+                decomp_cascade_hr_vr(c,:,k)         = elm_bgc_data%decomp_cascade_hr_vr(c,:,k)
+                decomp_cascade_ctransfer_vr(c,:,k)  = elm_bgc_data%decomp_cascade_ctransfer_vr(c,:,k)
+                decomp_cascade_ntransfer_vr(c,:,k)  = elm_bgc_data%decomp_cascade_ntransfer_vr(c,:,k)
+                decomp_cascade_ptransfer_vr(c,:,k)  = elm_bgc_data%decomp_cascade_ptransfer_vr(c,:,k)
 
-                decomp_cascade_sminn_flux_vr_col(c,:,k)     = elm_bgc_data%decomp_cascade_sminn_flux_vr_col(c,:,k)
-                decomp_cascade_sminp_flux_vr_col(c,:,k)     = elm_bgc_data%decomp_cascade_sminp_flux_vr_col(c,:,k)
-                sminn_to_denit_decomp_cascade_vr_col(c,:,k) = elm_bgc_data%sminn_to_denit_decomp_cascade_vr_col(c,:,k)
+                decomp_cascade_sminn_flux_vr(c,:,k)     = elm_bgc_data%decomp_cascade_sminn_flux_vr(c,:,k)
+                decomp_cascade_sminp_flux_vr(c,:,k)     = elm_bgc_data%decomp_cascade_sminp_flux_vr(c,:,k)
+                sminn_to_denit_decomp_cascade_vr(c,:,k) = elm_bgc_data%sminn_to_denit_decomp_cascade_vr(c,:,k)
             end do
     end do
     end associate
@@ -1017,12 +1017,12 @@ contains
     character(len=256) :: subname = "update_bgc_flux_smin"
 
     associate ( &
-     fpg                          => cnstate_vars%fpg_col                            , & ! Output: [real(r8) (:)   ]  fraction of potential gpp (no units)
-     fpi                          => cnstate_vars%fpi_col                            , & ! Output: [real(r8) (:)   ]  fraction of potential immobilization (no units)
-     fpi_vr                       => cnstate_vars%fpi_vr_col                         , & ! Output: [real(r8) (:,:) ]  fraction of potential immobilization (no units)
-     fpg_p                        => cnstate_vars%fpg_p_col                          , & ! Output: [real(r8) (:)   ]  fraction of potential gpp (no units)
-     fpi_p                        => cnstate_vars%fpi_p_col                          , & ! Output: [real(r8) (:)   ]  fraction of potential immobilization (no units)
-     fpi_p_vr                     => cnstate_vars%fpi_p_vr_col                       , & ! Output: [real(r8) (:,:) ]  fraction of potential immobilization (no units)
+     fpg                          => cnstate_vars%fpg_col             , & ! Output: [real(r8) (:)   ]  fraction of potential gpp (no units)
+     fpi                          => cnstate_vars%fpi_col             , & ! Output: [real(r8) (:)   ]  fraction of potential immobilization (no units)
+     fpi_vr                       => cnstate_vars%fpi_vr_col          , & ! Output: [real(r8) (:,:) ]  fraction of potential immobilization (no units)
+     fpg_p                        => cnstate_vars%fpg_p_col           , & ! Output: [real(r8) (:)   ]  fraction of potential gpp (no units)
+     fpi_p                        => cnstate_vars%fpi_p_col           , & ! Output: [real(r8) (:)   ]  fraction of potential immobilization (no units)
+     fpi_p_vr                     => cnstate_vars%fpi_p_vr_col        , & ! Output: [real(r8) (:,:) ]  fraction of potential immobilization (no units)
 
      potential_immob              => col_nf%potential_immob           , & ! Output: [real(r8) (:)   ]
      actual_immob                 => col_nf%actual_immob              , & ! Output: [real(r8) (:)   ]
@@ -1060,46 +1060,46 @@ contains
      do fc = 1, num_soilc
         c = filter_soilc(fc)
 
-        fpg(c)              = elm_bgc_data%fpg_col(c)
-        fpi(c)              = elm_bgc_data%fpi_col(c)
-        fpg_p(c)            = elm_bgc_data%fpg_p_col(c)
-        fpi_p(c)            = elm_bgc_data%fpi_p_col(c)
+        fpg(c)              = elm_bgc_data%fpg(c)
+        fpi(c)              = elm_bgc_data%fpi(c)
+        fpg_p(c)            = elm_bgc_data%fpg_p(c)
+        fpi_p(c)            = elm_bgc_data%fpi_p(c)
 
-        potential_immob(c)  = elm_bgc_data%potential_immob_col(c)
-        actual_immob(c)     = elm_bgc_data%actual_immob_col(c)
-        sminn_to_plant(c)   = elm_bgc_data%sminn_to_plant_col(c)
+        potential_immob(c)  = elm_bgc_data%potential_immob(c)
+        actual_immob(c)     = elm_bgc_data%actual_immob(c)
+        sminn_to_plant(c)   = elm_bgc_data%sminn_to_plant(c)
 
-        potential_immob_p(c)  = elm_bgc_data%potential_immob_p_col(c)
-        actual_immob_p(c)     = elm_bgc_data%actual_immob_p_col(c)
-        sminp_to_plant(c)     = elm_bgc_data%sminp_to_plant_col(c)
+        potential_immob_p(c)= elm_bgc_data%potential_immob_p(c)
+        actual_immob_p(c)   = elm_bgc_data%actual_immob_p(c)
+        sminp_to_plant(c)   = elm_bgc_data%sminp_to_plant(c)
 
-        fpi_vr(c,:)                 = elm_bgc_data%fpi_vr_col(c,:)
-        fpi_p_vr(c,:)               = elm_bgc_data%fpi_p_vr_col(c,:)
+        fpi_vr(c,:)         = elm_bgc_data%fpi_vr(c,:)
+        fpi_p_vr(c,:)       = elm_bgc_data%fpi_p_vr(c,:)
 
-        sminn_to_plant_vr(c,:)      = elm_bgc_data%sminn_to_plant_vr_col(c,:)
-        smin_no3_to_plant_vr(c,:)   = elm_bgc_data%smin_no3_to_plant_vr_col(c,:)
-        smin_nh4_to_plant_vr(c,:)   = elm_bgc_data%smin_nh4_to_plant_vr_col(c,:)
+        sminn_to_plant_vr(c,:)      = elm_bgc_data%sminn_to_plant_vr(c,:)
+        smin_no3_to_plant_vr(c,:)   = elm_bgc_data%smin_no3_to_plant_vr(c,:)
+        smin_nh4_to_plant_vr(c,:)   = elm_bgc_data%smin_nh4_to_plant_vr(c,:)
 
-        potential_immob_vr(c,:)     = elm_bgc_data%potential_immob_vr_col(c,:)
-        actual_immob_vr(c,:)        = elm_bgc_data%actual_immob_vr_col(c,:)
-        actual_immob_no3_vr(c,:)    = elm_bgc_data%actual_immob_no3_vr_col(c,:)
-        actual_immob_nh4_vr(c,:)    = elm_bgc_data%actual_immob_nh4_vr_col(c,:)
-        gross_nmin_vr(c,:)          = elm_bgc_data%gross_nmin_vr_col(c,:)
-        net_nmin_vr(c,:)            = elm_bgc_data%net_nmin_vr_col(c,:)
+        potential_immob_vr(c,:)     = elm_bgc_data%potential_immob_vr(c,:)
+        actual_immob_vr(c,:)        = elm_bgc_data%actual_immob_vr(c,:)
+        actual_immob_no3_vr(c,:)    = elm_bgc_data%actual_immob_no3_vr(c,:)
+        actual_immob_nh4_vr(c,:)    = elm_bgc_data%actual_immob_nh4_vr(c,:)
+        gross_nmin_vr(c,:)          = elm_bgc_data%gross_nmin_vr(c,:)
+        net_nmin_vr(c,:)            = elm_bgc_data%net_nmin_vr(c,:)
 
-        sminn_to_denit_excess_vr(c,:)=elm_bgc_data%sminn_to_denit_excess_vr_col(c,:)
-        supplement_to_sminn_vr(c,:) = elm_bgc_data%supplement_to_sminn_vr_col(c,:)
+        sminn_to_denit_excess_vr(c,:)=elm_bgc_data%sminn_to_denit_excess_vr(c,:)
+        supplement_to_sminn_vr(c,:) = elm_bgc_data%supplement_to_sminn_vr(c,:)
 
-        no3_net_transport_vr(c,:)   = elm_bgc_data%no3_net_transport_vr_col(c,:)
-        nh4_net_transport_vr(c,:)   = elm_bgc_data%nh4_net_transport_vr_col(c,:)
+        no3_net_transport_vr(c,:)   = elm_bgc_data%no3_net_transport_vr(c,:)
+        nh4_net_transport_vr(c,:)   = elm_bgc_data%nh4_net_transport_vr(c,:)
 
-        supplement_to_sminp_vr(c,:) = elm_bgc_data%supplement_to_sminp_vr_col(c,:)
+        supplement_to_sminp_vr(c,:) = elm_bgc_data%supplement_to_sminp_vr(c,:)
 
-        sminp_to_plant_vr(c,:)      = elm_bgc_data%sminp_to_plant_vr_col(c,:)
-        potential_immob_p_vr(c,:)   = elm_bgc_data%potential_immob_p_vr_col(c,:)
-        actual_immob_p_vr(c,:)      = elm_bgc_data%actual_immob_p_vr_col(c,:)
-        gross_pmin_vr(c,:)          = elm_bgc_data%gross_pmin_vr_col(c,:)
-        net_pmin_vr(c,:)            = elm_bgc_data%net_pmin_vr_col(c,:)     !NOT available in PF
+        sminp_to_plant_vr(c,:)      = elm_bgc_data%sminp_to_plant_vr(c,:)
+        potential_immob_p_vr(c,:)   = elm_bgc_data%potential_immob_p_vr(c,:)
+        actual_immob_p_vr(c,:)      = elm_bgc_data%actual_immob_p_vr(c,:)
+        gross_pmin_vr(c,:)          = elm_bgc_data%gross_pmin_vr(c,:)
+        net_pmin_vr(c,:)            = elm_bgc_data%net_pmin_vr(c,:)     !NOT available in PF
 
       end do
     end associate
@@ -1133,13 +1133,13 @@ contains
 
     do fc = 1, num_soilc
         c = filter_soilc(fc)
-        pot_f_nit_vr(c,:)           = elm_bgc_data%pot_f_nit_vr_col(c,:)
-        pot_f_denit_vr(c,:)         = elm_bgc_data%pot_f_denit_vr_col(c,:)
-        f_nit_vr(c,:)               = elm_bgc_data%f_nit_vr_col(c,:)
-        f_denit_vr(c,:)             = elm_bgc_data%f_denit_vr_col(c,:)
-        n2_n2o_ratio_denit_vr(c,:)  = elm_bgc_data%n2_n2o_ratio_denit_vr_col(c,:)
-        f_n2o_denit_vr(c,:)         = elm_bgc_data%f_n2o_denit_vr_col(c,:)
-        f_n2o_nit_vr(c,:)           = elm_bgc_data%f_n2o_nit_vr_col(c,:)
+        pot_f_nit_vr(c,:)           = elm_bgc_data%pot_f_nit_vr(c,:)
+        pot_f_denit_vr(c,:)         = elm_bgc_data%pot_f_denit_vr(c,:)
+        f_nit_vr(c,:)               = elm_bgc_data%f_nit_vr(c,:)
+        f_denit_vr(c,:)             = elm_bgc_data%f_denit_vr(c,:)
+        n2_n2o_ratio_denit_vr(c,:)  = elm_bgc_data%n2_n2o_ratio_denit_vr(c,:)
+        f_n2o_denit_vr(c,:)         = elm_bgc_data%f_n2o_denit_vr(c,:)
+        f_n2o_nit_vr(c,:)           = elm_bgc_data%f_n2o_nit_vr(c,:)
     end do
     end associate
     end subroutine update_bgc_flux_nitdenit
@@ -1175,14 +1175,14 @@ contains
 ! ------------------------------------------------------------------------
     do fc = 1,num_soilc
         c = filter_soilc(fc)
-        f_co2_soil_vr(c,:)         = elm_bgc_data%f_co2_soil_vr_col(c,:)
-        f_n2_soil_vr(c,:)          = elm_bgc_data%f_n2_soil_vr_col(c,:)
-        f_n2o_soil_vr(c,:)         = elm_bgc_data%f_n2o_soil_vr_col(c,:)
+        f_co2_soil_vr(c,:)         = elm_bgc_data%f_co2_soil_vr(c,:)
+        f_n2_soil_vr(c,:)          = elm_bgc_data%f_n2_soil_vr(c,:)
+        f_n2o_soil_vr(c,:)         = elm_bgc_data%f_n2o_soil_vr(c,:)
 
-        hr_vr(c,:)                 = elm_bgc_data%hr_vr_col(c,:)
-        f_ngas_decomp_vr(c,:)      = elm_bgc_data%f_ngas_decomp_vr_col(c,:)
-        f_ngas_nitri_vr(c,:)       = elm_bgc_data%f_ngas_nitri_vr_col(c,:)
-        f_ngas_denit_vr(c,:)       = elm_bgc_data%f_ngas_denit_vr_col(c,:)
+        hr_vr(c,:)                 = elm_bgc_data%hr_vr(c,:)
+        f_ngas_decomp_vr(c,:)      = elm_bgc_data%f_ngas_decomp_vr(c,:)
+        f_ngas_nitri_vr(c,:)       = elm_bgc_data%f_ngas_nitri_vr(c,:)
+        f_ngas_denit_vr(c,:)       = elm_bgc_data%f_ngas_denit_vr(c,:)
 
      enddo ! do c = begc, endc
 !
@@ -1318,38 +1318,38 @@ contains
     !-----------------------------------------------------------------------
 
     associate(&
-        decomp_cpools_vr        => col_cs%decomp_cpools_vr        , & ! Input:  [real(r8) (:,:,:) ]  (gC/m3)  vertically-resolved decomposing (litter, cwd, soil) c pools
+        decomp_cpools_vr        => col_cs%decomp_cpools_vr      , & ! Input:  [real(r8) (:,:,:) ]  (gC/m3)  vertically-resolved decomposing (litter, cwd, soil) c pools
         decomp_npools_vr        => col_ns%decomp_npools_vr      , & ! Input:  [real(r8) (:,:,:) ]  (gC/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
-        decomp_ppools_vr        => col_ps%decomp_ppools_vr    , & ! Input:  [real(r8) (:,:,:) ]  (gC/m3)  vertically-resolved decomposing (litter, cwd, soil) P pools
+        decomp_ppools_vr        => col_ps%decomp_ppools_vr      , & ! Input:  [real(r8) (:,:,:) ]  (gC/m3)  vertically-resolved decomposing (litter, cwd, soil) P pools
 
         smin_no3_vr             => col_ns%smin_no3_vr           , &      ! (gN/m3) vertically-resolved soil mineral NO3
         smin_nh4_vr             => col_ns%smin_nh4_vr           , &      ! (gN/m3) vertically-resolved soil mineral NH4
         smin_nh4sorb_vr         => col_ns%smin_nh4sorb_vr       , &      ! (gN/m3) vertically-resolved soil mineral NH4 absorbed
 
-        solutionp_vr            => col_ps%solutionp_vr        , & ! [real(r8) (:,:)   ! col (gP/m3) vertically-resolved soil solution P
-        labilep_vr              => col_ps%labilep_vr          , & ! [real(r8) (:,:)   ! col (gP/m3) vertically-resolved soil labile mineral P
-        secondp_vr              => col_ps%secondp_vr          , & ! [real(r8) (:,:)   ! col (gP/m3) vertically-resolved soil secondary mineralP
-        sminp_vr                => col_ps%sminp_vr            , & ! [real(r8) (:,:)   ! col (gP/m3) vertically-resolved soil mineral P = solutionp + labilep + secondp
-        occlp_vr                => col_ps%occlp_vr            , & ! [real(r8) (:,:)   ! col (gP/m3) vertically-resolved soil occluded mineral P
-        primp_vr                => col_ps%primp_vr            , & ! [real(r8) (:,:)   ! col (gP/m3) vertically-resolved soil primary mineral P
+        solutionp_vr            => col_ps%solutionp_vr          , & ! [real(r8) (:,:)   ! col (gP/m3) vertically-resolved soil solution P
+        labilep_vr              => col_ps%labilep_vr            , & ! [real(r8) (:,:)   ! col (gP/m3) vertically-resolved soil labile mineral P
+        secondp_vr              => col_ps%secondp_vr            , & ! [real(r8) (:,:)   ! col (gP/m3) vertically-resolved soil secondary mineralP
+        sminp_vr                => col_ps%sminp_vr              , & ! [real(r8) (:,:)   ! col (gP/m3) vertically-resolved soil mineral P = solutionp + labilep + secondp
+        occlp_vr                => col_ps%occlp_vr              , & ! [real(r8) (:,:)   ! col (gP/m3) vertically-resolved soil occluded mineral P
+        primp_vr                => col_ps%primp_vr              , & ! [real(r8) (:,:)   ! col (gP/m3) vertically-resolved soil primary mineral P
         !
-        plant_ndemand_col       => col_nf%plant_ndemand          , &
-        plant_pdemand_col       => col_pf%plant_pdemand        , &
+        plant_ndemand           => col_nf%plant_ndemand         , &
+        plant_pdemand           => col_pf%plant_pdemand         , &
         !
-        !alt_indx                => canopystate_vars%alt_indx_col                , & ! Input:  [integer  (:)     ]  current depth of thaw
+        !alt_indx                => canopystate_vars%alt_indx_col, & ! Input:  [integer  (:)     ]  current depth of thaw
         !
-        watsat                  => soilstate_vars%watsat_col                    , & ! Input:  [real(r8) (:,:)  ]  volumetric soil water at saturation (porosity) (nlevgrnd)
-        bd                      => soilstate_vars%bd_col                        , & ! Input:  [real(r8) (:,:)  ]  bulk density of dry soil material [kg/m3]
-        watfc                   => soilstate_vars%watfc_col                     , & ! Input:  [real(r8) (:,:)  ]  volumetric soil water at field capacity (nlevsoi)
-        bsw                     => soilstate_vars%bsw_col                       , & ! Input:  [real(r8) (:,:)  ]  Clapp and Hornberger "b" (nlevgrnd)
-        cellorg                 => soilstate_vars%cellorg_col                   , & ! Input:  [real(r8) (:,:)  ]  column 3D org (kg/m3 organic matter) (nlevgrnd)
-        sucsat                  => soilstate_vars%sucsat_col                    , & ! Input:  [real(r8) (:,:)  ]  minimum soil suction (mm)
-        soilpsi                 => soilstate_vars%soilpsi_col                   , & ! Input:  [real(r8) (:,:)  ]  soil water potential in each soil layer (MPa)
+        watsat                  => soilstate_vars%watsat_col    , & ! Input:  [real(r8) (:,:)  ]  volumetric soil water at saturation (porosity) (nlevgrnd)
+        bd                      => soilstate_vars%bd_col        , & ! Input:  [real(r8) (:,:)  ]  bulk density of dry soil material [kg/m3]
+        watfc                   => soilstate_vars%watfc_col     , & ! Input:  [real(r8) (:,:)  ]  volumetric soil water at field capacity (nlevsoi)
+        bsw                     => soilstate_vars%bsw_col       , & ! Input:  [real(r8) (:,:)  ]  Clapp and Hornberger "b" (nlevgrnd)
+        cellorg                 => soilstate_vars%cellorg_col   , & ! Input:  [real(r8) (:,:)  ]  column 3D org (kg/m3 organic matter) (nlevgrnd)
+        sucsat                  => soilstate_vars%sucsat_col    , & ! Input:  [real(r8) (:,:)  ]  minimum soil suction (mm)
+        soilpsi                 => soilstate_vars%soilpsi_col   , & ! Input:  [real(r8) (:,:)  ]  soil water potential in each soil layer (MPa)
 
-        h2osoi_vol              => col_ws%h2osoi_vol               , & ! Input:  [real(r8) (:,:)  ]  volumetric soil water (0<=h2osoi_vol<=watsat) [m3/m3]  (nlevgrnd)
-        h2osoi_liq              => col_ws%h2osoi_liq               , & ! Input:  [real(r8) (:,:)  ]  liquid water (kg/m2) (new) (-nlevsno+1:nlevgrnd)
+        h2osoi_vol              => col_ws%h2osoi_vol            , & ! Input:  [real(r8) (:,:)  ]  volumetric soil water (0<=h2osoi_vol<=watsat) [m3/m3]  (nlevgrnd)
+        h2osoi_liq              => col_ws%h2osoi_liq            , & ! Input:  [real(r8) (:,:)  ]  liquid water (kg/m2) (new) (-nlevsno+1:nlevgrnd)
 
-        t_soisno                => col_es%t_soisno                , & ! Input:  [real(r8) (:,:)  ]  soil temperature (Kelvin)  (-nlevsno+1:nlevgrnd)
+        t_soisno                => col_es%t_soisno              , & ! Input:  [real(r8) (:,:)  ]  soil temperature (Kelvin)  (-nlevsno+1:nlevgrnd)
 
         o2_decomp_depth_unsat   => ch4_vars%o2_decomp_depth_unsat_col           , & ! Input:  [real(r8) (:,:)  ]  O2 consumption during decomposition in each soil layer (nlevsoi) (mol/m3/s)
         o2_decomp_depth_sat     => ch4_vars%o2_decomp_depth_sat_col             , & ! Input:  [real(r8) (:,:)  ]  O2 consumption during decomposition in each soil layer (nlevsoi) (mol/m3/s)
@@ -1366,30 +1366,30 @@ contains
     do fc = 1, num_soilc
         c = filter_soilc(fc)
 
-        plant_ndemand_col(c)        = elm_interface_data%bgc%plant_ndemand_col(c)
-        plant_pdemand_col(c)        = elm_interface_data%bgc%plant_pdemand_col(c)
+        plant_ndemand(c)            = elm_interface_data%bgc%plant_ndemand(c)
+        plant_pdemand(c)            = elm_interface_data%bgc%plant_pdemand(c)
 
-        finundated(c)               = elm_interface_data%bgc%finundated_col(c)
+        finundated(c)               = elm_interface_data%bgc%finundated(c)
 
-        bd(c,:)                     = elm_interface_data%bd_col(c,:)
-        watsat(c,:)                 = elm_interface_data%watsat_col(c,:)
-        bsw(c,:)                    = elm_interface_data%bsw_col(c,:)
-        sucsat(c,:)                 = elm_interface_data%sucsat_col(c,:)
-        watfc(c,:)                  = elm_interface_data%watfc_col(c,:)
-        cellorg(c,:)                = elm_interface_data%cellorg_col(c,:)
+        bd(c,:)                     = elm_interface_data%bd(c,:)
+        watsat(c,:)                 = elm_interface_data%watsat(c,:)
+        bsw(c,:)                    = elm_interface_data%bsw(c,:)
+        sucsat(c,:)                 = elm_interface_data%sucsat(c,:)
+        watfc(c,:)                  = elm_interface_data%watfc(c,:)
+        cellorg(c,:)                = elm_interface_data%cellorg(c,:)
 
-        soilpsi(c,:)                = elm_interface_data%th%soilpsi_col(c,:)
-        h2osoi_vol(c,:)             = elm_interface_data%th%h2osoi_vol_col(c,:)
-        h2osoi_liq(c,:)             = elm_interface_data%th%h2osoi_liq_col(c,:)
+        soilpsi(c,:)                = elm_interface_data%th%soilpsi(c,:)
+        h2osoi_vol(c,:)             = elm_interface_data%th%h2osoi_vol(c,:)
+        h2osoi_liq(c,:)             = elm_interface_data%th%h2osoi_liq(c,:)
 
-        t_soisno(c,:)               = elm_interface_data%th%t_soisno_col(c,:)
+        t_soisno(c,:)               = elm_interface_data%th%t_soisno(c,:)
 
-        o2stress_unsat(c,:)         = elm_interface_data%bgc%o2stress_unsat_col(c,:)
-        o2stress_sat(c,:)           = elm_interface_data%bgc%o2stress_sat_col(c,:)
-        o2_decomp_depth_unsat(c,:)  = elm_interface_data%bgc%o2_decomp_depth_unsat_col(c,:)
-        conc_o2_unsat(c,:)          = elm_interface_data%bgc%conc_o2_unsat_col(c,:)
-        o2_decomp_depth_sat(c,:)    = elm_interface_data%bgc%o2_decomp_depth_sat_col(c,:)
-        conc_o2_sat(c,:)            = elm_interface_data%bgc%conc_o2_sat_col(c,:)
+        o2stress_unsat(c,:)         = elm_interface_data%bgc%o2stress_unsat(c,:)
+        o2stress_sat(c,:)           = elm_interface_data%bgc%o2stress_sat(c,:)
+        o2_decomp_depth_unsat(c,:)  = elm_interface_data%bgc%o2_decomp_depth_unsat(c,:)
+        conc_o2_unsat(c,:)          = elm_interface_data%bgc%conc_o2_unsat(c,:)
+        o2_decomp_depth_sat(c,:)    = elm_interface_data%bgc%o2_decomp_depth_sat(c,:)
+        conc_o2_sat(c,:)            = elm_interface_data%bgc%conc_o2_sat(c,:)
 
     end do
 
@@ -1397,21 +1397,21 @@ contains
     do fc = 1, num_soilc
         c = filter_soilc(fc)
             do k = 1, ndecomp_pools
-                decomp_cpools_vr(c,:,k) = elm_interface_data%bgc%decomp_cpools_vr_col(c,:,k)
-                decomp_npools_vr(c,:,k) = elm_interface_data%bgc%decomp_npools_vr_col(c,:,k)
-                decomp_ppools_vr(c,:,k) = elm_interface_data%bgc%decomp_ppools_vr_col(c,:,k)
+                decomp_cpools_vr(c,:,k) = elm_interface_data%bgc%decomp_cpools_vr(c,:,k)
+                decomp_npools_vr(c,:,k) = elm_interface_data%bgc%decomp_npools_vr(c,:,k)
+                decomp_ppools_vr(c,:,k) = elm_interface_data%bgc%decomp_ppools_vr(c,:,k)
             end do
 
-            smin_no3_vr(c,:)        = elm_interface_data%bgc%smin_no3_vr_col(c,:)
-            smin_nh4_vr(c,:)        = elm_interface_data%bgc%smin_nh4_vr_col(c,:)
-            smin_nh4sorb_vr(c,:)    = elm_interface_data%bgc%smin_nh4sorb_vr_col(c,:)
+            smin_no3_vr(c,:)        = elm_interface_data%bgc%smin_no3_vr(c,:)
+            smin_nh4_vr(c,:)        = elm_interface_data%bgc%smin_nh4_vr(c,:)
+            smin_nh4sorb_vr(c,:)    = elm_interface_data%bgc%smin_nh4sorb_vr(c,:)
 
-            solutionp_vr(c,:)       = elm_interface_data%bgc%solutionp_vr_col(c,:)
-            labilep_vr(c,:)         = elm_interface_data%bgc%labilep_vr_col(c,:)
-            secondp_vr(c,:)         = elm_interface_data%bgc%secondp_vr_col(c,:)
-            sminp_vr(c,:)           = elm_interface_data%bgc%sminp_vr_col(c,:)
-            occlp_vr(c,:)           = elm_interface_data%bgc%occlp_vr_col(c,:)
-            primp_vr(c,:)           = elm_interface_data%bgc%primp_vr_col(c,:)
+            solutionp_vr(c,:)       = elm_interface_data%bgc%solutionp_vr(c,:)
+            labilep_vr(c,:)         = elm_interface_data%bgc%labilep_vr(c,:)
+            secondp_vr(c,:)         = elm_interface_data%bgc%secondp_vr(c,:)
+            sminp_vr(c,:)           = elm_interface_data%bgc%sminp_vr(c,:)
+            occlp_vr(c,:)           = elm_interface_data%bgc%occlp_vr(c,:)
+            primp_vr(c,:)           = elm_interface_data%bgc%primp_vr(c,:)
     end do
 
     end associate
@@ -1502,57 +1502,57 @@ contains
     !---------------------------------------------------------------------------
         do fc = 1,num_soilc
             c = filter_soilc(fc)
-            elm_bgc_data%fpg_col(c)                                   = fpg(c)
-            elm_bgc_data%fpi_col(c)                                   = fpi(c)
-            elm_bgc_data%fpi_vr_col(c,:)                              = fpi_vr(c,:)
-            elm_bgc_data%fpg_p_col(c)                                 = fpg_p(c)
-            elm_bgc_data%fpi_p_col(c)                                 = fpi_p(c)
-            elm_bgc_data%fpi_p_vr_col(c,:)                            = fpi_p_vr(c,:)
-            elm_bgc_data%potential_immob_col(c)                       = potential_immob(c)
-            elm_bgc_data%actual_immob_col(c)                          = actual_immob(c)
-            elm_bgc_data%sminn_to_plant_col(c)                        = sminn_to_plant(c)
-            elm_bgc_data%sminn_to_denit_excess_vr_col(c,:)            = sminn_to_denit_excess_vr(c,:)
-            elm_bgc_data%pot_f_nit_vr_col(c,:)                        = pot_f_nit_vr(c,:)
-            elm_bgc_data%pot_f_denit_vr_col(c,:)                      = pot_f_denit_vr(c,:)
-            elm_bgc_data%f_nit_vr_col(c,:)                            = f_nit_vr(c,:)
-            elm_bgc_data%f_denit_vr_col(c,:)                          = f_denit_vr(c,:)
-            elm_bgc_data%actual_immob_no3_vr_col(c,:)                 = actual_immob_no3_vr(c,:)
-            elm_bgc_data%actual_immob_nh4_vr_col(c,:)                 = actual_immob_nh4_vr(c,:)
-            elm_bgc_data%smin_no3_to_plant_vr_col(c,:)                = smin_no3_to_plant_vr(c,:)
-            elm_bgc_data%smin_nh4_to_plant_vr_col(c,:)                = smin_nh4_to_plant_vr(c,:)
-            elm_bgc_data%n2_n2o_ratio_denit_vr_col(c,:)               = n2_n2o_ratio_denit_vr(c,:)
-            elm_bgc_data%f_n2o_denit_vr_col(c,:)                      = f_n2o_denit_vr(c,:)
-            elm_bgc_data%f_n2o_nit_vr_col(c,:)                        = f_n2o_nit_vr(c,:)
-            elm_bgc_data%supplement_to_sminn_vr_col(c,:)              = supplement_to_sminn_vr(c,:)
-            elm_bgc_data%sminn_to_plant_vr_col(c,:)                   = sminn_to_plant_vr(c,:)
-            elm_bgc_data%potential_immob_vr_col(c,:)                  = potential_immob_vr(c,:)
-            elm_bgc_data%actual_immob_vr_col(c,:)                     = actual_immob_vr(c,:)
-            elm_bgc_data%potential_immob_p_col(c)                     = potential_immob_p(c)
-            elm_bgc_data%actual_immob_p_col(c)                        = actual_immob_p(c)
-            elm_bgc_data%sminp_to_plant_col(c)                        = sminp_to_plant(c)
-            elm_bgc_data%supplement_to_sminp_vr_col(c,:)              = supplement_to_sminp_vr(c,:)
-            elm_bgc_data%sminp_to_plant_vr_col(c,:)                   = sminp_to_plant_vr(c,:)
-            elm_bgc_data%potential_immob_p_vr_col(c,:)                = potential_immob_p_vr(c,:)
-            elm_bgc_data%actual_immob_p_vr_col(c,:)                   = actual_immob_p_vr(c,:)
+            elm_bgc_data%fpg(c)                                   = fpg(c)
+            elm_bgc_data%fpi(c)                                   = fpi(c)
+            elm_bgc_data%fpi_vr(c,:)                              = fpi_vr(c,:)
+            elm_bgc_data%fpg_p(c)                                 = fpg_p(c)
+            elm_bgc_data%fpi_p(c)                                 = fpi_p(c)
+            elm_bgc_data%fpi_p_vr(c,:)                            = fpi_p_vr(c,:)
+            elm_bgc_data%potential_immob(c)                       = potential_immob(c)
+            elm_bgc_data%actual_immob(c)                          = actual_immob(c)
+            elm_bgc_data%sminn_to_plant(c)                        = sminn_to_plant(c)
+            elm_bgc_data%sminn_to_denit_excess_vr(c,:)            = sminn_to_denit_excess_vr(c,:)
+            elm_bgc_data%pot_f_nit_vr(c,:)                        = pot_f_nit_vr(c,:)
+            elm_bgc_data%pot_f_denit_vr(c,:)                      = pot_f_denit_vr(c,:)
+            elm_bgc_data%f_nit_vr(c,:)                            = f_nit_vr(c,:)
+            elm_bgc_data%f_denit_vr(c,:)                          = f_denit_vr(c,:)
+            elm_bgc_data%actual_immob_no3_vr(c,:)                 = actual_immob_no3_vr(c,:)
+            elm_bgc_data%actual_immob_nh4_vr(c,:)                 = actual_immob_nh4_vr(c,:)
+            elm_bgc_data%smin_no3_to_plant_vr(c,:)                = smin_no3_to_plant_vr(c,:)
+            elm_bgc_data%smin_nh4_to_plant_vr(c,:)                = smin_nh4_to_plant_vr(c,:)
+            elm_bgc_data%n2_n2o_ratio_denit_vr(c,:)               = n2_n2o_ratio_denit_vr(c,:)
+            elm_bgc_data%f_n2o_denit_vr(c,:)                      = f_n2o_denit_vr(c,:)
+            elm_bgc_data%f_n2o_nit_vr(c,:)                        = f_n2o_nit_vr(c,:)
+            elm_bgc_data%supplement_to_sminn_vr(c,:)              = supplement_to_sminn_vr(c,:)
+            elm_bgc_data%sminn_to_plant_vr(c,:)                   = sminn_to_plant_vr(c,:)
+            elm_bgc_data%potential_immob_vr(c,:)                  = potential_immob_vr(c,:)
+            elm_bgc_data%actual_immob_vr(c,:)                     = actual_immob_vr(c,:)
+            elm_bgc_data%potential_immob_p(c)                     = potential_immob_p(c)
+            elm_bgc_data%actual_immob_p(c)                        = actual_immob_p(c)
+            elm_bgc_data%sminp_to_plant(c)                        = sminp_to_plant(c)
+            elm_bgc_data%supplement_to_sminp_vr(c,:)              = supplement_to_sminp_vr(c,:)
+            elm_bgc_data%sminp_to_plant_vr(c,:)                   = sminp_to_plant_vr(c,:)
+            elm_bgc_data%potential_immob_p_vr(c,:)                = potential_immob_p_vr(c,:)
+            elm_bgc_data%actual_immob_p_vr(c,:)                   = actual_immob_p_vr(c,:)
 
-            elm_bgc_data%decomp_cascade_ntransfer_vr_col(c,:,:)       = decomp_cascade_ntransfer_vr(c,:,:)
-            elm_bgc_data%decomp_cascade_sminn_flux_vr_col(c,:,:)      = decomp_cascade_sminn_flux_vr(c,:,:)
-            elm_bgc_data%sminn_to_denit_decomp_cascade_vr_col(c,:,:)  = sminn_to_denit_decomp_cascade_vr(c,:,:)
-            elm_bgc_data%gross_nmin_vr_col(c,:)                       = gross_nmin_vr(c,:)
-            elm_bgc_data%net_nmin_vr_col(c,:)                         = net_nmin_vr(c,:)
+            elm_bgc_data%decomp_cascade_ntransfer_vr(c,:,:)       = decomp_cascade_ntransfer_vr(c,:,:)
+            elm_bgc_data%decomp_cascade_sminn_flux_vr(c,:,:)      = decomp_cascade_sminn_flux_vr(c,:,:)
+            elm_bgc_data%sminn_to_denit_decomp_cascade_vr(c,:,:)  = sminn_to_denit_decomp_cascade_vr(c,:,:)
+            elm_bgc_data%gross_nmin_vr(c,:)                       = gross_nmin_vr(c,:)
+            elm_bgc_data%net_nmin_vr(c,:)                         = net_nmin_vr(c,:)
 
             ! phosphorus
-            elm_bgc_data%decomp_cascade_ptransfer_vr_col(c,:,:)       = decomp_cascade_ptransfer_vr(c,:,:)
-            elm_bgc_data%decomp_cascade_sminp_flux_vr_col(c,:,:)      = decomp_cascade_sminp_flux_vr(c,:,:)
-            elm_bgc_data%potential_immob_p_vr_col(c,:)                = potential_immob_p_vr(c,:)
-            elm_bgc_data%gross_pmin_vr_col(c,:)                       = gross_pmin_vr(c,:)
-            elm_bgc_data%net_pmin_vr_col(c,:)                         = net_pmin_vr(c,:)
+            elm_bgc_data%decomp_cascade_ptransfer_vr(c,:,:)       = decomp_cascade_ptransfer_vr(c,:,:)
+            elm_bgc_data%decomp_cascade_sminp_flux_vr(c,:,:)      = decomp_cascade_sminp_flux_vr(c,:,:)
+            elm_bgc_data%potential_immob_p_vr(c,:)                = potential_immob_p_vr(c,:)
+            elm_bgc_data%gross_pmin_vr(c,:)                       = gross_pmin_vr(c,:)
+            elm_bgc_data%net_pmin_vr(c,:)                         = net_pmin_vr(c,:)
 
-            elm_bgc_data%decomp_cascade_hr_vr_col(c,:,:)              = decomp_cascade_hr_vr(c,:,:)
-            elm_bgc_data%decomp_cascade_ctransfer_vr_col(c,:,:)       = decomp_cascade_ctransfer_vr(c,:,:)
+            elm_bgc_data%decomp_cascade_hr_vr(c,:,:)              = decomp_cascade_hr_vr(c,:,:)
+            elm_bgc_data%decomp_cascade_ctransfer_vr(c,:,:)       = decomp_cascade_ctransfer_vr(c,:,:)
 
-            elm_bgc_data%phr_vr_col(c,:)                              = phr_vr(c,:)
-            elm_bgc_data%fphr_col(c,:)                                = fphr(c,:)
+            elm_bgc_data%phr_vr(c,:)                              = phr_vr(c,:)
+            elm_bgc_data%fphr(c,:)                                = fphr(c,:)
         end do
 
 

@@ -8225,14 +8225,14 @@ contains
 
     if ((nlevdecomp_full > 1) .or. (use_pflotran .and. pf_cmode)) then
        this%smin_no3_to_plant_vr(begc:endc,:) = spval
-        call hist_addfld_decomp (fname='SMIN_NO3_TO_PLANT', units='gN/m^3/s', type2d='levdcmp', &
+        call hist_addfld_decomp (fname='SMIN_NO3_TO_PLANT'//trim(vr_suffix), units='gN/m^3/s', type2d='levdcmp', &
              avgflag='A', long_name='plant uptake of NO3', &
               ptr_col=this%smin_no3_to_plant_vr, default='inactive')
     end if
 
     if ((nlevdecomp_full > 1) .or. (use_pflotran .and. pf_cmode)) then
        this%smin_nh4_to_plant_vr(begc:endc,:) = spval
-        call hist_addfld_decomp (fname='SMIN_NH4_TO_PLANT', units='gN/m^3/s', type2d='levdcmp', &
+        call hist_addfld_decomp (fname='SMIN_NH4_TO_PLANT'//trim(vr_suffix), units='gN/m^3/s', type2d='levdcmp', &
              avgflag='A', long_name='plant uptake of NH4', &
               ptr_col=this%smin_nh4_to_plant_vr, default='inactive')
     end if

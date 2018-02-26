@@ -494,6 +494,7 @@ contains
     use lnd2glcMod            , only : lnd2glc_type
     use SoilWaterRetentionCurveFactoryMod   , only : create_soil_water_retention_curve
     use elm_varctl                          , only : use_elm_interface, use_pflotran
+    use elm_varctl                          , only : pf_cmode, pf_tmode, pf_hmode
     use elm_interface_pflotranMod           , only : elm_pf_interface_init !, elm_pf_set_restart_stamp
     use clm_time_manager      , only : is_restart
     use ELMFatesInterfaceMod  , only: ELMFatesTimesteps
@@ -989,6 +990,10 @@ contains
         ! PFLOTRAN initialization
         if (use_pflotran) then
             call elm_pf_interface_init(bounds_proc)
+            write(iulog,*) 'PFLOTRAN options:'
+            write(iulog,*) 'bgc coupling          - ', pf_cmode
+            write(iulog,*) 'thermal coupling      - ', pf_tmode
+            write(iulog,*) 'hydrological coupling - ', pf_hmode
         end if
     end if
     call t_stopf('init_elm_interface_data & pflotran')
