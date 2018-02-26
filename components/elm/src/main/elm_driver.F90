@@ -1017,12 +1017,7 @@ contains
                            filter(nc)%num_soilc, filter(nc)%soilc,                      &
                            filter(nc)%num_soilp, filter(nc)%soilp,                      &
                            atm2lnd_vars, soilstate_vars,                                &
-                           waterstate_vars, waterflux_vars,                             &
-                           temperature_vars, energyflux_vars,                           &
-                           cnstate_vars, carbonflux_vars, carbonstate_vars,             &
-                           nitrogenflux_vars, nitrogenstate_vars,                       &
-                           phosphorusflux_vars, phosphorusstate_vars,                   &
-                           ch4_vars)
+                           cnstate_vars, ch4_vars)
 
 
                  if (use_pflotran .and. pf_cmode) then
@@ -1036,14 +1031,11 @@ contains
                     ! -------------------------------------------------------------------------
                     call elm_pf_run(elm_interface_data, bounds_clump, filter, nc)
 
-                    ! STEP-3: update CLM from elm_interface_data
+                    ! STEP-3: update ELM from elm_interface_data
                     call update_bgc_data_pf2elm(elm_interface_data%bgc,         &
                            bounds_clump,filter(nc)%num_soilc, filter(nc)%soilc, &
                            filter(nc)%num_soilp, filter(nc)%soilp,              &
-                           cnstate_vars, carbonflux_vars, carbonstate_vars,     &
-                           nitrogenflux_vars, nitrogenstate_vars,               &
-                           phosphorusflux_vars, phosphorusstate_vars,           &
-                           ch4_vars)
+                           cnstate_vars, ch4_vars)
 
                     call t_stopf('pflotran')
 
@@ -1059,22 +1051,15 @@ contains
                            filter(nc)%num_soilc, filter(nc)%soilc,              &
                            filter(nc)%num_soilp, filter(nc)%soilp,              &
                            canopystate_vars, soilstate_vars,                    &
-                           temperature_vars, waterstate_vars,                   &
-                           cnstate_vars, ch4_vars,                              &
-                           carbonstate_vars, carbonflux_vars,                   &
-                           nitrogenstate_vars, nitrogenflux_vars,               &
-                           phosphorusstate_vars,phosphorusflux_vars)
+                           cnstate_vars, ch4_vars)
 
-                    ! STEP-3: update CLM from elm_interface_data
+                    ! STEP-3: update ELM from elm_interface_data
                     call update_bgc_data_elm2elm(elm_interface_data%bgc,        &
                            bounds_clump, filter(nc)%num_soilc, filter(nc)%soilc,&
                            filter(nc)%num_soilp, filter(nc)%soilp,              &
-                           cnstate_vars, carbonflux_vars, carbonstate_vars,     &
-                           nitrogenflux_vars, nitrogenstate_vars,               &
-                           phosphorusflux_vars, phosphorusstate_vars,           &
-                           ch4_vars)
+                           cnstate_vars, ch4_vars)
                     call t_stopf('elm-bgc via interface')
-                 end if !if (use_pflotran .and. pf_cmode)
+                 end if !if (use_elm_bgc)
              end if !if (use_elm_interface)
              !--------------------------------------------------------------------------------
 

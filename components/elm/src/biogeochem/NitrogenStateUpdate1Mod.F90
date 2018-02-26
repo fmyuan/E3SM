@@ -79,7 +79,11 @@ contains
             col_ns%prod100n(c) = col_ns%prod100n(c) + col_nf%dwt_prod100n_gain(c)*dt
             col_ns%prod1n(c) = col_ns%prod1n(c) + col_nf%dwt_crop_productn_gain(c)*dt
 
-            do j = 1,nlevdecomp
+            ! when coupling with PFLOTRAN, the following are portions of (root-)literfalling into soil
+            ! as source/sink terms (ColumnDataType.F90::col_nf_summaryint).
+            ! So, don't directly update organic npools here.
+            if (.not.(use_pflotran .and. pf_cmode)) then
+              do j = 1,nlevdecomp
 
                col_ns%decomp_npools_vr(c,j,i_met_lit) = col_ns%decomp_npools_vr(c,j,i_met_lit) + &
                     col_nf%dwt_frootn_to_litr_met_n(c,j) * dt
@@ -90,7 +94,9 @@ contains
                col_ns%decomp_npools_vr(c,j,i_cwd) = col_ns%decomp_npools_vr(c,j,i_cwd) + &
                     ( col_nf%dwt_livecrootn_to_cwdn(c,j) + col_nf%dwt_deadcrootn_to_cwdn(c,j) ) * dt
 
-            end do
+              end do
+            end if !if (.not.(use_pflotran .and. pf_cmode))
+
          end do
       end if
 
