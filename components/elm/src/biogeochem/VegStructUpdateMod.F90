@@ -41,6 +41,9 @@ contains
     ! !USES:
     use pftvarcon        , only : noveg, nc3crop, nc3irrig, nbrdlf_evr_shrub, nbrdlf_dcd_brl_shrub
     use pftvarcon        , only : ncorn, ncornirrig, npcropmin, ztopmx, laimx
+    !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
+    use pftvarcon        , only : ntree, nshrub
+    !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
     use clm_time_manager , only : get_rad_step_size
     use clm_varctl       , only : spinup_state, spinup_mortality_factor
     !
@@ -162,12 +165,13 @@ contains
             tsai_min = tsai_min * 0.5_r8
             tsai(p) = max(tsai_alpha*tsai_old+max(tlai_old-tlai(p),0._r8),tsai_min)
 
-            if (woody(ivt(p)) == 1._r8) then
+            if (woody(ivt(p)) >= 1.0_r8) then
 
                ! trees and shrubs
 
                ! if shrubs have a squat taper 
-               if (ivt(p) >= nbrdlf_evr_shrub .and. ivt(p) <= nbrdlf_dcd_brl_shrub) then
+               !if (ivt(p) >= nbrdlf_evr_shrub .and. ivt(p) <= nbrdlf_dcd_brl_shrub) then
+               if (ivt(p) > ntree .and. ivt(p) <= nshrub) then
                   taper = 10._r8
                   ! otherwise have a tall taper
                else
@@ -249,7 +253,10 @@ contains
          ! adjust lai and sai for burying by snow. 
          ! snow burial fraction for short vegetation (e.g. grasses) as in
          ! Wang and Zeng, 2007.
-         if (ivt(p) > noveg .and. ivt(p) <= nbrdlf_dcd_brl_shrub ) then
+    !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
+         !if (ivt(p) > noveg .and. ivt(p) <= nbrdlf_dcd_brl_shrub ) then
+         if (ivt(p) > noveg .and. ivt(p) <= nshrub ) then
+    !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
             ol = min( max(snow_depth(c)-hbot(p), 0._r8), htop(p)-hbot(p))
             fb = 1._r8 - ol / max(1.e-06_r8, htop(p)-hbot(p))
          else
