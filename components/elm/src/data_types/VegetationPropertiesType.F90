@@ -145,6 +145,10 @@ module VegetationPropertiesType
      real(r8), pointer :: br_xr(:)         => null()   !Base rate for excess respiration
      real(r8), pointer :: tc_stress        => null()   !Critial temperature for moisture stress
 
+     !----------------------F.-M. Yuan (2018-03-23): user-defined parameter file ---------------------------------------------------------------------
+     integer, allocatable :: nonvascular(:)       ! nonvascular plant lifeform flag (0 or 1-moss or 2-lichen)
+     integer, allocatable :: nfixer(:)            ! N-fixer flag (0 or 1)
+     !----------------------F.-M. Yuan (2018-03-23): user-defined parameter file ---------------------------------------------------------------------
 
    contains
    procedure, public :: Init => veg_vp_init
@@ -183,7 +187,10 @@ contains
     use pftvarcon , only : lmrha, vcmaxhd, jmaxhd, tpuhd, lmrse, qe, theta_cj
     use pftvarcon , only : bbbopt, mbbopt, nstor, br_xr, tc_stress, lmrhd
     !
-
+    !----------------------F.-M. Yuan (2018-03-23): user-defined parameter file ---------------------------------------------------------------------
+    use pftvarcon , only : nonvascular, nfixer
+    !----------------------F.-M. Yuan (2018-03-23): user-defined parameter file ---------------------------------------------------------------------
+    
     class (vegetation_properties_type) :: this
 
     !LOCAL VARIABLES:
@@ -307,9 +314,16 @@ contains
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
+
+    !----------------------F.-M. Yuan (2018-03-23): user-defined parameter file ---------------------------------------------------------------------
+    allocate(this%nonvascular(0:numpft))                         ; this%nonvascular(:)           =huge(1)
+    allocate(this%nfixer(0:numpft))                              ; this%nfixer(:)                =huge(1)
+    !----------------------F.-M. Yuan (2018-03-23): user-defined parameter file ---------------------------------------------------------------------
+
     do m = 0,numpft
 
-       if (m <= ntree) then
+       !if (m <= ntree) then
+       if (woody(m) == 1) then
           this%tree(m) = 1
        else
           this%tree(m) = 0
@@ -393,6 +407,11 @@ contains
        this%mbbopt(m)       = mbbopt(m)
        this%nstor(m)        = nstor(m)
        this%br_xr(m)        = br_xr(m)
+ 
+    !----------------------F.-M. Yuan (2018-03-23): user-defined parameter file ---------------------------------------------------------------------
+       this%nonvascular(m)  = nonvascular(m)
+       this%nfixer(m)       = nfixer(m)
+    !----------------------F.-M. Yuan (2018-03-23): user-defined parameter file ---------------------------------------------------------------------
 
     end do
 
