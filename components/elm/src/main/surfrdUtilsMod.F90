@@ -200,6 +200,9 @@ contains
     use elm_varctl , only : irrigate
     use elm_varpar , only : cft_lb, cft_ub, cft_size
     use pftvarcon  , only : nc3crop, nc3irrig, npcropmax, mergetoelmpft
+    use elm_varctl , only : irrigate
+    use elm_varpar , only : cft_lb, cft_ub, cft_size
+    use pftvarcon  , only : nc3crop, nc3irrig, npcropmax, mergetoelmpft, npcropmin
     !
     ! !ARGUMENTS:
 
@@ -248,10 +251,10 @@ contains
           !                  stride 2
           ! plus             irrigated crop pfts from nc3irrig to npcropmax,
           !                  stride 2
-          ! where stride 2 means "every other"
-          wt_cft(g, nc3crop:npcropmax-1:2) = &
-               wt_cft(g, nc3crop:npcropmax-1:2) + wt_cft(g, nc3irrig:npcropmax:2)
-          wt_cft(g, nc3irrig:npcropmax:2)  = 0._r8
+          ! where stride 2 means "every other" --THIS IS bug-prone (HOW can be guarranted of this!!!!! - F.-M. YUAN@2018-03-29)
+          wt_cft(g, npcropmin:npcropmax-1:2) = &
+               wt_cft(g, npcropmin:npcropmax-1:2) + wt_cft(g, npcropmin+1:npcropmax:2)
+          wt_cft(g, npcropmin+1:npcropmax:2)  = 0._r8
        end do
 
        call check_sums_equal_1(wt_cft, begg, 'wt_cft', subname//': irrigation')
@@ -268,7 +271,7 @@ contains
     end if
 
     do g = begg, endg
-       do m = 1, npcropmax
+       do m = npcropmin, npcropmax
           if (m /= mergetoelmpft(m)) then
              wt_cft_to                   = wt_cft(g, mergetoelmpft(m))
              wt_cft_from                 = wt_cft(g, m)

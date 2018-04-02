@@ -964,11 +964,13 @@ contains
     end if
     fert_cft = 0.0_r8
 
+    wt_nat_patch(begg:endg, :) = 0.0_r8
     if (.not. create_crop_landunit) then
        call ncd_io(ncid=ncid, varname='PCT_NAT_PFT', flag='read', data=wt_nat_patch, &
             dim1name=grlnd, readvar=readvar)
        if (.not. readvar) call endrun( msg=' ERROR: PCT_NAT_PFT NOT on surfdata file'//errMsg(__FILE__, __LINE__))
     else
+       wt_cft(begg:endg, :) = 0.0_r8
        allocate(array2D(begg:endg,1:cft_ub+1))
        call ncd_io(ncid=ncid, varname='PCT_NAT_PFT', flag='read', data=array2D, &
             dim1name=grlnd, readvar=readvar)
