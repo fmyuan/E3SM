@@ -14,6 +14,11 @@ module pftvarcon
   use elm_varctl  , only : iulog, use_vertsoilc
   use elm_varpar  , only : nlevdecomp_full, nsoilorder
   use elm_varctl  , only : nu_com
+  !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
+  use elm_varpar  , only : maxpatch_pft, natpft_lb, natpft_ub, crop_prog
+  use elm_varpar  , only : numpft, numcft, natpft_size, cft_size, max_patch_per_col, maxpatch_urb
+  use elm_varctl  , only : create_crop_landunit
+  !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -622,233 +627,233 @@ contains
     call ncd_inqdid(ncid,'pft',dimid)
     call ncd_inqdlen(ncid,dimid,npft)
 
-    call ncd_io('pftname',pftname, 'read', ncid, readvar=readv, posNOTonfile=.true.) 
+    call ncd_io('pftname',pftname(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('z0mr',z0mr, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('z0mr',z0mr(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('displar',displar, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('displar',displar(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('dleaf',dleaf, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('dleaf',dleaf(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('c3psn',c3psn, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('c3psn',c3psn(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('rholvis',rhol(:,ivis), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('rholvis',rhol(0:npft-1,ivis), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('rholnir',rhol(:,inir), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('rholnir',rhol(0:npft-1,inir), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('rhosvis',rhos(:,ivis), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('rhosvis',rhos(0:npft-1,ivis), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('rhosnir', rhos(:,inir), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('rhosnir', rhos(0:npft-1,inir), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('taulvis',taul(:,ivis), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('taulvis',taul(0:npft-1,ivis), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('taulnir',taul(:,inir), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('taulnir',taul(0:npft-1,inir), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('tausvis',taus(:,ivis), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('tausvis',taus(0:npft-1,ivis), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('tausnir',taus(:,inir), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('tausnir',taus(0:npft-1,inir), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('xl',xl, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('xl',xl(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('roota_par',roota_par, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('roota_par',roota_par(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('rootb_par',rootb_par, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('rootb_par',rootb_par(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('slatop',slatop, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('slatop',slatop(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('dsladlai',dsladlai, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('dsladlai',dsladlai(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('leafcn',leafcn, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('leafcn',leafcn(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('flnr',flnr, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('flnr',flnr(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('smpso',smpso, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('smpso',smpso(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('smpsc',smpsc, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('smpsc',smpsc(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('fnitr',fnitr, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('fnitr',fnitr(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('woody',woody, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('woody',woody(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('lflitcn',lflitcn, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('lflitcn',lflitcn(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('frootcn',frootcn, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('frootcn',frootcn(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('livewdcn',livewdcn, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('livewdcn',livewdcn(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('deadwdcn',deadwdcn, 'read', ncid, readvar=readv, posNOTonfile=.true.)
-    if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-
-
-    call ncd_io('leafcp',leafcp, 'read', ncid, readvar=readv, posNOTonfile=.true.)
-    if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('lflitcp',lflitcp, 'read', ncid, readvar=readv, posNOTonfile=.true.)
-    if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('frootcp',frootcp, 'read', ncid, readvar=readv, posNOTonfile=.true.)
-    if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('livewdcp',livewdcp, 'read', ncid, readvar=readv, posNOTonfile=.true.)
-    if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('deadwdcp',deadwdcp, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('deadwdcn',deadwdcn(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
 
 
-    call ncd_io('grperc',grperc, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('leafcp',leafcp(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('grpnow',grpnow, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('lflitcp',lflitcp(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('froot_leaf',froot_leaf, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('frootcp',frootcp(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('stem_leaf',stem_leaf, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('livewdcp',livewdcp(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('croot_stem',croot_stem, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('deadwdcp',deadwdcp(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('flivewd',flivewd, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+
+
+    call ncd_io('grperc',grperc(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('fcur',fcur, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('grpnow',grpnow(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('lf_flab',lf_flab, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('froot_leaf',froot_leaf(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('lf_fcel',lf_fcel, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('stem_leaf',stem_leaf(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('lf_flig',lf_flig, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('croot_stem',croot_stem(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('fr_flab',fr_flab, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('flivewd',flivewd(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('fr_fcel',fr_fcel, 'read', ncid, readvar=readv, posNOTonfile=.true.)    
+    call ncd_io('fcur',fcur(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('fr_flig',fr_flig, 'read', ncid, readvar=readv, posNOTonfile=.true.)    
+    call ncd_io('lf_flab',lf_flab(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('leaf_long',leaf_long, 'read', ncid, readvar=readv, posNOTonfile=.true.)    
+    call ncd_io('lf_fcel',lf_fcel(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('froot_long',froot_long, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('lf_flig',lf_flig(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
+    call ncd_io('fr_flab',fr_flab(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
+    call ncd_io('fr_fcel',fr_fcel(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
+    call ncd_io('fr_flig',fr_flig(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
+    call ncd_io('leaf_long',leaf_long(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
+    call ncd_io('froot_long',froot_long(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if (.not. readv) froot_long = leaf_long
     !if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('evergreen',evergreen, 'read', ncid, readvar=readv, posNOTonfile=.true.)    
+    call ncd_io('evergreen',evergreen(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('stress_decid',stress_decid, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('stress_decid',stress_decid(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('season_decid',season_decid, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('season_decid',season_decid(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('fertnitro',fertnitro, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('fertnitro',fertnitro(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('fleafcn',fleafcn, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('fleafcn',fleafcn(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('ffrootcn',ffrootcn, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('ffrootcn',ffrootcn(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('fstemcn',fstemcn, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('fstemcn',fstemcn(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
     if (use_crop) then
-       call ncd_io('presharv',presharv, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+       call ncd_io('presharv',presharv(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
        if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-       call ncd_io('convfact',convfact, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+       call ncd_io('convfact',convfact(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
        if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-       call ncd_io('fyield',fyield, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+       call ncd_io('fyield',fyield(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
        if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-       call ncd_io('percrop', percrop, 'read', ncid, readvar=readv)
+       call ncd_io('percrop', percrop(0:npft-1), 'read', ncid, readvar=readv)
        if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-       call ncd_io('senescence_temp', senestemp, 'read', ncid, readvar=readv)
+       call ncd_io('senescence_temp', senestemp(0:npft-1), 'read', ncid, readvar=readv)
        if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-       call ncd_io('min_days_senescence', min_days_senes, 'read', ncid, readvar=readv)
+       call ncd_io('min_days_senescence', min_days_senes(0:npft-1), 'read', ncid, readvar=readv)
        if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
     end if
     if(use_dynroot)then
-       call ncd_io('root_dmx',root_dmx, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+       call ncd_io('root_dmx',root_dmx(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
        if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
     endif
 
     if (use_vertsoilc) then
-       call ncd_io('rootprof_beta',rootprof_beta, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+       call ncd_io('rootprof_beta',rootprof_beta(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
        if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
     end if
-    call ncd_io('pconv',pconv, 'read', ncid, readvar=readv)  
+    call ncd_io('pconv',pconv(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('pprod10',pprod10, 'read', ncid, readvar=readv)  
+    call ncd_io('pprod10',pprod10(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('pprodharv10',pprodharv10, 'read', ncid, readvar=readv)  
+    call ncd_io('pprodharv10',pprodharv10(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('pprod100',pprod100, 'read', ncid, readvar=readv)  
+    call ncd_io('pprod100',pprod100(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('graincn',graincn, 'read', ncid, readvar=readv)  
+    call ncd_io('graincn',graincn(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('graincp',graincp, 'read', ncid, readvar=readv)  
+    call ncd_io('graincp',graincp(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('mxtmp',mxtmp, 'read', ncid, readvar=readv)  
+    call ncd_io('mxtmp',mxtmp(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('baset',baset, 'read', ncid, readvar=readv)  
+    call ncd_io('baset',baset(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('declfact',declfact, 'read', ncid, readvar=readv)  
+    call ncd_io('declfact',declfact(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('bfact',bfact, 'read', ncid, readvar=readv)  
+    call ncd_io('bfact',bfact(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('aleaff',aleaff, 'read', ncid, readvar=readv)  
+    call ncd_io('aleaff',aleaff(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('arootf',arootf, 'read', ncid, readvar=readv)  
+    call ncd_io('arootf',arootf(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('astemf',astemf, 'read', ncid, readvar=readv)  
+    call ncd_io('astemf',astemf(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('arooti',arooti, 'read', ncid, readvar=readv)  
+    call ncd_io('arooti',arooti(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('fleafi',fleafi, 'read', ncid, readvar=readv)  
+    call ncd_io('fleafi',fleafi(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('allconsl',allconsl, 'read', ncid, readvar=readv)  
+    call ncd_io('allconsl',allconsl(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('allconss',allconss, 'read', ncid, readvar=readv)  
+    call ncd_io('allconss',allconss(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('crop',crop, 'read', ncid, readvar=readv)  
+    call ncd_io('crop',crop(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('irrigated',irrigated, 'read', ncid, readvar=readv)  
+    call ncd_io('irrigated',irrigated(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('ztopmx',ztopmx, 'read', ncid, readvar=readv)  
+    call ncd_io('ztopmx',ztopmx(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('laimx',laimx, 'read', ncid, readvar=readv)  
+    call ncd_io('laimx',laimx(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('gddmin',gddmin, 'read', ncid, readvar=readv)  
+    call ncd_io('gddmin',gddmin(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('hybgdd',hybgdd, 'read', ncid, readvar=readv)  
+    call ncd_io('hybgdd',hybgdd(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('lfemerg',lfemerg, 'read', ncid, readvar=readv)  
+    call ncd_io('lfemerg',lfemerg(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('grnfill',grnfill, 'read', ncid, readvar=readv)  
+    call ncd_io('grnfill',grnfill(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('mxmat',mxmat, 'read', ncid, readvar=readv)  
+    call ncd_io('mxmat',mxmat(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('cc_leaf', cc_leaf, 'read', ncid, readvar=readv)  
+    call ncd_io('cc_leaf', cc_leaf(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('cc_lstem',cc_lstem, 'read', ncid, readvar=readv)  
+    call ncd_io('cc_lstem',cc_lstem(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('cc_dstem',cc_dstem, 'read', ncid, readvar=readv)  
+    call ncd_io('cc_dstem',cc_dstem(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('cc_other',cc_other, 'read', ncid, readvar=readv)  
+    call ncd_io('cc_other',cc_other(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('fm_leaf', fm_leaf, 'read', ncid, readvar=readv)  
+    call ncd_io('fm_leaf', fm_leaf(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('fm_lstem',fm_lstem, 'read', ncid, readvar=readv)  
+    call ncd_io('fm_lstem',fm_lstem(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('fm_dstem',fm_dstem, 'read', ncid, readvar=readv)  
+    call ncd_io('fm_dstem',fm_dstem(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('fm_other',fm_other, 'read', ncid, readvar=readv)  
+    call ncd_io('fm_other',fm_other(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('fm_root', fm_root, 'read', ncid, readvar=readv)  
+    call ncd_io('fm_root', fm_root(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('fm_lroot',fm_lroot, 'read', ncid, readvar=readv)  
+    call ncd_io('fm_lroot',fm_lroot(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('fm_droot',fm_droot, 'read', ncid, readvar=readv)  
+    call ncd_io('fm_droot',fm_droot(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('fsr_pft', fsr_pft, 'read', ncid, readvar=readv)  
+    call ncd_io('fsr_pft', fsr_pft(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('fd_pft',  fd_pft, 'read', ncid, readvar=readv)  
+    call ncd_io('fd_pft',  fd_pft(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('planting_temp',planttemp, 'read', ncid, readvar=readv)  
+    call ncd_io('planting_temp',planttemp(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('min_planting_temp',minplanttemp, 'read', ncid, readvar=readv)  
+    call ncd_io('min_planting_temp',minplanttemp(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('min_NH_planting_date',mnNHplantdate, 'read', ncid, readvar=readv)  
+    call ncd_io('min_NH_planting_date',mnNHplantdate(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('min_SH_planting_date',mnSHplantdate, 'read', ncid, readvar=readv)  
+    call ncd_io('min_SH_planting_date',mnSHplantdate(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('max_NH_planting_date',mxNHplantdate, 'read', ncid, readvar=readv)  
+    call ncd_io('max_NH_planting_date',mxNHplantdate(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('max_SH_planting_date',mxSHplantdate, 'read', ncid, readvar=readv)  
+    call ncd_io('max_SH_planting_date',mxSHplantdate(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
 
     if (nu_com .ne. 'RD' ) then
@@ -871,47 +876,47 @@ contains
 
         if(.not.use_fates) then
         
-        call ncd_io('VMAX_PLANT_NH4',VMAX_PLANT_NH4, 'read', ncid, readvar=readv)  
+        call ncd_io('VMAX_PLANT_NH4',VMAX_PLANT_NH4(0:npft-1), 'read', ncid, readvar=readv)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft VMAX_PLANT_NH4'//errMsg(__FILE__, __LINE__))
-        call ncd_io('VMAX_PLANT_NO3',VMAX_PLANT_NO3, 'read', ncid, readvar=readv)  
+        call ncd_io('VMAX_PLANT_NO3',VMAX_PLANT_NO3(0:npft-1), 'read', ncid, readvar=readv)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft VMAX_PLANT_NO3'//errMsg(__FILE__, __LINE__))
-        call ncd_io('VMAX_PLANT_P',VMAX_PLANT_P, 'read', ncid, readvar=readv)  
+        call ncd_io('VMAX_PLANT_P',VMAX_PLANT_P(0:npft-1), 'read', ncid, readvar=readv)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft VMAX_PLANT_P'//errMsg(__FILE__, __LINE__))
         
-        call ncd_io('KM_PLANT_NH4',KM_PLANT_NH4, 'read', ncid, readvar=readv)  
+        call ncd_io('KM_PLANT_NH4',KM_PLANT_NH4(0:npft-1), 'read', ncid, readvar=readv)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft KM_PLANT_NH4'//errMsg(__FILE__, __LINE__))
-        call ncd_io('KM_PLANT_NO3',KM_PLANT_NO3, 'read', ncid, readvar=readv)  
+        call ncd_io('KM_PLANT_NO3',KM_PLANT_NO3(0:npft-1), 'read', ncid, readvar=readv)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft KM_PLANT_NO3'//errMsg(__FILE__, __LINE__))
-        call ncd_io('KM_PLANT_P',KM_PLANT_P, 'read', ncid, readvar=readv)  
+        call ncd_io('KM_PLANT_P',KM_PLANT_P(0:npft-1), 'read', ncid, readvar=readv)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft KM_PLANT_P'//errMsg(__FILE__, __LINE__))
         
-        call ncd_io('decompmicc_patch_vr',decompmicc_patch_vr, 'read', ncid, readvar=readv)  
+        call ncd_io('decompmicc_patch_vr',decompmicc_patch_vr(:,0:npft-1), 'read', ncid, readvar=readv)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft decompmicc_patch_vr'//errMsg(__FILE__, __LINE__))
-        call ncd_io('alpha_nfix',alpha_nfix, 'read', ncid, readvar=readv)
+        call ncd_io('alpha_nfix',alpha_nfix(0:npft-1), 'read', ncid, readvar=readv)
         if ( .not. readv ) alpha_nfix(:)=0._r8
-        call ncd_io('alpha_ptase',alpha_ptase, 'read', ncid, readvar=readv)
+        call ncd_io('alpha_ptase',alpha_ptase(0:npft-1), 'read', ncid, readvar=readv)
         if ( .not. readv ) alpha_ptase(:)=0._r8
-        call ncd_io('ccost_nfix',ccost_nfix, 'read', ncid, readvar=readv)
+        call ncd_io('ccost_nfix',ccost_nfix(0:npft-1), 'read', ncid, readvar=readv)
         if ( .not. readv ) ccost_nfix(:)=0._r8
-        call ncd_io('pcost_nfix',pcost_nfix, 'read', ncid, readvar=readv)
+        call ncd_io('pcost_nfix',pcost_nfix(0:npft-1), 'read', ncid, readvar=readv)
         if ( .not. readv ) pcost_nfix(:)=0._r8
-        call ncd_io('ccost_ptase',ccost_ptase, 'read', ncid, readvar=readv)
+        call ncd_io('ccost_ptase',ccost_ptase(0:npft-1), 'read', ncid, readvar=readv)
         if ( .not. readv ) ccost_ptase(:)=0._r8
-        call ncd_io('ncost_ptase',ncost_ptase, 'read', ncid, readvar=readv)
+        call ncd_io('ncost_ptase',ncost_ptase(0:npft-1), 'read', ncid, readvar=readv)
         if ( .not. readv ) ncost_ptase(:)=0._r8
-        call ncd_io('VMAX_NFIX',VMAX_NFIX, 'read', ncid, readvar=readv)  
+        call ncd_io('VMAX_NFIX',VMAX_NFIX(0:npft-1), 'read', ncid, readvar=readv)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in VMAX_NFIX'//errMsg(__FILE__, __LINE__))
-        call ncd_io('KM_NFIX',KM_NFIX, 'read', ncid, readvar=readv)  
+        call ncd_io('KM_NFIX',KM_NFIX(0:npft-1), 'read', ncid, readvar=readv)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in KM_NFIX'//errMsg(__FILE__, __LINE__))
-        call ncd_io('VMAX_PTASE',VMAX_PTASE, 'read', ncid, readvar=readv)  
+        call ncd_io('VMAX_PTASE',VMAX_PTASE(0:npft-1), 'read', ncid, readvar=readv)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in VMAX_PTASE'//errMsg(__FILE__, __LINE__))
         call ncd_io('KM_PTASE',KM_PTASE, 'read', ncid, readvar=readv)  
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in KM_PTASE'//errMsg(__FILE__, __LINE__))
         call ncd_io('lamda_ptase',lamda_ptase, 'read', ncid, readvar=readv)  
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in lamda_ptase'//errMsg(__FILE__, __LINE__))
-        call ncd_io('i_vc',i_vc, 'read', ncid, readvar=readv)  
+        call ncd_io('i_vc',i_vc(0:npft-1), 'read', ncid, readvar=readv)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in i_vc'//errMsg(__FILE__, __LINE__))
-        call ncd_io('s_vc',s_vc, 'read', ncid, readvar=readv)  
+        call ncd_io('s_vc',s_vc(0:npft-1), 'read', ncid, readvar=readv)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in s_vc'//errMsg(__FILE__, __LINE__))
         call ncd_io('nsc_rtime',nsc_rtime, 'read', ncid, readvar=readv)
         if ( .not. readv ) nsc_rtime(:) = 1.0_r8
@@ -920,46 +925,46 @@ contains
         call ncd_io('pinit_beta2',pinit_beta2, 'read', ncid, readvar=readv)
         if ( .not. readv ) pinit_beta2(:) = 0.1_r8
         ! new stoichiometry
-        call ncd_io('leafcn_obs',leafcn_obs, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+        call ncd_io('leafcn_obs',leafcn_obs(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-        call ncd_io('frootcn_obs',frootcn_obs, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+        call ncd_io('frootcn_obs',frootcn_obs(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-        call ncd_io('livewdcn_obs',livewdcn_obs, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+        call ncd_io('livewdcn_obs',livewdcn_obs(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-        call ncd_io('deadwdcn_obs',deadwdcn_obs, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+        call ncd_io('deadwdcn_obs',deadwdcn_obs(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-        call ncd_io('leafcp_obs',leafcp_obs, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+        call ncd_io('leafcp_obs',leafcp_obs(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-        call ncd_io('frootcp_obs',frootcp_obs, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+        call ncd_io('frootcp_obs',frootcp_obs(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-        call ncd_io('livewdcp_obs',livewdcp_obs, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+        call ncd_io('livewdcp_obs',livewdcp_obs(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-        call ncd_io('deadwdcp_obs',deadwdcp_obs, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+        call ncd_io('deadwdcp_obs',deadwdcp_obs(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-         call ncd_io('leafcn_obs_flex',leafcn_obs_flex, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+         call ncd_io('leafcn_obs_flex',leafcn_obs_flex(0:npft-1,:), 'read', ncid, readvar=readv, posNOTonfile=.true.)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-        call ncd_io('frootcn_obs_flex',frootcn_obs_flex, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+        call ncd_io('frootcn_obs_flex',frootcn_obs_flex(0:npft-1,:), 'read', ncid, readvar=readv, posNOTonfile=.true.)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-        call ncd_io('livewdcn_obs_flex',livewdcn_obs_flex, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+        call ncd_io('livewdcn_obs_flex',livewdcn_obs_flex(0:npft-1,:), 'read', ncid, readvar=readv, posNOTonfile=.true.)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-        call ncd_io('deadwdcn_obs_flex',deadwdcn_obs_flex, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+        call ncd_io('deadwdcn_obs_flex',deadwdcn_obs_flex(0:npft-1,:), 'read', ncid, readvar=readv, posNOTonfile=.true.)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-        call ncd_io('leafcp_obs_flex',leafcp_obs_flex, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+        call ncd_io('leafcp_obs_flex',leafcp_obs_flex(0:npft-1,:), 'read', ncid, readvar=readv, posNOTonfile=.true.)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-        call ncd_io('frootcp_obs_flex',frootcp_obs_flex, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+        call ncd_io('frootcp_obs_flex',frootcp_obs_flex(0:npft-1,:), 'read', ncid, readvar=readv, posNOTonfile=.true.)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-        call ncd_io('livewdcp_obs_flex',livewdcp_obs_flex, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+        call ncd_io('livewdcp_obs_flex',livewdcp_obs_flex(0:npft-1,:), 'read', ncid, readvar=readv, posNOTonfile=.true.)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-        call ncd_io('deadwdcp_obs_flex',deadwdcp_obs_flex, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+        call ncd_io('deadwdcp_obs_flex',deadwdcp_obs_flex(0:npft-1,:), 'read', ncid, readvar=readv, posNOTonfile=.true.)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
 
-        call ncd_io('vcmax_np1',vcmax_np1, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+        call ncd_io('vcmax_np1',vcmax_np1(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in vcmax_np data'//errMsg(__FILE__, __LINE__))
-        call ncd_io('vcmax_np2',vcmax_np2, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+        call ncd_io('vcmax_np2',vcmax_np2(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in vcmax_np data'//errMsg(__FILE__, __LINE__))
-        call ncd_io('vcmax_np3',vcmax_np3, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+        call ncd_io('vcmax_np3',vcmax_np3(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in vcmax_np data'//errMsg(__FILE__, __LINE__))
-        call ncd_io('vcmax_np4',vcmax_np4, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+        call ncd_io('vcmax_np4',vcmax_np4(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in vcmax_np data'//errMsg(__FILE__, __LINE__))
         call ncd_io('jmax_np1',jmax_np1, 'read', ncid, readvar=readv, posNOTonfile=.true.)
         if ( .not. readv ) call endrun(msg=' ERROR: error in reading in vcmax_np data'//errMsg(__FILE__, __LINE__))
@@ -974,56 +979,56 @@ contains
     call ncd_io('rsub_top_globalmax', rsub_top_globalmax, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if (.not. readv) rsub_top_globalmax = 10._r8
     !if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
-    call ncd_io('fnr', fnr, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('fnr', fnr(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
-    call ncd_io('act25', act25, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('act25', act25(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__)) 
-    call ncd_io('kcha', kcha, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('kcha', kcha(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__)) 
-    call ncd_io('koha', koha, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('koha', koha(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__)) 
-    call ncd_io('cpha', cpha, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('cpha', cpha(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))  
-    call ncd_io('vcmaxha', vcmaxha, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('vcmaxha', vcmaxha(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
-    call ncd_io('jmaxha', jmaxha, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('jmaxha', jmaxha(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
-    call ncd_io('tpuha', tpuha, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('tpuha', tpuha(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
-    call ncd_io('lmrha', lmrha, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('lmrha', lmrha(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
-    call ncd_io('vcmaxhd', vcmaxhd, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('vcmaxhd', vcmaxhd(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
-    call ncd_io('jmaxhd', jmaxhd, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('jmaxhd', jmaxhd(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
-    call ncd_io('tpuhd', tpuhd, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('tpuhd', tpuhd(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pftdata'//errMsg(__FILE__,__LINE__))
-    call ncd_io('lmrhd', lmrhd, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('lmrhd', lmrhd(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
-    call ncd_io('lmrse', lmrse, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('lmrse', lmrse(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
-    call ncd_io('qe', qe, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('qe', qe(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
-    call ncd_io('theta_cj', theta_cj, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('theta_cj', theta_cj(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
-    call ncd_io('bbbopt', bbbopt, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('bbbopt', bbbopt(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
-    call ncd_io('mbbopt', mbbopt, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('mbbopt', mbbopt(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
-    call ncd_io('nstor', nstor, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('nstor', nstor(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
-    call ncd_io('br_xr', br_xr, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('br_xr', br_xr(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     !if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
     if (.not. readv) br_xr(:) = 0._r8
     call ncd_io('tc_stress', tc_stress, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
-    call ncd_io('gcpsi',gcpsi, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('gcpsi',gcpsi(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) gcpsi(:) = 0._r8
-    call ncd_io('pftcc',pftcc, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('pftcc',pftcc(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) pftcc(:) = 1._r8
        
-    call ncd_io('mergetoelmpft', mergetoelmpft, 'read', ncid, readvar=readv)
-    if ( .not. readv ) call ncd_io('mergetoclmpft', mergetoelmpft, 'read', ncid, readvar=readv) ! this will make sure either 'mergetoelmpft' or 'mergetoclmpft' in paramfile .nc file works
+    call ncd_io('mergetoelmpft', mergetoelmpft(0:npft-1), 'read', ncid, readvar=readv)
+    if ( .not. readv ) call ncd_io('mergetoclmpft', mergetoelmpft(0:npft-1), 'read', ncid, readvar=readv) ! this will make sure either 'mergetoelmpft' or 'mergetoclmpft' in paramfile .nc file works
     if ( .not. readv ) then
        do i = 0, mxpft
           mergetoelmpft(i) = i
@@ -1128,44 +1133,58 @@ contains
     ! 'mergetoelmpft' in the 'paramfile' is used as an indicator to user-defined parameter file
     else
        ! if 'nfixer' flag is defined for each PFT
-       call ncd_io('nfixer', nfixer, 'read', ncid, readvar=readv)
-       if ( .not. readv ) nfixer(0:mxpft) = 0
+       call ncd_io('nfixer', nfixer(0:npft-1), 'read', ncid, readvar=readv)
+       if ( .not. readv ) nfixer(0:npft-1) = 0
 
        ! if 'nonvascular' flag is defined for each PFT (0: vascular, 1: moss, 2: lichen)
-       call ncd_io('nonvascular', nonvascular, 'read', ncid, readvar=readv)
-       if ( .not. readv ) nonvascular(0:mxpft) = 0
+       call ncd_io('nonvascular', nonvascular(0:npft-1), 'read', ncid, readvar=readv)
+       if ( .not. readv ) nonvascular(0:npft-1) = 0
 
        ! if 'needleleaf' flag is defined for each PFT
-       call ncd_io('needleleaf', needleleaf, 'read', ncid, readvar=readv)
-       if ( .not. readv ) needleleaf(0:mxpft) = 0
+       call ncd_io('needleleaf', needleleaf(0:npft-1), 'read', ncid, readvar=readv)
+       if ( .not. readv ) needleleaf(0:npft-1) = 0
+
+       if (masterproc) then
+          write(iulog,*)
+          write(iulog,*) 'Using USER-DEFINED PFT physiological parameters from: ', paramfile
+          write(iulog,*) '        -- index -- name                                    -- woody -- needleleaf -- nonvascaular -- crop -- nfixer --'
+          do i = 0, npft-1
+              write(iulog,*) i, pftname(i), int(woody(i)), needleleaf(i), nonvascular(i), int(crop(i)), nfixer(i)
+          end do
+          write(iulog,*)
+       end if
 
        ! the following assumed PFTs are arranged by blocks:
-       !    not-vegetated (0), trees (needleleaf, broadleaf), shrubs, grasses, non-vasculars, and crops
+       !    not-vegetated (0), trees (needleleaf, broadleaf), shrubs(needleleaf, broadleaf), graminoids, non-vasculars, and crops
        nndllf_tree          = 0 ! index for last type of tree
        ntree                = 0 ! index for last type of tree
        nshrub               = 0 ! index for last type of shrub
        ngraminoid           = 0 ! index for last type of graminoid
        nnonvascular         = 0 ! index for last type of non-vascular
-       npcropmin            = 0 ! first prognostic crop
-       npcropmax            = mxpft ! last prognostic crop in list
+       npcropmin            = npft+1 ! first prognostic crop in list (always beyond by default, i.e. not available - used in filterMod.F90)
+       npcropmax            = npft+1 ! last prognostic crop in list
 
-       do i = 1, mxpft
+       do i = 1, npft
+          ! woody=1 for tree
           if(woody(i)==1) then
               if (needleleaf(i)==1) nndllf_tree = i
               ntree  = i
-          !
+          ! woody=2 for shrub
           elseif(woody(i)==2) then
               nshrub = i
-          !
+          ! woody=0, crop=0
           elseif(woody(i)<1 .and. crop(i)<1) then
               if (nonvascular(i)<1) then
+                !nonvascular = 0
                 ngraminoid = i
               else
+                !nonvascular = 1 for moss, 2 for lichen
                 nnonvascular = i
               endif
           !
-          elseif(crop(i)==1 .and. npcropmin<=0) then
-             npcropmin = i
+          elseif(crop(i)==1) then
+              npcropmax = i
+              if(npcropmin<=0) npcropmin = i
           endif
 
        end do
@@ -1275,14 +1294,20 @@ contains
     is_pft_known_to_model(:) = .false.
 
     ! NOTE(wjs, 2015-10-04) Currently, type 0 has mergetoelmpft = _FillValue in the file,
-    ! so we can't handle it in the general loop below. But CLM always uses type 0, so
+    ! so we can't handle it in the general loop below. But ELM always uses type 0, so
     ! handle it specially here.
     is_pft_known_to_model(0) = .true.
 
     ! NOTE(wjs, 2015-10-04) Currently, mergetoelmpft is only used for crop types.
     ! However, we handle it more generally here (treating ALL pft types), in case its use
     ! is ever extended to work with non-crop types as well.
-    do m = 1, mxpft
+    !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
+    ! 'mergetoclmpft' or 'mergetoelmpft' in the 'paramfile' is used as an indicator to user-defined parameter file
+    ! in this case, user-defined 'maxpatch_pft' in namelist is the actual PFT number for both parameter file and surface data
+    ! (AND, mxpft is the max. length for many data arrays)
+    !do m = 1, mxpft
+    do m = 1, min(mxpft,maxpatch_pft-1)
+    !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
        merge_type                        = mergetoelmpft(m)
        is_pft_known_to_model(merge_type) = .true.
     end do
