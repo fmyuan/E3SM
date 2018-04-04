@@ -66,6 +66,8 @@ module PhotosynthesisType
      real(r8), pointer :: fpsn_wj_patch     (:)   => null()! patch RuBP-limited photosynthesis    (umol CO2/m**2/s)
      real(r8), pointer :: fpsn_wp_patch     (:)   => null()! patch product-limited photosynthesis (umol CO2/m**2/s)
 
+     real(r8), pointer :: vcmax25_top_patch (:)   => null()! patch Vcmax at top canopy at 25oC (umol CO2/m**2/s)
+
      real(r8), pointer :: lmrsun_patch      (:)   => null()! patch sunlit leaf maintespvalce respiration rate               (umol CO2/m**2/s)
      real(r8), pointer :: lmrsha_patch      (:)   => null()! patch shaded leaf maintespvalce respiration rate               (umol CO2/m**2/s)
      real(r8), pointer :: lmrsun_z_patch    (:,:) => null()! patch canopy layer: sunlit leaf maintespvalce respiration rate (umol CO2/m**2/s)
@@ -176,6 +178,8 @@ contains
     allocate(this%fpsn_wj_patch     (begp:endp))           ; this%fpsn_wj_patch     (:)   = spval
     allocate(this%fpsn_wp_patch     (begp:endp))           ; this%fpsn_wp_patch     (:)   = spval
 
+    allocate(this%vcmax25_top_patch (begp:endp))           ; this%vcmax25_top_patch (:)   = spval
+
     allocate(this%lmrsun_z_patch    (begp:endp,1:nlevcan)) ; this%lmrsun_z_patch    (:,:) = spval
     allocate(this%lmrsha_z_patch    (begp:endp,1:nlevcan)) ; this%lmrsha_z_patch    (:,:) = spval
     allocate(this%lmrsun_patch      (begp:endp))           ; this%lmrsun_patch      (:)   = spval
@@ -198,6 +202,7 @@ contains
     allocate(this%psncanopy_patch   (begp:endp))           ; this%psncanopy_patch   (:)   = spval
 
     allocate(this%lmrcanopy_patch   (begp:endp))           ; this%lmrcanopy_patch   (:)   = spval
+
 ! plant hydraulics
     allocate(this%ac_phs_patch      (begp:endp,2,1:nlevcan)) ; this%ac_phs_patch (:,:,:) = spval
     allocate(this%aj_phs_patch      (begp:endp,2,1:nlevcan)) ; this%aj_phs_patch (:,:,:) = spval
@@ -263,6 +268,12 @@ contains
        call hist_addfld1d (fname='PSNSHA', units='umolCO2/m^2/s', &
             avgflag='A', long_name='shaded leaf photosynthesis', &
             ptr_patch=this%psnsha_patch)
+
+       this%vcmax25_top_patch(begp:endp) = spval
+       call hist_addfld1d (fname='VCMAX25TOP', units='umolCO2/m^2/s', &
+            avgflag='A', long_name='vcmax at top canopy at 25oC', &
+            ptr_patch=this%vcmax25_top_patch)
+
     end if
 
     if ( use_c13 ) then
@@ -422,6 +433,8 @@ contains
           this%psnsun_wc_patch(p) = 0._r8
           this%psnsun_wj_patch(p) = 0._r8
           this%psnsun_wp_patch(p) = 0._r8
+
+          this%vcmax25_top_patch(p) = 0._r8
 
           this%psnsha_patch(p)    = 0._r8
           this%psnsha_wc_patch(p) = 0._r8
