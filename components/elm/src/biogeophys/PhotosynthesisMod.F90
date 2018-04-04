@@ -399,6 +399,8 @@ contains
          mbb           => photosyns_vars%mbb_patch                 , & ! Output: [real(r8) (:)   ]  Ball-Berry slope of conductance-photosynthesis relationship
          rh_leaf       => photosyns_vars%rh_leaf_patch             , & ! Output: [real(r8) (:)   ]  fractional humidity at leaf surface (dimensionless)
 
+         vcmax25_top   => photosyns_vars%vcmax25_top_patch         , & ! Output: [real(r8) (:)   ]  maximum rate of carboxylation at top canopy at 25oC (umol co2/m**2/s)
+         
          leafn         => veg_ns%leafn           , &
          leafn_storage => veg_ns%leafn_storage   , &
          leafn_xfer    => veg_ns%leafn_xfer      , &
@@ -789,6 +791,9 @@ contains
 
             vcmax_z(p,iv) = vcmax_z(p,iv) * btran(p)
             lmr_z(p,iv) = lmr_z(p,iv) * btran(p)
+
+            ! output variable
+            vcmax25_top(p) = vcmax25top
          end do       ! canopy layer loop
       end do          ! patch loop
 
