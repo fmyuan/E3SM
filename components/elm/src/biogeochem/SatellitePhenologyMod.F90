@@ -314,7 +314,7 @@ contains
     use elm_time_manager, only : get_curr_date, get_step_size, get_nstep
     use elm_varcon      , only : secspday
     use pftvarcon,  only : noveg, season_decid, stress_decid
-#if defined(HUM_HOL)
+#if (defined HUM_HOL)
     use pftvarcon, only : phen_a, phen_b, phen_c, phen_topt, phen_fstar, phen_tc
     use pftvarcon, only : phen_cstar, phen_tforce, phen_tchil, phen_pstart, phen_tb, phen_ycrit 
     use pftvarcon, only : phen_spring, phen_autumn, phen_tbase
@@ -405,7 +405,7 @@ contains
             else
               ws_flag = 0._r8
             end if
-#if defined(HUM_HOL)
+#if (defined HUM_HOL)
             !------ Seasonal deciduous phenology ----------------------
             !crit_onset_gdd = exp(4.8_r8 + 0.13_r8*(tmean(p) - SHR_CONST_TKFRZ))
             crit_onset_gdd = phen_fstar

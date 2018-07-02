@@ -78,6 +78,7 @@ module elm_varpar
   integer :: alquimia_num_ion_exchange_sites
   integer :: alquimia_num_aux_doubles
   integer :: alquimia_num_aux_ints
+  integer, parameter :: max_tide_coeffs = 37 ! Number in NOAA tide tables
 
   ! constants for decomposition cascade
 

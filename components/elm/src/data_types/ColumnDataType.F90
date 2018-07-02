@@ -549,6 +549,7 @@ module ColumnDataType
     real(r8), pointer :: qflx_lat_aqu         (:)   => null() ! Total lateral flux between hummock/hollow (mm H2O /s)
     real(r8), pointer :: qflx_lat_aqu_layer   (:,:) => null() ! Lateral flux between hummock/hollow by layer (mm H2O/s)
     real(r8), pointer :: qflx_surf_input      (:)   => null() ! Runoff input from Hummock (mm H2O/s)
+    real(r8), pointer :: qflx_tide            (:)   => null() ! tidal flux between consecutive timesteps TAO
 
     real(r8), pointer :: mflx_infl_1d         (:)   => null() ! infiltration source in top soil control volume (kg H2O /s)
     real(r8), pointer :: mflx_dew_1d          (:)   => null() ! liquid+snow dew source in top soil control volume (kg H2O /s)
@@ -6048,6 +6049,7 @@ contains
     allocate(this%qflx_lat_aqu           (begc:endc))             ; this%qflx_lat_aqu         (:)   = spval
     allocate(this%qflx_lat_aqu_layer     (begc:endc,1:nlevgrnd))  ; this%qflx_lat_aqu_layer   (:,:) = spval
     allocate(this%qflx_surf_input        (begc:endc))             ; this%qflx_surf_input      (:)   = spval
+    allocate(this%qflx_tide              (begc:endc))             ; this%qflx_tide            (:)   = spval
 
     !VSFM variables
     ncells = endc - begc + 1
@@ -6103,12 +6105,17 @@ contains
          avgflag='A', long_name='sub-surface drainage', &
          ptr_col=this%qflx_drain, c2l_scale_type='urbanf')
 
-#if (defined HUM_HOL)
+#if (defined HUM_HOL || defined MARSH)
     this%qflx_lat_aqu(begc:endc) = spval
     call hist_addfld1d (fname='QFLX_LAT_AQU',  units='mm/s',  &
          avgflag='A', long_name='Lateral flow between hummock and hollow', &
          ptr_col=this%qflx_lat_aqu, c2l_scale_type='urbanf')
 #endif 
+
+   this%qflx_adv(begc:endc,:) = spval
+   call hist_addfld2d (fname='QFLX_ADV',  units='mm/s', type2d='levgrnd', &
+      avgflag='A', long_name='Vertical flow across soil layers', &
+      ptr_col=this%qflx_adv, c2l_scale_type='urbanf')
 
     this%qflx_irr_demand(begc:endc) = spval
     call hist_addfld1d (fname='QIRRIG_WM',  units='mm/s',  &

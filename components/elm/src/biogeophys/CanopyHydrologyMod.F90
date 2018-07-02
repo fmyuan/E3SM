@@ -876,7 +876,7 @@ contains
                     !--  update the submerged areal fraction using the new d value
                     frac_h2osfc(c) = 0.5*(1.0_r8+erf(d/(sigma*sqrt(2.0))))
 
-#if (defined HUM_HOL)
+#if (defined HUM_HOL || defined MARSH)
                     frac_h2osfc(c) = 0.99_r8
 #endif
 

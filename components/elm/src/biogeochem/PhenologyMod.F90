@@ -681,6 +681,8 @@ contains
          dayl                                =>    grc_pp%dayl                                              , & ! Input:  [real(r8)  (:)   ]  daylength (s)
          prev_dayl                           =>    grc_pp%prev_dayl                                         , & ! Input:  [real(r8)  (:)   ]  daylength from previous time step (s)
 
+         needleleaf                          =>    veg_vp%needleleaf                                 , & ! Input:  [real(r8)  (:)   ]  binary flag for seasonal-deciduous leaf habit (0 or 1)
+         climatezone                         =>    veg_vp%climatezone                                , & ! Input:  [real(r8)  (:)   ]  binary flag for seasonal-deciduous leaf habit (0 or 1)
          season_decid                        =>    veg_vp%season_decid                               , & ! Input:  [real(r8)  (:)   ]  binary flag for seasonal-deciduous leaf habit (0 or 1)
          woody                               =>    veg_vp%woody                                      , & ! Input:  [real(r8)  (:)   ]  woody lifeform flag (0 = non-woody, 1 = tree, 2 = shrub)
          crit_gdd1                           =>    veg_vp%crit_gdd1                                  , & ! Input:  [real(r8) (:) ] critical GDD intercept (at t = 0)
@@ -941,8 +943,13 @@ contains
                !soilt = t_soisno(c,3)
                !if (onset_gddflag(p) == 1.0_r8 .and. soilt > SHR_CONST_TKFRZ) then
                !   onset_gdd(p) = onset_gdd(p) + (soilt-SHR_CONST_TKFRZ)*fracday
-#ifdef HUM_HOL
-               if (ivt(p)==3) then!DN (3)
+#if (defined HUM_HOL)
+               !if (ivt(p)==3) then!DN (3) 'needleleaf_deciduous_boreal_tree   '
+               if(needleleaf(ivt(p)) == 1 .and. &
+                  season_decid(ivt(p)) == 1 .and. &
+                  climatezone(ivt(p)) == 3 .and. &
+                  woody(ivt(p)) == 1 ) then
+
                  !forcing
                  if (onset_gddflag(p) == 1.0_r8 .and. t_ref2m(p) > 279.50_r8 .and. ws_flag == 1._r8) then
                    onset_gdd(p) = onset_gdd(p)+(t_ref2m(p)-279.50_r8)*fracday
@@ -952,7 +959,12 @@ contains
                    onset_chil(p) = onset_chil(p) + fracday
                  end if
                  crit_onset_gdd = 9._r8 +2112._r8 * exp(-0.04_r8 * onset_chil(p))
-               else if (ivt(p)==11) then !SH (11)
+               !else if (ivt(p)==11) then !SH (11)'broadleaf_deciduous_boreal_shrub   '
+               elseif(needleleaf(ivt(p)) == 0 .and. &
+                  season_decid(ivt(p)) == 1 .and. &
+                  climatezone(ivt(p)) == 3 .and. &
+                  woody(ivt(p)) == 2 ) then
+
                  if (onset_gddflag(p) == 1.0_r8 .and. t_ref2m(p) > 279.05_r8 .and. ws_flag == 1._r8) then
                    onset_gdd(p) = onset_gdd(p) +(t_ref2m(p)-279.05_r8)*fracday
                  end if
@@ -1023,8 +1035,13 @@ contains
             else if (offset_flag(p) == 0.0_r8) then
                ! only begin to test for offset daylength once past the summer sol
 
-#ifdef HUM_HOL
-              if (ivt(p) == 3) then
+#if (defined HUM_HOL)
+               !if (ivt(p)==3) then!DN (3) 'needleleaf_deciduous_boreal_tree   '
+               if(needleleaf(ivt(p)) == 1 .and. &
+                  season_decid(ivt(p)) == 1 .and. &
+                  climatezone(ivt(p)) == 3 .and. &
+                  woody(ivt(p)) == 1 ) then
+
                 if(ws_flag == 0._r8 .and. dayl(g) < 46800.0_r8 .and. t_ref2m(p) < 294.5_r8) then
                   dayl_temp(p) =dayl_temp(p) + ((294.5_r8 - t_ref2m(p))**2 * (dayl(g)/46800.0_r8 )) * fracday
                 end if
@@ -1036,7 +1053,13 @@ contains
                   prev_leafc_to_litter(p) = 0._r8
                   prev_frootc_to_litter(p) = 0._r8
                 end if
-              else if (ivt(p) == 11) then
+
+               !else if (ivt(p)==11) then !SH (11)'broadleaf_deciduous_boreal_shrub   '
+               elseif(needleleaf(ivt(p)) == 0 .and. &
+                  season_decid(ivt(p)) == 1 .and. &
+                  climatezone(ivt(p)) == 3 .and. &
+                  woody(ivt(p)) == 2 ) then
+
                 if(ws_flag == 0._r8 .and. dayl(g) < 54600.0_r8 .and. t_ref2m(p) < 290.15_r8) then
                   dayl_temp(p) =dayl_temp(p) +( (290.15_r8 - t_ref2m(p))**2 *(dayl(g)/54600.0_r8))*fracday
                 end if
@@ -1048,7 +1071,7 @@ contains
                   prev_frootc_to_litter(p) = 0._r8
                 end if
               else
-                if (ws_flag == 0._r8 .and. dayl(g) < crit_dayl) then
+                if (ws_flag == 0._r8 .and. dayl(g) < PhenolParamsInst%crit_dayl) then
                   offset_flag(p) = 1._r8
                   offset_counter(p) = PhenolParamsInst%ndays_off * secspday
                   prev_leafc_to_litter(p) = 0._r8
@@ -1092,6 +1115,7 @@ contains
       !$acc routine seq
     use elm_varcon       , only : secspday
     use shr_const_mod    , only : SHR_CONST_TKFRZ, SHR_CONST_PI
+    use ColumnDataType   , only : col_es, col_ws, col_cf, col_nf, col_pf  !TAO added 5/19/2020
     !
     ! !ARGUMENTS:
     integer                  , intent(in)    :: num_soilp       ! number of soil patches in filter
@@ -1123,6 +1147,7 @@ contains
 
          t_soisno                            =>    col_es%t_soisno                         , & ! Input:  [real(r8)  (:,:) ]  soil temperature (Kelvin)  (-nlevsno+1:nlevgrnd)
 
+         h2osfc                              =>    col_ws%h2osfc                                         , & ! Input:  [real(r8) (:)   ]  surface water (mm)
          prec10                              =>    top_af%prec10d                                        , & ! Input:  [real(r8) (:)    ]  10-day running mean precipitation, mm H2O/s
          dormant_flag                        =>    cnstate_vars%dormant_flag_patch                       , & ! Output:  [real(r8) (:)   ]  dormancy flag
          days_active                         =>    cnstate_vars%days_active_patch                        , & ! Output:  [real(r8) (:)   ]  number of days since last dormancy
@@ -1435,7 +1460,11 @@ contains
                ! if soil water potential lower than critical value, accumulate
                ! as stress in offset soil water index
 
+#if (defined MARSH)
+               if (psi <= soilpsi_off .or. h2osfc(c) >= 120) then ! h20sfc in mm 29/8/2018 TAO 
+#else
                if (psi <= soilpsi_off) then
+#endif
                   offset_swi(p) = offset_swi(p) + fracday
 
                   ! if the offset soil water index exceeds critical value, and
