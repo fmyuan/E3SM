@@ -521,6 +521,7 @@ module ColumnDataType
     real(r8), pointer :: qflx_lat_aqu         (:)   => null() ! total lateral flow
     real(r8), pointer :: qflx_surf_input      (:)   => null() ! surface runoff input to hollow (mmH2O /s)
     real(r8), pointer :: qflx_tran_veg_sat    (:)   => null() ! col vegetation transpiration (mm H2O/s) (+ = to atm)
+    real(r8), pointer :: qflx_tide            (:)   => null() !
 
     real(r8), pointer :: mflx_infl_1d         (:)   => null() ! infiltration source in top soil control volume (kg H2O /s)
     real(r8), pointer :: mflx_dew_1d          (:)   => null() ! liquid+snow dew source in top soil control volume (kg H2O /s)
@@ -5747,6 +5748,7 @@ contains
     allocate(this%qflx_lat_aqu           (begc:endc))             ; this%qflx_lat_aqu         (:)   = spval
     allocate(this%qflx_lat_aqu_layer     (begc:endc,1:nlevgrnd))  ; this%qflx_lat_aqu_layer   (:,:) = spval
     allocate(this%qflx_tran_veg_sat      (begc:endc))             ; this%qflx_tran_veg_sat    (:)   = spval
+    allocate(this%qflx_tide              (begc:endc))             ; this%qflx_tide            (:)   = spval
 
     !VSFM variables
     ncells = endc - begc + 1
