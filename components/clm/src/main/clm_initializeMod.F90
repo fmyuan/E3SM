@@ -19,7 +19,10 @@ module clm_initializeMod
   use readParamsMod    , only : readSharedParameters, readPrivateParameters
   use ncdio_pio        , only : file_desc_t
   use FatesInterfaceMod, only : set_fates_global_elements
+#ifdef CLM_SBTR
   use BeTRSimulationALM, only : create_betr_simulation_alm
+#endif
+
   ! 
   !-----------------------------------------
   ! Definition of component types
@@ -426,9 +429,8 @@ contains
     use SoilWaterRetentionCurveFactoryMod   , only : create_soil_water_retention_curve
     use clm_varctl                          , only : use_clm_interface, use_pflotran
     use clm_interface_pflotranMod           , only : clm_pf_interface_init !, clm_pf_set_restart_stamp
-    use tracer_varcon         , only : is_active_betr_bgc    
+    use clm_varctl            , only : is_active_betr_bgc
     use clm_time_manager      , only : is_restart
-    use ALMbetrNLMod          , only : betr_namelist_buffer
     !
     ! !ARGUMENTS    
     implicit none
@@ -560,6 +562,7 @@ contains
 
     call clm_inst_biogeophys(bounds_proc)
 
+#ifdef CLM_SBTR
     if(use_betr)then
       !allocate memory for betr simulator
       allocate(ep_betr, source=create_betr_simulation_alm())
@@ -570,6 +573,7 @@ contains
     else
       allocate(ep_betr, source=create_betr_simulation_alm())
     endif
+#endif
     
     call SnowOptics_init( ) ! SNICAR optical parameters:
 
@@ -697,7 +701,9 @@ contains
                soilstate_vars, solarabs_vars, surfalb_vars, temperature_vars,                 &
                waterflux_vars, waterstate_vars,                                               &
                phosphorusstate_vars,phosphorusflux_vars,                                      &
+#ifdef CLM_SBTR
                ep_betr,                                                                       &
+#endif
                alm_fates, glc2lnd_vars, crop_vars)
        end if
 
@@ -713,7 +719,9 @@ contains
             soilstate_vars, solarabs_vars, surfalb_vars, temperature_vars,                 &
             waterflux_vars, waterstate_vars,                                               &
             phosphorusstate_vars,phosphorusflux_vars,                                      &
+#ifdef CLM_SBTR
             ep_betr,                                                                       &
+#endif
             alm_fates, glc2lnd_vars, crop_vars)
 
     end if
@@ -737,9 +745,11 @@ contains
                glc2lnd_vars%icemask_grc(bounds_clump%begg:bounds_clump%endg))
        end do
        !$OMP END PARALLEL DO
+#ifdef CLM_SBTR
        if(use_betr)then
          call ep_betr%set_active(bounds_proc, col_pp)
        endif
+#endif
        ! Create new template file using cold start
        call restFile_write(bounds_proc, finidat_interp_dest,                               &
             atm2lnd_vars, aerosol_vars, canopystate_vars, cnstate_vars,                    &
@@ -749,7 +759,9 @@ contains
             soilstate_vars, solarabs_vars, surfalb_vars, temperature_vars,                 &
             waterflux_vars, waterstate_vars,                                               &
             phosphorusstate_vars,phosphorusflux_vars,                                      &
+#ifdef CLM_SBTR
             ep_betr,                                                                       &
+#endif
             alm_fates, crop_vars)
 
        ! Interpolate finidat onto new template file
@@ -765,7 +777,9 @@ contains
             soilstate_vars, solarabs_vars, surfalb_vars, temperature_vars,                 &
             waterflux_vars, waterstate_vars,                                               &
             phosphorusstate_vars,phosphorusflux_vars,                                      &
+#ifdef CLM_SBTR
             ep_betr,                                                                       &
+#endif
             alm_fates, glc2lnd_vars, crop_vars)
 
        ! Reset finidat to now be finidat_interp_dest 
@@ -782,9 +796,12 @@ contains
     end do
     !$OMP END PARALLEL DO
 
+#ifdef CLM_SBTR
     if(use_betr)then
       call ep_betr%set_active(bounds_proc, col_pp)
     endif 
+#endif
+
     ! ------------------------------------------------------------------------
     ! Initialize nitrogen deposition
     ! ------------------------------------------------------------------------
