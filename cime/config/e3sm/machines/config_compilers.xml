@@ -358,11 +358,15 @@ for mct, etc.
   <SFC> nagfor </SFC>
 </compiler>
 
-<compiler COMPILER="gnu" MACH="mymac" >
+<compiler COMPILER="gnu" MACH="mymac">
   <NETCDF_PATH> $(NETCDF_PATH)</NETCDF_PATH>
-  <ADD_LDFLAGS compile_threaded="true"> -L $(GCC_ROOT)/lib/gcc/x86_64-apple-darwin15.4.0/5.3.0 -fopenmp </ADD_LDFLAGS>
-  <ADD_LDFLAGS>-framework Accelerate</ADD_LDFLAGS>
-  <ADD_SLIBS>$(shell $(NETCDF_PATH)/bin/nf-config --flibs) -framework Accelerate</ADD_SLIBS>
+  <LDFLAGS>
+    <append compile_threaded="true"> -L $(GCC_ROOT)/lib/gcc/x86_64-apple-darwin15.4.0/5.3.0 -fopenmp </append>
+    <append>-framework Accelerate</append>
+  </LDFLAGS>
+  <SLIBS>
+    <append>$(shell $(NETCDF_PATH)/bin/nf-config --flibs) -framework Accelerate</append>
+  </SLIBS>
   <SFC>$(GCC_ROOT)/bin/gfortran</SFC>
   <SCC>$(GCC_ROOT)/bin/gcc</SCC>
   <SCXX>$(GCC_ROOT)/bin/g++</SCXX>
@@ -1853,6 +1857,49 @@ ntel/x86_64/2013/composer_xe_2013/composer_xe_2013_sp1.3.174/mkl/include </base>
   <SCC> pgcc </SCC>
   <SFC> pgfortran </SFC>
 </compiler>
+
+<compiler MACH="summitdev" COMPILER="gnu">
+  <CFLAGS>
+    <append compile_threaded="true"> -fopenmp </append>
+  </CFLAGS>
+  <CMAKE_OPTS>
+    <append MODEL="cism"> -D CISM_GNU=ON </append>
+  </CMAKE_OPTS>
+  <CPPDEFS>
+    <append> -DFORTRANUNDERSCORE -DNO_R16</append>
+  </CPPDEFS>
+  <CXX_LINKER>FORTRAN</CXX_LINKER>
+  <FC_AUTO_R8>
+    <base> -fdefault-real-8 </base>
+  </FC_AUTO_R8>
+  <FFLAGS>
+    <base> -O -fconvert=big-endian -ffree-line-length-none -ffixed-line-length-none -fno-range-check</base>
+    <append compile_threaded="true"> -fopenmp </append>
+    <append DEBUG="TRUE"> -g -Wall </append>
+  </FFLAGS>
+  <FFLAGS_NOOPT>
+    <base> -O0 </base>
+  </FFLAGS_NOOPT>
+  <FIXEDFLAGS>
+    <base>  -ffixed-form </base>
+  </FIXEDFLAGS>
+  <FREEFLAGS>
+    <base> -ffree-form </base>
+  </FREEFLAGS>
+  <LDFLAGS>
+    <append compile_threaded="true"> -fopenmp </append>
+    <append> -L$(NETCDF_C_PATH)/lib -lnetcdf -L$(NETCDF_FORTRAN_PATH)/lib -lnetcdff -L$(PNETCDF_PATH)/lib -lpnetcdf -L$(HDF5_PATH)/lib -lhdf5_hl -lhdf5 -L$(ESSL_PATH)/lib64 -lessl -L$(NETLIB_LAPACK_PATH)/lib64 -llapack -L$(MPI_ROOT)/lib -L$(CC_ROOT)/lib64</append>
+  </LDFLAGS>
+  <MPICC>$(MPI_ROOT)/bin/mpicc</MPICC>
+  <MPICXX>$(MPI_ROOT)/bin/mpic++</MPICXX>
+  <MPIFC>$(MPI_ROOT)/bin/mpif90</MPIFC>
+  <PIO_FILESYSTEM_HINTS>lustre</PIO_FILESYSTEM_HINTS>
+  <SCC>$(CC_ROOT)/bin/gcc</SCC>
+  <SCXX>$(CC_ROOT)/bin/gxx</SCXX>
+  <SFC>$(CC_ROOT)/bin/gfortran</SFC>
+  <SUPPORTS_CXX>TRUE</SUPPORTS_CXX>
+</compiler>
+
 
 <compiler MACH="syrah" COMPILER="intel">
   <CFLAGS>
