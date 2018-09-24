@@ -608,7 +608,8 @@
     <MPILIBS>openmpi,mpich</MPILIBS>
     <RUNDIR>$ENV{HOME}/projects/acme/scratch/$CASE/run</RUNDIR>
     <EXEROOT>$ENV{HOME}/projects/acme/scratch/$CASE/bld</EXEROOT>
-    <DIN_LOC_ROOT>$ENV{HOME}/projects/acme/cesm-inputdata</DIN_LOC_ROOT>    <DIN_LOC_ROOT_CLMFORC>$ENV{HOME}/projects/acme/ptclm-data</DIN_LOC_ROOT_CLMFORC>
+    <DIN_LOC_ROOT>$ENV{HOME}/projects/acme/cesm-inputdata</DIN_LOC_ROOT>    
+    <DIN_LOC_ROOT_CLMFORC>$ENV{HOME}/projects/acme/ptclm-data</DIN_LOC_ROOT_CLMFORC>
     <DOUT_S_ROOT>$ENV{HOME}/projects/acme/scratch/archive/$CASE</DOUT_S_ROOT>
     <DOUT_L_MSROOT>csm/$CASE</DOUT_L_MSROOT>
     <CIME_OUTPUT_ROOT>$ENV{HOME}/projects/acme/scratch</CIME_OUTPUT_ROOT>
@@ -641,7 +642,7 @@
     <CCSM_BASELINE>$ENV{HOME}/project_acme/baselines</CCSM_BASELINE>
     <CCSM_CPRNC>$CCSMROOT/tools/cprnc/build/cprnc</CCSM_CPRNC>
     <SUPPORTED_BY>YOUR_NAME</SUPPORTED_BY>
-    <GMAKE>/usr/local/bin/gmake</GMAKE>    <!-- have to add full path, otherwise './case.build -clean' has issue  -->
+    <GMAKE>/usr/bin/make</GMAKE>
     <GMAKE_J>1</GMAKE_J>
     <MAX_TASKS_PER_NODE>1</MAX_TASKS_PER_NODE>
     <MAX_MPITASKS_PER_NODE>1</MAX_MPITASKS_PER_NODE>
@@ -649,7 +650,7 @@
     <BATCHQUERY></BATCHQUERY>
     <BATCHSUBMIT></BATCHSUBMIT>
     <mpirun mpilib="default" compiler="gnu">
-      <executable>/usr/local/mpich-3.2-gcc53/bin/mpirun</executable>
+      <executable>$ENV{MPI_ROOT}/bin/mpirun</executable>
       <arguments>
         <arg name="num_tasks"> -np $TOTALPES</arg>
       </arguments>
@@ -659,11 +660,13 @@
       <env name="PATH">/usr/local/CMake.App/Contents/bin/:/usr/local/bin/:/opt/local/sbin/:/opt/local/bin:/usr/bin/:/bin/</env>   <!--This is for Cmake, needed by PIO -->
     </environment_variables>       
     <environment_variables compiler="gnu">
-      <env name="GCC_ROOT">/usr/local/gcc-5.3.0</env>
-      <env name="MPI_ROOT">/usr/local/mpich-3.2-gcc53</env>
-      <env name="HDF5_PATH">/usr/local/hdf5-1.8.16-mpich32-gcc53</env>
-      <env name="NETCDF_PATH">/usr/local/netcdf-4.4-mpich32-gcc53</env>
-      <env name="PETSC_PATH">/usr/local/petsc-mpich32-gcc53</env>      
+      <!-- NOTE: the following $ENV{} must be available in your .bashrc, otherwise explicitly give the directories -->
+      <env name="GCC_ROOT">$ENV{GCC_ROOT}</env>
+      <env name="MPI_ROOT">$ENV{MPI_ROOT}</env>
+      <env name="HDF5_PATH">$ENV{HDF5_PATH}</env>
+      <env name="NETCDF_PATH">$ENV{NETCDF_PATH}</env>
+      <!--  env name="PNETCDF_PATH">$ENV{NETCDF_PATH}</env> -->
+      <env name="PETSC_PATH">$ENV{PETSC_DIR}</env>
     </environment_variables>       
 
     <environment_variables>
