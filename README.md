@@ -77,3 +77,11 @@ License
 The E3SM model is available under a BSD 3-clause license.
 Please see [LICENSE](LICENSE) for details.
 
+
+--------------------------------------------------------------------------------
+# NGEE Arctic
+**Next-Generation Ecosystem Experiments**
+* *Advancing the predictive power of Earth system models through understanding of the structure and function of Arctic terrestrial ecosystems*
+
+[![NGEE-Arctic logo](https://ngee-arctic.ornl.gov/sites/default/files/img/site-logo.png)](https://ngee-arctic.ornl.gov)
+
