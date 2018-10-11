@@ -682,11 +682,14 @@
       <env name="CLM_PFLOTRAN_COUPLED">FALSE</env>
       <env name="CLM_PFLOTRAN_COLMODE">FALSE</env>
       <!-- The following implies that pflotran codes are pre-built as libpflotran.a -->
-      <env name="CLM_PFLOTRAN_SOURCE_DIR">/Users/$USER/mygitlab/pflotran-interface/src/clm-pflotran</env>
+      <!-- env name="CLM_PFLOTRAN_SOURCE_DIR">/Users/$USER/mygitlab/pflotran-interface/src/clm-pflotran</env> -->
+
+      <!-- The following implies that codes are included in ELM external directory, AND will be included in libclm.a -->
+      <env name="CLM_PFLOTRAN_SOURCE_DIR">$SRCROOT/components/clm/src/external_models/pflotran-interface/src/clm-pflotran</env>
 
       <!-- by blanking the following 2 names, PETSC libs excluded in e3sm.exe when NOT coupling with PFLOTRAN -->
-      <env name="PFLOTRAN_INC"> -I$(CLM_PFLOTRAN_SOURCE_DIR) -I$(PETSC_PATH)/include</env>
-      <env name="PFLOTRAN_LIB"> -L$(CLM_PFLOTRAN_SOURCE_DIR) -lpflotran -L$(PETSC_PATH)/lib -lpetsc -lmetis -lparmetis</env>
+      <env name="PFLOTRAN_INC"> -I$ENV{PETSC_DIR}/include</env>
+      <env name="PFLOTRAN_LIB"> -L$ENV{PETSC_DIR}/lib -lpetsc -lmetis -lparmetis</env>
     </environment_variables>
 </machine>
 
@@ -2167,12 +2170,16 @@
         <env name="CLM_PFLOTRAN_COLMODE">FALSE</env>
         <!-- The following pflotran is with PETSc-v3.7.x on CADES-->
         <!--  env name="CLM_PFLOTRAN_SOURCE_DIR">/lustre/or-hydra/cades-ccsi/proj-shared/models/pflotran-interface/src/clm-pflotran</env> -->
+
         <!-- The following pflotran is with PETSc-v3.8.x or above on CADES-->
-        <env name="CLM_PFLOTRAN_SOURCE_DIR">/lustre/or-hydra/cades-ccsi/proj-shared/models/pflotran-interface-v3.8x/src/clm-pflotran</env>
-         
+        <!-- env name="CLM_PFLOTRAN_SOURCE_DIR">/lustre/or-hydra/cades-ccsi/proj-shared/models/pflotran-interface-v3.8x/src/clm-pflotran</env> -->
+
+        <!-- The following implies that codes are included in ELM external directory, AND will be included in libclm.a -->
+        <env name="CLM_PFLOTRAN_SOURCE_DIR">$SRCROOT/components/clm/src/external_models/pflotran-interface/src/clm-pflotran</env>
+        
         <!-- by blanking the following 2 names, PETSC libs excluded in e3sm.exe when NOT coupling with PFLOTRAN -->
-        <env name="PFLOTRAN_INC"> -I$(CLM_PFLOTRAN_SOURCE_DIR) -I$(PETSC_PATH)/include</env>
-        <env name="PFLOTRAN_LIB"> -L$(CLM_PFLOTRAN_SOURCE_DIR) -lpflotran -L$(PETSC_PATH)/lib -lpetsc -lmetis -lparmetis</env>
+        <env name="PFLOTRAN_INC"> -I$ENV{PETSC_DIR}/include</env>
+        <env name="PFLOTRAN_LIB"> -L$ENV{PETSC_DIR}/lib -lpetsc -lmetis -lparmetis</env>
       </environment_variables>
       
 </machine>
