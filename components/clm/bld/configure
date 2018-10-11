@@ -684,6 +684,7 @@ sub write_filepath_cesmbld
                      "external_models/sbetr/src/Applications/app_util",
                      "external_models/sbetr/src/Applications/soil-farm/bgcfarm_util",
                      "external_models/sbetr/src/Applications/soil-farm/CENT_ECACNP",
+		     "external_models/pflotran-interface/src/clm-pflotran",
 		     "utils", 
 		     "cpl" );
 
