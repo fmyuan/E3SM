@@ -1,6 +1,8 @@
-#ifdef CLM_PFLOTRAN
+
 
 module pflotran_clm_setmapping_module
+#ifdef CLM_PFLOTRAN
+! ************************************************************************** !
 
 #include "petsc/finclude/petscsys.h"
 #include "petsc/finclude/petscvec.h"
@@ -1188,8 +1190,9 @@ contains
   end subroutine pflotranModelInitMapFaceToFace
 
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++!
+#endif
+! ************************************************************************** !
   
 end module pflotran_clm_setmapping_module
 
-#endif
 

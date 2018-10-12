@@ -1,6 +1,8 @@
-#ifdef CLM_PFLOTRAN
 
 module Mapping_module
+
+#ifdef CLM_PFLOTRAN
+! ************************************************************************** !
 
 #include "petsc/finclude/petscsys.h"
 #include "petsc/finclude/petscvec.h"
@@ -2005,6 +2007,9 @@ contains
 
   end subroutine MappingDestroy
 
+! ************************************************************************** !
+#endif
+
 end module Mapping_module
 
-#endif
+
