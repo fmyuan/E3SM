@@ -1471,8 +1471,8 @@ contains
            call area(a, f, lats(1:3), lons(1:3), 3, dummy1, dummy2)
          endif
 
-         if (dummy1 < 1.d-20) then
-            call endrun(trim(subname) // ": ERROR: re-calculated ldomain%area is less than 0. " // &
+         if (abs(dummy1) < 1.d-20) then
+            call endrun(trim(subname) // ": ERROR: re-calculated ldomain%area is not greater than 0. " // &
             "Please check the grid vertices lat/lon in ldomain file")
          else
            larea(g) = dummy1 * 1.e-6_r8

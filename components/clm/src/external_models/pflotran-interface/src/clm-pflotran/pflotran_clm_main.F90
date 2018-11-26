@@ -818,7 +818,7 @@ contains
         lon2 = lon_e
         call invers(a, f, lat1, lon1, lat2, lon2, s12, azi1, azi2, omask,     &
           dummy1, dummy2, dummy3, dummy4 , dummy5)
-        grid%structured_grid%dx(ghosted_id) = s12
+        grid%structured_grid%dx(ghosted_id) = abs(s12)
 
         ! mid-latitudal meteric height of trapezoid (y-axis) -
         lat1 = lat_s
@@ -827,12 +827,12 @@ contains
         lon2 = lon_c
         call invers(a, f, lat1, lon1, lat2, lon2, s12, azi1, azi2, omask,     &
           dummy1, dummy2, dummy3, dummy4 , dummy5)
-        grid%structured_grid%dy(ghosted_id) = s12
+        grid%structured_grid%dy(ghosted_id) = abs(s12)
 
         ! some checking
         ! areas of grid (x,y) in meters
         call area(a, f, lats, lons, 4, dummy1, dummy2)
-        tempreal = grid%structured_grid%dx(ghosted_id)*grid%structured_grid%dy(ghosted_id)/dummy1
+        tempreal = grid%structured_grid%dx(ghosted_id)*grid%structured_grid%dy(ghosted_id)/abs(dummy1)
         if (abs(tempreal-1.d0)>1.e-5 .and. option%mapping_files) then
           option%io_buffer = "Warning: remarkably large gaps in grid areas btw two approaches FOR cell: "
           call printMsg(option)
@@ -845,7 +845,7 @@ contains
         lon2 = lons(2)
         call invers(a, f, lat1, lon1, lat2, lon2, s12, azi1, azi2, omask,     &
           dummy1, dummy2, dummy3, dummy4 , dummy5)
-        tempreal = s12
+        tempreal = abs(s12)
 
         lat1 = lats(3)
         lon1 = lons(3)
@@ -853,7 +853,7 @@ contains
         lon2 = lons(4)
         call invers(a, f, lat1, lon1, lat2, lon2, s12, azi1, azi2, omask,     &
           dummy1, dummy2, dummy3, dummy4 , dummy5)
-        tempreal = tempreal+s12
+        tempreal = tempreal+abs(s12)
         tempreal = 0.5d0*tempreal/grid%structured_grid%dx(ghosted_id)
         if (abs(tempreal-1.d0)>1.e-5) then   ! mathematically, dx = 0.5*(a+b)
           option%io_buffer = "Warning: remarkably large gaps in longitudal-length FOR a cell: "
@@ -867,7 +867,7 @@ contains
         lon2 = lons(3)
         call invers(a, f, lat1, lon1, lat2, lon2, s12, azi1, azi2, omask,     &
           dummy1, dummy2, dummy3, dummy4 , dummy5)
-        tempreal = s12
+        tempreal = abs(s12)
 
         lat1 = lats(1)
         lon1 = lons(1)
@@ -875,7 +875,7 @@ contains
         lon2 = lons(4)
         call invers(a, f, lat1, lon1, lat2, lon2, s12, azi1, azi2, omask,     &
           dummy1, dummy2, dummy3, dummy4 , dummy5)
-        tempreal = tempreal/s12
+        tempreal = tempreal/abs(s12)
         if (abs(tempreal-1.d0)>1.e-5) then   ! mathematically, c=d
           option%io_buffer = "Warning: remarkably large gaps in isoscele latitudal-length FOR a cell: "
           call printMsg(option)
