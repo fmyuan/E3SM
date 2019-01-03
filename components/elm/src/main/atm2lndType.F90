@@ -70,6 +70,9 @@ module atm2lndType
      ! atm->lnd not downscaled
      real(r8), pointer :: forc_u_grc                    (:)   => null() ! atm wind speed, east direction (m/s)
      real(r8), pointer :: forc_v_grc                    (:)   => null() ! atm wind speed, north direction (m/s)
+     real(r8), pointer :: forc_wsresp_grc               (:)   => null() ! Atm state (m/s/Pa)
+     real(r8), pointer :: forc_tau_est_grc              (:)   => null() ! Atm state (Pa)
+     real(r8), pointer :: forc_ugust_grc                (:)   => null() ! Atm state (m/s)
      real(r8), pointer :: forc_wind_grc                 (:)   => null() ! atmospheric wind speed
      real(r8), pointer :: forc_hgt_grc                  (:)   => null() ! atmospheric reference height (m)
      real(r8), pointer :: forc_hgt_u_grc                (:)   => null() ! obs height of wind [m] (new)
@@ -224,6 +227,9 @@ contains
 #endif
     allocate(this%forc_u_grc                    (begg:endg))        ; this%forc_u_grc                    (:)   = ival
     allocate(this%forc_v_grc                    (begg:endg))        ; this%forc_v_grc                    (:)   = ival
+    allocate(this%forc_wsresp_grc               (begg:endg))        ; this%forc_wsresp_grc               (:)   = ival
+    allocate(this%forc_tau_est_grc              (begg:endg))        ; this%forc_tau_est_grc              (:)   = ival
+    allocate(this%forc_ugust_grc                (begg:endg))        ; this%forc_ugust_grc                (:)   = ival
     allocate(this%forc_wind_grc                 (begg:endg))        ; this%forc_wind_grc                 (:)   = ival
     allocate(this%forc_rh_grc                   (begg:endg))        ; this%forc_rh_grc                   (:)   = ival
     allocate(this%forc_hgt_grc                  (begg:endg))        ; this%forc_hgt_grc                  (:)   = ival
