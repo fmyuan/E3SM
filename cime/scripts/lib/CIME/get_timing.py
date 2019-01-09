@@ -333,7 +333,12 @@ class _TimingParser:
         # at this point the routine becomes driver specific
         if self._driver == 'mct':
             nprocs, ncount = self.gettime2('CPL:CLOCK_ADVANCE ')
-            nsteps = ncount / nprocs
+            if(nprocs>0):
+                nsteps = ncount / nprocs
+            else:
+                logger.warning("timer level too shallow (<2) - not enough information for relevant timing!")
+                return
+        
         elif self._driver == 'nuopc':
             nprocs, nsteps = self.gettime2('')
         adays = nsteps*tlen/ncpl
