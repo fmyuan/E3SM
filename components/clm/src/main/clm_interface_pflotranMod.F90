@@ -25,6 +25,9 @@ module clm_interface_pflotranMod
 ! modified by Gangsheng Wang @ ORNL based on clm_interface: 8/28/2015, 2/2/2017
 !
 ! yfm: Added Thermal-Hydrology coupling subroutines: 04/2017
+!
+! update: 5/13/2019 (all are IMPLICITLY column-based coupling,
+!        esp. after ELM v2 data-structure modification @3/12/2019, commit 1bf22e32d)
 !----------------------------------------------------------------------------------------------
 
 #include "shr_assert.h"
@@ -1722,9 +1725,7 @@ contains
     ! get soil column physical properties to PFLOTRAN
     !
     ! !USES:
-    use LandunitType            , only : lun_pp
     use ColumnType              , only : col_pp
-    use landunit_varcon         , only : istsoil, istcrop
 
     use clm_varpar              , only : nlevgrnd, ndecomp_pools, ndecomp_cascade_transitions
     use CNDecompCascadeConType  , only : decomp_cascade_con
@@ -1752,12 +1753,11 @@ contains
 
     ! LOCAL VARAIBLES:
 
-    integer  :: fc, c, l, g, j      ! indices
+    integer  :: fc, c, g, j      ! indices
     integer  :: k,ki,kj
     integer  :: gcount, cellcount   ! gcount: 0-based, cellcount: 1-based
     integer  :: soilc1, layer1
     real(r8) :: CN_ratio_mass_to_mol
-    real(r8) :: wtgcount
 
     character(len= 32) :: subname = 'get_clm_soil_properties' ! subroutine name
 
@@ -1779,34 +1779,28 @@ contains
     PetscErrorCode :: ierr
 
     associate( &
-         ! Assign local pointer to derived subtypes components (column-level)
-         ltype                    => lun_pp%itype                                , & !  [integer (:)]  landunit type index
-         ! Assign local pointer to derived subtypes components (column-level)
-         clandunit                => col_pp%landunit                             , & !  [integer (:)]  landunit index of column
-         cgridcell                => col_pp%gridcell                             , & !  [integer (:)]  gridcell index of column
-         cwtgcell                 => col_pp%wtgcell                              , & !  [real(r8) (:)]  weight (relative to gridcell
-         cactive                  => col_pp%active                               , & !
-         z                        => col_pp%z                                    , & !  [real(r8) (:,:)]  layer depth (m)
-         dz                       => col_pp%dz                                   , & !  [real(r8) (:,:)]  layer thickness depth (m)
-         zi                       => col_pp%zi                                   , & !  [real(r8) (:,:)]  interface level below a "z" level (m)
+         cgridcell                => col_pp%gridcell                            , & !  [integer (:)]  gridcell index of column
          !
-         bd                       => clm_interface_data%bd_col                      , & !
-         bsw                      => clm_interface_data%bsw_col                     , & !  [real(r8) (:,:)]  Clapp and Hornberger "b" (nlevgrnd)
-         hksat                    => clm_interface_data%hksat_col                   , & !  [real(r8) (:,:)]  hydraulic conductivity at saturation (mm H2O /s) (nlevgrnd)
-         sucsat                   => clm_interface_data%sucsat_col                  , & !  [real(r8) (:,:)]  minimum soil suction (mm) (nlevgrnd)
-         watsat                   => clm_interface_data%watsat_col                  , & !  [real(r8) (:,:)]  volumetric soil water at saturation (porosity) (nlevgrnd)
-         watfc                    => clm_interface_data%watfc_col                   , & !  [real(r8) (:,:)]  volumetric soil water at field capacity (nlevgrnd)
+         dz                       => clm_interface_data%dz                      , & ! layer thickness depth (m)
+         z                        => clm_interface_data%z                       , & ! layer depth (m)
+         zi                       => clm_interface_data%zi                      , & ! layer depth (m)
+         bd                       => clm_interface_data%bd                      , & !
+         bsw                      => clm_interface_data%bsw                     , & !  [real(r8) (:,:)]  Clapp and Hornberger "b" (nlevgrnd)
+         hksat                    => clm_interface_data%hksat                   , & !  [real(r8) (:,:)]  hydraulic conductivity at saturation (mm H2O /s) (nlevgrnd)
+         sucsat                   => clm_interface_data%sucsat                  , & !  [real(r8) (:,:)]  minimum soil suction (mm) (nlevgrnd)
+         watsat                   => clm_interface_data%watsat                  , & !  [real(r8) (:,:)]  volumetric soil water at saturation (porosity) (nlevgrnd)
+         watfc                    => clm_interface_data%watfc                   , & !  [real(r8) (:,:)]  volumetric soil water at field capacity (nlevgrnd)
          !
-         tkwet                    => clm_interface_data%tkwet_col                   , & !  [real(r8) (:,:)]  (nlevgrnd)
-         tkdry                    => clm_interface_data%tkdry_col                   , & !  [real(r8) (:,:)]  (nlevgrnd)
-         tkfrz                    => clm_interface_data%tkfrz_col                   , & !  [real(r8) (:,:)]  (nlevgrnd)
-         csol                     => clm_interface_data%csol_col                    , & !  [real(r8) (:,:)]  (nlevgrnd)
+         tkwet                    => clm_interface_data%tkwet                   , & !  [real(r8) (:,:)]  (nlevgrnd)
+         tkdry                    => clm_interface_data%tkdry                   , & !  [real(r8) (:,:)]  (nlevgrnd)
+         tkfrz                    => clm_interface_data%tkfrz                   , & !  [real(r8) (:,:)]  (nlevgrnd)
+         csol                     => clm_interface_data%csol                    , & !  [real(r8) (:,:)]  (nlevgrnd)
          !
-         rf_decomp_cascade        => clm_interface_data%bgc%rf_decomp_cascade_col       , &
-         pathfrac_decomp_cascade  => clm_interface_data%bgc%pathfrac_decomp_cascade_col , &
-         initial_cn_ratio         => clm_interface_data%bgc%initial_cn_ratio            , &
-         kd_decomp_pools          => clm_interface_data%bgc%decomp_k_pools              , &
-         kd_adfactor_pools        => clm_interface_data%bgc%adfactor_kd_pools             &
+         rf_decomp_cascade        => clm_interface_data%bgc%rf_decomp_cascade       , &
+         pathfrac_decomp_cascade  => clm_interface_data%bgc%pathfrac_decomp_cascade , &
+         initial_cn_ratio         => clm_interface_data%bgc%initial_cn_ratio        , &
+         kd_decomp_pools          => clm_interface_data%bgc%decomp_k_pools          , &
+         kd_adfactor_pools        => clm_interface_data%bgc%adfactor_kd_pools         &
          )
 
 !-------------------------------------------------------------------------------------
@@ -1916,52 +1910,36 @@ contains
     ! note: the following data-passing will be looping for all columns, instead of filters,
     !       so that NO void grids in PF mesh even for inactive (and skipped) gridcell.
     do c = bounds%begc, bounds%endc
-      ! Set gridcell and landunit indices
-      g = cgridcell(c)
-      l = clandunit(c)
-
-      if ( (ltype(l)==istsoil .or. ltype(l)==istcrop) .and. &
-           (cactive(c) .and. cwtgcell(c)>0._r8) ) then        ! skip inactive or zero-weighted column (may be not needed, but in case)
+        ! Set gridcell and landunit indices
+        g = cgridcell(c)
 
 #ifdef COLUMN_MODE
+        if (mapped_gcount_skip(c-bounds%begc+1)) cycle           ! skip inactive column (and following numbering)
         gcount   = gcount + 1                                    ! 0-based column (fake grid) count
-        wtgcount = 1._r8
-#else
+# else
         gcount   = g - bounds%begg                               ! 0-based actual grid numbering
-        wtgcount = cwtgcell(c)
-#endif
+        if (mapped_gcount_skip(gcount+1)) cycle                  ! skip inactive grid, but not numbering
+# endif
 
         do j = 1, clm_pf_idata%nzclm_mapped
 
           if (j <= nlevgrnd) then
             cellcount = gcount*clm_pf_idata%nzclm_mapped + j     ! 1-based
 
-            tkwet_clm_loc(cellcount )  = &                      !(W/m/K)
-                tkwet_clm_loc(cellcount ) + tkwet(c,j)*wtgcount
-            tkdry_clm_loc(cellcount )  = &
-                tkdry_clm_loc(cellcount ) + tkdry(c,j)*wtgcount
-            tkfrz_clm_loc(cellcount )  = &
-                tkfrz_clm_loc(cellcount ) + tkfrz(c,j)*wtgcount
-            hcvsol_clm_loc(cellcount ) = &
-                hcvsol_clm_loc(cellcount ) + csol(c,j)*wtgcount  ! (J/m3/K)
+            tkwet_clm_loc(cellcount )  = tkwet(c,j)
+            tkdry_clm_loc(cellcount )  = tkdry(c,j)
+            tkfrz_clm_loc(cellcount )  = tkfrz(c,j)
+            hcvsol_clm_loc(cellcount ) = csol(c,j)
 
-            hksat_x_clm_loc(cellcount ) = &
-                hksat_x_clm_loc(cellcount ) + hksat(c,j)*wtgcount
-            hksat_y_clm_loc(cellcount ) = &
-                hksat_y_clm_loc(cellcount ) + hksat(c,j)*wtgcount
-            hksat_z_clm_loc(cellcount ) = &
-                hksat_z_clm_loc(cellcount ) + hksat(c,j)*wtgcount
+            hksat_x_clm_loc(cellcount ) = hksat(c,j)
+            hksat_y_clm_loc(cellcount ) = hksat(c,j)
+            hksat_z_clm_loc(cellcount ) = hksat(c,j)
 
-            sucsat_clm_loc( cellcount ) = &
-                sucsat_clm_loc( cellcount ) + sucsat(c,j)*wtgcount
-            watsat_clm_loc( cellcount ) = &
-                watsat_clm_loc( cellcount ) + watsat(c,j)*wtgcount
-            bsw_clm_loc(    cellcount ) = &
-                bsw_clm_loc(    cellcount ) + bsw(c,j)*wtgcount
-            watfc_clm_loc( cellcount )  = &
-                watfc_clm_loc( cellcount ) + watfc(c,j)*wtgcount
-            bulkdensity_dry_clm_loc( cellcount ) = &
-                bulkdensity_dry_clm_loc( cellcount ) + bd(c,j)*wtgcount
+            sucsat_clm_loc( cellcount ) = sucsat(c,j)
+            watsat_clm_loc( cellcount ) = watsat(c,j)
+            bsw_clm_loc(    cellcount ) = bsw(c,j)
+            watfc_clm_loc(  cellcount ) = watfc(c,j)
+            bulkdensity_dry_clm_loc( cellcount ) = bd(c,j)
 
           else
             call endrun(trim(subname) // ": ERROR: CLM-PF mapped soil layer numbers is greater than " // &
@@ -1969,7 +1947,7 @@ contains
 
           endif
         enddo
-      endif
+
 
     enddo ! do c = bounds%begc, bounds%endc
 
@@ -1990,8 +1968,6 @@ contains
     call clm_pf_checkerr(ierr, subname, __FILE__, __LINE__)
     call VecRestoreArrayF90(clm_pf_idata%bulkdensity_dry_clmp,  bulkdensity_dry_clm_loc,  ierr)
     call clm_pf_checkerr(ierr, subname, __FILE__, __LINE__)
-!     call VecRestoreArrayF90(clm_pf_idata%zsoi_clmp,  zsoi_clm_loc,  ierr)
-!     call clm_pf_checkerr(ierr, subname, __FILE__, __LINE__)
 
     call VecRestoreArrayF90(clm_pf_idata%tkwet_clmp, tkwet_clm_loc, ierr)
     call clm_pf_checkerr(ierr, subname, __FILE__, __LINE__)
@@ -2069,25 +2045,25 @@ contains
   !EOP
   !-----------------------------------------------------------------------
     associate ( &
-      cgridcell       => col_pp%gridcell               , & ! column's gridcell
-      dz              => col_pp%dz                     , & ! layer thickness depth (m)
+      cgridcell       => col_pp%gridcell                , & ! column's gridcell
       !
-      sucsat          => clm_interface_data%sucsat_col      , & ! minimum soil suction (mm) (nlevgrnd)
-      bsw             => clm_interface_data%bsw_col         , & ! Clapp and Hornberger "b"
-      watsat          => clm_interface_data%watsat_col      , & ! volumetric soil water at saturation (porosity) (nlevgrnd)
-      eff_porosity    => clm_interface_data%eff_porosity_col, & ! porosity - ice-vwc
-      watmin          => clm_interface_data%watmin_col      , & ! col minimum volumetric soil water (nlevsoi)
-      sucmin          => clm_interface_data%sucmin_col      , & ! col minimum allowable soil liquid suction pressure (mm) [Note: sucmin_col is a negative value, while sucsat_col is a positive quantity]
+      dz              => clm_interface_data%dz          , & ! layer thickness depth (m)
+      sucsat          => clm_interface_data%sucsat      , & ! minimum soil suction (mm) (nlevgrnd)
+      bsw             => clm_interface_data%bsw         , & ! Clapp and Hornberger "b"
+      watsat          => clm_interface_data%watsat      , & ! volumetric soil water at saturation (porosity) (nlevgrnd)
+      eff_porosity    => clm_interface_data%eff_porosity, & ! porosity - ice-vwc
+      watmin          => clm_interface_data%watmin      , & ! col minimum volumetric soil water (nlevsoi)
+      sucmin          => clm_interface_data%sucmin      , & ! col minimum allowable soil liquid suction pressure (mm) [Note: sucmin is a negative value, while sucsat is a positive quantity]
       !
-      soilpsi         => clm_interface_data%th%soilpsi_col   ,  & ! soil water matric potential in each soil layer (MPa)
-      h2osoi_liq      => clm_interface_data%th%h2osoi_liq_col,  & ! liquid water (kg/m2)
-      h2osoi_ice      => clm_interface_data%th%h2osoi_ice_col,  & ! ice lens (kg/m2)
-      h2osoi_vol      => clm_interface_data%th%h2osoi_vol_col,  & ! volumetric soil water (0<=h2osoi_vol<=watsat) [m3/m3]
-      t_soisno        => clm_interface_data%th%t_soisno_col  ,  & ! snow-soil temperature (Kelvin)
+      soilpsi         => clm_interface_data%th%soilpsi   ,  & ! soil water matric potential in each soil layer (Pa)
+      h2osoi_liq      => clm_interface_data%th%h2osoi_liq,  & ! liquid water (kg/m2)
+      h2osoi_ice      => clm_interface_data%th%h2osoi_ice,  & ! ice lens (kg/m2)
+      h2osoi_vol      => clm_interface_data%th%h2osoi_vol,  & ! volumetric soil water (0<=h2osoi_vol<=watsat) [m3/m3]
+      t_soisno        => clm_interface_data%th%t_soisno  ,  & ! snow-soil temperature (Kelvin)
       !
-      t_scalar        => clm_interface_data%bgc%t_scalar_col ,  & ! soil temperature scalar for decomp
-      w_scalar        => clm_interface_data%bgc%w_scalar_col ,  & ! soil water scalar for decomp
-      o_scalar        => clm_interface_data%bgc%o_scalar_col    & ! fraction by which decomposition is limited by anoxia
+      t_scalar        => clm_interface_data%bgc%t_scalar ,  & ! soil temperature scalar for decomp
+      w_scalar        => clm_interface_data%bgc%w_scalar ,  & ! soil water scalar for decomp
+      o_scalar        => clm_interface_data%bgc%o_scalar    & ! fraction by which decomposition is limited by anoxia
     )
 
     !--------------------------------------------------------------------------------------
@@ -2177,7 +2153,7 @@ contains
              if (shr_infnan_isnan(soilpsi(c,j)) .or. &
                  (is_first_step() .or. is_first_restart_step())) then
                 ! when initialization, CLM did NOT assign a value to soilpsi
-                soilpsi(c,j) = psitmp *1.e-6_r8                              ! -Pa -> -MPa
+                soilpsi(c,j) = psitmp                                        ! -Pa
              endif
 
              soillsat_clmp_loc(cellcount)  = sattmp
@@ -2271,13 +2247,13 @@ contains
   !EOP
   !-----------------------------------------------------------------------
     associate ( &
-    cgridcell       => col_pp%gridcell                           , & ! column's gridcell
-    dz              => col_pp%dz                                 , & ! layer thickness depth (m)
+    cgridcell       => col_pp%gridcell                    , & ! column's gridcell
     !
-    watsat          => clm_interface_data%watsat_col          , & ! volumetric soil water at saturation (porosity) (nlevgrnd)
-    watmin          => clm_interface_data%watmin_col          , & ! col minimum volumetric soil water (nlevsoi)
-    eff_porosity    => clm_interface_data%eff_porosity_col    , & ! porosity - ice-vwc
-    h2osoi_ice      => clm_interface_data%th%h2osoi_ice_col     & ! ice lens (kg/m2)
+    dz              => clm_interface_data%dz              , & ! layer thickness depth (m)
+    watsat          => clm_interface_data%watsat          , & ! volumetric soil water at saturation (porosity) (nlevgrnd)
+    watmin          => clm_interface_data%watmin          , & ! col minimum volumetric soil water (nlevsoi)
+    eff_porosity    => clm_interface_data%eff_porosity    , & ! porosity - ice-vwc
+    h2osoi_ice      => clm_interface_data%th%h2osoi_ice     & ! ice lens (kg/m2)
     )
 
     ! if 'pf_tmode' is NOT using freezing option, the phase-change of soil water done in 'SoilTemperatureMod.F90' in 'bgp2'
@@ -2403,30 +2379,31 @@ contains
   !-----------------------------------------------------------------------
     associate ( &
     cgridcell         => col_pp%gridcell                            , & ! column's gridcell
-    cwtgcell          => col_pp%wtgcell                             , & ! weight (relative to gridcell)
-    dz                => col_pp%dz                                  , & ! layer thickness depth (m)
-    snl               => col_pp%snl                                 , & ! number of snow layers (negative)
     !
-    bsw               => clm_interface_data%bsw_col                           , &! Clapp and Hornberger "b" (nlevgrnd)
-    hksat             => clm_interface_data%hksat_col                         , &! hydraulic conductivity at saturation (mm H2O /s) (nlevgrnd)
-    watsat            => clm_interface_data%watsat_col                        , &! volumetric soil water at saturation (porosity) (nlevgrnd)
-    sucsat            => clm_interface_data%sucsat_col                        , &! minimum soil suction (mm) (nlevgrnd)
-    watmin            => clm_interface_data%watmin_col                        , &! restriction for min of volumetric soil water, or, residual vwc (-) (nlevgrnd)
-    sucmin            => clm_interface_data%sucmin_col                        , &! restriction for min of soil potential (mm) (nlevgrnd)
+    dz                => clm_interface_data%dz                            , & ! layer thickness depth (m)
+    z                 => clm_interface_data%z                             , & ! layer depth (m)
+    snl               => clm_interface_data%snl                           , & ! number of snow layers (negative)
     !
-    frac_sno_eff      => clm_interface_data%th%frac_sno_eff_col               , &! [real(r8) (:) ]   fraction of ground covered by snow (0 to 1)
-    frac_h2osfc       => clm_interface_data%th%frac_h2osfc_col                , &! [real(r8) (:) ]   fraction of ground covered by surface water (0 to 1)
-    t_soisno          => clm_interface_data%th%t_soisno_col                   , &! [real(r8) (:,:) ] snow-soil layered temperature [K]
-    t_grnd            => clm_interface_data%th%t_grnd_col                     , &! [real(r8) (:) ]   col ground(-air interface averaged) temperature (Kelvin)
-    t_nearsurf        => clm_interface_data%th%t_nearsurf_col                 , &! [real(r8) (:) ]   col mixed air/veg. temperature near surface (for coupling with PFLOTRAN as BC)
-    qflx_top_soil     => clm_interface_data%th%qflx_top_soil_col              , &! [real(r8) (:) ]   column-level net liq. water input into soil from top (mm/s)
-    qflx_evap_h2osfc  => clm_interface_data%th%qflx_evap_h2osfc_col           , &! [real(r8) (:) ]   column-level p-aggregated evaporation flux from h2osfc (mm H2O/s) [+ to atm]
-    qflx_evap_soil    => clm_interface_data%th%qflx_evap_soil_col             , &! [real(r8) (:) ]   column-level p-aggregated evaporation flux from soil (mm H2O/s) [+ to atm]
-    qflx_evap_snow    => clm_interface_data%th%qflx_evap_snow_col             , &! [real(r8) (:) ]   column-level p-aggregated evaporation (inc. subl.) flux from snow (mm H2O/s) [+ to atm]
-    qflx_rootsoil     => clm_interface_data%th%qflx_rootsoil_col              , &! [real(r8) (:,:) ] column-level p-aggregated vertically-resolved vegetation/soil water exchange (m H2O/s) (+ = to atm)
-    h2osoi_liq        => clm_interface_data%th%h2osoi_liq_col                 , &! [real(r8) (:,:) ] liquid water (kg/m2)
-    h2osoi_ice        => clm_interface_data%th%h2osoi_ice_col                 , &! [real(r8) (:,:) ] ice lens (kg/m2)
-    qflx_et_reduced   => clm_interface_data%th%qflx_et_reduced_col              &! [real(r8) (:) ]   (OUTPUT) column-level p-aggregated evaporation flux from soil (mm H2O/s) [+ to atm]
+    bsw               => clm_interface_data%bsw                           , &! Clapp and Hornberger "b" (nlevgrnd)
+    hksat             => clm_interface_data%hksat                         , &! hydraulic conductivity at saturation (mm H2O /s) (nlevgrnd)
+    watsat            => clm_interface_data%watsat                        , &! volumetric soil water at saturation (porosity) (nlevgrnd)
+    sucsat            => clm_interface_data%sucsat                        , &! minimum soil suction (mm) (nlevgrnd)
+    watmin            => clm_interface_data%watmin                        , &! restriction for min of volumetric soil water, or, residual vwc (-) (nlevgrnd)
+    sucmin            => clm_interface_data%sucmin                        , &! restriction for min of soil potential (mm) (nlevgrnd)
+    !
+    frac_sno_eff      => clm_interface_data%th%frac_sno_eff               , &! [real(r8) (:) ]   fraction of ground covered by snow (0 to 1)
+    frac_h2osfc       => clm_interface_data%th%frac_h2osfc                , &! [real(r8) (:) ]   fraction of ground covered by surface water (0 to 1)
+    t_soisno          => clm_interface_data%th%t_soisno                   , &! [real(r8) (:,:) ] snow-soil layered temperature [K]
+    t_grnd            => clm_interface_data%th%t_grnd                     , &! [real(r8) (:) ]   col ground(-air interface averaged) temperature (Kelvin)
+    t_nearsurf        => clm_interface_data%th%t_nearsurf                 , &! [real(r8) (:) ]   col mixed air/veg. temperature near surface (for coupling with PFLOTRAN as BC)
+    qflx_top_soil     => clm_interface_data%th%qflx_top_soil              , &! [real(r8) (:) ]   column-level net liq. water input into soil from top (mm/s)
+    qflx_evap_h2osfc  => clm_interface_data%th%qflx_evap_h2osfc           , &! [real(r8) (:) ]   column-level p-aggregated evaporation flux from h2osfc (mm H2O/s) [+ to atm]
+    qflx_evap_soil    => clm_interface_data%th%qflx_evap_soil             , &! [real(r8) (:) ]   column-level p-aggregated evaporation flux from soil (mm H2O/s) [+ to atm]
+    qflx_evap_snow    => clm_interface_data%th%qflx_evap_snow             , &! [real(r8) (:) ]   column-level p-aggregated evaporation (inc. subl.) flux from snow (mm H2O/s) [+ to atm]
+    qflx_rootsoil     => clm_interface_data%th%qflx_rootsoil              , &! [real(r8) (:,:) ] column-level p-aggregated vertically-resolved vegetation/soil water exchange (m H2O/s) (+ = to atm)
+    h2osoi_liq        => clm_interface_data%th%h2osoi_liq                 , &! [real(r8) (:,:) ] liquid water (kg/m2)
+    h2osoi_ice        => clm_interface_data%th%h2osoi_ice                 , &! [real(r8) (:,:) ] ice lens (kg/m2)
+    qflx_et_reduced   => clm_interface_data%th%qflx_et_reduced              &! [real(r8) (:) ]   (OUTPUT) column-level p-aggregated evaporation flux from soil (mm H2O/s) [+ to atm]
     )
 
 !----------------------------------------------------------------------------
@@ -2781,23 +2758,25 @@ contains
   !EOP
   !-----------------------------------------------------------------------
     associate ( &
-    cgridcell         => col_pp%gridcell              , &! column's gridcell
-    dz                => col_pp%dz                    , &! layer thickness depth (m)
-    snl               => col_pp%snl                   , &! number of snow layers (negative)
+    cgridcell         => col_pp%gridcell                         , & ! column's gridcell
     !
-    frac_sno_eff      => clm_interface_data%th%frac_sno_eff_col      , &! fraction of ground covered by snow (0 to 1)
-    frac_h2osfc       => clm_interface_data%th%frac_h2osfc_col       , &! fraction of ground covered by surface water (0 to 1)
+    dz                => clm_interface_data%dz                   , & ! layer thickness depth (m)
+    z                 => clm_interface_data%z                    , & ! layer depth (m)
+    snl               => clm_interface_data%snl                  , & ! number of snow layers (negative)
     !
-    htvp              => clm_interface_data%th%htvp_col              , &! latent heat of vapor of water (or sublimation) [j/kg]
-    eflx_fgr0_snow    => clm_interface_data%th%eflx_fgr0_snow_col    , &! heat flux from snow column (W/m**2) [+ = into soil]
-    eflx_fgr0_h2osfc  => clm_interface_data%th%eflx_fgr0_h2osfc_col  , &! heat flux from surface water column (W/m**2) [+ = into soil]
-    eflx_fgr0_soil    => clm_interface_data%th%eflx_fgr0_soil_col    , &! heat flux from near-surface air (W/m**2) [+ = into soil]
-    eflx_rnet_soil    => clm_interface_data%th%eflx_rnet_soil_col    , &! heat flux between soil layer 1 and above-air, excluding SH and LE (i.e. radiation form) (W/m2) [+ = into soil]
-    eflx_bot          => clm_interface_data%th%eflx_bot_col          , &! heat flux from beneath column (W/m**2) [+ = upward]
-    t_soisno          => clm_interface_data%th%t_soisno_col          , &! snow-soil layered temperature [K]
-    t_h2osfc          => clm_interface_data%th%t_h2osfc_col          , &! surface-water temperature [K]
-    t_nearsurf        => clm_interface_data%th%t_nearsurf_col        , &! mixed air/veg. temperature near surface (for coupling with PFLOTRAN as BC)
-    qflx_evap_soil    => clm_interface_data%th%qflx_evap_soil_col      &! non-urban column-level p-aggregated evaporation flux from soil (mm H2O/s) [+ to atm]
+    frac_sno_eff      => clm_interface_data%th%frac_sno_eff      , &! fraction of ground covered by snow (0 to 1)
+    frac_h2osfc       => clm_interface_data%th%frac_h2osfc       , &! fraction of ground covered by surface water (0 to 1)
+    !
+    htvp              => clm_interface_data%th%htvp              , &! latent heat of vapor of water (or sublimation) [j/kg]
+    eflx_fgr0_snow    => clm_interface_data%th%eflx_fgr0_snow    , &! heat flux from snow column (W/m**2) [+ = into soil]
+    eflx_fgr0_h2osfc  => clm_interface_data%th%eflx_fgr0_h2osfc  , &! heat flux from surface water column (W/m**2) [+ = into soil]
+    eflx_fgr0_soil    => clm_interface_data%th%eflx_fgr0_soil    , &! heat flux from near-surface air (W/m**2) [+ = into soil]
+    eflx_rnet_soil    => clm_interface_data%th%eflx_rnet_soil    , &! heat flux between soil layer 1 and above-air, excluding SH and LE (i.e. radiation form) (W/m2) [+ = into soil]
+    eflx_bot          => clm_interface_data%th%eflx_bot          , &! heat flux from beneath column (W/m**2) [+ = upward]
+    t_soisno          => clm_interface_data%th%t_soisno          , &! snow-soil layered temperature [K]
+    t_h2osfc          => clm_interface_data%th%t_h2osfc          , &! surface-water temperature [K]
+    t_nearsurf        => clm_interface_data%th%t_nearsurf        , &! mixed air/veg. temperature near surface (for coupling with PFLOTRAN as BC)
+    qflx_evap_soil    => clm_interface_data%th%qflx_evap_soil      &! non-urban column-level p-aggregated evaporation flux from soil (mm H2O/s) [+ to atm]
     )
 
 !----------------------------------------------------------------------------
@@ -2975,19 +2954,19 @@ contains
       initial_cn_ratio => clm_interface_data%bgc%initial_cn_ratio        , &
       initial_cp_ratio => clm_interface_data%bgc%initial_cp_ratio        , &
 
-      decomp_cpools_vr => clm_interface_data%bgc%decomp_cpools_vr_col    , & ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-      decomp_npools_vr => clm_interface_data%bgc%decomp_npools_vr_col    , & ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
-      smin_no3_vr      => clm_interface_data%bgc%smin_no3_vr_col         , & ! (gN/m3) vertically-resolved soil mineral NO3
-      smin_nh4_vr      => clm_interface_data%bgc%smin_nh4_vr_col         , & ! (gN/m3) vertically-resolved soil mineral NH4
-      smin_nh4sorb_vr  => clm_interface_data%bgc%smin_nh4sorb_vr_col     , & ! (gN/m3) vertically-resolved soil mineral NH4 absorbed
+      decomp_cpools_vr => clm_interface_data%bgc%decomp_cpools_vr    , & ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+      decomp_npools_vr => clm_interface_data%bgc%decomp_npools_vr    , & ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
+      smin_no3_vr      => clm_interface_data%bgc%smin_no3_vr         , & ! (gN/m3) vertically-resolved soil mineral NO3
+      smin_nh4_vr      => clm_interface_data%bgc%smin_nh4_vr         , & ! (gN/m3) vertically-resolved soil mineral NH4
+      smin_nh4sorb_vr  => clm_interface_data%bgc%smin_nh4sorb_vr     , & ! (gN/m3) vertically-resolved soil mineral NH4 absorbed
 
-      decomp_ppools_vr => clm_interface_data%bgc%decomp_ppools_vr_col    , & ! [real(r8) (:,:,:) ! col (gP/m3) vertically-resolved decomposing (litter, cwd, soil) P pools
-      solutionp_vr     => clm_interface_data%bgc%solutionp_vr_col        , & ! [real(r8) (:,:)   ! col (gP/m3) vertically-resolved soil solution P
-      labilep_vr       => clm_interface_data%bgc%labilep_vr_col          , & ! [real(r8) (:,:)   ! col (gP/m3) vertically-resolved soil labile mineral P
-      secondp_vr       => clm_interface_data%bgc%secondp_vr_col          , & ! [real(r8) (:,:)   ! col (gP/m3) vertically-resolved soil secondary mineralP
-      occlp_vr         => clm_interface_data%bgc%occlp_vr_col            , & ! [real(r8) (:,:)   ! col (gP/m3) vertically-resolved soil occluded mineral P
-      primp_vr         => clm_interface_data%bgc%primp_vr_col            , & ! [real(r8) (:,:)   ! col (gP/m3) vertically-resolved soil primary mineral P
-      sminp_vr         => clm_interface_data%bgc%sminp_vr_col              & ! [real(r8) (:,:)   ! col (gP/m3) vertically-resolved soil mineral P = solutionp + labilep + secondp
+      decomp_ppools_vr => clm_interface_data%bgc%decomp_ppools_vr    , & ! [real(r8) (:,:,:) ! col (gP/m3) vertically-resolved decomposing (litter, cwd, soil) P pools
+      solutionp_vr     => clm_interface_data%bgc%solutionp_vr        , & ! [real(r8) (:,:)   ! col (gP/m3) vertically-resolved soil solution P
+      labilep_vr       => clm_interface_data%bgc%labilep_vr          , & ! [real(r8) (:,:)   ! col (gP/m3) vertically-resolved soil labile mineral P
+      secondp_vr       => clm_interface_data%bgc%secondp_vr          , & ! [real(r8) (:,:)   ! col (gP/m3) vertically-resolved soil secondary mineralP
+      occlp_vr         => clm_interface_data%bgc%occlp_vr            , & ! [real(r8) (:,:)   ! col (gP/m3) vertically-resolved soil occluded mineral P
+      primp_vr         => clm_interface_data%bgc%primp_vr            , & ! [real(r8) (:,:)   ! col (gP/m3) vertically-resolved soil primary mineral P
+      sminp_vr         => clm_interface_data%bgc%sminp_vr              & ! [real(r8) (:,:)   ! col (gP/m3) vertically-resolved soil mineral P = solutionp + labilep + secondp
     )
 
     call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_clmp, decomp_cpools_vr_clm_loc, ierr)
@@ -3135,27 +3114,27 @@ contains
     associate ( &
       cgridcell                         => col_pp%gridcell               , & ! column's gridcell
       !
-      decomp_cpools_vr                  => clm_interface_data%bgc%decomp_cpools_vr_col            , &      ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-      decomp_npools_vr                  => clm_interface_data%bgc%decomp_npools_vr_col            , &      ! (gN/m3) vertically-resolved decomposing (litter, cwd, soil) N pools
-      decomp_k_scalar_vr                => clm_interface_data%bgc%sitefactor_kd_vr_col            , &      ! (-) vertically-resolved decomposing rate adjusting factor relevant to location (site)
-      smin_no3_vr                       => clm_interface_data%bgc%smin_no3_vr_col                 , &      ! (gN/m3) vertically-resolved soil mineral NO3
-      smin_nh4_vr                       => clm_interface_data%bgc%smin_nh4_vr_col                 , &      ! (gN/m3) vertically-resolved soil mineral NH4
-      smin_nh4sorb_vr                   => clm_interface_data%bgc%smin_nh4sorb_vr_col             , &      ! (gN/m3) vertically-resolved soil mineral NH4 absorbed
+      decomp_cpools_vr                  => clm_interface_data%bgc%decomp_cpools_vr            , &      ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+      decomp_npools_vr                  => clm_interface_data%bgc%decomp_npools_vr            , &      ! (gN/m3) vertically-resolved decomposing (litter, cwd, soil) N pools
+      decomp_k_scalar_vr                => clm_interface_data%bgc%sitefactor_kd_vr            , &      ! (-) vertically-resolved decomposing rate adjusting factor relevant to location (site)
+      smin_no3_vr                       => clm_interface_data%bgc%smin_no3_vr                 , &      ! (gN/m3) vertically-resolved soil mineral NO3
+      smin_nh4_vr                       => clm_interface_data%bgc%smin_nh4_vr                 , &      ! (gN/m3) vertically-resolved soil mineral NH4
+      smin_nh4sorb_vr                   => clm_interface_data%bgc%smin_nh4sorb_vr             , &      ! (gN/m3) vertically-resolved soil mineral NH4 absorbed
       ! plant litering and removal + SOM/LIT vertical transport
-      col_net_to_decomp_cpools_vr       => clm_interface_data%bgc%externalc_to_decomp_cpools_col  , &
-      col_net_to_decomp_npools_vr       => clm_interface_data%bgc%externaln_to_decomp_npools_col  , &
+      col_net_to_decomp_cpools_vr       => clm_interface_data%bgc%externalc_to_decomp_cpools  , &
+      col_net_to_decomp_npools_vr       => clm_interface_data%bgc%externaln_to_decomp_npools  , &
       ! inorg. nitrogen sink potential
-      col_plant_ndemand_vr              => clm_interface_data%bgc%plant_ndemand_vr_col            , &
+      col_plant_ndemand_vr              => clm_interface_data%bgc%plant_ndemand_vr            , &
       ! inorg. N source/sink
-      externaln_to_nh4_vr               => clm_interface_data%bgc%externaln_to_nh4_col            , &
-      externaln_to_no3_vr               => clm_interface_data%bgc%externaln_to_no3_col            , &
+      externaln_to_nh4_vr               => clm_interface_data%bgc%externaln_to_nh4            , &
+      externaln_to_no3_vr               => clm_interface_data%bgc%externaln_to_no3            , &
 
-      col_net_to_decomp_ppools_vr       => clm_interface_data%bgc%externalp_to_decomp_ppools_col  , &
-      externalp_to_primp_vr             => clm_interface_data%bgc%externalp_to_primp_col          , &
-      externalp_to_labilep_vr           => clm_interface_data%bgc%externalp_to_labilep_col        , &
-      externalp_to_solutionp            => clm_interface_data%bgc%externalp_to_solutionp_col      , &
-      sminp_net_transport_vr            => clm_interface_data%bgc%sminp_net_transport_vr_col      , &
-      col_plant_pdemand_vr              => clm_interface_data%bgc%plant_pdemand_vr_col              &
+      col_net_to_decomp_ppools_vr       => clm_interface_data%bgc%externalp_to_decomp_ppools  , &
+      externalp_to_primp_vr             => clm_interface_data%bgc%externalp_to_primp          , &
+      externalp_to_labilep_vr           => clm_interface_data%bgc%externalp_to_labilep        , &
+      externalp_to_solutionp            => clm_interface_data%bgc%externalp_to_solutionp      , &
+      sminp_net_transport_vr            => clm_interface_data%bgc%sminp_net_transport_vr      , &
+      col_plant_pdemand_vr              => clm_interface_data%bgc%plant_pdemand_vr              &
     )
 
     dtime = get_step_size()
@@ -3350,22 +3329,22 @@ contains
   !EOP
   !-----------------------------------------------------------------------
     associate ( &
-      cgridcell       => col_pp%gridcell               , & ! column's gridcell
-      dz              => col_pp%dz                     , & ! layer thickness depth (m)
-      z               => col_pp%z                      , & ! layer depth (m)
+      cgridcell       => col_pp%gridcell                 , & ! column's gridcell index
       !
-      sucsat          => clm_interface_data%sucsat_col       , & ! minimum soil suction (mm) (nlevgrnd)
-      bsw             => clm_interface_data%bsw_col          , & ! Clapp and Hornberger "b"
-      watsat          => clm_interface_data%watsat_col       , & ! volumetric soil water at saturation (porosity) (nlevgrnd)
-      sucmin          => clm_interface_data%sucmin_col       , & ! restriction for min of soil potential (mm) (nlevgrnd)
+      dz              => clm_interface_data%dz           , & ! layer thickness depth (m)
+      z               => clm_interface_data%z            , & ! layer depth (m)
+      sucsat          => clm_interface_data%sucsat       , & ! minimum soil suction (mm) (nlevgrnd)
+      bsw             => clm_interface_data%bsw          , & ! Clapp and Hornberger "b"
+      watsat          => clm_interface_data%watsat       , & ! volumetric soil water at saturation (porosity) (nlevgrnd)
+      sucmin          => clm_interface_data%sucmin       , & ! restriction for min of soil potential (mm) (nlevgrnd)
       !
-      soilpsi         => clm_interface_data%th%soilpsi_col   , & ! soil water matric potential in each soil layer (MPa)
-      h2osoi_liq      => clm_interface_data%th%h2osoi_liq_col, & ! liquid water (kg/m2)
-      h2osoi_ice      => clm_interface_data%th%h2osoi_ice_col, & ! ice lens (kg/m2)
-      h2osoi_vol      => clm_interface_data%th%h2osoi_vol_col, & ! volumetric soil water (0<=h2osoi_vol<=watsat) [m3/m3]
-      zwt             => clm_interface_data%th%zwt_col       , & ! water table depth (m)
-      zwt_perched     => clm_interface_data%th%zwt_perched_col, & ! perched water table depth (m)
-      frost_table     => clm_interface_data%th%frost_table_col  & ! [Input]frost table depth (m)
+      soilpsi         => clm_interface_data%th%soilpsi   , & ! soil water matric potential in each soil layer (Pa)
+      h2osoi_liq      => clm_interface_data%th%h2osoi_liq, & ! liquid water (kg/m2)
+      h2osoi_ice      => clm_interface_data%th%h2osoi_ice, & ! ice lens (kg/m2)
+      h2osoi_vol      => clm_interface_data%th%h2osoi_vol, & ! volumetric soil water (0<=h2osoi_vol<=watsat) [m3/m3]
+      zwt             => clm_interface_data%th%zwt       , & ! water table depth (m)
+      zwt_perched     => clm_interface_data%th%zwt_perched, & ! perched water table depth (m)
+      frost_table     => clm_interface_data%th%frost_table  & ! [Input]frost table depth (m)
      )
     !
     call VecGetArrayReadF90(clm_pf_idata%soillsat_clms, sat_liq_clm_loc, ierr)
@@ -3439,7 +3418,7 @@ contains
 
           endif
 
-          soilpsi(c,j)    = psitmp*1.e-6_r8                                     ! -Pa --> -MPa
+          soilpsi(c,j)    = psitmp                                              ! -Pa
 
           ! (TODO) the following needs careful checking
           if (pf_frzmode) then
@@ -3548,11 +3527,11 @@ contains
   !EOP
   !-----------------------------------------------------------------------
     associate ( &
-       cgridcell       => col_pp%gridcell                    , & ! column's gridcell
-       z               => col_pp%z                           , & ! [real(r8) (:,:) ] layer depth (m)
+       cgridcell       => col_pp%gridcell                     , & ! column's gridcell
        !
-       t_soisno        => clm_interface_data%th%t_soisno_col      , &  ! [real(r8)(:,:)] snow-soil temperature (Kelvin) [:, 1:nlevgrnd]
-       frost_table     => clm_interface_data%th%frost_table_col     &  ! [real(r8)(:)] frost table depth (m)
+       z               => clm_interface_data%z                , & ! [real(r8) (:,:) ] layer depth (m)
+       t_soisno        => clm_interface_data%th%t_soisno      , &  ! [real(r8)(:,:)] snow-soil temperature (Kelvin) [:, 1:nlevgrnd]
+       frost_table     => clm_interface_data%th%frost_table     &  ! [real(r8)(:)] frost table depth (m)
        )
 
     !
@@ -3675,19 +3654,19 @@ contains
     !-----------------------------------------------------------------------
 
     associate(&
-    cgridcell         =>    col_pp%gridcell                             , & ! gridcell index of column
-    dz                =>    col_pp%dz                                   , & ! layer thickness depth (m)
+    cgridcell         =>    col_pp%gridcell                         , & ! gridcell index of column
     !
-    frac_sno_eff      =>    clm_interface_data%th%frac_sno_eff_col      , & ! fraction of ground covered by snow (0 to 1)
-    frac_h2osfc       =>    clm_interface_data%th%frac_h2osfc_col       , & ! fraction of ground covered by surface water (0 to 1)
+    dz                =>    clm_interface_data%dz                   , & ! layer thickness depth (m)
+    frac_sno_eff      =>    clm_interface_data%th%frac_sno_eff      , & ! fraction of ground covered by snow (0 to 1)
+    frac_h2osfc       =>    clm_interface_data%th%frac_h2osfc       , & ! fraction of ground covered by surface water (0 to 1)
     !
-    forc_pbot         =>    clm_interface_data%th%forc_pbot_grc         , & ! [real(r8) (:)] atmospheric pressure (Pa)
-    t_grnd            =>    clm_interface_data%th%t_grnd_col            , & ! [real(r8) (:)] ground surface temperature [K]
-    qflx_surf         =>    clm_interface_data%th%qflx_surf_col         , & ! [real(r8) (:)] surface runoff (mm H2O /s)
-    qflx_infl         =>    clm_interface_data%th%qflx_infl_col         , & ! [real(r8) (:)] soil infiltration (mm H2O /s)
-    qflx_drain        =>    clm_interface_data%th%qflx_drain_col        , & ! [real(r8) (:,:)]  sub-surface runoff (drainage) (mm H2O /s)
-    qflx_drain_vr     =>    clm_interface_data%th%qflx_drain_vr_col     , & ! [real(r8) (:,:)]  vertically-resolved sub-surface runoff (drainage) (mm H2O /s)
-    qcharge           =>    clm_interface_data%th%qcharge_col             & ! [real(r8) (:)]  aquifer charge rate (mm H2O /s)
+    forc_pbot         =>    clm_interface_data%th%forc_pbot         , & ! [real(r8) (:)] atmospheric pressure (Pa)
+    t_grnd            =>    clm_interface_data%th%t_grnd            , & ! [real(r8) (:)] ground surface temperature [K]
+    qflx_surf         =>    clm_interface_data%th%qflx_surf         , & ! [real(r8) (:)] surface runoff (mm H2O /s)
+    qflx_infl         =>    clm_interface_data%th%qflx_infl         , & ! [real(r8) (:)] soil infiltration (mm H2O /s)
+    qflx_drain        =>    clm_interface_data%th%qflx_drain        , & ! [real(r8) (:,:)]  sub-surface runoff (drainage) (mm H2O /s)
+    qflx_drain_vr     =>    clm_interface_data%th%qflx_drain_vr     , & ! [real(r8) (:,:)]  vertically-resolved sub-surface runoff (drainage) (mm H2O /s)
+    qcharge           =>    clm_interface_data%th%qcharge             & ! [real(r8) (:)]  aquifer charge rate (mm H2O /s)
     )
 
     dtime = get_step_size()
@@ -3786,9 +3765,9 @@ contains
   !           and the 'SoilLittVertTranspMod.F90' after 'update1'.
   !
   subroutine update_soil_bgc_pf2clm(clm_interface_data, bounds, filters, ifilter)
-! TODO: add phosphorus vars
+    ! TODO: add phosphorus vars
     use ColumnType              , only : col_pp
-    use clm_varctl              , only : iulog, use_fates
+    use clm_varctl              , only : iulog
     use CNDecompCascadeConType  , only : decomp_cascade_con
     use clm_varpar              , only : ndecomp_pools, nlevdecomp_full
     use clm_varctl              , only : pf_hmode
@@ -3838,22 +3817,22 @@ contains
      cgridcell                    => col_pp%gridcell                                        , & !  [integer (:)]  gridcell index of column
      !
      initial_cn_ratio             => clm_interface_data%bgc%initial_cn_ratio             , &
-     decomp_cpools_vr             => clm_interface_data%bgc%decomp_cpools_vr_col         , &
-     decomp_npools_vr             => clm_interface_data%bgc%decomp_npools_vr_col         , &
-     sminn_vr                     => clm_interface_data%bgc%sminn_vr_col                 , &
-     smin_no3_vr                  => clm_interface_data%bgc%smin_no3_vr_col              , &
-     smin_nh4_vr                  => clm_interface_data%bgc%smin_nh4_vr_col              , &
-     smin_nh4sorb_vr              => clm_interface_data%bgc%smin_nh4sorb_vr_col          , &
+     decomp_cpools_vr             => clm_interface_data%bgc%decomp_cpools_vr         , &
+     decomp_npools_vr             => clm_interface_data%bgc%decomp_npools_vr         , &
+     sminn_vr                     => clm_interface_data%bgc%sminn_vr                 , &
+     smin_no3_vr                  => clm_interface_data%bgc%smin_no3_vr              , &
+     smin_nh4_vr                  => clm_interface_data%bgc%smin_nh4_vr              , &
+     smin_nh4sorb_vr              => clm_interface_data%bgc%smin_nh4sorb_vr          , &
 
-     decomp_cpools_delta_vr       => clm_interface_data%bgc%decomp_cpools_sourcesink_col  , &
-     decomp_npools_delta_vr       => clm_interface_data%bgc%decomp_npools_sourcesink_col  , &
+     decomp_cpools_delta_vr       => clm_interface_data%bgc%decomp_cpools_sourcesink  , &
+     decomp_npools_delta_vr       => clm_interface_data%bgc%decomp_npools_sourcesink  , &
 
-     sminn_to_plant_vr            => clm_interface_data%bgc%sminn_to_plant_vr_col         , &
-     smin_no3_to_plant_vr         => clm_interface_data%bgc%smin_no3_to_plant_vr_col      , &
-     smin_nh4_to_plant_vr         => clm_interface_data%bgc%smin_nh4_to_plant_vr_col      , &
-     potential_immob_vr           => clm_interface_data%bgc%potential_immob_vr_col        , &
-     actual_immob_vr              => clm_interface_data%bgc%actual_immob_vr_col           , &
-     gross_nmin_vr                => clm_interface_data%bgc%gross_nmin_vr_col               &
+     sminn_to_plant_vr            => clm_interface_data%bgc%sminn_to_plant_vr         , &
+     smin_no3_to_plant_vr         => clm_interface_data%bgc%smin_no3_to_plant_vr      , &
+     smin_nh4_to_plant_vr         => clm_interface_data%bgc%smin_nh4_to_plant_vr      , &
+     potential_immob_vr           => clm_interface_data%bgc%potential_immob_vr        , &
+     actual_immob_vr              => clm_interface_data%bgc%actual_immob_vr           , &
+     gross_nmin_vr                => clm_interface_data%bgc%gross_nmin_vr               &
      )
 ! ------------------------------------------------------------------------
      dtime = get_step_size()
@@ -3937,7 +3916,7 @@ contains
 
                  decomp_cpools_delta_vr(c,j,k) = ( decomp_cpools_delta_vr(c,j,k)  &
                                 + decomp_cpools_vr_clm_loc(vec_offset+cellcount)  &
-                                * clm_pf_idata%C_molecular_weight ) !decomp_cpools_delta_vr=> clm_bgc_data%decomp_cpools_sourcesink_col
+                                * clm_pf_idata%C_molecular_weight ) !decomp_cpools_delta_vr=> clm_bgc_data%decomp_cpools_sourcesink
 
                  if (clm_pf_idata%floating_cn_ratio(k)) then
                      decomp_npools_delta_vr(c,j,k) = ( decomp_npools_delta_vr(c,j,k)  &
@@ -4154,18 +4133,18 @@ contains
      cgridcell                    => col_pp%gridcell                      , & ! gridcell index of column
      dz                           => col_pp%dz                            , & ! soil layer thickness depth (m)
      !
-     frac_sno_eff                 => clm_interface_data%th%frac_sno_eff_col            , & ! fraction of ground covered by snow (0 to 1)
-     frac_h2osfc                  => clm_interface_data%th%frac_h2osfc_col             , & ! fraction of ground covered by surface water (0 to 1)
-     forc_pbot                    => clm_interface_data%th%forc_pbot_grc               , & ! atmospheric pressure (Pa)
+     frac_sno_eff                 => clm_interface_data%th%frac_sno_eff            , & ! fraction of ground covered by snow (0 to 1)
+     frac_h2osfc                  => clm_interface_data%th%frac_h2osfc             , & ! fraction of ground covered by surface water (0 to 1)
+     forc_pbot                    => clm_interface_data%th%forc_pbot               , & ! atmospheric pressure (Pa)
      !
-     forc_pco2                    => clm_interface_data%bgc%forc_pco2_grc              , & ! partial pressure co2 (Pa)
-     hr_vr                        => clm_interface_data%bgc%hr_vr_col                  , &
-     f_co2_soil_vr                => clm_interface_data%bgc%f_co2_soil_vr_col          , &
-     f_n2o_soil_vr                => clm_interface_data%bgc%f_n2o_soil_vr_col          , &
-     f_n2_soil_vr                 => clm_interface_data%bgc%f_n2_soil_vr_col           , &
-     f_ngas_decomp_vr             => clm_interface_data%bgc%f_ngas_decomp_vr_col       , &
-     f_ngas_nitri_vr              => clm_interface_data%bgc%f_ngas_nitri_vr_col        , &
-     f_ngas_denit_vr              => clm_interface_data%bgc%f_ngas_denit_vr_col          &
+     forc_pco2                    => clm_interface_data%bgc%forc_pco2              , & ! partial pressure co2 (Pa)
+     hr_vr                        => clm_interface_data%bgc%hr_vr                  , &
+     f_co2_soil_vr                => clm_interface_data%bgc%f_co2_soil_vr          , &
+     f_n2o_soil_vr                => clm_interface_data%bgc%f_n2o_soil_vr          , &
+     f_n2_soil_vr                 => clm_interface_data%bgc%f_n2_soil_vr           , &
+     f_ngas_decomp_vr             => clm_interface_data%bgc%f_ngas_decomp_vr       , &
+     f_ngas_nitri_vr              => clm_interface_data%bgc%f_ngas_nitri_vr        , &
+     f_ngas_denit_vr              => clm_interface_data%bgc%f_ngas_denit_vr          &
      )
 ! ------------------------------------------------------------------------
      dtime = get_step_size()
@@ -4481,8 +4460,8 @@ contains
      cgridcell                    => col_pp%gridcell                                     , & ! gridcell index of column
      dz                           => col_pp%dz                                           , & ! soil layer thickness depth (m)
      !
-     no3_net_transport_vr         => clm_interface_data%bgc%no3_net_transport_vr_col  , & ! output: [c,j] (gN/m3/s)
-     nh4_net_transport_vr         => clm_interface_data%bgc%nh4_net_transport_vr_col    & ! output: [c,j] (gN/m3/s)
+     no3_net_transport_vr         => clm_interface_data%bgc%no3_net_transport_vr  , & ! output: [c,j] (gN/m3/s)
+     nh4_net_transport_vr         => clm_interface_data%bgc%nh4_net_transport_vr    & ! output: [c,j] (gN/m3/s)
      )
 ! ------------------------------------------------------------------------
      dtime = get_step_size()
@@ -4608,8 +4587,8 @@ contains
     !-----------------------------------------------------------------------
 
     associate(                                                              &
-         decomp_cpools_vr       => clm_interface_data%bgc%decomp_cpools_vr_col      , &
-         soil_begcb             => clm_interface_data%bgc%soil_begcb_col              & ! Output: [real(r8) (:)]  carbon mass, beginning of time step (gC/m**2)
+         decomp_cpools_vr       => clm_interface_data%bgc%decomp_cpools_vr      , &
+         soil_begcb             => clm_interface_data%bgc%soil_begcb              & ! Output: [real(r8) (:)]  carbon mass, beginning of time step (gC/m**2)
          )
     ! calculate beginning column-level soil carbon balance, for mass conservation check
       do fc = 1,filters(ifilter)%num_soilc
@@ -4651,13 +4630,13 @@ contains
     !-----------------------------------------------------------------------
 
     associate(                                                              &
-         decomp_npools_vr       => clm_interface_data%bgc%decomp_npools_vr_col      , &
-         smin_no3_vr            => clm_interface_data%bgc%smin_no3_vr_col           , &
-         smin_nh4_vr            => clm_interface_data%bgc%smin_nh4_vr_col           , &
-         smin_nh4sorb_vr        => clm_interface_data%bgc%smin_nh4sorb_vr_col       , &
-         soil_begnb             => clm_interface_data%bgc%soil_begnb_col            , & ! Output: [real(r8) (:)]  carbon mass, beginning of time step (gC/m**2)
-         soil_begnb_org         => clm_interface_data%bgc%soil_begnb_org_col        , & !
-         soil_begnb_min         => clm_interface_data%bgc%soil_begnb_min_col          & !
+         decomp_npools_vr       => clm_interface_data%bgc%decomp_npools_vr      , &
+         smin_no3_vr            => clm_interface_data%bgc%smin_no3_vr           , &
+         smin_nh4_vr            => clm_interface_data%bgc%smin_nh4_vr           , &
+         smin_nh4sorb_vr        => clm_interface_data%bgc%smin_nh4sorb_vr       , &
+         soil_begnb             => clm_interface_data%bgc%soil_begnb            , & ! Output: [real(r8) (:)]  carbon mass, beginning of time step (gC/m**2)
+         soil_begnb_org         => clm_interface_data%bgc%soil_begnb_org        , & !
+         soil_begnb_min         => clm_interface_data%bgc%soil_begnb_min          & !
          )
     ! calculate beginning column-level soil carbon balance, for mass conservation check
     nlev = nlevdecomp_full
@@ -4716,10 +4695,10 @@ contains
     !-----------------------------------------------------------------------
 
     associate(                                                                    &
-         externalc               => clm_interface_data%bgc%externalc_to_decomp_cpools_col , & ! Input:  [real(r8) (:) ]  (gC/m2)   total column carbon, incl veg and cpool
-         decomp_cpools_delta_vr  => clm_interface_data%bgc%decomp_cpools_sourcesink_col   , &
-         hr_vr                   => clm_interface_data%bgc%hr_vr_col                      , &
-         soil_begcb              => clm_interface_data%bgc%soil_begcb_col                   & ! Output: [real(r8) (:) ]  carbon mass, beginning of time step (gC/m**2)
+         externalc               => clm_interface_data%bgc%externalc_to_decomp_cpools , & ! Input:  [real(r8) (:) ]  (gC/m2)   total column carbon, incl veg and cpool
+         decomp_cpools_delta_vr  => clm_interface_data%bgc%decomp_cpools_sourcesink   , &
+         hr_vr                   => clm_interface_data%bgc%hr_vr                      , &
+         soil_begcb              => clm_interface_data%bgc%soil_begcb                   & ! Output: [real(r8) (:) ]  carbon mass, beginning of time step (gC/m**2)
          )
 
     ! ------------------------------------------------------------------------
@@ -4829,27 +4808,27 @@ contains
     !-----------------------------------------------------------------------
 
     associate(                                                                        &
-         externaln_to_decomp_npools   => clm_interface_data%bgc%externaln_to_decomp_npools_col, & ! Input:  [real(r8) (:) ]  (gC/m2)   total column carbon, incl veg and cpool
-         externaln_to_no3_vr          => clm_interface_data%bgc%externaln_to_no3_col          , &
-         externaln_to_nh4_vr          => clm_interface_data%bgc%externaln_to_nh4_col          , &
-         decomp_npools_delta_vr       => clm_interface_data%bgc%decomp_npools_sourcesink_col  , &
-         decomp_npools_vr             => clm_interface_data%bgc%decomp_npools_vr_col          , &
-         smin_no3_vr                  => clm_interface_data%bgc%smin_no3_vr_col               , &
-         smin_nh4_vr                  => clm_interface_data%bgc%smin_nh4_vr_col               , &
-         smin_nh4sorb_vr              => clm_interface_data%bgc%smin_nh4sorb_vr_col           , &
-         f_ngas_decomp_vr             => clm_interface_data%bgc%f_ngas_decomp_vr_col          , &
-         f_ngas_nitri_vr              => clm_interface_data%bgc%f_ngas_nitri_vr_col           , &
-         f_ngas_denit_vr              => clm_interface_data%bgc%f_ngas_denit_vr_col           , &
-         sminn_to_plant_vr            => clm_interface_data%bgc%sminn_to_plant_vr_col         , &
+         externaln_to_decomp_npools   => clm_interface_data%bgc%externaln_to_decomp_npools, & ! Input:  [real(r8) (:) ]  (gC/m2)   total column carbon, incl veg and cpool
+         externaln_to_no3_vr          => clm_interface_data%bgc%externaln_to_no3          , &
+         externaln_to_nh4_vr          => clm_interface_data%bgc%externaln_to_nh4          , &
+         decomp_npools_delta_vr       => clm_interface_data%bgc%decomp_npools_sourcesink  , &
+         decomp_npools_vr             => clm_interface_data%bgc%decomp_npools_vr          , &
+         smin_no3_vr                  => clm_interface_data%bgc%smin_no3_vr               , &
+         smin_nh4_vr                  => clm_interface_data%bgc%smin_nh4_vr               , &
+         smin_nh4sorb_vr              => clm_interface_data%bgc%smin_nh4sorb_vr           , &
+         f_ngas_decomp_vr             => clm_interface_data%bgc%f_ngas_decomp_vr          , &
+         f_ngas_nitri_vr              => clm_interface_data%bgc%f_ngas_nitri_vr           , &
+         f_ngas_denit_vr              => clm_interface_data%bgc%f_ngas_denit_vr           , &
+         sminn_to_plant_vr            => clm_interface_data%bgc%sminn_to_plant_vr         , &
 
-         plant_ndemand_vr             => clm_interface_data%bgc%plant_ndemand_vr_col          , &
-         potential_immob_vr           => clm_interface_data%bgc%potential_immob_vr_col        , &
-         actual_immob_vr              => clm_interface_data%bgc%actual_immob_vr_col           , &
-         gross_nmin_vr                => clm_interface_data%bgc%gross_nmin_vr_col             , &
+         plant_ndemand_vr             => clm_interface_data%bgc%plant_ndemand_vr          , &
+         potential_immob_vr           => clm_interface_data%bgc%potential_immob_vr        , &
+         actual_immob_vr              => clm_interface_data%bgc%actual_immob_vr           , &
+         gross_nmin_vr                => clm_interface_data%bgc%gross_nmin_vr             , &
 
-         soil_begnb                   => clm_interface_data%bgc%soil_begnb_col                , & ! Output: [real(r8) (:) ]  carbon mass, beginning of time step (gC/m**2)
-         soil_begnb_org               => clm_interface_data%bgc%soil_begnb_org_col            , & !
-         soil_begnb_min               => clm_interface_data%bgc%soil_begnb_min_col              & !
+         soil_begnb                   => clm_interface_data%bgc%soil_begnb                , & ! Output: [real(r8) (:) ]  carbon mass, beginning of time step (gC/m**2)
+         soil_begnb_org               => clm_interface_data%bgc%soil_begnb_org            , & !
+         soil_begnb_min               => clm_interface_data%bgc%soil_begnb_min              & !
          )
 
     ! ------------------------------------------------------------------------
