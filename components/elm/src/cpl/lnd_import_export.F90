@@ -27,7 +27,7 @@ contains
     ! !USES:
     use clm_varctl       , only: co2_type, co2_ppmv, iulog, use_c13, create_glacier_mec_landunit, &
                                  metdata_type, metdata_bypass, metdata_biases, co2_file, aero_file
-    use clm_varctl       , only: use_nofire, use_fates
+    use clm_varctl       , only: use_nofire
     use clm_varctl       , only: const_climate_hist, add_temperature, add_co2, use_cn
     use clm_varctl       , only: startdate_add_temperature, startdate_add_co2
     use clm_varcon       , only: rair, o2_molar_const, c13ratio
@@ -717,7 +717,7 @@ contains
         if (yr .lt. 1850 .or. const_climate_hist) nindex(1:2) = 2
         if (yr .ge. 2010 .and. .not. const_climate_hist) nindex(1:2) = 161
       
-        if (use_cn) then 
+        if (use_cn .and. .not.use_nofire) then
           if (atm2lnd_vars%loaded_bypassdata == 0 .or. (mon .eq. 1 .and. day .eq. 1 .and. tod .eq. 0)) then  
             if (masterproc .and. i .eq. 1) then 
               ! Read pop_dens streams namelist to get filename
