@@ -944,6 +944,24 @@ flags should be captured within MPAS CMake files.
   <PNETCDF_PATH>$ENV{PNETCDF_PATH}</PNETCDF_PATH>
 </compiler>
 
+<compiler MACH="excl" COMPILER="pgi">
+  <HDF5_PATH>/home/7xw/Applications/pgi/hdf5-1.10.5</HDF5_PATH>
+  <NETCDF_PATH>/home/7xw/Applications/pgi/netcdf-4.x-hdf5</NETCDF_PATH>
+  <LAPACK_LIBDIR>ENV{BLASLAPACK_DIR}</LAPACK_LIBDIR>
+  <LDFLAGS>
+    <append COMP_CLASS="cpl">-L${NETCDF_PATH}/lib -lnetcdff -lnetcdf </append>
+    <append COMP_CLASS="cpl">-L${HDF5_PATH}/lib -lhdf5_hl -lhdf5 -lhdf5hl_fortran -lhdf5_fortran </append>
+    <append COMP_CLASS="cpl">-L${LAPACK_LIBDIR} -llapack -lblas</append>
+  </LDFLAGS>
+  <SFC>$ENV{FC_ROOT}/bin/pgfortran</SFC>
+  <SCC>$ENV{CC_ROOT}/bin/pgcc</SCC>
+  <SCXX>$ENV{CC_ROOT}/bin/pgc++</SCXX>
+  <MPICC>$ENV{MPI_ROOT}/bin/mpicc</MPICC>
+  <MPICXX>$ENV{MPI_ROOT}/bin/mpicxx</MPICXX>
+  <MPIFC>$ENV{MPI_ROOT}/bin/mpifort</MPIFC>
+</compiler>
+
+
 <compiler MACH="dgx" COMPILER="gnu">
   <MPI_PATH MPILIB="openmpi">/usr</MPI_PATH>
   <HDF5_PATH>/home/f9y/Applications/hdf5-1.10.5-gcc</HDF5_PATH>
