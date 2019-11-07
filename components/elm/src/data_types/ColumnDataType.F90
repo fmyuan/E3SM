@@ -5853,6 +5853,11 @@ contains
           avgflag='A', long_name='column-integrated snow freezing rate', &
            ptr_col=this%qflx_snofrz, set_lake=spval, c2l_scale_type='urbanf', default='inactive')
 
+    this%qflx_lat_aqu(begc:endc) = spval
+    call hist_addfld1d (fname='QLAT_AQU', units='kg/m2/s', &
+         avgflag='A', long_name='Lateral flux between hummock/hollow', &
+         ptr_col=this%qflx_lat_aqu, set_lake=spval, c2l_scale_type='urbanf', default='inactive')
+
     if (create_glacier_mec_landunit) then
        this%qflx_glcice(begc:endc) = spval
        call hist_addfld1d (fname='QICE',  units='mm/s',  &
