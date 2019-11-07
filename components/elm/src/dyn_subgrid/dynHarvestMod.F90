@@ -148,7 +148,6 @@ contains
     ! consistent with the treatment of changing PFT weights, where interpolation of the
     ! annual endpoint weights leads to a constant rate of change in PFT weight through the
     ! year, with abrupt changes in the rate at annual boundaries.
-    !
     ! Note the difference between this and the old dynHarvest_interp is that here, we keep the different
     ! forcing sets distinct (e.g., for passing to FATES which has distinct primary and secondary lands)
     ! and thus store it in harvest_rates
@@ -201,7 +200,7 @@ contains
     ! !USES:
     use pftvarcon       , only : noveg, nbrdlf_evr_shrub, pprodharv10
     use elm_varcon      , only : secspday
-    use clm_time_manager, only : get_days_per_year
+    use clm_time_manager, only : get_days_per_year, get_curr_date, get_step_size
     use GridcellType   , only : grc_pp
     
     ! !ARGUMENTS:
@@ -215,6 +214,7 @@ contains
     integer :: t,ti,topi                 ! topounit indices TKT
     integer :: g                         ! gridcell index
     integer :: fp                        ! patch filter index
+    integer :: yr, mon, day, sec, dtime  ! date information
     real(r8):: am                        ! rate for fractional harvest mortality (1/yr)
     real(r8):: m                         ! rate for fractional harvest mortality (1/s)
     real(r8):: days_per_year             ! days per year
@@ -381,7 +381,17 @@ contains
             do varnum = 1, num_harvest_vars
                am = am + harvest_rates(varnum,g)
             end do
+#if (defined HUM_HOL)
+           call get_curr_date(yr, mon, day, sec)
+           dtime  = get_step_size()
+           if (mon == 1 .and. day == 31 .and. sec == 0) then
+             m = am/dtime   !Do site-level harvest on first day of year
+           else
+             m = 0._r8
+           end if
+ #else
             m  = am/(days_per_year * secspday)
+ #endif
          else
             m = 0._r8
          end if   
