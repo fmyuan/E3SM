@@ -5547,6 +5547,12 @@ contains
     !-----------------------------------------------------------------------
     ! initialize history fields for select members of col_cf
     !-----------------------------------------------------------------------
+
+    if(nlevdecomp > 1 .or. nlevdecomp_full > 1) then
+       vr_suffix = "_vr"
+    else
+       vr_suffix = ""
+    end if
     ! ------------------------------------------------------------------------------------
     ! History Diagnostics with FATES turned on is a very limited set, and only
     ! operates on C12 right now.
