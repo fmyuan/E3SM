@@ -5711,7 +5711,7 @@ contains
     !-----------------------------------------------------------------------
     ! initialize history fields for select members of col_cf
     !-----------------------------------------------------------------------
-    if (nlevdecomp > 1) then
+    if(nlevdecomp > 1 .or. nlevdecomp_full > 1) then
        vr_suffix = "_vr"
     else
        vr_suffix = ""

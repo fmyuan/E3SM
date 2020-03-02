@@ -547,6 +547,13 @@ contains
 
       do f = 1, fn
          p = filterp(f)
+
+         fnr   = veg_vp%fnr(veg_pp%itype(p))   !7.16_r8
+         act25 = veg_vp%act25(veg_pp%itype(p)) !3.6_r8   !umol/mgRubisco/min
+         ! Convert rubisco activity units from umol/mgRubisco/min ->
+         ! umol/gRubisco/s
+         act25 = act25 * 1000.0_r8 / 60.0_r8
+
          if ( .not. nu_com_leaf_physiology) then
             ! Leaf nitrogen concentration at the top of the canopy (g N leaf / m**2 leaf)
             lnc(p) = 1._r8 / (slatop(veg_pp%itype(p)) * leafcn(veg_pp%itype(p)))
