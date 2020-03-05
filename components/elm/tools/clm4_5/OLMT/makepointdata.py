@@ -43,6 +43,10 @@ parser.add_option("--nopftdyn", dest="nopftdyn", default=False, \
                      action='store_true', help='Do not make transient PFT file')
 parser.add_option("--mysimyr", dest="mysimyr", default=1850, \
                      help = 'Simulation year (1850 or 2000)')
+parser.add_option("--humhol", dest="humhol", default=False, \
+                  help = 'Use hummock/hollow microtopography', action="store_true")
+parser.add_option("--marsh", dest="marsh", default=False, \
+                  help = 'Use marsh hydrology/elevation', action="store_true")
 (options, args) = parser.parse_args()
 
 
@@ -69,7 +73,7 @@ if ('hcru' in options.res):
         surffile_orig = ccsm_input+'/lnd/clm2/surfdata_map/surfdata_360x720cru_16pfts_Irrig_CMIP6_simyr1850_c170824.nc'
     else:
         if (mysimyr == 2000):
-            surffile_orig =  ccsm_input+'/lnd/clm2/surfdata_map/surfdata_360x720cru_simyr2000_c160307.nc'
+            surffile_orig =  ccsm_input+'/lnd/clm2/surfdata_map/surfdata_360x720cru_simyr2000_c180216.nc'
         else:
             #CMIP6 stype (Hurtt v2)
             surffile_orig = ccsm_input+'/lnd/clm2/surfdata_map/surfdata_360x720cru_simyr1850_c180216.nc'
@@ -149,7 +153,8 @@ elif (options.site != ''):
                 mylon=360.0+float(row[3])
             lon.append(mylon)
             lat.append(float(row[4]))
-            if ('US-SPR' in options.site):
+            if ('US-SPR' in options.site or 
+                (options.marsh or options.humhol)):
                 lon.append(mylon)
                 lat.append(float(row[4]))
                 n_grids = 2
@@ -659,7 +664,7 @@ if (options.nopftdyn == False):
                 #use time-varying files from gridded file
                 print 'using '+surffile_new+' for 1850 information'
                 nonpft = float(pct_lake_1850[n]+pct_glacier_1850[n]+ \
-                               pct_wetland_1850[n]+pct_urban_1850[n])
+                               pct_wetland_1850[n]+sum(pct_urban_1850[0:3,n]))
                 if (options.mymodel == 'CLM5'):
                     nonpft = nonpft+float(pct_crop_1850[n])
                 sumpft = 0.0
