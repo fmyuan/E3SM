@@ -28,7 +28,7 @@ module SatellitePhenologyMod
   use VegetationDataType   , only : veg_es
   use CanopyStateType , only : canopystate_type
   use WaterstateType  , only : waterstate_type
-  use ColumnDataType  , only : col_ws
+  use ColumnDataType  , only : col_ws, col_es
   use TemperatureType , only : temperature_type
   use SoilstateType   , only : soilstate_type
   use perf_mod        , only : t_startf, t_stopf
@@ -333,16 +333,22 @@ contains
     integer  :: fp,g,p,c                            ! indices
     real(r8) :: ol                                ! thickness of canopy layer covered by snow (m)
     real(r8) :: fb                                ! fraction of canopy layer covered by snow
-    real(r8) :: onset_gdd, fracday, dt, crit_dayl, ndays_on, ndays_off
+    real(r8) :: onset_gdd, fracday, dt, ndays_on, ndays_off, crit_dayl
     real(r8) :: soilpsi_off, soilpsi_on, crit_onset_swi, crit_offset_swi
     real(r8) :: crit_offset_fdd, crit_onset_fdd, ws_flag, crit_onset_gdd
     integer spring_threshold, autumn_threshold
     !-----------------------------------------------------------------------
  
     associate(                                                           &
-         frac_sno           => col_ws%frac_sno   ,          & ! Input:  [real(r8) (:) ] fraction of ground covered by snow (0 to 1)
-         snow_depth         => col_ws%snow_depth ,          & ! Input:  [real(r8) (:) ] snow height (m)
-         tlai               => canopystate_vars%tlai_patch    ,          & ! Output: [real(r8) (:) ] one-sided leaf area index, no burying by snow
+         frac_sno           => col_ws%frac_sno   ,          & ! Input:  [real(r8) (:) ] fraction of ground covered by snow (0 to 1)       
+         snow_depth         => col_ws%snow_depth ,          & ! Input:  [real(r8) (:) ] snow height (m)                                                       
+         dayl               => grc_pp%dayl,                              & ! Input:  [real(r8)  (:)   ]  daylength (s)
+         prev_dayl          => grc_pp%prev_dayl,                         & ! Input:  [real(r8)  (:)   ]  previous daylength (s)
+         t_ref2m            => veg_es%t_ref2m        ,                   & ! Input:  [real(r8) (:) ] 2-meter air temperature (K)
+         t_soisno           => col_es%t_soisno       ,                   & ! Input : [real(r8) (:) ] soil temperature (K)      
+         tmean              => veg_es%t_2m3650       ,                   & ! Input:[real(r8) (:)   ]  10-year running mean of the 2 m temperature (K)                    
+         soilpsi            => soilstate_vars%soilpsi_col     ,          & ! Input: [real(r8)  (:,:) ]  soil water potential in each soil layer (MPa) 
+         tlai               => canopystate_vars%tlai_patch    ,          & ! Output: [real(r8) (:) ] one-sided leaf area index, no burying by snow 
          tsai               => canopystate_vars%tsai_patch    ,          & ! Output: [real(r8) (:) ] one-sided stem area index, no burying by snow
          elai               => canopystate_vars%elai_patch    ,          & ! Output: [real(r8) (:) ] one-sided leaf area index with burying by snow
          esai               => canopystate_vars%esai_patch    ,          & ! Output: [real(r8) (:) ] one-sided stem area index with burying by snow
@@ -399,12 +405,12 @@ contains
               ws_flag = 0._r8
             end if
             !------ Seasonal deciduous phenology ----------------------
-#if defined HUM_HOL
+!put IFDEf hum_hol here
             !crit_onset_gdd = exp(4.8_r8 + 0.13_r8*(tmean(p) - SHR_CONST_TKFRZ))
             crit_onset_gdd = phen_fstar
             if (.not. use_cn .and. season_decid(ivt(p)) == 1._r8) then
                tlai(p) = maxval(annlai(:,p))
-               crit_dayl = 39300_r8
+               crit_dayl = phen_crit_dayl !39300_r8
                !Spring phenology
                !Increment GDD and chilling days, check threshold according to model formulation
                spring_threshold = 0 
@@ -475,7 +481,6 @@ contains
                  end if
                  tlai(p) = max(tlai(p) * (ndays_off - sp_offset_day(p)) / ndays_off, 0._r8)
                end if
-               if (p == 4 .and. sp_offset_day(p) .gt. 0 .and. sp_offset_day(p) .lt. 0.5) print*, p, dayl(g), t_ref2m(p), tlai(p), sp_gdd(p), sp_dayl_temp(p)
             end if
  
             !-------------Stress deciduous phenology ------------------------
@@ -523,7 +528,7 @@ contains
                 sp_fdd_off(p)    = 0._r8
               end if
            endif
-#endif
+!End the ifdef here
          endif
 
          tsai(p) = timwt(1)*msai2t(p,1) + timwt(2)*msai2t(p,2)
