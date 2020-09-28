@@ -27,7 +27,7 @@ def buildnml(case, caseroot, compname):
     compset             = case.get_value("COMPSET")
     ccsm_co2_ppmv       = case.get_value("CCSM_CO2_PPMV")
     elm_co2_type        = case.get_value("CLM_CO2_TYPE")
-    elm_usrdat_name     = case.get_value("CLM_USRDAT_NAME")
+    elm_usrdat_name     = case.get_value("ELM_USRDAT_NAME")
     elm_config_opts     = case.get_value("CLM_CONFIG_OPTS")
     elm_namelist_opts   = case.get_value("CLM_NAMELIST_OPTS")
     elm_bldnml_opts     = case.get_value("CLM_BLDNML_OPTS")
@@ -78,7 +78,7 @@ def buildnml(case, caseroot, compname):
         resolution = lnd_grid
         clmusr     = ""
 
-    if mask_grid == "reg" and lnd_grid != "CLM_USRDAT":
+    if mask_grid == "reg" and lnd_grid != "ELM_USRDAT":
         config_opts = "-sitespf_pt {}".format(lnd_grid)
         resolution  = lnd_grid
         clmusr      = ""

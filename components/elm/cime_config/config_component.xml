@@ -184,7 +184,7 @@
     </desc>
   </entry>
 
-  <entry id="CLM_USRDAT_NAME">
+  <entry id="ELM_USRDAT_NAME">
     <type>char</type>
     <default_value>UNSET</default_value>
     <group>run_component_clm</group>
