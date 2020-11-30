@@ -6,11 +6,16 @@ module EMI_CNCarbonStateType_ExchangeMod
   use elm_varctl                            , only : iulog
   use EMI_DataMod                           , only : emi_data_list, emi_data
   use EMI_DataDimensionMod                  , only : emi_data_dimension_list_type
-  use CNCarbonStateType    , only : carbonstate_type
+  use ColumnDataType       , only : column_carbon_state
   use EMI_Atm2LndType_Constants
   use EMI_CanopyStateType_Constants
   use EMI_ChemStateType_Constants
   use EMI_CNCarbonStateType_Constants
+  use EMI_CNNitrogenStateType_Constants
+  use EMI_CNNitrogenFluxType_Constants
+  use EMI_CNCarbonFluxType_Constants
+  use EMI_ColumnEnergyStateType_Constants
+  use EMI_ColumnWaterStateType_Constants
   use EMI_EnergyFluxType_Constants
   use EMI_SoilHydrologyType_Constants
   use EMI_SoilStateType_Constants
@@ -31,10 +36,10 @@ contains
   
 !-----------------------------------------------------------------------
   subroutine EMI_Pack_CNCarbonStateType_at_Column_Level_for_EM(data_list, em_stage, &
-        num_filter, filter, carbonstate_vars)
+        num_filter, filter, col_cs)
     !
     ! !DESCRIPTION:
-    ! Pack data from ALM carbonstate_vars for EM
+    ! Pack data from ALM col_cs for EM
     !
     ! !USES:
     use elm_varpar             , only : nlevdecomp_full
@@ -43,11 +48,11 @@ contains
     implicit none
     !
     ! !ARGUMENTS:
-    class(emi_data_list)   , intent(in) :: data_list
-    integer                , intent(in) :: em_stage
-    integer                , intent(in) :: num_filter
-    integer                , intent(in) :: filter(:)
-    type(carbonstate_type) , intent(in) :: carbonstate_vars
+    class(emi_data_list)      , intent(in) :: data_list
+    integer                   , intent(in) :: em_stage
+    integer                   , intent(in) :: num_filter
+    integer                   , intent(in) :: filter(:)
+    type(column_carbon_state) , intent(in) :: col_cs
     !
     ! !LOCAL_VARIABLES:
     integer                             :: fc,c,j,k
@@ -57,7 +62,7 @@ contains
     integer                             :: count
 
     associate(& 
-         decomp_cpools_vr => carbonstate_vars%decomp_cpools_vr_col   &
+         decomp_cpools_vr => col_cs%decomp_cpools_vr   &
          )
 
     count = 0
@@ -102,10 +107,10 @@ contains
 
 !-----------------------------------------------------------------------
   subroutine EMI_Unpack_CNCarbonStateType_at_Column_Level_from_EM(data_list, em_stage, &
-        num_filter, filter, carbonstate_vars)
+        num_filter, filter, col_cs)
     !
     ! !DESCRIPTION:
-    ! Unpack data for ALM carbonstate_vars from EM
+    ! Unpack data for ALM col_cs from EM
     !
     ! !USES:
     use elm_varpar             , only : nlevdecomp_full
@@ -114,11 +119,11 @@ contains
     implicit none
     !
     ! !ARGUMENTS:
-    class(emi_data_list)   , intent(in) :: data_list
-    integer                , intent(in) :: em_stage
-    integer                , intent(in) :: num_filter
-    integer                , intent(in) :: filter(:)
-    type(carbonstate_type) , intent(in) :: carbonstate_vars
+    class(emi_data_list)      , intent(in) :: data_list
+    integer                   , intent(in) :: em_stage
+    integer                   , intent(in) :: num_filter
+    integer                   , intent(in) :: filter(:)
+    type(column_carbon_state) , intent(in) :: col_cs
     !
     ! !LOCAL_VARIABLES:
     integer                             :: fc,c,j,k
@@ -128,7 +133,7 @@ contains
     integer                             :: count
 
     associate(& 
-         decomp_cpools_vr => carbonstate_vars%decomp_cpools_vr_col   &
+         decomp_cpools_vr => col_cs%decomp_cpools_vr   &
          )
 
     count = 0

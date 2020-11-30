@@ -25,6 +25,7 @@ module ColumnDataType
   use elm_varctl      , only : bound_h2osoi, use_cn, iulog, use_vertsoilc, spinup_state
   use elm_varctl      , only : ero_ccycle
   use elm_varctl      , only : use_elm_interface, use_pflotran, pf_cmode
+  use elm_varctl      , only : use_alquimia
   use elm_varctl      , only : hist_wrtch4diag, use_century_decomp
   use elm_varctl      , only : get_carbontag, override_bgc_restart_mismatch_dump
   use elm_varctl      , only : pf_hmode, nu_com
@@ -7291,7 +7292,8 @@ contains
     end do
 
     if ( (.not. is_active_betr_bgc           ) .and. &
-         (.not. (use_pflotran .and. pf_cmode))) then
+         (.not. (use_pflotran .and. pf_cmode)) .and. &
+         (.not. use_alquimia) ) then
 
        ! vertically integrate HR and decomposition cascade fluxes
        do k = 1, ndecomp_cascade_transitions
@@ -7314,7 +7316,7 @@ contains
                this%somhr(c)
        end do
 
-    elseif (is_active_betr_bgc) then
+    elseif (is_active_betr_bgc .or. use_alquimia) then
 
        do fc = 1, num_soilc
           c = filter_soilc(fc)
@@ -7328,7 +7330,7 @@ contains
        this%somhr(c)              = 0._r8
        this%lithr(c)              = 0._r8
        this%decomp_cascade_hr(c,1:ndecomp_cascade_transitions)= 0._r8
-       if (.not. (use_pflotran .and. pf_cmode)) then
+       if (.not. ((use_pflotran .and. pf_cmode) .or. use_alquimia)) then
        ! pflotran has returned 'hr_vr(begc:endc,1:nlevdecomp)' to ALM before this subroutine is called in CNEcosystemDynNoLeaching2
        ! thus 'hr_vr_col' should NOT be set to 0
             this%hr_vr(c,1:nlevdecomp) = 0._r8
@@ -7375,7 +7377,7 @@ contains
     end do
 
     ! total heterotrophic respiration, vertically resolved (HR)
-
+    if(.not. use_alquimia) then ! hr_vr was already calculated in alquimia
     do k = 1, ndecomp_cascade_transitions
        do j = 1,nlevdecomp
           do fc = 1,num_soilc
@@ -7386,7 +7388,7 @@ contains
           end do
        end do
     end do
-
+    endif
     !----------------------------------------------------------------
     ! bgc interface & pflotran:
     !----------------------------------------------------------------
@@ -7660,7 +7662,7 @@ contains
        this%somhr(c)              = 0._r8
        this%lithr(c)              = 0._r8
        this%decomp_cascade_hr(c,1:ndecomp_cascade_transitions)= 0._r8
-       if (.not. (use_pflotran .and. pf_cmode)) then
+       if (.not. (use_pflotran .and. pf_cmode) .and. .not. use_alquimia) then
        ! pflotran has returned 'hr_vr(begc:endc,1:nlevdecomp)' to ALM before this subroutine is called in CNEcosystemDynNoLeaching2
        ! thus 'hr_vr_col' should NOT be set to 0
             this%hr_vr(c,1:nlevdecomp) = 0._r8
@@ -7668,7 +7670,8 @@ contains
     enddo
 
     if ( (.not. is_active_betr_bgc           ) .and. &
-         (.not. (use_pflotran .and. pf_cmode))) then
+         (.not. (use_pflotran .and. pf_cmode)) .and. &
+         (.not. use_alquimia           ) ) then
       ! vertically integrate HR and decomposition cascade fluxes
       do k = 1, ndecomp_cascade_transitions
 
