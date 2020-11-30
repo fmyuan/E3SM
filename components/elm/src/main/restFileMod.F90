@@ -15,7 +15,7 @@ module restFileMod
   use accumulMod           , only : accumulRest
   use histFileMod          , only : hist_restart_ncd
   use elm_varpar           , only : crop_prog
-  use elm_varctl           , only : use_cn, use_c13, use_c14, use_lch4, use_fates, use_betr
+  use elm_varctl           , only : use_cn, use_c13, use_c14, use_lch4, use_fates, use_betr, use_alquimia
   use elm_varctl           , only : use_erosion
   use elm_varctl           , only : create_glacier_mec_landunit, iulog 
   use elm_varcon           , only : c13ratio, c14ratio
@@ -64,6 +64,7 @@ module restFileMod
   use VegetationDataType   , only : veg_ns, veg_nf
   use VegetationDataType   , only : veg_ps, veg_pf
   use GridcellDataType     , only : grc_cs, grc_ws 
+  use clm_instMod          , only : chemstate_vars
   
   !
   ! !PUBLIC TYPES:
@@ -284,6 +285,10 @@ contains
        call ep_betr%BeTRRestart(bounds, ncid, flag='define')
     endif
 
+    if (use_alquimia) then
+      call chemstate_vars%Restart(bounds, ncid, flag='define')
+    endif
+
     if (present(rdate)) then 
        call hist_restart_ncd (bounds, ncid, flag='define', rdate=rdate )
     end if
@@ -328,6 +333,7 @@ contains
     call soilstate_vars%restart (bounds, ncid, flag='write')
 
     call solarabs_vars%restart (bounds, ncid, flag='write')
+
 
     call grc_wf%Restart (bounds, ncid, flag='write')
 
@@ -418,6 +424,10 @@ contains
 
     if (use_betr) then
        call ep_betr%BeTRRestart(bounds, ncid, flag='write')
+    endif
+
+    if (use_alquimia) then
+      call chemstate_vars%Restart(bounds, ncid, flag='write')
     endif
 
     call hist_restart_ncd (bounds, ncid, flag='write' )
@@ -552,6 +562,7 @@ contains
 
     call solarabs_vars%restart (bounds, ncid, flag='read')
 
+
     call grc_wf%Restart (bounds, ncid, flag='read')
 
     call col_wf%Restart (bounds, ncid, flag='read')
@@ -639,6 +650,10 @@ contains
 
     if (use_betr) then
        call ep_betr%BeTRRestart(bounds, ncid, flag='read')
+    endif
+
+    if (use_alquimia) then
+      call chemstate_vars%Restart(bounds, ncid, flag='read')
     endif
         
     call hist_restart_ncd (bounds, ncid, flag='read')
@@ -1004,6 +1019,7 @@ contains
     call restFile_add_icol_metadata(ncid)
     call restFile_add_ilun_metadata(ncid)
 
+
   end subroutine restFile_dimset
 
   !-----------------------------------------------------------------------
@@ -1138,6 +1154,7 @@ contains
        call check_dim(ncid, namep, nump)
        if ( use_fates ) call check_dim(ncid, nameCohort  , numCohort)
     end if
+    ! Add alquimia dimension checks
     call check_dim(ncid, 'levsno'  , nlevsno)
     call check_dim(ncid, 'levgrnd' , nlevgrnd)
     call check_dim(ncid, 'levurb'  , nlevurb)
