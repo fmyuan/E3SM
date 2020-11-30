@@ -112,6 +112,7 @@ module ColumnDataType
     real(r8), pointer :: h2osoi_ice         (:,:) => null() ! ice lens (-nlevsno+1:nlevgrnd) (kg/m2)
     real(r8), pointer :: h2osoi_vol         (:,:) => null() ! volumetric soil water (0<=h2osoi_vol<=watsat) (1:nlevgrnd) (m3/m3)
     real(r8), pointer :: h2osfc             (:)   => null() ! surface water (kg/m2)
+    real(r8), pointer :: salinity           (:)   => null() ! salinity from PFLOTRAN when using interface (TAO 5/19/2020)
     real(r8), pointer :: h2ocan             (:)   => null() ! canopy water integrated to column (kg/m2)
     real(r8), pointer :: total_plant_stored_h2o(:)=> null() ! total water in plants (kg/m2)
     real(r8), pointer :: wslake_col         (:)   => null() ! col lake water storage (mm H2O)
@@ -1480,6 +1481,7 @@ contains
     allocate(this%h2osfc             (begc:endc))                     ; this%h2osfc             (:)   = spval
     allocate(this%h2ocan             (begc:endc))                     ; this%h2ocan             (:)   = spval
     allocate(this%wslake_col         (begc:endc))                     ; this%wslake_col         (:)   = spval
+    allocate(this%salinity           (begc:endc))                     ; this%salinity           (:)   = spval
     allocate(this%total_plant_stored_h2o(begc:endc))                  ; this%total_plant_stored_h2o(:)= spval  
     allocate(this%h2osoi_liqvol      (begc:endc,-nlevsno+1:nlevgrnd)) ; this%h2osoi_liqvol      (:,:) = spval
     allocate(this%h2osoi_icevol      (begc:endc,-nlevsno+1:nlevgrnd)) ; this%h2osoi_icevol      (:,:) = spval
@@ -1608,6 +1610,11 @@ contains
      call hist_addfld1d (fname='H2OSFC',  units='mm',  &
           avgflag='A', long_name='surface water depth', &
            ptr_col=this%h2osfc)
+
+    this%salinity(begc:endc) = spval
+    call hist_addfld1d (fname='SALINITY',  units='ppt',  &
+          avgflag='A', long_name='surface water salinity', &
+          ptr_col=this%salinity)
 
     this%h2osoi_vol(begc:endc,:) = spval
      call hist_addfld2d (fname='H2OSOI',  units='mm3/mm3', type2d='levgrnd', &
@@ -1759,6 +1766,7 @@ contains
        this%total_plant_stored_h2o(c) = 0._r8
        this%h2osfc(c)                 = 0._r8
        this%h2ocan(c)                 = 0._r8
+       this%salinity(c)               = 0._r8
        this%frac_h2osfc(c)            = 0._r8
        this%frac_h2osfc_act(c)        = 0._r8
        this%h2orof(c)                 = 0._r8
@@ -3487,12 +3495,12 @@ contains
     allocate(this%smin_no3_vr           (begc:endc,1:nlevdecomp_full))   ; this%smin_no3_vr           (:,:) = spval
     allocate(this%smin_nh4_vr           (begc:endc,1:nlevdecomp_full))   ; this%smin_nh4_vr           (:,:) = spval
     allocate(this%smin_nh4sorb_vr       (begc:endc,1:nlevdecomp_full))   ; this%smin_nh4sorb_vr       (:,:) = spval
-    allocate(this%DON_vr                (begc:endc,1:nlevdecomp_full))   ; this%DON_vr                (:,:) = 0.0_r8
-    allocate(this%totDON                (begc:endc))                     ; this%totDON                (:)   = 0.0_r8
-    allocate(this%N2O_vr                (begc:endc,1:nlevdecomp_full))   ; this%N2O_vr                (:,:) = 0.0_r8
-    allocate(this%N2_vr                 (begc:endc,1:nlevdecomp_full))   ; this%N2_vr                 (:,:) = 0.0_r8
-    allocate(this%totN2O                (begc:endc))                     ; this%totN2O                (:)   = 0.0_r8
-    allocate(this%totN2                 (begc:endc))                     ; this%totN2                 (:)   = 0.0_r8
+    allocate(this%DON_vr                (begc:endc,1:nlevdecomp_full))   ; this%DON_vr                (:,:) = spval
+    allocate(this%totDON                (begc:endc))                     ; this%totDON                (:)   = spval
+    allocate(this%N2O_vr                (begc:endc,1:nlevdecomp_full))   ; this%N2O_vr                (:,:) = spval
+    allocate(this%N2_vr                 (begc:endc,1:nlevdecomp_full))   ; this%N2_vr                 (:,:) = spval
+    allocate(this%totN2O                (begc:endc))                     ; this%totN2O                (:)   = spval
+    allocate(this%totN2                 (begc:endc))                     ; this%totN2                 (:)   = spval
     allocate(this%decomp_npools         (begc:endc,1:ndecomp_pools))     ; this%decomp_npools         (:,:) = spval
     allocate(this%decomp_npools_1m      (begc:endc,1:ndecomp_pools))     ; this%decomp_npools_1m      (:,:) = spval
     allocate(this%smin_no3              (begc:endc))                     ; this%smin_no3              (:)   = spval
