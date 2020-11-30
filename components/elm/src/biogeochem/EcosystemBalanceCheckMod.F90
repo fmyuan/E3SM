@@ -25,6 +25,7 @@ module EcosystemBalanceCheckMod
   use elm_varctl          , only : use_erosion, ero_ccycle
   ! bgc interface & pflotran:
   use elm_varctl          , only : use_pflotran, pf_cmode, pf_hmode
+  use elm_varctl          , only : use_alquimia
   ! forest fertilization experiment
   use clm_time_manager    , only : get_curr_date
   use CNStateType         , only : fert_type , fert_continue, fert_dose, fert_start, fert_end
@@ -265,6 +266,7 @@ contains
             col_coutputs(c) = col_coutputs(c) + som_c_yield(c)
          end if
 
+         if (use_alquimia) col_coutputs = col_coutputs + col_cf%DOC_runoff(c) + col_cf%DIC_runoff(c)
 
          ! calculate the total column-level carbon balance error for this time step
          col_errcb(c) = (col_cinputs(c) - col_coutputs(c))*dt - (col_endcb(c) - col_begcb(c))
@@ -317,6 +319,12 @@ contains
             if (use_pflotran .and. pf_cmode) then
                write(iulog,*)'pf_delta_decompc      = ',col_decompc_delta(c)*dt
             end if
+
+            if (use_alquimia) then
+               write(iulog,*)'DIC_runoff            = ',col_cf%DIC_runoff(c)*dt
+               write(iulog,*)'DOC_runoff            = ',col_cf%DOC_runoff(c)*dt
+               write(iulog,*)'SIC (carbonates)      = ',col_cs%totSIC(c) 
+            endif
 
             call endrun(msg=errMsg(__FILE__, __LINE__))
          else
@@ -480,6 +488,10 @@ contains
          col_noutputs(c) = col_noutputs(c) + &
                col_prod1n_loss(c) + col_prod10n_loss(c) + col_prod100n_loss(c)
 
+         if(use_alquimia) col_noutputs(c) = col_noutputs(c) + col_nf%DON_runoff(c)
+
+         col_noutputs(c) = col_noutputs(c) + col_prod1n_loss(c)
+         
          col_noutputs(c) = col_noutputs(c) - som_n_leached(c)
 
          ! subtracted erosion flux
@@ -538,6 +550,10 @@ contains
          if (use_pflotran .and. pf_cmode) then
             write(iulog,*)'pf_delta_decompn      = ',col_decompn_delta(c)*dt
          end if
+         if(use_alquimia) then
+            write(iulog,*)'DON                   = ',col_ns%totDON(c)
+            write(iulog,*)'DON_runoff            = ',col_nf%DON_runoff(c)*dt
+         endif
          call endrun(msg=errMsg(__FILE__, __LINE__))
 #endif
 
@@ -939,6 +955,10 @@ contains
                c2l_scale_type = 'unity', l2g_scale_type = 'unity')
       call c2g(bounds, col_som_c_yield(bounds%begc:bounds%endc), grc_som_c_yield(bounds%begg:bounds%endg), &
                c2l_scale_type = 'unity', l2g_scale_type = 'unity')
+      call c2g(bounds, col_cf%DOC_runoff(bounds%begc:bounds%endc), grc_cf%DOC_runoff(bounds%begg:bounds%endg), &
+               c2l_scale_type = 'unity', l2g_scale_type = 'unity')
+      call c2g(bounds, col_cf%DIC_runoff(bounds%begc:bounds%endc), grc_cf%DIC_runoff(bounds%begg:bounds%endg), &
+               c2l_scale_type = 'unity', l2g_scale_type = 'unity')
 
       dt = real( get_step_size(), r8 )
       nstep = get_nstep()
@@ -953,6 +973,8 @@ contains
          if (ero_ccycle) then
             grc_coutputs(g) = grc_coutputs(g) + grc_som_c_yield(g)
          end if
+
+         if (use_alquimia) grc_coutputs(g) = grc_coutputs(g) + grc_cf%DOC_runoff(g) + grc_cf%DIC_runoff(g)
 
          grc_errcb(g) = (grc_cinputs(g) - grc_coutputs(g))*dt - (end_totc(g) - beg_totc(g))
 

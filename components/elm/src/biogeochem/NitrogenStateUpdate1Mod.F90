@@ -20,6 +20,7 @@ module NitrogenStateUpdate1Mod
   use tracer_varcon          , only : is_active_betr_bgc
   ! bgc interface & pflotran:
   use elm_varctl             , only : use_pflotran, pf_cmode
+  use elm_varctl             , only : use_alquimia
   ! forest fertilization experiment
   use clm_time_manager       , only : get_curr_date
   use CNStateType            , only : fert_type , fert_continue, fert_dose, fert_start, fert_end
@@ -220,6 +221,7 @@ contains
             end if
          end do
          
+         if(.not. use_alquimia) then
          do j = 1, nlevdecomp
             ! column loop
             do fc = 1,num_soilc
@@ -254,7 +256,7 @@ contains
 
             end do ! end of column loop
          end do
-         
+         endif ! .not. use_alquimia
       endif  !end if is_active_betr_bgc 
 
       ! forest fertilization

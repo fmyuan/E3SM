@@ -5,4 +5,5 @@ set(PNETCDF_PATH "/software/dev_tools/swtree/cs400_centos7.2_pe2016-08/pnetcdf/1
 set(LAPACK_LIBDIR "/software/tools/compilers/intel_2017/mkl/lib/intel64")
 string(APPEND SLIBS " -L${NETCDF_PATH}/lib -Wl,-rpath=${NETCDF_PATH}/lib -lnetcdff -lnetcdf")
 set(MPICXX "mpic++")
-set(SCXX "gcpp")
+set(SCXX "g++")
+set(ALQUIMIA_PATH "$ENV{HOME}/ELM-alquimia/REDOX-PFLOTRAN/alquimia/build/alquimia")
