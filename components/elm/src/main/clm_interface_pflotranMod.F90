@@ -1088,7 +1088,7 @@ contains
          pf_tmode = .true.
       endif
 
-      if (pflotran_m%option%th_use_freezing .and. pf_tmode) then
+      if (pflotran_m%option%th_freezing .and. pf_tmode) then
          pf_frzmode = .true.
       else
          pf_frzmode = .false.
