@@ -1026,8 +1026,8 @@ flags should be captured within MPAS CMake files.
   </CMAKE_OPTS>
   <CPPDEFS>
     <append> -DFORTRANUNDERSCORE -DNO_R16</append>
-    <!-- <append COMP_NAME="clm"> -DCLM_PFLOTRAN </append>
-         <append COMP_NAME="clm"> -DCOLUMN_MODE </append> -->
+    <!-- <append COMP_NAME="elm"> -DCLM_PFLOTRAN </append>
+         <append COMP_NAME="elm"> -DCOLUMN_MODE </append> -->
   </CPPDEFS>
   <CXX_LINKER>FORTRAN</CXX_LINKER>
   <FC_AUTO_R8>
@@ -1039,7 +1039,8 @@ flags should be captured within MPAS CMake files.
     <base> -O -fconvert=big-endian -ffree-line-length-none -ffixed-line-length-none -fno-range-check</base>
     <append compile_threaded="TRUE"> -fopenmp </append>
     <append DEBUG="TRUE"> -g -Wall </append>
-    <!-- <append COMP_NAME="clm"> -I/lustre/or-hydra/cades-ccsi/$USER/models/pflotran-interface/src/clm-pflotran</append> -->
+    <!-- NOT YET figured out how to switch on the following when elm-pflotran interface ON -->
+    <!-- <append COMP_NAME="elm"> $ENV{PFLOTRAN_INC}</append> -->
   </FFLAGS>
   <FIXEDFLAGS>
     <base>  -ffixed-form </base>
@@ -1053,7 +1054,8 @@ flags should be captured within MPAS CMake files.
   <LAPACK_LIBDIR>/software/tools/compilers/intel_2017/mkl/lib/intel64</LAPACK_LIBDIR>
   <LDFLAGS>
     <append compile_threaded="TRUE"> -fopenmp </append>
-    <!-- <append COMP_CLASS="cpl"> -L$ENV{CLM_PFLOTRAN_SOURCE_DIR} -lpflotran $ENV{PETSC_LIB} </append> -->
+    <!-- NOT YET figured out how to switch on the following when elm-pflotran interface ON -->
+    <!-- <append COMP_CLASS="cpl"> $ENV{PFLOTRAN_LIB} </append> -->
   </LDFLAGS>
   <SLIBS>
     <append> -L$ENV{NETCDF_PATH}/lib -Wl,-rpath=$ENV{NETCDF_PATH}/lib -lnetcdff -lnetcdf </append>

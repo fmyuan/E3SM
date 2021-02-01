@@ -526,11 +526,11 @@
          By default, model will build as PFLOTRAN coupled and run as non-coupled.
     -->
     <environment_variables>
-      <!-- for CLM-PFLOTRAN coupling, the $PETSC_DIR and $CLM_PFLOTRAN_SOURCE_DIR must be user-defined specifically upon machines, e.g. in .bashrc -->
+      <!-- for CLM-PFLOTRAN coupling, the $PETSC_PATH and $CLM_PFLOTRAN_SOURCE_DIR must be user-defined specifically upon machines, e.g. in .bashrc -->
       <!-- pflotran codes are pre-built as libpflotran.a in $CLM_PFLOTRAN_SOURCE_DIR -->
-      <env name="PETSC_PATH">$ENV{PETSC_DIR}</env>
-      <env name="PFLOTRAN_INC"> -I$ENV{CLM_PFLOTRAN_SOURCE_DIR} -I$ENV{PETSC_DIR}/include</env>
-      <env name="PFLOTRAN_LIB"> -L$ENV{CLM_PFLOTRAN_SOURCE_DIR} -lpflotran -L$ENV{PETSC_DIR}/lib -lpetsc -lHYPRE -lcmumps -ldmumps -lsmumps -lzmumps -lmumps_common -lpord -lscalapack -lsuperlu -lparmetis -lmetis </env>
+      <env name="PETSC_PATH">$ENV{PETSC_PATH}</env>
+      <env name="PFLOTRAN_INC"> -I$ENV{CLM_PFLOTRAN_SOURCE_DIR} -I$ENV{PETSC_PATH}/include</env>
+      <env name="PFLOTRAN_LIB"> -L$ENV{CLM_PFLOTRAN_SOURCE_DIR} -lpflotran -L$ENV{PETSC_PATH}/lib -lpetsc -Wl,-rpath,$ENV{PETSC_PATH}/lib </env>
     </environment_variables>
   </machine>
 
@@ -2335,7 +2335,7 @@
   </machine>
 
   <machine MACH="cades">
-    <DESC>OR-CONDO, CADES-CCSI, os is Linux, 16 pes/nodes, batch system is PBS</DESC>
+    <DESC>OR-CONDO, CADES-CCSI, os is Linux, 16 pes/nodes, batch system is SLURM</DESC>
     <NODENAME_REGEX>or-condo</NODENAME_REGEX>
     <OS>LINUX</OS>
     <COMPILERS>gnu,intel</COMPILERS>
@@ -2385,6 +2385,7 @@
         <command name="load">hdf5-parallel/1.8.17</command>
         <command name="load">netcdf-hdf5parallel/4.3.3.1</command>
         <command name="load">pnetcdf/1.9.0</command>
+        <command name="load">perl</command>
       </modules>
     </module_system>
 
@@ -2395,10 +2396,7 @@
     <EXEROOT>$CIME_OUTPUT_ROOT/$CASE/bld</EXEROOT>
     <!-- for CLM-PFLOTRAN coupling, the PETSC_PATH must be defined specifically upon machines -->
     <environment_variables compiler="gnu" mpilib="openmpi">
-      <env name="PETSC_PATH">/software/user_tools/current/cades-ccsi/petsc4pf/openmpi-1.10-gcc-5.3</env>
-    </environment_variables>
-    <environment_variables>
-      <env name="PERL5LIB">/software/user_tools/current/cades-ccsi/perl5/lib/perl5/</env>
+      <env name="PETSC_PATH">/software/user_tools/current/cades-ccsi/petsc-x/openmpi-1.10-gcc-5.3</env>
     </environment_variables>
 
     <!--
@@ -2407,12 +2405,13 @@
          By default, model will build as PFLOTRAN coupled and run as non-coupled.
     -->
     <environment_variables>
-        <!-- for CLM-PFLOTRAN coupling, the $PETSC_DIR and $CLM_PFLOTRAN_SOURCE_DIR must be user-defined specifically upon machines, e.g. in .bashrc -->
+        <!-- for CLM-PFLOTRAN coupling, the $PETSC_PATH and $CLM_PFLOTRAN_SOURCE_DIR must be user-defined specifically upon machines, e.g. in .bashrc -->
         <!-- (NOTE: on CADES, PETSc built with mkl libraries, $MKLROOT_INC with '-I' and $MKLROOT_LIB with '-L') -->
         <!-- pflotran codes are pre-built as libpflotran.a in $CLM_PFLOTRAN_SOURCE_DIR -->
-        <env name="PETSC_PATH">$ENV{PETSC_DIR}</env>
-        <env name="PFLOTRAN_INC"> -I$ENV{CLM_PFLOTRAN_SOURCE_DIR} -I$ENV{PETSC_DIR}/include $ENV{MKLROOT_INC}</env>
-        <env name="PFLOTRAN_LIB"> -L$ENV{CLM_PFLOTRAN_SOURCE_DIR} -lpflotran -L$ENV{PETSC_DIR}/lib -lpetsc -lmetis -lparmetis $ENV{MKLROOT_LIB} -lmkl_intel_lp64 -lmkl_core -lmkl_sequential</env>
+        <!-- 2021-01-28: PETSc libraries rebuilt as shared libraries on CADES, so need to set '-Wl,-rpath,', otherwise may cause issue of no libraries found when submit job -->
+        <env name="CLM_PFLOTRAN_SOURCE_DIR">$ENV{CLM_PFLOTRAN_SOURCE_DIR}</env>
+        <env name="PFLOTRAN_INC"> -I$ENV{CLM_PFLOTRAN_SOURCE_DIR} -I$ENV{PETSC_PATH}/include $ENV{MKLROOT_INC}</env>
+        <env name="PFLOTRAN_LIB"> -L$ENV{CLM_PFLOTRAN_SOURCE_DIR} -lpflotran -L$ENV{PETSC_PATH}/lib -lpetsc -Wl,-rpath,$ENV{PETSC_PATH}/lib $ENV{MKLROOT_LIB} -lmkl_intel_lp64 -lmkl_core -lmkl_sequential</env>
     </environment_variables>
   </machine>
 
