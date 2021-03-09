@@ -200,12 +200,12 @@ contains
          avgflag='A', long_name='shaded projected leaf area index', &
          ptr_patch=this%laisha_patch, set_urb=0._r8)
 
-    if (use_cn .or. use_fates) then
+    !if (use_cn .or. use_fates) then
        this%dewmx_patch(begp:endp) = spval
        call hist_addfld1d (fname='DEWMX', units='mm', &
             avgflag='A', long_name='Maximum allowed dew', &
             ptr_patch=this%dewmx_patch, default='inactive')
-    end if
+    !end if
 
     if (use_cn .or. use_fates) then
        this%htop_patch(begp:endp) = spval
@@ -281,7 +281,6 @@ contains
             avgflag='A', long_name='vegetation water matric potential for sun/sha canopy,xyl,root segments', &
             ptr_patch=this%vegwp_patch)
     end if
-
 
   end subroutine InitHistory
 
