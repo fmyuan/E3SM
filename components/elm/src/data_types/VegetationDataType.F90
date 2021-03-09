@@ -1810,19 +1810,19 @@ module VegetationDataType
          avgflag='A', long_name='fractional humidity of canopy air', &
          ptr_patch=this%rh_af, set_spec=spval, default='inactive')
 
-    if (use_cn) then
+    !if (use_cn) then
        this%fwet(begp:endp) = spval
        call hist_addfld1d (fname='FWET', units='proportion', &
             avgflag='A', long_name='fraction of canopy that is wet', &
             ptr_patch=this%fwet, default='inactive')
-    end if
+    !end if
 
-    if (use_cn) then
+    !if (use_cn) then
        this%fdry(begp:endp) = spval
        call hist_addfld1d (fname='FDRY', units='proportion', &
             avgflag='A', long_name='fraction of foliage that is green and dry', &
             ptr_patch=this%fdry, default='inactive')
-    end if
+    !end if
 
     !-----------------------------------------------------------------------
     ! set cold-start initial values for select members of veg_ws
@@ -5430,19 +5430,19 @@ module VegetationDataType
          avgflag='A', long_name='excess rainfall due to snow capping', &
          ptr_patch=this%qflx_snwcp_liq, c2l_scale_type='urbanf', default='inactive')
 
-    if (use_cn) then
+    !if (use_cn) then
        this%qflx_rain_grnd(begp:endp) = spval
        call hist_addfld1d (fname='QFLX_RAIN_GRND', units='mm H2O/s', &
             avgflag='A', long_name='rain on ground after interception', &
             ptr_patch=this%qflx_rain_grnd, default='inactive', c2l_scale_type='urbanf')
-    end if
+    !end if
 
-    if (use_cn) then
+    !if (use_cn) then
        this%qflx_snow_grnd(begp:endp) = spval
        call hist_addfld1d (fname='QFLX_SNOW_GRND', units='mm H2O/s', &
             avgflag='A', long_name='snow on ground after interception', &
             ptr_patch=this%qflx_snow_grnd, default='inactive', c2l_scale_type='urbanf')
-    end if
+    !end if
 
     if (use_cn) then
        this%qflx_evap_grnd(begp:endp) = spval

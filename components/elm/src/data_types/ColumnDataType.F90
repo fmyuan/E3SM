@@ -1450,12 +1450,19 @@ contains
          avgflag='A', long_name='effective fraction of ground covered by snow', &
          ptr_col=this%frac_sno_eff, c2l_scale_type='urbanf')!, default='inactive')
 
-    if (use_cn)then
+    !if (use_cn)then
        this%frac_iceold(begc:endc,:) = spval
        call hist_addfld2d (fname='FRAC_ICEOLD', units='proportion', type2d='levgrnd', &
             avgflag='A', long_name='fraction of ice relative to the tot water', &
             ptr_col=this%frac_iceold, default='inactive')
-    end if
+    !end if
+
+    !---- for ATS interface ----------------
+    this%swe_old(begc:endc,:) = spval
+    call hist_addfld2d (fname='SWE_OLD', units='mm', type2d='levsno', &
+         avgflag='A', long_name='snow water before update', &
+         ptr_col=this%swe_old, no_snow_behavior=no_snow_normal, default='inactive')
+    !---- for ATS interface ----------------
 
     this%frac_h2osfc(begc:endc) = spval
     call hist_addfld1d (fname='FH2OSFC',  units='1',  &

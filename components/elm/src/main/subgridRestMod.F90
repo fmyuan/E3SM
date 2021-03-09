@@ -11,7 +11,7 @@ module subgridRestMod
   use domainMod          , only : ldomain
   use clm_time_manager   , only : get_curr_date
   use elm_varcon         , only : nameg, namel, namec, namep
-  use elm_varpar         , only : nlevsno
+  use elm_varpar         , only : nlevsno, nlevgrnd
   use pio                , only : file_desc_t
   use ncdio_pio          , only : ncd_int, ncd_double
   use GetGlobalValuesMod , only : GetGlobalIndexArray
@@ -485,6 +485,43 @@ contains
        col_pp%zi(bounds%begc:bounds%endc,-nlevsno:-1) = temp2d(bounds%begc:bounds%endc,-nlevsno:-1) 
     end if
     deallocate(temp2d)
+
+    ! ------ for ATS interface ---------------------------
+    call restartvar(ncid=ncid, flag=flag, varname='MICRO_SIGMA', xtype=ncd_double,  &
+         dim1name='column', &
+         long_name='microtopography pdf sigma', units='m', &
+         interpinic_flag='interp', readvar=readvar, data=col_pp%micro_sigma)
+
+    allocate(temp2d(bounds%begc:bounds%endc,1:nlevgrnd))
+    if (flag == 'write') then
+       temp2d(bounds%begc:bounds%endc,1:nlevgrnd) = col_pp%dz(bounds%begc:bounds%endc,1:nlevgrnd)
+    end if
+    call restartvar(ncid=ncid, flag=flag, varname='DZSOI', xtype=ncd_double,  &
+         dim1name='column', dim2name='levgrnd', switchdim=.true., lowerb2=1, upperb2=nlevgrnd, &
+         long_name='soil layer thickness', units='m', &
+         interpinic_flag='interp', readvar=readvar, data=temp2d)
+    deallocate(temp2d)
+
+    allocate(temp2d(bounds%begc:bounds%endc,1:nlevgrnd))
+    if (flag == 'write') then
+       temp2d(bounds%begc:bounds%endc,1:nlevgrnd) = col_pp%z(bounds%begc:bounds%endc,1:nlevgrnd)
+    end if
+    call restartvar(ncid=ncid, flag=flag, varname='ZSOI', xtype=ncd_double,  &
+         dim1name='column', dim2name='levgrnd', switchdim=.true., lowerb2=1, upperb2=nlevgrnd, &
+         long_name='soil layer depth', units='m', &
+         interpinic_flag='interp', readvar=readvar, data=temp2d)
+    deallocate(temp2d)
+
+    allocate(temp2d(bounds%begc:bounds%endc,1:nlevgrnd))
+    if (flag == 'write') then
+       temp2d(bounds%begc:bounds%endc,1:nlevgrnd) = col_pp%zi(bounds%begc:bounds%endc,1:nlevgrnd)
+    end if
+    call restartvar(ncid=ncid, flag=flag, varname='ZISOI', xtype=ncd_double,  &
+         dim1name='column', dim2name='levgrnd', switchdim=.true., lowerb2=1, upperb2=nlevgrnd, &
+         long_name='soil interface depth', units='m', &
+         interpinic_flag='interp', readvar=readvar, data=temp2d)
+    deallocate(temp2d)
+    ! ----- end of for ATS interface ------------
 
   end subroutine subgridRest_write_and_read
 
