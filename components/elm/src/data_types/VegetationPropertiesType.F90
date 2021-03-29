@@ -155,6 +155,9 @@ module VegetationPropertiesType
      integer, allocatable :: nonvascular(:)       ! nonvascular plant lifeform flag (0 or 1-moss or 2-lichen)
      integer, allocatable :: nfixer(:)            ! N-fixer flag (0 or 1)
      !----------------------F.-M. Yuan (2018-03-23): user-defined parameter file ---------------------------------------------------------------------
+     !salinity response parameters
+     real(r8), allocatable :: sal_threshold(:)       !Threshold for salinity effects (ppt)
+     real(r8), allocatable :: KM_salinity(:)         !Half saturation constant for omotic inhibition function (ppt)
 
    contains
    procedure, public :: Init => veg_vp_init
@@ -193,6 +196,7 @@ contains
     use pftvarcon , only : fnr, act25, kcha, koha, cpha, vcmaxha, jmaxha, tpuha
     use pftvarcon , only : lmrha, vcmaxhd, jmaxhd, tpuhd, lmrse, qe, theta_cj
     use pftvarcon , only : bbbopt, mbbopt, nstor, br_xr, tc_stress, lmrhd, crit_gdd1, crit_gdd2
+    use pftvarcon , only : sal_threshold, KM_salinity
     !
     !----------------------F.-M. Yuan (2018-03-23): user-defined parameter file ---------------------------------------------------------------------
     use pftvarcon , only : nonvascular, nfixer
@@ -327,11 +331,12 @@ contains
 
     allocate( this%crit_gdd1(0:numpft))                          ; this%crit_gdd1(:)             =nan
     allocate( this%crit_gdd2(0:numpft))                          ; this%crit_gdd2(:)             =nan
-
     !----------------------F.-M. Yuan (2018-03-23): user-defined parameter file ---------------------------------------------------------------------
     allocate(this%nonvascular(0:numpft))                         ; this%nonvascular(:)           =huge(1)
     allocate(this%nfixer(0:numpft))                              ; this%nfixer(:)                =huge(1)
-    !----------------------F.-M. Yuan (2018-03-23): user-defined parameter file ---------------------------------------------------------------------
+ 
+    allocate( this%sal_threshold(0:numpft))        ; this%sal_threshold(:)       =nan
+    allocate( this%KM_salinity(0:numpft))          ; this%KM_salinity(:)         =nan
 
     do m = 0,numpft
 
@@ -451,6 +456,8 @@ contains
         this%vmax_nfix(m)      = vmax_nfix(m)
         this%km_nfix(m)        = km_nfix(m)
         this%vmax_ptase(m)     = vmax_ptase(m)
+        this%sal_threshold(m)  = sal_threshold(m)
+        this%KM_salinity(m)    = KM_salinity(m)
 
         do j = 1 , nlevdecomp
            this%decompmicc_patch_vr(m,j) = decompmicc_patch_vr(j,m)
