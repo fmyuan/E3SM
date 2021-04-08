@@ -358,8 +358,12 @@ contains
          rresis        => energyflux_vars%rresis_patch      , & ! Output: [real(r8) (:,:) ]  root soil water stress (resistance) by layer (0-1)  (nlevgrnd)
 
          h2osoi_vol    => col_ws%h2osoi_vol    , & ! Input:  [real(r8) (:,:) ]  volumetric soil water (0<=h2osoi_vol<=watsat) [m3/m3]
-         h2osoi_liqvol => col_ws%h2osoi_liqvol   & ! Output: [real(r8) (:,:) ]  liquid volumetric moisture, will be used for BeTR
-         )
+         h2osoi_liqvol => col_ws%h2osoi_liqvol , & ! Output: [real(r8) (:,:) ]  liquid volumetric moisture, will be used for BeTR
+         
+         sal_threshold => veg_vp%sal_threshold              , & ! Input: [real(r8) (:)   ] Threshold for salinity effects (ppt)
+         KM_salinity   => veg_vp%KM_salinity                  & ! Input: [real(r8) (:)   ] Half saturation constant for osmotic inhibition
+         ) 
+
       do j = 1,nlevgrnd
          do f = 1, fn
             p = filterp(f)
@@ -388,7 +392,7 @@ contains
 
                !it is possible to further separate out a btran function, but I will leave it for the moment, jyt
                if( .not. use_hydrstress ) then
-                 btran(p)    = btran(p) + max(rootr(p,j),0._r8)
+                 btran(p)    = btran(p) + max(rootr(p,j),0._r8) !btran added to rootr, then later rootr divided by (btran+rootr) SLL see line 434
                endif
 
                !smp_node_lf = max(smpsc(veg_pp%itype(p)), -sucsat(c,j)*(h2osoi_vol(c,j)/watsat(c,j))**(-bsw(c,j)))
@@ -410,7 +414,7 @@ contains
          do f = 1, fn
             p = filterp(f)
             if (btran(p) > btran0) then
-               rootr(p,j) = rootr(p,j)/btran(p)
+               rootr(p,j) = rootr(p,j)/btran(p) !why is this divided by btran? SLL, see comment in line 413
             else
                rootr(p,j) = 0._r8
             end if
