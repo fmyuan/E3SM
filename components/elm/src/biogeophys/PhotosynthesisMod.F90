@@ -411,7 +411,8 @@ contains
          i_vcmax       => veg_vp%i_vc                          , &
          s_vcmax       => veg_vp%s_vc                          , &
          h2o_moss_wc   => veg_ws%h2o_moss_wc                  , & !Input: [real(r8) (:)   ]  Total Moss water content
-         h2osfc        => col_ws%h2osfc                         & !Input: [real(r8) (:)   ]  Surface water
+         h2osfc        => col_ws%h2osfc                       , & !Input: [real(r8) (:)   ]  Surface water
+         salinity      => col_ws%salinity                        & ! Input:  [real(r8) (:)   ]  salinity (SLL 4/9/2021)
          )
 
       if (phase == 'sun') then !sun
@@ -536,6 +537,13 @@ contains
            bbb(p) = max (bbbopt(p)*btran(p), 1._r8)
            mbb(p) = mbbopt(p)
          end if
+#elseif (defined MARSH) !SLL adding salinity function
+         for veg_pp%itype(p)
+         osm_inhib(p) = 1-salinity/(KM_salinity(p)+salinity)
+            if salinity .gt.sal_threshold(p) then
+               btran(p) = btran(p)*osm_inhib(p) &
+               bbb(p) = bbb(p)*btran(p)
+            end if
 #else
          bbb(p) = max (bbbopt(p)*btran(p), 1._r8)
          mbb(p) = mbbopt(p)
@@ -812,7 +820,7 @@ contains
             ! Adjust for soil water
 
             vcmax_z(p,iv) = vcmax_z(p,iv) * btran(p)
-            lmr_z(p,iv) = lmr_z(p,iv) * btran(p)
+            lmr_z(p,iv) = lmr_z(p,iv) * btran(p) !will this carry over from the earlier if marsh statement? -SLL 4-8-21
 
             ! output variable
             vcmax25_top(p) = vcmax25top
