@@ -1463,10 +1463,11 @@ contains
           avgflag='A', long_name='surface water depth', &
            ptr_col=this%h2osfc)
 
-    this%salinity(begc:endc) = spval
+   !SLL added 4/15/21
+   this%salinity(begc:endc) = spval
     call hist_addfld1d (fname='SALINITY',  units='ppt',  &
-          avgflag='A', long_name='surface water salinity', &
-          ptr_col=this%salinity)
+         avgflag='A', long_name='Salinity concentration', &
+         ptr_col=this%salinity)
 
     this%h2osoi_vol(begc:endc,:) = spval
      call hist_addfld2d (fname='H2OSOI',  units='mm3/mm3', type2d='levgrnd', &
@@ -5489,6 +5490,12 @@ contains
     call hist_addfld1d (fname='QFLX_LAT_AQU',  units='mm/s',  &
          avgflag='A', long_name='Lateral flow between hummock and hollow', &
          ptr_col=this%qflx_lat_aqu, c2l_scale_type='urbanf')
+
+   !SLL added 4/15/21
+   this%qflx_tide(begc:endc) = spval
+    call hist_addfld1d (fname='QFLX_TIDE',  units='mm H2O/s',  &
+         avgflag='A', long_name='Tidal flux between marsh columns', &
+         ptr_col=this%qflx_tide)
 #endif 
 
    this%qflx_adv(begc:endc,:) = spval

@@ -374,6 +374,7 @@ contains
      integer  :: days, seconds               !
      integer  :: ii
      real(r8) :: h2osfc_tide
+     real(r8) :: h2osfc_before
      !-----------------------------------------------------------------------
 
      associate(                                                                &
@@ -429,7 +430,7 @@ contains
           icefrac              =>    soilhydrology_vars%icefrac_col          , & ! Output: [real(r8) (:,:) ]  fraction of ice
           h2osoi_vol           =>    col_ws%h2osoi_vol                       , & ! Input: [real(r8) (:,:) ]  volumetric soil water (0<=h2osoi_vol<=watsat) [m3/m3]
           salinity             =>    col_ws%salinity                         , & ! Input: [real(r8), (:)] ppt
-          zi                   =>    col_pp%zi                                 & ! Input: [real(r8) (:,:) ]  interface level below a "z" level (m)           
+          zi                   =>    col_pp%zi                                 & ! Input: [real(r8) (:,:) ]  interface level below a "z" level (m)
               )
 
 
@@ -580,6 +581,16 @@ contains
              else if (c .eq. 2) then
                 qflx_h2osfc_surf(c) = 0._r8
 
+                ! bsulman : Changed to use flexible set of parameters up to full NOAA tidal components (37 coefficients)
+                ! Tidal cycle is the sum of all the sinusoidal components
+               h2osfc_before = h2osfc(c)
+               h2osfc(c) = 0.0_r8
+                do ii=1,num_tide_comps
+                  h2osfc(c) =    h2osfc(c)    +  tide_coeff_amp(ii) * sin(2.0_r8*SHR_CONST_PI*(1/tide_coeff_period(ii)*(days*secspday+seconds) + tide_coeff_phase(ii)))
+                enddo
+                h2osfc(c) = max(h2osfc(c) + tide_baseline, 0.0)
+                qflx_tide(c) = (h2osfc(c)-h2osfc_before)/dtime             
+
 #else
              if(h2osfc(c) >= h2osfc_thresh(c) .and. h2osfcflag/=0) then
                 ! spatially variable k_wet
@@ -674,6 +685,7 @@ contains
                  qflx_lat_aqu(2) = -2._r8/(1._r8/ka_hu+1._r8/ka_ho) * (zwt_hu-zwt_ho- &
                      humhol_ht) / humhol_dist * sqrt(hum_frac/hol_frac)
                endif
+<<<<<<< HEAD
                ! bsulman : Changed to use flexible set of parameters up to full NOAA tidal components (37 coefficients)
                ! Tidal cycle is the sum of all the sinusoidal components
 #ifdef MARSH
@@ -705,8 +717,7 @@ contains
                   qflx_lat_aqu(2) = qflx_lat_aqu(2) + min((h2osfc(1)-(h2osfc(2)-humhol_ht*1000.0))*sfcflow_ratescale,h2osfc(1)*0.5/dtime)
                   qflx_lat_aqu(1) = qflx_lat_aqu(1) - min((h2osfc(1)-(h2osfc(2)-humhol_ht*1000.0))*sfcflow_ratescale,h2osfc(1)*0.5/dtime)
                 endif
-#endif
-             endif
+               salinity = 30+10*qflx_lat_aqu(c) !30 is from 30 ppt salt in seawater -SLL
 #endif
 
 
