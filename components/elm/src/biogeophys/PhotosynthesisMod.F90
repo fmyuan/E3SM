@@ -412,7 +412,10 @@ contains
          s_vcmax       => veg_vp%s_vc                          , &
          h2o_moss_wc   => veg_ws%h2o_moss_wc                  , & !Input: [real(r8) (:)   ]  Total Moss water content
          h2osfc        => col_ws%h2osfc                       , & !Input: [real(r8) (:)   ]  Surface water
-         salinity      => col_ws%salinity                       & !Input: [real(r8) (:)   ]  salinity (SLL 4/9/2021)
+         salinity      => col_ws%salinity                     , & !Input: [real(r8) (:)   ]  salinity (SLL 4/9/2021)
+         sal_threshold => veg_vp%sal_threshold                 , & !Input: [real(r8) (:)   ] Threshold salinity concentration to trigger osmotic inhibition (ppt)
+         KM_salinity   => veg_vp%KM_salinity                   , & !Input: [real(r8) (:)   ] half saturation constant for osmotic inhibition function
+         osm_inhib     => veg_vp%osm_inhib        
          )
 
       if (phase == 'sun') then !sun
@@ -537,13 +540,15 @@ contains
            bbb(p) = max (bbbopt(p)*btran(p), 1._r8)
            mbb(p) = mbbopt(p)
          end if
-#elseif (defined MARSH) !SLL adding salinity function
-         for veg_pp%itype(p)
-         osm_inhib(p) = 1-salinity/(KM_salinity(p)+salinity)
-            if salinity .gt.sal_threshold(p) then
-               btran(p) = btran(p)*osm_inhib(p) &
-               bbb(p) = bbb(p)*btran(p)
-            end if
+#elseif (defined MARSH)
+         salinity(c) = 30.0_r8
+         if (salinity(c) > sal_threshold(p)) then
+            btran(p) = (btran(p)*(1-salinity(c)/(KM_salinity(p)+salinity(c))))
+            bbb(p) = (bbbopt(p)*btran(p))
+         else
+            bbb(p) = max (bbbopt(p)*btran(p), 1._r8)
+            mbb(p) = mbbopt(p)
+         end if
 #else
          bbb(p) = max (bbbopt(p)*btran(p), 1._r8)
          mbb(p) = mbbopt(p)
@@ -1954,9 +1959,13 @@ contains
          leafp_xfer    => veg_ps%leafp_xfer    , &
          i_vcmax       => veg_vp%i_vc                          , &
          s_vcmax       => veg_vp%s_vc                          , &
-         bsw           => soilstate_inst%bsw_col                , & ! Input:  [real(r8) (:,:) ]  Clapp and Hornberger "b"
-         sucsat        => soilstate_inst%sucsat_col             ,  & ! Input:  [real(r8) (:,:) ]  minimum soil suction (mm)
-         ivt           => veg_pp%itype                             & ! Input:  [integer  (:)   ]  patch vegetation type
+         bsw           => soilstate_inst%bsw_col               , & ! Input:  [real(r8) (:,:) ]  Clapp and Hornberger "b"
+         sucsat        => soilstate_inst%sucsat_col            , & ! Input:  [real(r8) (:,:) ]  minimum soil suction (mm)
+         ivt           => veg_pp%itype                         , & ! Input:  [integer  (:)   ]  patch vegetation type
+         salinity      => col_ws%salinity                      , & ! Input:  [real(r8) (:)   ] salinity ppt
+         sal_threshold => veg_vp%sal_threshold                 , & !Input: [real(r8) (:)   ] Threshold salinity concentration to trigger osmotic inhibition (ppt)
+         KM_salinity   => veg_vp%KM_salinity                   , & !Input: [real(r8) (:)   ] half saturation constant for osmotic inhibition function
+         osm_inhib     => veg_vp%osm_inhib                       & !Input: [real(r8) (:)   ] osmotic inhibition factor
       )
       an_sun        =>    photosyns_inst%an_sun_patch         ! Output: [real(r8) (:,:) ]  net sunlit leaf photosynthesis (umol CO2/m**2/s)
       an_sha        =>    photosyns_inst%an_sha_patch         ! Output: [real(r8) (:,:) ]  net shaded leaf photosynthesis (umol CO2/m**2/s)
@@ -2120,8 +2129,14 @@ contains
 
          ! Soil water stress applied to Ball-Berry parameters
 
-         bbb(p) = bbbopt(p)
-         mbb(p) = mbbopt(p)
+!#if (defined MARSH)
+         !SLL add osm_inhib function here
+         !if (salinity(c) > sal_threshold(veg_pp%itype(p))) then
+         !osm_inhib(veg_pp%itype(p)) = (1-salinity(c)/(KM_salinity(veg_pp%itype(p))+salinity(c)))
+         !   bbb(p) = max (bbbopt(p)*btran(p)*(osm_inhib(veg_pp%itype(p))), 1._r8)
+         !   mbb(p) = mbbopt(p)
+         !end if
+!#endif
 
          ! kc, ko, cp, from: Bernacchi et al (2001) Plant, Cell and Environment
          ! 24:253-259
@@ -2718,16 +2733,15 @@ contains
          !KO  Here's how I'm combining bsun and bsha to get btran
          !KO  But this is not really an indication of soil moisture stress that can be
          !KO  used for, e.g., irrigation?
-         if ( laican_sha+laican_sun > 0._r8 ) then
-            btran(p) = bsun(p) * (laican_sun / (laican_sun + laican_sha)) + &
-                       bsha(p) * (laican_sha / (laican_sun + laican_sha))
-         else
-            !KO  Btran has a valid value even if there is no exposed lai (elai=0).
-            !KO  In this case, bsun and bsha should have the same value and btran
+         !if ( laican_sha+laican_sun > 0._r8 ) then
+            !btran(p) = bsun(p) * (laican_sun / (laican_sun + laican_sha)) + &
+                       !bsha(p) * (laican_sha / (laican_sun + laican_sha))         
+         !else
+            !KO  Btran has a valid value even if there is no exposed lai (elai=0).  
+            !KO  In this case, bsun and bsha should have the same value and btran 
             !KO  can be set to either bsun or bsha.  But this needs to be checked.
-            btran(p) = bsun(p)
-         end if
-
+            !btran(p) = bsun(p)
+         !end if
       end do
 
     end associate
