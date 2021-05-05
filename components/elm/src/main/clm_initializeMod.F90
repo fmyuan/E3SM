@@ -435,6 +435,7 @@ contains
     use SoilWaterRetentionCurveFactoryMod   , only : create_soil_water_retention_curve
     use clm_varctl                          , only : use_clm_interface, use_pflotran
     use clm_interface_pflotranMod           , only : clm_pf_interface_init !, clm_pf_set_restart_stamp
+    use clm_varctl                          , only : pf_cmode, pf_tmode, pf_hmode
     use tracer_varcon         , only : is_active_betr_bgc    
     use clm_time_manager      , only : is_restart
     use ALMbetrNLMod          , only : betr_namelist_buffer
@@ -930,6 +931,10 @@ contains
         ! PFLOTRAN initialization
         if (use_pflotran) then
             call clm_pf_interface_init(bounds_proc)
+            write(iulog,*) 'PFLOTRAN options:'
+            write(iulog,*) 'bgc coupling          - ', pf_cmode
+            write(iulog,*) 'thermal coupling      - ', pf_tmode
+            write(iulog,*) 'hydrological coupling - ', pf_hmode
         end if
     end if
     call t_stopf('init_clm_interface_data & pflotran')

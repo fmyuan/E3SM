@@ -13,6 +13,7 @@ module SoilLittDecompMod
   use clm_varctl             , only : iulog, use_nitrif_denitrif, use_lch4, use_century_decomp
   use clm_varcon             , only : dzsoi_decomp
   use clm_varpar             , only : nlevdecomp, ndecomp_cascade_transitions, ndecomp_pools
+  use clm_varpar             , only : nlevdecomp_full
   use DecompCascadeCNMod   , only : decomp_rate_constants_cn
   use DecompCascadeBGCMod  , only : decomp_rate_constants_bgc
   use CNNitrifDenitrifMod    , only : nitrif_denitrif
@@ -948,7 +949,7 @@ contains
 
    do fc = 1,num_soilc
       c = filter_soilc(fc)
-      do j = 1,nlevdecomp
+      do j = 1,nlevdecomp_full
          do k = 1, ndecomp_cascade_transitions
             decomp_cascade_ctransfer_vr(c,j,k) = 0._r8
             decomp_cascade_ntransfer_vr(c,j,k) = 0._r8
@@ -960,9 +961,6 @@ contains
 
    ! pflotran not yet support phosphous cycle
    !if (cnallocate_carbon_only() .or. cnallocate_carbonnitrogen_only() ) then
-      call veg_ps%SetValues(num_patch=num_soilp,  filter_patch=filter_soilp,  value_patch=0._r8)
-      call col_ps%SetValues(num_column=num_soilc, filter_column=filter_soilc, value_column=0._r8)      
-
       call veg_pf%SetValues(num_patch=num_soilp,  filter_patch=filter_soilp,  value_patch=0._r8)
       call col_pf%SetValues(num_column=num_soilc, filter_column=filter_soilc, value_column=0._r8)
    !end if
