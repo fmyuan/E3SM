@@ -644,11 +644,42 @@ contains
        ! ============================================================================
 
        call t_startf('canhydro')
+
+#if 1
+       if (.not. use_noio) then
+          ! Write restart/initial files as pre-subroutine's initials
+          filer = restFile_filename(rdate=rdate)
+          call restFile_write( bounds_proc, filer,                                            &
+               atm2lnd_vars, aerosol_vars, canopystate_vars, cnstate_vars,                    &
+               carbonstate_vars, c13_carbonstate_vars, c14_carbonstate_vars, carbonflux_vars, &
+               ch4_vars, energyflux_vars, frictionvel_vars, lakestate_vars,        &
+               nitrogenstate_vars, nitrogenflux_vars, photosyns_vars, soilhydrology_vars,     &
+               soilstate_vars, solarabs_vars, surfalb_vars, temperature_vars,                 &
+               waterflux_vars, waterstate_vars, sedflux_vars,                                 &
+               phosphorusstate_vars,phosphorusflux_vars,                                      &
+               ep_betr, alm_fates, crop_vars, rdate=rdate )
+       endif
+#endif
+
        call CanopyHydrology(bounds_clump, &
             filter(nc)%num_nolakec, filter(nc)%nolakec, &
             filter(nc)%num_nolakep, filter(nc)%nolakep, &
             atm2lnd_vars, canopystate_vars, temperature_vars, &
             aerosol_vars, waterstate_vars, waterflux_vars)
+
+#if 1
+    ! History output, after subroutine called
+    call hist_update_hbuf(bounds_proc)
+    if (.not. use_noio) then
+       ! Create history and write history tapes if appropriate
+       call hist_htapes_wrapup( rstwr, nlend, bounds_proc,                    &
+            soilstate_vars%watsat_col(bounds_proc%begc:bounds_proc%endc, 1:), &
+            soilstate_vars%sucsat_col(bounds_proc%begc:bounds_proc%endc, 1:), &
+            soilstate_vars%bsw_col(bounds_proc%begc:bounds_proc%endc, 1:),    &
+            soilstate_vars%hksat_col(bounds_proc%begc:bounds_proc%endc, 1:))
+    end if
+#endif
+
        call t_stopf('canhydro')
 
        ! ============================================================================
@@ -1452,6 +1483,7 @@ contains
             budget_ann,  budget_ltann,  budget_ltend)
     endif
 
+#if 0
     ! ============================================================================
     ! History/Restart output
     ! ============================================================================
@@ -1499,6 +1531,7 @@ contains
        call t_stopf('elm_drv_io')
 
     end if
+#endif
 
     if (use_pflotran .and. nstep>=nestep) then
        call elm_pf_finalize()
