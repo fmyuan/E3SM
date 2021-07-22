@@ -197,7 +197,7 @@ module CNPBudgetMod
        ' Total wood product', &
        '    Truncation sink', &
        '  Crop seed deficit', &
-       '     Grid-level Err'  &
+       '              TOTAL'  &
        /)
 
   ! N
@@ -387,29 +387,21 @@ contains
              budg_fluxL(:,ip)  = 0.0_r8
              budg_fluxG(:,ip)  = 0.0_r8
              budg_fluxN(:,ip)  = 0.0_r8
-             budg_stateL(:,ip) = 0.0_r8
-             budg_stateG(:,ip) = 0.0_r8
           endif
           if (ip==p_day .and. sec==0) then
              budg_fluxL(:,ip)  = 0.0_r8
              budg_fluxG(:,ip)  = 0.0_r8
              budg_fluxN(:,ip)  = 0.0_r8
-             budg_stateL(:,ip) = 0.0_r8
-             budg_stateG(:,ip) = 0.0_r8
           endif
           if (ip==p_mon .and. day==1 .and. sec==0) then
              budg_fluxL(:,ip)  = 0.0_r8
              budg_fluxG(:,ip)  = 0.0_r8
              budg_fluxN(:,ip)  = 0.0_r8
-             budg_stateL(:,ip) = 0.0_r8
-             budg_stateG(:,ip) = 0.0_r8
           endif
           if (ip==p_ann .and. mon==1 .and. day==1 .and. sec==0) then
              budg_fluxL(:,ip)  = 0.0_r8
              budg_fluxG(:,ip)  = 0.0_r8
              budg_fluxN(:,ip)  = 0.0_r8
-             budg_stateL(:,ip) = 0.0_r8
-             budg_stateG(:,ip) = 0.0_r8
           endif
           if (ip==p_inf .and. get_nstep()==1) then
              budg_fluxL(:,ip)  = 0.0_r8
@@ -630,7 +622,7 @@ contains
          end_totprodc              => grc_cs%end_totprodc          , & ! Input: [real(r8) (:)] (gC/m2) total column wood product carbon
          end_ctrunc                => grc_cs%end_ctrunc            , & ! Input: [real(r8) (:)] (gC/m2) total column truncation carbon sink
          end_cropseedc_deficit     => grc_cs%end_cropseedc_deficit , & ! Input: [real(r8) (:)] (gC/m2) column carbon pool for seeding new growth
-         errcb                     => grc_cs%errcb                 , & ! Input: [real(r8) (:)] (gC/m^2) carbon mass balance error
+         errcb                     => grc_cs%errcb                 , & ! Input: [real(r8) (:)] (gC/m^2/s)total SOM C loss by erosion
          gpp                       => grc_cf%gpp                   , & ! Input: [real(r8) (:)] (gC/m2/s) gross primary production
          er                        => grc_cf%er                    , & ! Input: [real(r8) (:)] (gC/m2/s) total ecosystem respiration, autotrophic + heterotrophic
          fire_closs                => grc_cf%fire_closs            , & ! Input: [real(r8) (:)] (gC/m2/s) total column-level fire C loss
@@ -865,9 +857,7 @@ contains
     ! !LOCAL VARIABLES:
     integer :: f, s, s_beg, s_end ! data array indicies
     real(r8) :: time_integrated_flux, state_net_change
-    real(r8) :: relative_error
-    real(r8), parameter :: error_tol = 0.01_r8
-    real(r8), parameter :: relative_error_tol = 1.e-10_r8 ! [%]
+    real(r8), parameter :: error_tol = 0.01_r8, error_tol_orig = 1.0e-8_r8
 
     write(iulog,*   )''
     write(iulog,*   )'NET CARBON FLUXES : period ',trim(pname(ip)),': date = ',cdate,sec
@@ -903,7 +893,7 @@ contains
             budg_stateG(s_end,ip)*unit_conversion, &
             (budg_stateG(s_end,ip) - budg_stateG(s_beg,ip))*unit_conversion
     end do
-    write(iulog,C_FS_2)c_s_name(c_s_name_size),0._r8, budg_stateG(s_c_error,ip) *unit_conversion, &
+    write(iulog,C_FS_2)'Grid-level Err',0._r8, budg_stateG(s_c_error,ip) *unit_conversion, &
        budg_stateG(s_c_error,ip) *unit_conversion
 
 
@@ -924,13 +914,13 @@ contains
     state_net_change = (budg_stateG(s_totc_end, ip) - budg_stateG(s_totc_beg, ip))*unit_conversion + &
          budg_stateG(s_c_error,ip) *unit_conversion
 
-    relative_error = abs(time_integrated_flux - state_net_change)/(budg_stateG(s_totc_end, ip)*unit_conversion) * 100._r8
-
-    if (relative_error > relative_error_tol) then
+    ! The error tolerance is 1.e-8 (kg/m2) in EcosystemBalanceCheckMod.F90,
+    ! It's better to be consistent. Note: 1.e-8*unit_conversion is ~0.79.
+    !if (abs(time_integrated_flux - state_net_change) > error_tol) then
+    if (abs(time_integrated_flux - state_net_change) > error_tol_orig*unit_conversion) then
        write(iulog,*)'time integrated flux = ',time_integrated_flux
        write(iulog,*)'net change in state  = ',state_net_change
-       write(iulog,*)'current state        = ',budg_stateG(s_totc_end, ip)
-       write(iulog,*)'relative error [%]   = ',relative_error
+       write(iulog,*)'error                = ',abs(time_integrated_flux - state_net_change)
        call endrun(msg=errMsg(__FILE__, __LINE__))
     endif
 
