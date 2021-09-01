@@ -10,5 +10,6 @@ module EMI_CNNitrogenStateType_Constants
   integer, parameter, public :: E2L_STATE_NITROGEN_POOLS_VERTICALLY_RESOLVED  = 2104
   integer, parameter, public :: E2L_STATE_NH4_VERTICALLY_RESOLVED             = 2105
   integer, parameter, public :: E2L_STATE_NO3_VERTICALLY_RESOLVED             = 2106
+  integer, parameter, public :: E2L_STATE_DON_VERTICALLY_RESOLVED             = 2107
 
 end module EMI_CNNitrogenStateType_Constants

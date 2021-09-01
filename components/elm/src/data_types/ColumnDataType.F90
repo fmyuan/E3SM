@@ -221,7 +221,13 @@ module ColumnDataType
     real(r8), pointer :: totlitc_end          (:)    => null()
     real(r8), pointer :: totsomc_end          (:)    => null()
     real(r8), pointer :: decomp_som2c_vr      (:,:)  => null()
-    real(r8), pointer :: cropseedc_deficit    (:)    => null()
+    real(r8), pointer :: cropseedc_deficit    (:)    => null()    
+    real(r8), pointer :: DOC_vr               (:,:)  => null() ! gC/m2
+    real(r8), pointer :: DIC_vr               (:,:)  => null() ! gC/m2
+    real(r8), pointer :: totDOC               (:)  => null() ! gC/m2
+    real(r8), pointer :: totDIC               (:)  => null() ! gC/m2
+    real(r8), pointer :: SIC_vr               (:,:) => null() ! Soil inorganic C (carbonates) gC/m3
+    real(r8), pointer :: totSIC               (:)  => null()  ! gC/m2
 
   contains
     procedure, public :: Init    => col_cs_init
@@ -247,6 +253,8 @@ module ColumnDataType
     real(r8), pointer :: smin_nh4                 (:)     => null() ! (gN/m2) soil mineral NH4 pool
     real(r8), pointer :: smin_nh4sorb             (:)     => null() ! (gN/m2) soil mineral NH4 pool absorbed
     real(r8), pointer :: sminn                    (:)     => null() ! (gN/m2) soil mineral N
+    real(r8), pointer :: DON_vr                   (:,:)   => null() ! (gN/m3) vertically-resolved DON
+    real(r8), pointer :: totDON                   (:)     => null() ! (gN/m2) soil total DON
     real(r8), pointer :: ntrunc                   (:)     => null() ! (gN/m2) column-level sink for N truncation
     real(r8), pointer :: cwdn                     (:)     => null() ! (gN/m2) Diagnostic: coarse woody debris N
     real(r8), pointer :: totlitn                  (:)     => null() ! (gN/m2) total litter nitrogen
@@ -642,6 +650,9 @@ module ColumnDataType
     real(r8), pointer :: f_co2_soil_vr                         (:,:)   => null() ! total vertically-resolved soil-atm. CO2 exchange (gC/m3/s)
     real(r8), pointer :: f_co2_soil                            (:)     => null() ! total soil-atm. CO2 exchange (gC/m2/s)
 
+    real(r8), pointer :: DOC_runoff                            (:)     => null() ! column dissolved organic carbon runoff (gC/m2/s)
+    real(r8), pointer :: DIC_runoff                            (:)     => null() ! column dissolved inorganic carbon runoff (gC/m2/s)
+
   contains
     procedure, public :: Init       => col_cf_init
     procedure, public :: Restart    => col_cf_restart
@@ -761,6 +772,7 @@ module ColumnDataType
     real(r8), pointer :: smin_no3_runoff                       (:)     => null() ! soil mineral NO3 pool loss to runoff (gN/m2/s)
     real(r8), pointer :: smin_nh4_runoff                       (:)     => null() 
     real(r8), pointer :: nh3_soi_flx                           (:)     => null()
+    real(r8), pointer :: DON_runoff                            (:)     => null() ! soil dissolved organic nitrogen pool loss to runoff (gN/m2/s)
     ! nitrification /denitrification diagnostic quantities
     real(r8), pointer :: smin_no3_massdens_vr                  (:,:)   => null() ! (ugN / g soil) soil nitrate concentration
     real(r8), pointer :: soil_bulkdensity                      (:,:)   => null() ! (kg soil / m3) bulk density of soil
@@ -1995,8 +2007,8 @@ contains
     allocate(this%totcolc              (begc:endc))     ; this%totcolc              (:)     = spval
     allocate(this%totblgc              (begc:endc))     ; this%totblgc              (:)     = spval
     allocate(this%totvegc_abg          (begc:endc))     ; this%totvegc_abg          (:)     = spval
-    allocate(this%begcb                (begc:endc))     ; this%begcb                (:)     = spval 
-    allocate(this%endcb                (begc:endc))     ; this%endcb                (:)     = spval 
+    allocate(this%begcb                (begc:endc))     ; this%begcb                (:)     = spval
+    allocate(this%endcb                (begc:endc))     ; this%endcb                (:)     = spval
     allocate(this%errcb                (begc:endc))     ; this%errcb                (:)     = spval
     allocate(this%totpftc_beg          (begc:endc))     ; this%totpftc_beg          (:)     = spval
     allocate(this%cwdc_beg             (begc:endc))     ; this%cwdc_beg             (:)     = spval
@@ -2019,6 +2031,12 @@ contains
     allocate(this%totsomc_1m           (begc:endc))     ; this%totsomc_1m           (:)     = spval
     allocate(this%totlitc              (begc:endc))     ; this%totlitc              (:)     = spval
     allocate(this%totsomc              (begc:endc))     ; this%totsomc              (:)     = spval
+    allocate(this%DOC_vr    (begc:endc,1:nlevdecomp_full))                   ; this%DOC_vr    (:,:)   = 0.0_r8
+    allocate(this%DIC_vr    (begc:endc,1:nlevdecomp_full))                   ; this%DIC_vr    (:,:)   = 0.0_r8
+    allocate(this%totDOC    (begc:endc))                   ; this%totDOC    (:)   = 0.0_r8
+    allocate(this%totDIC    (begc:endc))                   ; this%totDIC    (:)   = 0.0_r8
+    allocate(this%SIC_vr    (begc:endc,1:nlevdecomp_full)) ; this%SIC_vr    (:,:) = 0.0_r8
+    allocate(this%totSIC    (begc:endc))                   ; this%totSIC    (:)   = 0.0_r8
 
     !-----------------------------------------------------------------------
     ! initialize history fields for select members of col_cs
@@ -2138,6 +2156,23 @@ contains
 
 
        end if
+
+      if(use_alquimia) then
+         this%DOC_vr(begc:endc,:) = spval
+         call hist_addfld2d (fname='DOC_vr', units='gC/m^3',  type2d='levdcmp', &
+            avgflag='A', long_name='Soil dissolved organic carbon vr', &
+               ptr_col=this%DOC_vr,default='inactive')
+
+         this%DIC_vr(begc:endc,:) = spval
+         call hist_addfld2d (fname='DIC_vr', units='gC/m^3',  type2d='levdcmp', &
+            avgflag='A', long_name='Soil dissolved inorganic carbon vr', &
+               ptr_col=this%DIC_vr,default='inactive')
+
+         this%SIC_vr(begc:endc,:) = spval
+         call hist_addfld2d (fname='SIC_vr', units='gC/m^3',  type2d='levdcmp', &
+            avgflag='A', long_name='Soil inorganic carbon vr', &
+               ptr_col=this%SIC_vr,default='inactive')
+      endif
 
     else if ( carbon_type == 'c13' ) then
        this%decomp_cpools_vr(begc:endc,:,:) = spval
@@ -3056,6 +3091,14 @@ contains
        end do
     end do
 
+    do fc = 1, num_soilc
+      c = filter_soilc(fc)
+      this%totDOC(c) = dot_sum(this%DOC_vr(c,1:nlevdecomp),dzsoi_decomp(1:nlevdecomp)) 
+      this%totDIC(c) = dot_sum(this%DIC_vr(c,1:nlevdecomp),dzsoi_decomp(1:nlevdecomp)) 
+      this%totSIC(c) = dot_sum(this%SIC_vr(c,1:nlevdecomp),dzsoi_decomp(1:nlevdecomp)) 
+   enddo
+   ! write(iulog,*),'totSIC =',this%totSIC(c),'totDIC =',this%totDIC(c),'totDOC =',this%totDOC(c)
+
     do fc = 1,num_soilc
        c = filter_soilc(fc)
 
@@ -3070,6 +3113,8 @@ contains
             this%cwdc(c)     + &
             this%totlitc(c)  + &
             this%totsomc(c)  + &
+            this%totDIC(c) + this%totDOC(c) + &  ! For alquimia, also include DIC and DOC here. Should be zero otherwise
+            this%totSIC(c) + &
             this%totprodc(c) + &
             this%totvegc(c)
 
@@ -3082,6 +3127,8 @@ contains
             this%totlitc(c)  + &
             this%totsomc(c)  + &
             this%totprodc(c) + &
+            this%totDIC(c) + this%totDOC(c) + &  ! For alquimia, also include DIC and DOC here. Should be zero otherwise
+            this%totSIC(c) + &
             this%ctrunc(c)   + &
             this%cropseedc_deficit(c)
 
@@ -3166,6 +3213,8 @@ contains
     allocate(this%smin_no3_vr           (begc:endc,1:nlevdecomp_full))   ; this%smin_no3_vr           (:,:) = spval
     allocate(this%smin_nh4_vr           (begc:endc,1:nlevdecomp_full))   ; this%smin_nh4_vr           (:,:) = spval
     allocate(this%smin_nh4sorb_vr       (begc:endc,1:nlevdecomp_full))   ; this%smin_nh4sorb_vr       (:,:) = spval
+    allocate(this%DON_vr                (begc:endc,1:nlevdecomp_full))   ; this%DON_vr                (:,:) = 0.0_r8
+    allocate(this%totDON                (begc:endc))                     ; this%totDON                (:)   = 0.0_r8
     allocate(this%decomp_npools         (begc:endc,1:ndecomp_pools))     ; this%decomp_npools         (:,:) = spval
     allocate(this%decomp_npools_1m      (begc:endc,1:ndecomp_pools))     ; this%decomp_npools_1m      (:,:) = spval
     allocate(this%smin_no3              (begc:endc))                     ; this%smin_no3              (:)   = spval
@@ -3305,6 +3354,14 @@ contains
             avgflag='A', long_name='soil mineral NH4 absorbed (vert. res.)', &
             ptr_col=this%smin_nh4sorb_vr)
     end if
+
+    if(use_alquimia) then
+       this%DON_vr(begc:endc,:) = spval
+       call hist_addfld2d (fname='DON_vr', units='gN/m^2',  type2d='levdcmp', &
+            avgflag='A', long_name='Soil dissolved organic nitrogen vr', &
+            ptr_col=this%DON_vr,default='inactive')
+
+    endif
 
     if ( nlevdecomp_full > 1 ) then
        this%smin_no3(begc:endc) = spval
@@ -3793,6 +3850,7 @@ contains
           if(use_pflotran .and. pf_cmode) then
              this%smin_nh4sorb_vr(i,j) = value_column
           end if
+          if(use_alquimia) this%DON_vr(i,j) = value_column
        end do
     end do
 
@@ -3863,6 +3921,14 @@ contains
        end do
     end do
 
+
+     if(use_alquimia) then
+      do fc = 1, num_soilc
+         c = filter_soilc(fc)
+         this%totDON(c) = dot_sum(this%DON_vr(c,1:nlevdecomp),dzsoi_decomp(1:nlevdecomp)) 
+      enddo
+     endif
+     
     ! vertically integrate each of the decomposing N pools
     do l = 1, ndecomp_pools
        do fc = 1,num_soilc
@@ -4036,6 +4102,7 @@ contains
             this%totlitn(c) + &
             this%totsomn(c) + &
             this%sminn(c) + &
+            this%totDON(c) + &
             this%totprodn(c) + &
             this%totvegn(c)
 
@@ -4049,6 +4116,7 @@ contains
             this%totsomn(c) + &
             this%sminn(c) + &
             this%totprodn(c) + &
+            this%totDON(c) + &
             this%ntrunc(c)+ &
             this%plant_n_buffer(c) + &
             this%cropseedn_deficit(c)
@@ -4064,6 +4132,7 @@ contains
             this%cwdn(c) + &
             this%totlitn(c) + &
             this%totsomn(c) + &
+            this%totDON(c) + &
             this%sminn(c)
     end do
 
@@ -5764,6 +5833,8 @@ contains
     allocate(this%externalc_to_decomp_delta         (begc:endc))                  ; this%externalc_to_decomp_delta    (:)   = spval
     allocate(this%f_co2_soil_vr                     (begc:endc,1:nlevdecomp_full)); this%f_co2_soil_vr                (:,:) = spval
     allocate(this%f_co2_soil                        (begc:endc))                  ; this%f_co2_soil                   (:)   = spval
+    allocate(this%DOC_runoff                        (begc:endc))                  ; this%DOC_runoff                   (:)   = 0.0_r8
+    allocate(this%DIC_runoff                        (begc:endc))                  ; this%DIC_runoff                   (:)   = 0.0_r8
 
     !-----------------------------------------------------------------------
     ! initialize history fields for select members of col_cf
@@ -6104,6 +6175,18 @@ contains
                 avgflag='A', long_name='total vertically resolved soil-atm. CO2 exchange', &
                  ptr_col=this%f_co2_soil_vr)
        endif
+
+       if(use_alquimia) then
+         this%DOC_runoff(begc:endc) = spval
+         call hist_addfld1d (fname='DOC_RUNOFF', units='gC/m^2/s', &
+              avgflag='A', long_name='total dissolved organic carbon runoff', &
+              ptr_col=this%DOC_runoff,default='inactive')   
+
+         this%DIC_runoff(begc:endc) = spval
+         call hist_addfld1d (fname='DIC_RUNOFF', units='gC/m^2/s', &
+               avgflag='A', long_name='total dissolved inorganic carbon runoff', &
+               ptr_col=this%DIC_runoff,default='inactive')    
+       endif     
 
        this%hr(begc:endc) = spval
         call hist_addfld1d (fname='HR', units='gC/m^2/s', &
@@ -6924,14 +7007,14 @@ contains
        end do
 
 
-    elseif (is_active_betr_bgc .or. use_alquimia) then
-
+    elseif (is_active_betr_bgc) then
        do fc = 1, num_soilc
           c = filter_soilc(fc)
           this%hr(c) = dot_sum(this%hr_vr(c,1:nlevdecomp),dzsoi_decomp(1:nlevdecomp))
        enddo
     endif
-
+    ! Alquimia should have directly set this%hr based on calculated surface flux
+    
     ! some zeroing
     do fc = 1,num_soilc
        c = filter_soilc(fc)
@@ -7465,6 +7548,9 @@ contains
        this%vegfire(i)               = value_column
        this%wood_harvestc(i)         = value_column
        this%hrv_xsmrpool_to_atm(i)   = value_column
+
+       this%DOC_runoff               = value_column
+       this%DIC_runoff               = value_column
     end do
 
     do k = 1, ndecomp_pools
@@ -7883,6 +7969,7 @@ contains
     allocate(this%smin_nh4_leached                (begc:endc))                   ; this%smin_nh4_leached               (:)   = spval
     allocate(this%smin_no3_runoff_vr              (begc:endc,1:nlevdecomp_full)) ; this%smin_no3_runoff_vr             (:,:) = spval
     allocate(this%smin_no3_runoff                 (begc:endc))                   ; this%smin_no3_runoff                (:)   = spval
+    allocate(this%DON_runoff                      (begc:endc))                   ; this%DON_runoff                     (:)   = spval
     allocate(this%nh3_soi_flx                     (begc:endc))                   ; this%nh3_soi_flx                     (:)  = spval
     allocate(this%smin_nh4_runoff                 (begc:endc))                   ; this%smin_nh4_runoff                (:)   = spval
     allocate(this%pot_f_nit_vr                    (begc:endc,1:nlevdecomp_full)) ; this%pot_f_nit_vr                   (:,:) = spval
@@ -8262,6 +8349,13 @@ contains
          ptr_col=this%smin_no3_runoff)
 
 
+    if (use_alquimia) then
+      this%DON_runoff(begc:endc) = spval
+      call hist_addfld1d (fname='DON_RUNOFF', units='gN/m^2/s', &
+           avgflag='A', long_name='soil DON pool loss to runoff', &
+           ptr_col=this%DON_runoff,default='inactive')
+    end if
+      
     if ((nlevdecomp_full > 1) .or. (use_pflotran .and. pf_cmode)) then
        this%f_nit_vr(begc:endc,:) = spval
         call hist_addfld_decomp (fname='F_NIT'//trim(vr_suffix), units='gN/m^3/s', type2d='levdcmp', &
@@ -8953,6 +9047,8 @@ contains
        ! Zero p2c column fluxes
        this%fire_nloss(i) = value_column
        this%wood_harvestn(i) = value_column
+
+       if(use_alquimia) this%DON_runoff(i) = value_column
 
        ! bgc-interface
        this%plant_ndemand(i) = value_column

@@ -1277,6 +1277,8 @@ contains
     use EMI_ColumnEnergyStateType_DataMod
     use EMI_ColumnWaterStateType_Constants
     use EMI_ColumnWaterStateType_DataMod
+    use EMI_ColumnWaterFluxType_Constants
+    use EMI_ColumnWaterFluxType_DataMod
     use EMI_Filter_Constants
     use EMI_Landunit_Constants
     use EMI_CNCarbonStateType_DataMod
@@ -1455,6 +1457,14 @@ contains
 
    if (.not.data_found) then
       call EMI_ColumnWaterStateType_DataInfoByID(data_id, id_val, &
+           name_val, long_name_val, units_val, is_int_type, is_real_type, ndim, &
+           dim1_beg_name, dim1_end_name, dim2_beg_name, dim2_end_name, &
+           dim3_beg_name, dim3_end_name, dim4_beg_name, dim4_end_name, &
+           data_found)
+   end if
+
+   if (.not.data_found) then
+      call EMI_ColumnWaterFluxType_DataInfoByID(data_id, id_val, &
            name_val, long_name_val, units_val, is_int_type, is_real_type, ndim, &
            dim1_beg_name, dim1_end_name, dim2_beg_name, dim2_end_name, &
            dim3_beg_name, dim3_end_name, dim4_beg_name, dim4_end_name, &

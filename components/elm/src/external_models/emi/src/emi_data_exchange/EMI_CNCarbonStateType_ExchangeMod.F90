@@ -16,6 +16,7 @@ module EMI_CNCarbonStateType_ExchangeMod
   use EMI_CNCarbonFluxType_Constants
   use EMI_ColumnEnergyStateType_Constants
   use EMI_ColumnWaterStateType_Constants
+  use EMI_ColumnWaterFluxType_Constants
   use EMI_EnergyFluxType_Constants
   use EMI_SoilHydrologyType_Constants
   use EMI_SoilStateType_Constants
@@ -115,6 +116,7 @@ contains
     ! !USES:
     use elm_varpar             , only : nlevdecomp_full
     use elm_varpar             , only : ndecomp_pools
+    use elm_varpar             , only : nlevsoi
     !
     implicit none
     !
@@ -133,7 +135,10 @@ contains
     integer                             :: count
 
     associate(& 
-         decomp_cpools_vr => col_cs%decomp_cpools_vr   &
+         decomp_cpools_vr => col_cs%decomp_cpools_vr , &
+         DOC_vr           => col_cs%DOC_vr           , &
+         DIC_vr           => col_cs%DIC_vr           , &
+         SIC_vr           => col_cs%SIC_vr             &
          )
 
     count = 0
@@ -161,6 +166,33 @@ contains
                    do k = 1, ndecomp_pools
                       decomp_cpools_vr(c,j,k) = cur_data%data_real_3d(c,j,k)
                    enddo
+                enddo
+             enddo
+             cur_data%is_set = .true.
+
+          case (E2L_STATE_DOC_VERTICALLY_RESOLVED)
+             do fc = 1, num_filter
+                c = filter(fc)
+                do j = 1, nlevdecomp_full
+                   DOC_vr(c,j) = cur_data%data_real_2d(c,j)
+                enddo
+             enddo
+             cur_data%is_set = .true.
+
+          case (E2L_STATE_DIC_VERTICALLY_RESOLVED)
+             do fc = 1, num_filter
+                c = filter(fc)
+                do j = 1, nlevdecomp_full
+                   DIC_vr(c,j) = cur_data%data_real_2d(c,j)
+                enddo
+             enddo
+             cur_data%is_set = .true.
+
+          case (E2L_STATE_SOIL_CARBONATE)
+             do fc = 1, num_filter
+                c = filter(fc)
+                do j = 1, nlevsoi
+                   SIC_vr(c,j) = cur_data%data_real_2d(c,j)
                 enddo
              enddo
              cur_data%is_set = .true.
