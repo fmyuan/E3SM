@@ -183,6 +183,28 @@ contains
        dim2_beg_name  =  dimname_one
        dim2_end_name  =  dimname_nlevdecomp_full
        data_found   =  .true.
+
+    case(E2L_FLUX_NO3_RUNOFF)
+       id_val         =  E2L_FLUX_NO3_RUNOFF
+       name_val       =  'NO3 runoff'
+       long_name_val  =  'NO3 runoff: EM to ELM'
+       units_val      =  '[gN/m2/s]'
+       is_real_type   =  .true.
+       ndim           =  1
+       dim1_beg_name  =  dimname_begc
+       dim1_end_name  =  dimname_endc
+       data_found   =  .true.
+
+    case(E2L_FLUX_DON_RUNOFF)
+       id_val         =  E2L_FLUX_DON_RUNOFF
+       name_val       =  'DON runoff'
+       long_name_val  =  'DON runoff: EM to ELM'
+       units_val      =  '[gN/m2/s]'
+       is_real_type   =  .true.
+       ndim           =  1
+       dim1_beg_name  =  dimname_begc
+       dim1_end_name  =  dimname_endc
+       data_found   =  .true.
     end select
     
   end subroutine EMI_CNNitrogenFluxType_DataInfoByID

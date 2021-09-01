@@ -7,3 +7,4 @@ string(APPEND SLIBS " -L${NETCDF_PATH}/lib -Wl,-rpath=${NETCDF_PATH}/lib -lnetcd
 string(APPEND CXX_LIBS " -lstdc++")
 set(MPICXX "mpic++")
 set(SCXX "g++")
+set(ALQUIMIA_PATH "$ENV{HOME}/ELM-alquimia/REDOX-PFLOTRAN/alquimia/build/alquimia")

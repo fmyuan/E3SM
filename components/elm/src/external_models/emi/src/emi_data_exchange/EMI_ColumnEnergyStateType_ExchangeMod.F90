@@ -3,7 +3,7 @@ module EMI_ColumnEnergyStateType_ExchangeMod
   use shr_kind_mod                          , only : r8 => shr_kind_r8
   use shr_log_mod                           , only : errMsg => shr_log_errMsg
   use abortutils                            , only : endrun
-  use clm_varctl                            , only : iulog
+  use elm_varctl                            , only : iulog
   use EMI_DataMod                           , only : emi_data_list, emi_data
   use EMI_DataDimensionMod                  , only : emi_data_dimension_list_type
   use ColumnDataType       , only : column_energy_state
@@ -16,6 +16,7 @@ module EMI_ColumnEnergyStateType_ExchangeMod
   use EMI_CNCarbonFluxType_Constants
   use EMI_ColumnEnergyStateType_Constants
   use EMI_ColumnWaterStateType_Constants
+  use EMI_ColumnWaterFluxType_Constants
   use EMI_EnergyFluxType_Constants
   use EMI_SoilHydrologyType_Constants
   use EMI_SoilStateType_Constants
@@ -42,9 +43,9 @@ contains
     ! Pack data from ALM col_es for EM
     !
     ! !USES:
-    use clm_varpar             , only : nlevgrnd
-    use clm_varpar             , only : nlevsno
-    use clm_varpar             , only : nlevsoi
+    use elm_varpar             , only : nlevgrnd
+    use elm_varpar             , only : nlevsno
+    use elm_varpar             , only : nlevsoi
     !
     implicit none
     !
@@ -146,8 +147,8 @@ contains
     ! Unpack data for ALM col_es from EM
     !
     ! !USES:
-    use clm_varpar             , only : nlevgrnd
-    use clm_varpar             , only : nlevsno
+    use elm_varpar             , only : nlevgrnd
+    use elm_varpar             , only : nlevsno
     !
     implicit none
     !

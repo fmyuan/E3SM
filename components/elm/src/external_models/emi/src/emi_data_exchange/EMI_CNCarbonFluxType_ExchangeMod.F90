@@ -16,6 +16,7 @@ module EMI_CNCarbonFluxType_ExchangeMod
   use EMI_CNCarbonFluxType_Constants
   use EMI_ColumnEnergyStateType_Constants
   use EMI_ColumnWaterStateType_Constants
+  use EMI_ColumnWaterFluxType_Constants
   use EMI_EnergyFluxType_Constants
   use EMI_SoilHydrologyType_Constants
   use EMI_SoilStateType_Constants
@@ -156,7 +157,10 @@ contains
 
     associate(& 
          decomp_cascade_hr_vr => col_cf%decomp_cascade_hr_vr , &
-         hr_vr                => col_cf%hr_vr                  &
+         hr_vr                => col_cf%hr_vr                , &
+         hr                   => col_cf%hr                   , &
+         DIC_runoff           => col_cf%DIC_runoff           , &
+         DOC_runoff           => col_cf%DOC_runoff             &
          )
 
     count = 0
@@ -194,6 +198,27 @@ contains
                 do j = 1, nlevdecomp_full
                    hr_vr(c,j) = cur_data%data_real_2d(c,j)
                 enddo
+             enddo
+             cur_data%is_set = .true.
+
+          case (E2L_FLUX_HETEROTROPHIC_RESP)
+             do fc = 1, num_filter
+                c = filter(fc)
+                hr(c) = cur_data%data_real_1d(c)
+             enddo
+             cur_data%is_set = .true.
+
+          case (E2L_FLUX_DIC_RUNOFF)
+             do fc = 1, num_filter
+                c = filter(fc)
+                DIC_runoff(c) = cur_data%data_real_1d(c)
+             enddo
+             cur_data%is_set = .true.
+
+          case (E2L_FLUX_DOC_RUNOFF)
+             do fc = 1, num_filter
+                c = filter(fc)
+                DOC_runoff(c) = cur_data%data_real_1d(c)
              enddo
              cur_data%is_set = .true.
 

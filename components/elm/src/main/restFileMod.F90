@@ -73,7 +73,7 @@ module restFileMod
   use VegetationDataType   , only : veg_ns, veg_nf
   use VegetationDataType   , only : veg_ps, veg_pf
   use GridcellDataType     , only : grc_cs
-  use clm_instMod          , only : chemstate_vars
+  use elm_instMod          , only : chemstate_vars
   
   !
   ! !PUBLIC TYPES:

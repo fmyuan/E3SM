@@ -686,11 +686,11 @@ contains
                   ! Handle immobilization nitrogen. Potential and actual immob should be set by alquimia/Pflotran
                   if(potential_immob_vr(c,j)>0.0) then
                      ! For now, supplementing with potential immobilization value because only supplementing shortfall might underestimate
-                     supplement_to_sminn_vr(c,j) = supplement_to_sminn_vr(c,j) + potential_immob_vr(c,j)
+                     supplement_to_sminn_vr(c,j) = supplement_to_sminn_vr(c,j) + (potential_immob_vr(c,j) - actual_immob_vr(c,j))
                   endif
                   ! Supplement to immobilization is added back for next time step but supplement to plant N is only given to the plant, not soil,
                   ! because we are skipping the subtraction of plant N from smin_nh4 in NitrogenStateUpdate1Mod
-                  smin_nh4_vr(c,j) = smin_nh4_vr(c,j) + potential_immob_vr(c,j)*dt
+                  smin_nh4_vr(c,j) = smin_nh4_vr(c,j) + (potential_immob_vr(c,j) - actual_immob_vr(c,j))*dt
                end do
             end do
          endif
