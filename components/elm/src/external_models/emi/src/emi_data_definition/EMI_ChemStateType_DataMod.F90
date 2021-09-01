@@ -226,6 +226,71 @@ contains
        dim2_end_name  =  dimname_nlevsoi
        data_found   =  .true.
 
+    case(E2L_STATE_SOIL_SALINITY)
+       id_val         =  E2L_STATE_SOIL_SALINITY
+       name_val       =  'Soil salinity'
+       long_name_val  =  'Soil salinity: EM to ELM'
+       units_val      =  '[ppt]'
+       is_real_type   =  .true.
+       ndim           =  2
+       dim1_beg_name  =  dimname_begc
+       dim1_end_name  =  dimname_endc
+       dim2_beg_name  =  dimname_one
+       dim2_end_name  =  dimname_nlevsoi
+       data_found   =  .true.
+
+    case(E2L_STATE_SOIL_O2)
+       id_val         =  E2L_STATE_SOIL_O2
+       name_val       =  'Soil oxygen'
+       long_name_val  =  'Soil oxygen: EM to ELM'
+       units_val      =  '[mol m^-3]'
+       is_real_type   =  .true.
+       ndim           =  2
+       dim1_beg_name  =  dimname_begc
+       dim1_end_name  =  dimname_endc
+       dim2_beg_name  =  dimname_one
+       dim2_end_name  =  dimname_nlevsoi
+       data_found   =  .true.
+
+    case(E2L_STATE_SOIL_SULFATE)
+       id_val         =  E2L_STATE_SOIL_SULFATE
+       name_val       =  'Soil sulfate'
+       long_name_val  =  'Soil sulfate: EM to ELM'
+       units_val      =  '[mol m^-3]'
+       is_real_type   =  .true.
+       ndim           =  2
+       dim1_beg_name  =  dimname_begc
+       dim1_end_name  =  dimname_endc
+       dim2_beg_name  =  dimname_one
+       dim2_end_name  =  dimname_nlevsoi
+       data_found   =  .true.
+
+    case(E2L_STATE_SOIL_FE2)
+       id_val         =  E2L_STATE_SOIL_FE2
+       name_val       =  'Soil Fe(II)'
+       long_name_val  =  'Soil Fe(II): EM to ELM'
+       units_val      =  '[mol m^-3]'
+       is_real_type   =  .true.
+       ndim           =  2
+       dim1_beg_name  =  dimname_begc
+       dim1_end_name  =  dimname_endc
+       dim2_beg_name  =  dimname_one
+       dim2_end_name  =  dimname_nlevsoi
+       data_found   =  .true.
+
+    case(E2L_STATE_SOIL_FE_OXIDE)
+       id_val         =  E2L_STATE_SOIL_FE_OXIDE
+       name_val       =  'Soil iron oxide'
+       long_name_val  =  'Soil iron oxide: EM to ELM'
+       units_val      =  '[mol Fe m^-3]'
+       is_real_type   =  .true.
+       ndim           =  2
+       dim1_beg_name  =  dimname_begc
+       dim1_end_name  =  dimname_endc
+       dim2_beg_name  =  dimname_one
+       dim2_end_name  =  dimname_nlevsoi
+       data_found   =  .true.
+
     case(E2L_STATE_WATER_DENSITY)
        id_val         =  E2L_STATE_WATER_DENSITY
        name_val       =  'Water density'
@@ -370,6 +435,17 @@ contains
        dim2_end_name  =  dimname_nlevsoi
        dim3_beg_name  =  dimname_one
        dim3_end_name  =  dimname_alquimia_num_aux_ints
+       data_found   =  .true.
+
+    case(E2L_STATE_CHEM_DT)
+       id_val         =  E2L_STATE_CHEM_DT
+       name_val       =  'chem dt'
+       long_name_val  =  'chem dt: EM to ELM'
+       units_val      =  '[-]'
+       is_real_type   =  .true.
+       ndim           =  1
+       dim1_beg_name  =  dimname_begc
+       dim1_end_name  =  dimname_endc
        data_found   =  .true.
     end select
     

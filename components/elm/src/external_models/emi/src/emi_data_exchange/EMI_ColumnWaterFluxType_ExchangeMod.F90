@@ -1,4 +1,4 @@
-module EMI_ColumnWaterStateType_ExchangeMod
+module EMI_ColumnWaterFluxType_ExchangeMod
   !
   use shr_kind_mod                          , only : r8 => shr_kind_r8
   use shr_log_mod                           , only : errMsg => shr_log_errMsg
@@ -6,7 +6,7 @@ module EMI_ColumnWaterStateType_ExchangeMod
   use elm_varctl                            , only : iulog
   use EMI_DataMod                           , only : emi_data_list, emi_data
   use EMI_DataDimensionMod                  , only : emi_data_dimension_list_type
-  use ColumnDataType       , only : column_water_state
+  use ColumnDataType       , only : column_water_flux
   use EMI_Atm2LndType_Constants
   use EMI_CanopyStateType_Constants
   use EMI_ChemStateType_Constants
@@ -30,16 +30,16 @@ module EMI_ColumnWaterStateType_ExchangeMod
   implicit none
   !
   !
-  public :: EMI_Pack_ColumnWaterStateType_at_Column_Level_for_EM
+  public :: EMI_Pack_ColumnWaterFluxType_at_Column_Level_for_EM
 
 contains
   
 !-----------------------------------------------------------------------
-  subroutine EMI_Pack_ColumnWaterStateType_at_Column_Level_for_EM(data_list, em_stage, &
-        num_filter, filter, col_ws)
+  subroutine EMI_Pack_ColumnWaterFluxType_at_Column_Level_for_EM(data_list, em_stage, &
+        num_filter, filter, col_wf)
     !
     ! !DESCRIPTION:
-    ! Pack data from ALM col_ws for EM
+    ! Pack data from ALM col_wf for EM
     !
     ! !USES:
     use elm_varpar             , only : nlevgrnd
@@ -47,11 +47,11 @@ contains
     implicit none
     !
     ! !ARGUMENTS:
-    class(emi_data_list)     , intent(in) :: data_list
-    integer                  , intent(in) :: em_stage
-    integer                  , intent(in) :: num_filter
-    integer                  , intent(in) :: filter(:)
-    type(column_water_state) , intent(in) :: col_ws
+    class(emi_data_list)    , intent(in) :: data_list
+    integer                 , intent(in) :: em_stage
+    integer                 , intent(in) :: num_filter
+    integer                 , intent(in) :: filter(:)
+    type(column_water_flux) , intent(in) :: col_wf
     !
     ! !LOCAL_VARIABLES:
     integer                             :: fc,c,j,k
@@ -61,7 +61,8 @@ contains
     integer                             :: count
 
     associate(& 
-         h2osoi_liqvol => col_ws%h2osoi_liqvol   &
+         qflx_adv           => col_wf%qflx_adv           , &
+         qflx_lat_aqu_layer => col_wf%qflx_lat_aqu_layer   &
          )
 
     count = 0
@@ -82,11 +83,20 @@ contains
 
           select case (cur_data%id)
 
-          case (L2E_STATE_SOIL_LIQ_VOL_COL)
+          case (L2E_FLUX_SOIL_QFLX_ADV_COL)
+             do fc = 1, num_filter
+                c = filter(fc)
+                do j = 0, nlevgrnd
+                   cur_data%data_real_2d(c,j) = qflx_adv(c,j)
+                enddo
+             enddo
+             cur_data%is_set = .true.
+
+          case (L2E_FLUX_SOIL_QFLX_LAT_COL)
              do fc = 1, num_filter
                 c = filter(fc)
                 do j = 1, nlevgrnd
-                   cur_data%data_real_2d(c,j) = h2osoi_liqvol(c,j)
+                   cur_data%data_real_2d(c,j) = qflx_lat_aqu_layer(c,j)
                 enddo
              enddo
              cur_data%is_set = .true.
@@ -100,7 +110,7 @@ contains
 
     end associate
 
-  end subroutine EMI_Pack_ColumnWaterStateType_at_Column_Level_for_EM
+  end subroutine EMI_Pack_ColumnWaterFluxType_at_Column_Level_for_EM
 
 
-end module EMI_ColumnWaterStateType_ExchangeMod
+end module EMI_ColumnWaterFluxType_ExchangeMod

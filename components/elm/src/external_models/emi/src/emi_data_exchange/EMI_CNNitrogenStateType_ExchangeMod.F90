@@ -16,6 +16,7 @@ module EMI_CNNitrogenStateType_ExchangeMod
   use EMI_CNCarbonFluxType_Constants
   use EMI_ColumnEnergyStateType_Constants
   use EMI_ColumnWaterStateType_Constants
+  use EMI_ColumnWaterFluxType_Constants
   use EMI_EnergyFluxType_Constants
   use EMI_SoilHydrologyType_Constants
   use EMI_SoilStateType_Constants
@@ -155,7 +156,8 @@ contains
     associate(& 
          decomp_npools_vr => col_ns%decomp_npools_vr , &
          smin_nh4_vr      => col_ns%smin_nh4_vr      , &
-         smin_no3_vr      => col_ns%smin_no3_vr        &
+         smin_no3_vr      => col_ns%smin_no3_vr      , &
+         DON_vr           => col_ns%DON_vr             &
          )
 
     count = 0
@@ -201,6 +203,15 @@ contains
                 c = filter(fc)
                 do j = 1, nlevdecomp_full
                    smin_no3_vr(c,j) = cur_data%data_real_2d(c,j)
+                enddo
+             enddo
+             cur_data%is_set = .true.
+
+          case (E2L_STATE_DON_VERTICALLY_RESOLVED)
+             do fc = 1, num_filter
+                c = filter(fc)
+                do j = 1, nlevdecomp_full
+                   DON_vr(c,j) = cur_data%data_real_2d(c,j)
                 enddo
              enddo
              cur_data%is_set = .true.

@@ -16,6 +16,7 @@ module EMI_ChemStateType_ExchangeMod
   use EMI_CNCarbonFluxType_Constants
   use EMI_ColumnEnergyStateType_Constants
   use EMI_ColumnWaterStateType_Constants
+  use EMI_ColumnWaterFluxType_Constants
   use EMI_EnergyFluxType_Constants
   use EMI_SoilHydrologyType_Constants
   use EMI_SoilStateType_Constants
@@ -232,13 +233,13 @@ contains
     ! Unpack data for ALM chemstate_vars from EM
     !
     ! !USES:
-    use clm_varpar             , only : nlevsoi
-    use clm_varpar             , only : alquimia_num_primary
-    use clm_varpar             , only : alquimia_num_minerals
-    use clm_varpar             , only : alquimia_num_surface_sites
-    use clm_varpar             , only : alquimia_num_ion_exchange_sites
-    use clm_varpar             , only : alquimia_num_aux_doubles
-    use clm_varpar             , only : alquimia_num_aux_ints
+    use elm_varpar             , only : nlevsoi
+    use elm_varpar             , only : alquimia_num_primary
+    use elm_varpar             , only : alquimia_num_minerals
+    use elm_varpar             , only : alquimia_num_surface_sites
+    use elm_varpar             , only : alquimia_num_ion_exchange_sites
+    use elm_varpar             , only : alquimia_num_aux_doubles
+    use elm_varpar             , only : alquimia_num_aux_ints
     !
     implicit none
     !
@@ -258,6 +259,11 @@ contains
 
     associate(& 
          soil_ph                       => chemstate_vars%soil_ph                       , &
+         soil_salinity                 => chemstate_vars%soil_salinity                 , &
+         soil_O2                       => chemstate_vars%soil_O2                       , &
+         soil_sulfate                  => chemstate_vars%soil_sulfate                  , &
+         soil_Fe2                      => chemstate_vars%soil_Fe2                      , &
+         soil_FeOxide                  => chemstate_vars%soil_FeOxide                  , &
          water_density                 => chemstate_vars%water_density                 , &
          aqueous_pressure              => chemstate_vars%aqueous_pressure              , &
          total_mobile                  => chemstate_vars%total_mobile                  , &
@@ -267,7 +273,8 @@ contains
          surface_site_density          => chemstate_vars%surface_site_density          , &
          cation_exchange_capacity      => chemstate_vars%cation_exchange_capacity      , &
          aux_doubles                   => chemstate_vars%aux_doubles                   , &
-         aux_ints                      => chemstate_vars%aux_ints                        &
+         aux_ints                      => chemstate_vars%aux_ints                      , &
+         chem_dt                       => chemstate_vars%chem_dt                         &
          )
 
     count = 0
@@ -293,6 +300,51 @@ contains
                 c = filter(fc)
                 do j = 1, nlevsoi
                    soil_ph(c,j) = cur_data%data_real_2d(c,j)
+                enddo
+             enddo
+             cur_data%is_set = .true.
+
+          case (E2L_STATE_SOIL_SALINITY)
+             do fc = 1, num_filter
+                c = filter(fc)
+                do j = 1, nlevsoi
+                   soil_salinity(c,j) = cur_data%data_real_2d(c,j)
+                enddo
+             enddo
+             cur_data%is_set = .true.
+
+          case (E2L_STATE_SOIL_O2)
+             do fc = 1, num_filter
+                c = filter(fc)
+                do j = 1, nlevsoi
+                   soil_O2(c,j) = cur_data%data_real_2d(c,j)
+                enddo
+             enddo
+             cur_data%is_set = .true.
+
+          case (E2L_STATE_SOIL_SULFATE)
+             do fc = 1, num_filter
+                c = filter(fc)
+                do j = 1, nlevsoi
+                   soil_sulfate(c,j) = cur_data%data_real_2d(c,j)
+                enddo
+             enddo
+             cur_data%is_set = .true.
+
+          case (E2L_STATE_SOIL_FE2)
+             do fc = 1, num_filter
+                c = filter(fc)
+                do j = 1, nlevsoi
+                   soil_Fe2(c,j) = cur_data%data_real_2d(c,j)
+                enddo
+             enddo
+             cur_data%is_set = .true.
+
+          case (E2L_STATE_SOIL_FE_OXIDE)
+             do fc = 1, num_filter
+                c = filter(fc)
+                do j = 1, nlevsoi
+                   soil_FeOxide(c,j) = cur_data%data_real_2d(c,j)
                 enddo
              enddo
              cur_data%is_set = .true.
@@ -400,6 +452,13 @@ contains
                       aux_ints(c,j,k) = cur_data%data_int_3d(c,j,k)
                    enddo
                 enddo
+             enddo
+             cur_data%is_set = .true.
+
+          case (E2L_STATE_CHEM_DT)
+             do fc = 1, num_filter
+                c = filter(fc)
+                chem_dt(c) = cur_data%data_real_1d(c)
              enddo
              cur_data%is_set = .true.
 

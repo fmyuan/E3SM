@@ -3,7 +3,7 @@ module EMI_CNNitrogenFluxType_ExchangeMod
   use shr_kind_mod                          , only : r8 => shr_kind_r8
   use shr_log_mod                           , only : errMsg => shr_log_errMsg
   use abortutils                            , only : endrun
-  use clm_varctl                            , only : iulog
+  use elm_varctl                            , only : iulog
   use EMI_DataMod                           , only : emi_data_list, emi_data
   use EMI_DataDimensionMod                  , only : emi_data_dimension_list_type
   use ColumnDataType       , only : column_nitrogen_flux
@@ -16,6 +16,7 @@ module EMI_CNNitrogenFluxType_ExchangeMod
   use EMI_CNCarbonFluxType_Constants
   use EMI_ColumnEnergyStateType_Constants
   use EMI_ColumnWaterStateType_Constants
+  use EMI_ColumnWaterFluxType_Constants
   use EMI_EnergyFluxType_Constants
   use EMI_SoilHydrologyType_Constants
   use EMI_SoilStateType_Constants
@@ -42,7 +43,7 @@ contains
     ! Pack data from ALM col_nf for EM
     !
     ! !USES:
-    use clm_varpar             , only : nlevdecomp_full
+    use elm_varpar             , only : nlevdecomp_full
     !
     implicit none
     !
@@ -140,7 +141,7 @@ contains
     ! Unpack data for ALM col_nf from EM
     !
     ! !USES:
-    use clm_varpar             , only : nlevdecomp_full
+    use elm_varpar             , only : nlevdecomp_full
     !
     implicit none
     !
@@ -164,7 +165,9 @@ contains
          gross_nmin_vr        => col_nf%gross_nmin_vr        , &
          sminn_to_plant_vr    => col_nf%sminn_to_plant_vr    , &
          smin_no3_to_plant_vr => col_nf%smin_no3_to_plant_vr , &
-         smin_nh4_to_plant_vr => col_nf%smin_nh4_to_plant_vr   &
+         smin_nh4_to_plant_vr => col_nf%smin_nh4_to_plant_vr , &
+         smin_no3_runoff      => col_nf%smin_no3_runoff      , &
+         DON_runoff           => col_nf%DON_runoff             &
          )
 
     count = 0
@@ -236,6 +239,20 @@ contains
                 do j = 1, nlevdecomp_full
                    smin_nh4_to_plant_vr(c,j) = cur_data%data_real_2d(c,j)
                 enddo
+             enddo
+             cur_data%is_set = .true.
+
+          case (E2L_FLUX_NO3_RUNOFF)
+             do fc = 1, num_filter
+                c = filter(fc)
+                smin_no3_runoff(c) = cur_data%data_real_1d(c)
+             enddo
+             cur_data%is_set = .true.
+
+          case (E2L_FLUX_DON_RUNOFF)
+             do fc = 1, num_filter
+                c = filter(fc)
+                DON_runoff(c) = cur_data%data_real_1d(c)
              enddo
              cur_data%is_set = .true.
 
