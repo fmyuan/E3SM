@@ -312,6 +312,8 @@ contains
 #endif
 #if defined MARSH
       use pftvarcon       , only : num_tide_comps, tide_baseline,tide_coeff_period, tide_coeff_phase, tide_coeff_amp,sfcflow_ratescale
+      use clm_instMod     , only : atm2lnd_vars
+      use clm_varctl      , only : tide_file
 #endif
      use clm_time_manager , only : get_step_size, get_curr_date, get_curr_time
      use elm_varcon       , only : secspday
@@ -676,9 +678,19 @@ contains
 #ifdef MARSH
                call get_curr_time(days, seconds)
                h2osfc_tide = 0.0_r8
-                do ii=1,num_tide_comps
-                  h2osfc_tide =    h2osfc_tide    +  tide_coeff_amp(ii) * sin(2.0_r8*SHR_CONST_PI*(1/tide_coeff_period(ii)*(days*secspday+seconds) + tide_coeff_phase(ii)))
-                enddo
+               if(tide_file .ne. ' ') then
+#ifdef CPL_BYPASS
+                  ! If external forcing tide file is specified then use that via coupler bypass
+                  ! Indexing assumes that tide forcing is a time series of hourly values
+                  h2osfc_tide = atm2lnd_vars%tide_height(1,1+mod(int((days*secspday+seconds)/3600),atm2lnd_vars%tide_forcing_len))
+                  col_ws%salinity(c) = atm2lnd_vars%tide_salinity(1,1+mod(int((days*secspday+seconds)/3600),atm2lnd_vars%tide_forcing_len))
+#endif
+               else
+                  do ii=1,num_tide_comps
+                     h2osfc_tide =    h2osfc_tide    +  tide_coeff_amp(ii) * sin(2.0_r8*SHR_CONST_PI*(1/tide_coeff_period(ii)*(days*secspday+seconds) + tide_coeff_phase(ii)))
+                  enddo
+               endif
+
                 h2osfc_tide = max(h2osfc_tide + tide_baseline, 0.0)
                !  qflx_tide(c) = (h2osfc(c)-h2osfc_before)/dtime
                 qflx_lat_aqu(2) = qflx_lat_aqu(2) + (h2osfc_tide-h2osfc(c))/dtime

@@ -1463,6 +1463,11 @@ contains
           avgflag='A', long_name='surface water depth', &
            ptr_col=this%h2osfc)
 
+    this%salinity(begc:endc) = spval
+    call hist_addfld1d (fname='SALINITY',  units='ppt',  &
+          avgflag='A', long_name='surface water salinity', &
+          ptr_col=this%salinity)
+
     this%h2osoi_vol(begc:endc,:) = spval
      call hist_addfld2d (fname='H2OSOI',  units='mm3/mm3', type2d='levgrnd', &
           avgflag='A', long_name='volumetric soil water (vegetated landunits only)', &

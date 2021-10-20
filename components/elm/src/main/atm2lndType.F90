@@ -66,6 +66,11 @@ module atm2lndType
       real(r8), pointer ::  ndep1                      (:,:,:) => null()
       real(r8), pointer ::  ndep2                      (:,:,:) => null()
       real(r8), pointer ::  aerodata                 (:,:,:,:) => null()
+
+      ! BSulman: To support coastal system points. Leaving in coupler bypass until we work on what actual coupling will need
+      real(r8), pointer :: tide_height               (:,:) => null()  ! Height in meters (need to figure what it's relative to though - long-term mean or something?) 
+      real(r8), pointer :: tide_salinity             (:,:) => null()  ! Salinity in ppt
+      integer,  pointer :: tide_forcing_len                => null()
 #endif
      ! atm->lnd not downscaled
      real(r8), pointer :: forc_u_grc                    (:)   => null() ! atm wind speed, east direction (m/s)
@@ -220,6 +225,9 @@ contains
     allocate(this%ndep1                          (144,96,1))        ; this%ndep1                     (:,:,:)   = ival
     allocate(this%ndep2                          (144,96,1))        ; this%ndep2                     (:,:,:)   = ival
     allocate(this%aerodata                   (14,144,96,14))        ; this%aerodata                (:,:,:,:)   = ival
+    allocate(this%tide_height                      (1,876000))        ; this%tide_height               (:,:)   = ival
+    allocate(this%tide_salinity                    (1,876000))        ; this%tide_salinity             (:,:)   = ival
+    allocate(this%tide_forcing_len                           )       ; this%tide_forcing_len                  = ival_int
     !END DMR
 #endif
     allocate(this%forc_u_grc                    (begg:endg))        ; this%forc_u_grc                    (:)   = ival
