@@ -1057,6 +1057,7 @@ contains
     if ( .not. readv) hum_frac = 0.5_r8
     call ncd_io('qflx_h2osfc_surfrate', qflx_h2osfc_surfrate, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) qflx_h2osfc_surfrate = 1.0e-7_r8
+
 #ifdef MARSH
 ! Tidal cycle parameters
     ! Defaults from Teri's hard coded numbers
