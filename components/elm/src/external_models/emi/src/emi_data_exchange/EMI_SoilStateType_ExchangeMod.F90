@@ -10,6 +10,13 @@ module EMI_SoilStateType_ExchangeMod
   use EMI_Atm2LndType_Constants
   use EMI_CanopyStateType_Constants
   use EMI_ChemStateType_Constants
+  use EMI_CNCarbonStateType_Constants
+  use EMI_CNNitrogenStateType_Constants
+  use EMI_CNNitrogenFluxType_Constants
+  use EMI_CNCarbonFluxType_Constants
+  use EMI_ColumnEnergyStateType_Constants
+  use EMI_ColumnWaterStateType_Constants
+  use EMI_ColumnWaterFluxType_Constants
   use EMI_EnergyFluxType_Constants
   use EMI_SoilHydrologyType_Constants
   use EMI_SoilStateType_Constants
@@ -49,7 +56,7 @@ contains
     type(soilstate_type)   , intent(in) :: soilstate_vars
     !
     ! !LOCAL_VARIABLES:
-    integer                             :: fc,c,j
+    integer                             :: fc,c,j,k
     class(emi_data), pointer            :: cur_data
     logical                             :: need_to_pack
     integer                             :: istage
@@ -237,7 +244,7 @@ contains
     type(soilstate_type)   , intent(in) :: soilstate_vars
     !
     ! !LOCAL_VARIABLES:
-    integer                             :: fp,p,j
+    integer                             :: fp,p,j,k
     class(emi_data), pointer            :: cur_data
     logical                             :: need_to_pack
     integer                             :: istage
@@ -305,7 +312,7 @@ contains
     type(soilstate_type)   , intent(in) :: soilstate_vars
     !
     ! !LOCAL_VARIABLES:
-    integer                             :: fc,c,j
+    integer                             :: fc,c,j,k
     class(emi_data), pointer            :: cur_data
     logical                             :: need_to_pack
     integer                             :: istage
