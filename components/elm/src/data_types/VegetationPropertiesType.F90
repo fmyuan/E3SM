@@ -337,8 +337,7 @@ contains
     allocate(this%nfixer(0:numpft))                              ; this%nfixer(:)                =huge(1)
  
     allocate( this%sal_threshold(0:numpft))        ; this%sal_threshold(:)       =nan
-    allocate( this%KM_salinity(0:numpft))          ; this%KM_salinity(:)
-=nan
+    allocate( this%KM_salinity(0:numpft))          ; this%KM_salinity(:)         =nan
     allocate( this%osm_inhib(0:numpft))            ; this%osm_inhib(:)           =nan
 
     do m = 0,numpft

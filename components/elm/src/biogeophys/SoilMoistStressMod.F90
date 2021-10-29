@@ -385,13 +385,13 @@ contains
                smp_node = max(smpsc(veg_pp%itype(p)), smp_node)
 
                !using osm_inhib to change root uptake -SLL
-               !if (salinity(1,:) .ge. sal_threshold(veg_pp%itype(p))) then
-               !   osm_inhib(veg_pp%itype(p)) = (1-salinity(c,:)/(KM_salinity(veg_pp%itype(p))+salinity(c,:)))
-               !   rresis(p,j) = min( (eff_porosity(c,j)/watsat(c,j))* &
-               !     (smp_node - smpsc(veg_pp%itype(p))) / (smpso(veg_pp%itype(p)) - smpsc(veg_pp%itype(p))), 1._r8)
-                  !rresis(p,j) = rresis(p,j)*osm_inhib(veg_pp%itype(p))
+               if (salinity(1) .ge. sal_threshold(veg_pp%itype(p))) then
+                  osm_inhib(veg_pp%itype(p)) = (1-salinity(c)/(KM_salinity(veg_pp%itype(p))+salinity(c)))
+                  rresis(p,j) = min( (eff_porosity(c,j)/watsat(c,j))* &
+                    (smp_node - smpsc(veg_pp%itype(p))) / (smpso(veg_pp%itype(p)) - smpsc(veg_pp%itype(p))), 1._r8)
+                  rresis(p,j) = rresis(p,j)*osm_inhib(veg_pp%itype(p))
                   
-               !else
+               else
                   rresis(p,j) = min( (eff_porosity(c,j)/watsat(c,j))* &
                     (smp_node - smpsc(veg_pp%itype(p))) / (smpso(veg_pp%itype(p)) - smpsc(veg_pp%itype(p))), 1._r8)
                if (.not. (perchroot .or. perchroot_alt) ) then
