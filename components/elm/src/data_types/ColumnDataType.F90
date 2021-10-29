@@ -108,7 +108,7 @@ module ColumnDataType
     real(r8), pointer :: h2osoi_ice         (:,:) => null() ! ice lens (-nlevsno+1:nlevgrnd) (kg/m2)
     real(r8), pointer :: h2osoi_vol         (:,:) => null() ! volumetric soil water (0<=h2osoi_vol<=watsat) (1:nlevgrnd) (m3/m3)
     real(r8), pointer :: h2osfc             (:)   => null() ! surface water (kg/m2)
-    real(r8), pointer :: salinity           (:,:) => null() ! salinity from PFLOTRAN when using interface (TAO 5/19/2020)
+    real(r8), pointer :: salinity           (:) => null() ! salinity from PFLOTRAN when using interface (TAO 5/19/2020)
     real(r8), pointer :: salt_content       (:,:) => null() ! salt mass for each soil layer
     real(r8), pointer :: h2ocan             (:)   => null() ! canopy water integrated to column (kg/m2)
     real(r8), pointer :: total_plant_stored_h2o(:)=> null() ! total water in plants (kg/m2)
@@ -1490,8 +1490,8 @@ contains
            ptr_col=this%h2osfc)
 
    !SLL added 4/15/21
-   this%salinity(begc:endc,:) = spval
-    call hist_addfld2d (fname='SALINITY',  units='ppt', type2d='levgrnd', &
+   this%salinity(begc:endc) = spval
+    call hist_addfld1d (fname='SALINITY',  units='ppt', &
          avgflag='A', long_name='Salinity concentration', &
          ptr_col=this%salinity)
 
@@ -1499,6 +1499,11 @@ contains
     call hist_addfld2d (fname='SALT_CONTENT',  units='g', type2d='levgrnd', &
          avgflag='A', long_name='Mass of salt in soil layer', &
          ptr_col=this%salt_content)
+
+   !this%osm_inhib(begc:endc) = spval
+   ! call hist_addfld1d (fname='OSM_INHIB',  units=' ',  &
+   !      avgflag='A', long_name='Factor to reduce growth due to salinity stress', &
+   !      ptr_col=this%osm_inhib)
 
     this%h2osoi_vol(begc:endc,:) = spval
      call hist_addfld2d (fname='H2OSOI',  units='mm3/mm3', type2d='levgrnd', &
@@ -1639,7 +1644,7 @@ contains
        this%total_plant_stored_h2o(c) = 0._r8
        this%h2osfc(c)                 = 0._r8
        this%h2ocan(c)                 = 0._r8
-       this%salinity(c,:)             = 0._r8 !TAO added 5/19/2020
+       this%salinity(c)             = 0._r8 !TAO added 5/19/2020
        this%salt_content(c,:)         = 0._r8
        this%frac_h2osfc(c)            = 0._r8
        this%h2orof(c)                 = 0._r8
@@ -6821,11 +6826,6 @@ contains
         call hist_addfld1d (fname='C14_PRODUCT_CLOSS', units='gC14/m^2/s', &
              avgflag='A', long_name='C14 total carbon loss from wood product pools', &
               ptr_col=this%product_closs)
-
-       this%osm_inhib(begc:endc) = spval
-       call hist_addfld1d (fname='OSM_INHIB',  units=' ',  &
-             avgflag='A', long_name='Factor to reduce growth due to salinity stress', &
-             ptr_col=this%osm_inhib)
 
        ! end of C14 block
     end if  ! use_fates (C12) or C12 or C13 or C14

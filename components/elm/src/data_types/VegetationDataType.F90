@@ -2152,10 +2152,10 @@ module VegetationDataType
             avgflag='A', long_name='total aboveground vegetation carbon, excluding cpool', &
             ptr_patch=this%totvegc_abg)
 
-       this%osm_inhib(begc:endc) = spval
-       call hist_addfld1d (fname='OSM_INHIB',  units=' ',  &
-            avgflag='A', long_name='Factor to reduce growth due to salinity stress', &
-            ptr_col=this%osm_inhib)
+     !   this%osm_inhib(begc:endc) = spval
+     !   call hist_addfld1d (fname='OSM_INHIB',  units=' ',  &
+     !        avgflag='A', long_name='Factor to reduce growth due to salinity stress', &
+     !        ptr_col=this%osm_inhib)
             
        ! end of c12 block
 
