@@ -4,9 +4,9 @@ Module SoilHydrologyType
   use shr_log_mod           , only : errMsg => shr_log_errMsg
   use decompMod             , only : bounds_type
   use abortutils            , only : endrun
-  use clm_varpar            , only : nlevgrnd, nlayer, nlayert, nlevsoi 
-  use clm_varpar            , only : more_vertlayers, nlevsoifl, toplev_equalspace 
-  use clm_varctl            , only : iulog
+  use elm_varpar            , only : nlevgrnd, nlayer, nlayert, nlevsoi 
+  use elm_varpar            , only : more_vertlayers, nlevsoifl, toplev_equalspace 
+  use elm_varctl            , only : iulog
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -82,7 +82,7 @@ contains
     !
     ! !USES:
     use shr_infnan_mod , only : nan => shr_infnan_nan, assignment(=)
-    use clm_varpar     , only : nlevsno, nlevgrnd
+    use elm_varpar     , only : nlevsno, nlevgrnd
     !
     ! !ARGUMENTS:
     class(soilhydrology_type) :: this

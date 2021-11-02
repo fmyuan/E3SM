@@ -5,7 +5,7 @@ module CanopyStateType
   use shr_log_mod     , only : errMsg => shr_log_errMsg
   use abortutils      , only : endrun
   use decompMod       , only : bounds_type
-  use clm_varcon      , only : spval
+  use elm_varcon      , only : spval
   !
   implicit none
   save
@@ -70,7 +70,7 @@ contains
     !
     ! !USES:
     use shr_infnan_mod , only : nan => shr_infnan_nan, assignment(=)
-    use clm_varpar     , only : nlevcan, nlevsno, nlevgrnd
+    use elm_varpar     , only : nlevcan, nlevsno, nlevgrnd
     !
     ! !ARGUMENTS:
     class(canopystate_type) :: this

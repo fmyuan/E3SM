@@ -7,10 +7,10 @@ module ColumnDataType
   !
   use shr_kind_mod   , only : r8 => shr_kind_r8
   use shr_infnan_mod , only : nan => shr_infnan_nan, assignment(=)
-  use clm_varpar      , only : ndecomp_cascade_transitions, ndecomp_pools, nlevcan
-  use clm_varpar     , only : nlevsno, nlevgrnd, nlevlak
-  use clm_varpar     , only : nlevdecomp_full, crop_prog, nlevdecomp
-  use clm_varcon     , only : spval, ispval
+  use elm_varpar      , only : ndecomp_cascade_transitions, ndecomp_pools, nlevcan
+  use elm_varpar     , only : nlevsno, nlevgrnd, nlevlak
+  use elm_varpar     , only : nlevdecomp_full, crop_prog, nlevdecomp
+  use elm_varcon     , only : spval, ispval
 
   !
   ! !PUBLIC TYPES:
@@ -861,7 +861,7 @@ contains
     !
     ! !USES:
     use landunit_varcon, only : istice, istwet, istsoil, istdlak, istice_mec
-    use clm_varctl     , only : iulog, use_cn, use_vancouver, use_mexicocity
+    use elm_varctl     , only : iulog, use_cn, use_vancouver, use_mexicocity
     use column_varcon  , only : icol_road_perv, icol_road_imperv, icol_roof, icol_sunwall, icol_shadewall
     !
     ! !ARGUMENTS:

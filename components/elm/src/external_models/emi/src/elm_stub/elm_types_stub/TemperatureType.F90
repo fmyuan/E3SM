@@ -7,9 +7,9 @@ module TemperatureType
   use shr_log_mod     , only : errMsg => shr_log_errMsg
   use decompMod       , only : bounds_type
   use abortutils      , only : endrun
-  use clm_varctl      , only : use_cndv, iulog
-  use clm_varpar      , only : nlevsno, nlevgrnd, nlevlak, nlevlak, nlevurb, crop_prog 
-  use clm_varcon      , only : spval
+  use elm_varctl      , only : use_cndv, iulog
+  use elm_varpar      , only : nlevsno, nlevgrnd, nlevlak, nlevlak, nlevurb, crop_prog 
+  use elm_varcon      , only : spval
   !
   implicit none
   save

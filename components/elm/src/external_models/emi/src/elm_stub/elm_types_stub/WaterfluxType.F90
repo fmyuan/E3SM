@@ -6,7 +6,7 @@ module WaterfluxType
   ! !USES:
   use shr_kind_mod , only: r8 => shr_kind_r8
   use decompMod    , only : bounds_type, get_proc_global
-  use clm_varcon   , only : spval
+  use elm_varcon   , only : spval
   !
   implicit none
   save
@@ -157,7 +157,7 @@ contains
     !
     ! !USES:
     use shr_infnan_mod , only : nan => shr_infnan_nan, assignment(=)
-    use clm_varpar     , only : nlevsno, nlevgrnd, nlevsoi
+    use elm_varpar     , only : nlevsno, nlevgrnd, nlevsoi
     !
     ! !ARGUMENTS:
     class(waterflux_type) :: this

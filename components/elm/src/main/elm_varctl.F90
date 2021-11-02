@@ -457,6 +457,19 @@ module elm_varctl
   !$acc declare copyin(pf_clmnstep0 )
 
   !----------------------------------------------------------
+  ! ATS external model
+  !----------------------------------------------------------
+  logical, public :: use_ats       = .false.
+  ! the following switches will allow flexibility of coupling ELM with ATS (which in fact runs in 3 modes individually or coupled)
+  logical, public :: ats_hmode      = .false.        ! switch for 'H' mode, hydrological coupling (will be updated in interface)
+  logical, public :: ats_tmode      = .false.        ! switch for 'T' mode, thermal coupling (will be updated in interface)
+  logical, public :: ats_gmode      = .false.        ! switch for 'G' mode, ground/surface T/H coupling (will be updated in interface)
+  !$acc declare copyin(use_ats       )
+  !$acc declare copyin(ats_hmode     )
+  !$acc declare copyin(ats_tmode     )
+  !$acc declare copyin(ats_gmode     )
+
+  !----------------------------------------------------------
   ! Alquimia external model
   !----------------------------------------------------------
   logical, public           :: use_alquimia         = .false.

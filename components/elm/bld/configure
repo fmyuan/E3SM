@@ -484,6 +484,7 @@ sub write_filepath_cesmbld
 		     "external_models/emi/src/",
 		     "external_models/emi/src/constants",
 		     "external_models/emi/src/em/alquimia",
+		     "external_models/emi/src/em/ats",
 		     "external_models/emi/src/em/base",
 		     "external_models/emi/src/em/betr",
 		     "external_models/emi/src/em/fates",

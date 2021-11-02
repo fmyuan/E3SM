@@ -1474,12 +1474,12 @@ contains
     if (.not.data_found) then
        select case(data_id)
           ! -------------------------------------------------------------
-          ! ALM-to-ELM: Filter variables
+          ! ELM-to-EM: Filter variables
           ! -------------------------------------------------------------
        case (L2E_FILTER_HYDROLOGYC)
           id_val        = L2E_FILTER_HYDROLOGYC
           name_val      = 'Hydrology filter'
-          long_name_val = 'Hydrology filter: ALM to External Model'
+          long_name_val = 'Hydrology filter: ELM to External Model'
           units_val     = '[-]'
           is_int_type   = .true.
           ndim          = 1
@@ -1490,7 +1490,7 @@ contains
        case (L2E_FILTER_NUM_HYDROLOGYC)
           id_val        = L2E_FILTER_NUM_HYDROLOGYC
           name_val      = 'Number of hydrology filter'
-          long_name_val = 'Number of hydrology filter: ALM to External Model'
+          long_name_val = 'Number of hydrology filter: ELM to External Model'
           units_val     = '[-]'
           is_int_type   = .true.
           ndim          = 1
@@ -1501,7 +1501,7 @@ contains
       case (L2E_FILTER_SOILC)
          id_val        = L2E_FILTER_SOILC
          name_val      = 'Soil filter'
-         long_name_val = 'Soil filter: ALM to External Model'
+         long_name_val = 'Soil filter: ELM to External Model'
          units_val     = '[-]'
          is_int_type   = .true.
          ndim          = 1
@@ -1512,7 +1512,7 @@ contains
       case (L2E_FILTER_NUM_SOILC)
          id_val        = L2E_FILTER_NUM_SOILC
          name_val      = 'Number of soil filter'
-         long_name_val = 'Number of soil filter: ALM to External Model'
+         long_name_val = 'Number of soil filter: ELM to External Model'
          units_val     = '[-]'
          is_int_type   = .true.
          ndim          = 1
@@ -1523,7 +1523,7 @@ contains
        case (L2E_FILTER_NOLAKEC)
           id_val        = L2E_FILTER_HYDROLOGYC
           name_val      = 'Non-lake filter'
-          long_name_val = 'Non-lake filter: ALM to External Model'
+          long_name_val = 'Non-lake filter: ELM to External Model'
           units_val     = '[-]'
           is_int_type   = .true.
           ndim          = 1
@@ -1534,7 +1534,7 @@ contains
        case (L2E_FILTER_NUM_NOLAKEC)
           id_val        = L2E_FILTER_NUM_HYDROLOGYC
           name_val      = 'Number of non-lake filter'
-          long_name_val = 'Number of non-lake filter: ALM to External Model'
+          long_name_val = 'Number of non-lake filter: ELM to External Model'
           units_val     = '[-]'
           is_int_type   = .true.
           ndim          = 1
@@ -1545,7 +1545,7 @@ contains
        case (L2E_FILTER_NOLAKEC_AND_NOURBANC)
           id_val        = L2E_FILTER_NOLAKEC_AND_NOURBANC
           name_val      = 'Non-lake & non-urban filter'
-          long_name_val = 'Non-lake & non-urban filter: ALM to External Model'
+          long_name_val = 'Non-lake & non-urban filter: ELM to External Model'
           units_val     = '[-]'
           is_int_type   = .true.
           ndim          = 1
@@ -1556,7 +1556,7 @@ contains
        case (L2E_FILTER_NUM_NOLAKEC_AND_NOURBANC)
           id_val        = L2E_FILTER_NUM_NOLAKEC_AND_NOURBANC
           name_val      = 'Number of non-lake & non-urban filter'
-          long_name_val = 'Number of non-lake & non-urban filter: ALM to External Model'
+          long_name_val = 'Number of non-lake & non-urban filter: ELM to External Model'
           units_val     = '[-]'
           is_int_type   = .true.
           ndim          = 1
@@ -1565,12 +1565,12 @@ contains
           data_found    = .true.
 
           ! -------------------------------------------------------------
-          ! ALM-to-ELM: Column variables
+          ! ELM-to-ELM: Column variables
           ! -------------------------------------------------------------
        case (L2E_COLUMN_ACTIVE)
           id_val        = L2E_COLUMN_ACTIVE
           name_val      = 'Column active'
-          long_name_val = 'Column active: ALM to External Model'
+          long_name_val = 'Column active: ELM to External Model'
           units_val     = '[-]'
           is_int_type   = .true.
           ndim          = 1
@@ -1581,7 +1581,7 @@ contains
        case (L2E_COLUMN_TYPE)
           id_val        = L2E_COLUMN_TYPE
           name_val      = 'Column type'
-          long_name_val = 'Column type: ALM to External Model'
+          long_name_val = 'Column type: ELM to External Model'
           units_val     = '[-]'
           is_int_type   = .true.
           ndim          = 1
@@ -1592,7 +1592,7 @@ contains
        case (L2E_COLUMN_LANDUNIT_INDEX)
           id_val        = L2E_COLUMN_LANDUNIT_INDEX
           name_val      = 'Column to landunit index'
-          long_name_val = 'Column landunit index: ALM to External Model'
+          long_name_val = 'Column landunit index: ELM to External Model'
           units_val     = '[-]'
           is_int_type   = .true.
           ndim          = 1
@@ -1603,7 +1603,7 @@ contains
        case (L2E_COLUMN_ZI)
           id_val        = L2E_COLUMN_ZI
           name_val      = 'Column layer interface depth'
-          long_name_val = 'Column layer interface depth: ALM to External Model'
+          long_name_val = 'Column layer interface depth: ELM to External Model'
           units_val     = '[m]'
           is_real_type  = .true.
           ndim          = 2
@@ -1616,7 +1616,7 @@ contains
        case (L2E_COLUMN_DZ)
           id_val        = L2E_COLUMN_DZ
           name_val      = 'Column layer thickness'
-          long_name_val = 'Column layer thickness: ALM to External Model'
+          long_name_val = 'Column layer thickness: ELM to External Model'
           units_val     = '[m]'
           is_real_type  = .true.
           ndim          = 2
@@ -1629,7 +1629,7 @@ contains
        case (L2E_COLUMN_Z)
           id_val        = L2E_COLUMN_Z
           name_val      = 'Column layer centroid depth'
-          long_name_val = 'Column layer centroid depth: ALM to External Model'
+          long_name_val = 'Column layer centroid depth: ELM to External Model'
           units_val     = '[m]'
           is_real_type  = .true.
           ndim          = 2
@@ -1642,7 +1642,7 @@ contains
        case (L2E_COLUMN_AREA)
           id_val        = L2E_COLUMN_AREA
           name_val      = 'Column surface area'
-          long_name_val = 'Column surface area: ALM to External Model'
+          long_name_val = 'Column surface area: ELM to External Model'
           units_val     = '[m2]'
           is_real_type  = .true.
           ndim          = 1
@@ -1653,7 +1653,7 @@ contains
        case (L2E_COLUMN_GRIDCELL_INDEX)
           id_val        = L2E_COLUMN_GRIDCELL_INDEX
           name_val      = 'Column to gridcell index'
-          long_name_val = 'Column to gridcell index: ALM to External Model'
+          long_name_val = 'Column to gridcell index: ELM to External Model'
           units_val     = '[-]'
           is_int_type   = .true.
           ndim          = 1
@@ -1664,7 +1664,7 @@ contains
        case (L2E_COLUMN_PATCH_INDEX_BEGIN)
           id_val        = L2E_COLUMN_PATCH_INDEX_BEGIN
           name_val      = 'Beginning column to patch index'
-          long_name_val = 'Beginning column to patch index: ALM to External Model'
+          long_name_val = 'Beginning column to patch index: ELM to External Model'
           units_val     = '[-]'
           is_int_type   = .true.
           ndim          = 1
@@ -1675,7 +1675,7 @@ contains
        case (L2E_COLUMN_PATCH_INDEX_END)
           id_val        = L2E_COLUMN_PATCH_INDEX_END
           name_val      = 'Ending column to patch index'
-          long_name_val = 'Ending column to patch index: ALM to External Model'
+          long_name_val = 'Ending column to patch index: ELM to External Model'
           units_val     = '[-]'
           is_int_type   = .true.
           ndim          = 1
@@ -1686,7 +1686,7 @@ contains
        case (L2E_COLUMN_NUM_SNOW_LAYERS)
           id_val        = L2E_COLUMN_NUM_SNOW_LAYERS
           name_val      = 'Number of snow layers'
-          long_name_val = 'Number of snow layers: ALM to External Model'
+          long_name_val = 'Number of snow layers: ELM to External Model'
           units_val     = '[-]'
           is_int_type   = .true.
           ndim          = 1
@@ -1697,7 +1697,7 @@ contains
        case (L2E_COLUMN_ZI_SNOW_AND_SOIL)
           id_val        = L2E_COLUMN_ZI_SNOW_AND_SOIL
           name_val      = 'Column layer interface depth'
-          long_name_val = 'Column layer interface depth: ALM to External Model'
+          long_name_val = 'Column layer interface depth: ELM to External Model'
           units_val     = '[m]'
           is_real_type  = .true.
           ndim          = 2
@@ -1710,7 +1710,7 @@ contains
        case (L2E_COLUMN_DZ_SNOW_AND_SOIL)
           id_val        = L2E_COLUMN_DZ_SNOW_AND_SOIL
           name_val      = 'Column layer thickness'
-          long_name_val = 'Column layer thickness: ALM to External Model'
+          long_name_val = 'Column layer thickness: ELM to External Model'
           units_val     = '[m]'
           is_real_type  = .true.
           ndim          = 2
@@ -1723,7 +1723,7 @@ contains
        case (L2E_COLUMN_Z_SNOW_AND_SOIL)
           id_val        = L2E_COLUMN_Z_SNOW_AND_SOIL
           name_val      = 'Column layer centroid depth'
-          long_name_val = 'Column layer centroid depth: ALM to External Model'
+          long_name_val = 'Column layer centroid depth: ELM to External Model'
           units_val     = '[m]'
           is_real_type  = .true.
           ndim          = 2
@@ -1734,12 +1734,12 @@ contains
           data_found    = .true.
 
           ! -------------------------------------------------------------
-          ! ALM-to-ELM: Landunit variables
+          ! ELM-to-ELM: Landunit variables
           ! -------------------------------------------------------------
        case (L2E_LANDUNIT_TYPE)
           id_val        = L2E_LANDUNIT_TYPE
           name_val      = 'Landunit type'
-          long_name_val = 'Landunit type: ALM to External Model'
+          long_name_val = 'Landunit type: ELM to External Model'
           units_val     = '[-]'
           is_int_type   = .true.
           ndim          = 1
@@ -1750,7 +1750,7 @@ contains
        case (L2E_LANDUNIT_LAKEPOINT)
           id_val        = L2E_LANDUNIT_LAKEPOINT
           name_val      = 'Landunit lake point'
-          long_name_val = 'Landunit lake point: ALM to External Model'
+          long_name_val = 'Landunit lake point: ELM to External Model'
           units_val     = '[-]'
           is_int_type   = .true.
           ndim          = 1
@@ -1761,7 +1761,7 @@ contains
        case (L2E_LANDUNIT_URBANPOINT)
           id_val        = L2E_LANDUNIT_URBANPOINT
           name_val      = 'Landunit urban point'
-          long_name_val = 'Landunit urban point: ALM to External Model'
+          long_name_val = 'Landunit urban point: ELM to External Model'
           units_val     = '[-]'
           is_int_type   = .true.
           ndim          = 1

@@ -27,7 +27,7 @@ CONTAINS
     !
     !
     ! !ARGUMENTS:
-   use clm_varctl      , only : iulog
+   use elm_varctl      , only : iulog
     implicit none
     character(len=*), intent(in), optional :: msg    ! string to be printed
     !-----------------------------------------------------------------------
@@ -49,7 +49,7 @@ CONTAINS
     ! Description:
     ! Abort the model for abnormal termination
     !
-    use clm_varctl      , only : iulog
+    use elm_varctl      , only : iulog
     !
     ! Arguments:
     implicit none
