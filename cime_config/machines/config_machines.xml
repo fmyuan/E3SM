@@ -730,7 +730,8 @@
       <env name="NETCDF_PATH">$ENV{NETCDF_PATH}</env>
       <env name="PNETCDF_PATH">$ENV{PNETCDF_PATH}</env>
       <env name="BLASLAPACK_DIR">$ENV{BLASLAPACK_DIR}</env>
-    </environment_variables>       
+      <env name="ATS_DIR">$ENV{ATS_DIR}</env>
+    </environment_variables>
 
   </machine>
 
