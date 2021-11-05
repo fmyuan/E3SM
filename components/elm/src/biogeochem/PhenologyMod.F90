@@ -1409,11 +1409,11 @@ contains
                ! if soil water potential lower than critical value, accumulate
                ! as stress in offset soil water index
 
-#if (defined MARSH)
-               if (psi <= soilpsi_off .or. h2osfc(c) >= 120) then ! h20sfc in mm 29/8/2018 TAO 
-#else
+!#if (defined MARSH)
+               !if (psi <= soilpsi_off .or. h2osfc(c) >= 120) then ! h20sfc in mm 29/8/2018 TAO 
+!#else
                if (psi <= soilpsi_off) then               
-#endif
+!#endif
 
                offset_swi(p) = offset_swi(p) + fracday
 
