@@ -460,13 +460,17 @@ module elm_varctl
   ! ATS external model
   !----------------------------------------------------------
   logical, public :: use_ats       = .false.
-  ! the following switches will allow flexibility of coupling ELM with ATS (which in fact runs in 3 modes individually or coupled)
-  logical, public :: ats_hmode      = .false.        ! switch for 'H' mode, hydrological coupling (will be updated in interface)
-  logical, public :: ats_tmode      = .false.        ! switch for 'T' mode, thermal coupling (will be updated in interface)
-  logical, public :: ats_gmode      = .false.        ! switch for 'G' mode, ground/surface T/H coupling (will be updated in interface)
+  ! the following switches will allow flexibility of coupling ELM with ATS (which in fact runs in 4 modes incrementally)
+  logical, public :: ats_hmode      = .false.        ! switch for 'H' mode, subsurface hydrological coupling ONLY (will be updated in interface)
+                                                     !     note that when in 'H' mode, EMI_ats will be called in 'HydrologyNoDrainage::SoilWater()'
+                                                     !               while in the following 3 modes, EMI_ats will be called in 'elm_drv()'
+  logical, public :: ats_thmode     = .false.        ! switch for 'T+H' mode, subsurface thermal-hydrological coupling (will be updated in interface)
+  logical, public :: ats_thcmode    = .false.        ! switch for 'T+H+C' mode, subsurface thermal-hydrological-biogeochemical coupling (will be updated in interface)
+  logical, public :: ats_gmode      = .false.        ! switch for 'G' mode, ground/surface T+H coupling (will be updated in interface)
   !$acc declare copyin(use_ats       )
   !$acc declare copyin(ats_hmode     )
-  !$acc declare copyin(ats_tmode     )
+  !$acc declare copyin(ats_thmode    )
+  !$acc declare copyin(ats_thcmode   )
   !$acc declare copyin(ats_gmode     )
 
   !----------------------------------------------------------

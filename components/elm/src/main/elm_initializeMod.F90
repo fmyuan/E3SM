@@ -13,6 +13,8 @@ module elm_initializeMod
   use elm_varctl       , only : create_glacier_mec_landunit, iulog
   use elm_varctl       , only : use_lch4, use_cn, use_voc, use_c13, use_c14
   use elm_varctl       , only : use_fates, use_betr, use_fates_sp
+  use elm_varctl       , only : use_fates, use_betr
+  use elm_varctl       , only : use_ats
   use elm_varsur       , only : wt_lunit, urban_valid, wt_nat_patch, wt_cft, wt_glc_mec, topo_glc_mec
   use elm_varsur       , only : fert_cft
   use elm_varsur       , only : wt_tunit, elv_tunit, slp_tunit,asp_tunit,num_tunit_per_grd
@@ -1038,6 +1040,7 @@ contains
     use ExternalModelInterfaceMod, only : EMI_Init_EM
     use ExternalModelConstants   , only : EM_ID_VSFM
     use ExternalModelConstants   , only : EM_ID_PTM
+    use ExternalModelConstants   , only : EM_ID_ATS
 
     implicit none
 
@@ -1086,6 +1089,10 @@ contains
 
     if (use_petsc_thermal_model) then
        call EMI_Init_EM(EM_ID_PTM)
+    endif
+
+    if (use_ats) then
+       call EMI_Init_EM(EM_ID_ATS)
     endif
 
     call t_stopf('elm_init3')

@@ -116,6 +116,7 @@ contains
     use fileutils                 , only : getavu, relavu
     use shr_string_mod            , only : shr_string_getParentDir
     use elm_interface_pflotranMod , only : elm_pf_readnl
+    use ExternalModelATS_readnlMod, only : elm_ats_readnl
     use ALMBeTRNLMod              , only : betr_readNL
     
     implicit none
@@ -279,6 +280,9 @@ contains
 
     ! bgc & pflotran interface
     namelist /elm_inparm/ use_elm_interface, use_elm_bgc, use_pflotran
+
+    ! ats
+    namelist /elm_inparm/ use_ats
 
     namelist /elm_inparm/ use_dynroot
 
@@ -501,6 +505,51 @@ contains
                    errMsg(__FILE__, __LINE__))
        end if
 
+       ! checking if conflict when using ATS external model, by which hydrology coupling is the default mode
+       if (use_ats) then
+          ! currently ATS only provides subsurface hydrology
+          ! when other functions, such as thermal-ATS, bgc-ATS, ... on, need to update this checking
+          if (use_vsfm) then ! apparently cannot have 'VSFM' on
+             call endrun(msg=' ERROR: use_vsfm and use_ats cannot both be set to true.'//&
+                   errMsg(__FILE__, __LINE__))
+          end if
+
+          if (use_pflotran .and. pf_hmode) then ! apparently cannot have 'PFLOTRAN' hydrological coupling on
+             call endrun(msg=' ERROR: use_pflotran/pf_hmode and use_ats cannot both be set to true.'//&
+                   errMsg(__FILE__, __LINE__))
+          end if
+
+          if (ats_thmode .or. ats_thcmode) then
+             ! checking external thermal models
+             if (use_petsc_thermal_model) then
+                 call endrun(msg=' ERROR: use_petsc_thermal_mode and ats_thmode cannot both be set to true.'//&
+                     errMsg(__FILE__, __LINE__))
+             end if
+
+             if (use_pflotran .and. pf_tmode) then
+                 call endrun(msg=' ERROR: use_petsc_thermal_mode and ats_thmode cannot both be set to true.'//&
+                     errMsg(__FILE__, __LINE__))
+             end if
+
+             if (ats_thcmode) then
+                 ! checking external bgc models
+                 if (use_pflotran .and. pf_cmode) then
+                     call endrun(msg=' ERROR: pf_cmode and ats_thcmode cannot both be set to true.'//&
+                         errMsg(__FILE__, __LINE__))
+                 end if
+                 if (use_alquimia) then
+                     call endrun(msg=' ERROR: use_alquimia and ats_thcmode cannot both be set to true.'//&
+                         errMsg(__FILE__, __LINE__))
+                 end if
+             end if
+
+
+          end if
+
+
+       end if
+
+
     endif   ! end of if-masterproc if-block
 
     ! ----------------------------------------------------------------------
@@ -521,6 +570,10 @@ contains
 
     if (use_pflotran) then
        call elm_pf_readnl(NLFilename)
+    end if
+
+    if (use_ats) then
+       call elm_ats_readnl(NLFilename)
     end if
 
     if (use_betr) then
@@ -855,6 +908,9 @@ contains
     call mpi_bcast (use_elm_bgc, 1, MPI_LOGICAL, 0, mpicom, ier)
     call mpi_bcast (use_pflotran, 1, MPI_LOGICAL, 0, mpicom, ier)
 
+    ! ats
+    call mpi_bcast (use_ats, 1, MPI_LOGICAL, 0, mpicom, ier)
+    
     !cpl_bypass
      call mpi_bcast (metdata_type,   len(metdata_type),   MPI_CHARACTER, 0, mpicom, ier)
      call mpi_bcast (metdata_bypass, len(metdata_bypass), MPI_CHARACTER, 0, mpicom, ier)

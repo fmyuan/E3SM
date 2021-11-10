@@ -861,6 +861,7 @@ contains
             filter(nc)%num_nolakec, filter(nc)%nolakec,                      &
             filter(nc)%num_hydrologyc, filter(nc)%hydrologyc,                &
             filter(nc)%num_hydrononsoic, filter(nc)%hydrononsoic,            &
+            filter(nc)%num_soilc, filter(nc)%soilc,                          &
             filter(nc)%num_urbanc, filter(nc)%urbanc,                        &
             filter(nc)%num_snowc, filter(nc)%snowc,                          &
             filter(nc)%num_nosnowc, filter(nc)%nosnowc,canopystate_vars,     &

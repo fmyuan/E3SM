@@ -13,6 +13,8 @@ module SoilWaterMovementMod
 
   use ExternalModelConstants     , only : EM_VSFM_SOIL_HYDRO_STAGE
   use ExternalModelConstants     , only : EM_ID_VSFM
+  use ExternalModelConstants     , only : EM_ATS_SOIL_HYDRO_STAGE
+  use ExternalModelConstants     , only : EM_ID_ATS
   use ExternalModelInterfaceMod  , only : EMI_Driver
   use elm_instMod , only : waterflux_vars, waterstate_vars, temperature_vars
   use abortutils           , only : endrun
@@ -35,10 +37,12 @@ module SoilWaterMovementMod
   ! !PRIVATE DATA MEMBERS:
   integer, parameter, public :: zengdecker_2009 = 0
   integer, parameter, public :: vsfm = 1
+  integer, parameter, public :: ATS_HYDRO = 2
   integer, public :: soilroot_water_method !0: use the Zeng and deck method, this will be readin from namelist in the future
 
   !$acc declare copyin(zengdecker_2009)
   !$acc declare copyin(vsfm)
+  !$acc declare copyin(ATS_HYDRO)
   !$acc declare copyin(soilroot_water_method)
 
   !-----------------------------------------------------------------------
@@ -80,7 +84,8 @@ contains
 
   !-----------------------------------------------------------------------
   subroutine SoilWater(bounds, num_hydrologyc, filter_hydrologyc, &
-       num_urbanc, filter_urbanc, soilhydrology_vars, soilstate_vars, dt)
+       num_urbanc, filter_urbanc, soilhydrology_vars, soilstate_vars, &
+       nstep, dt)
     !
     ! DESCRIPTION
     ! select one subroutine to do the soil and root water coupling
@@ -89,6 +94,7 @@ contains
       !$acc routine seq
     use elm_varctl                 , only : use_betr
     use elm_varctl                 , only : use_var_soil_thick
+    use elm_varctl                 , only : use_ats, ats_hmode
     use shr_kind_mod               , only : r8 => shr_kind_r8
     use elm_varpar                 , only : nlevsoi
     use decompMod                  , only : bounds_type
@@ -106,6 +112,7 @@ contains
     integer                  , intent(in)    :: filter_urbanc(:)      ! column filter for urban points
     type(soilhydrology_type) , intent(inout) :: soilhydrology_vars
     type(soilstate_type)     , intent(inout) :: soilstate_vars
+    integer                  , intent(in)    :: nstep
     real(r8)                 , intent(in)    :: dt
     !
     ! !LOCAL VARIABLES:
@@ -129,11 +136,28 @@ contains
 
     select case(soilroot_water_method)
 
+    !----------------------------------------------------------------------------------------
     case (zengdecker_2009)
-
        call soilwater_zengdecker2009(bounds, num_hydrologyc, filter_hydrologyc, &
             num_urbanc, filter_urbanc, soilhydrology_vars, soilstate_vars, dt)
 
+    !----------------------------------------------------------------------------------------
+    case (ATS_HYDRO)
+
+#ifdef USE_ATS_LIB
+#ifndef _OPENACC
+       call EMI_Driver(EM_ID_ATS, EM_ATS_SOIL_HYDRO_STAGE,                        &
+            dt=dt, number_step=nstep, clump_rank=bounds%clump_index,              &
+            soilstate_vars=soilstate_vars,                                        &  !
+            !waterflux_vars=waterflux_vars,                                        &  ! needed?
+            waterstate_vars=waterstate_vars,                                      &
+            col_ws=col_ws, col_wf=col_wf,                                         &
+            num_soilc=num_hydrologyc, filter_soilc=filter_hydrologyc)             ! NOTE: here 'num_hydrologyc/filter_hydroogyc' are dummy, upon actual ones
+
+#endif
+#endif
+
+    !----------------------------------------------------------------------------------------
     case (vsfm)
 #ifdef USE_PETSC_LIB
 #ifndef _OPENACC
@@ -141,8 +165,8 @@ contains
             soilhydrology_vars, soilstate_vars, &
             waterflux_vars, waterstate_vars, temperature_vars)
 
-       call EMI_Driver(EM_ID_VSFM, EM_VSFM_SOIL_HYDRO_STAGE, dt = get_step_size()*1.0_r8, &
-            number_step = get_nstep(), &
+       call EMI_Driver(EM_ID_VSFM, EM_VSFM_SOIL_HYDRO_STAGE, dt = dt, &
+            number_step = nstep, &
             clump_rank  = bounds%clump_index, &
             num_hydrologyc=num_hydrologyc, filter_hydrologyc=filter_hydrologyc, &
             soilhydrology_vars=soilhydrology_vars, soilstate_vars=soilstate_vars, &
@@ -150,6 +174,9 @@ contains
             temperature_vars=temperature_vars)
 #endif
 #endif
+
+      !----------------------------------------------------------------------------------------
+
     case default
 #ifndef _OPENACC
        call endrun('SoilWater' // ':: a SoilWater implementation must be specified!')
@@ -839,6 +866,7 @@ contains
             if(h2osoi_liq(c,j)<0._r8)then
                qflx_deficit(c) = qflx_deficit(c) - h2osoi_liq(c,j)
             endif
+
          enddo
       enddo
 
@@ -1153,6 +1181,7 @@ contains
     use decompMod        , only : bounds_type
     use shr_kind_mod     , only : r8 => shr_kind_r8
     use elm_varpar       , only : nlevsoi, max_patch_per_col
+    use elm_varpar       , only : nlevgrnd
     use SoilStateType    , only : soilstate_type
     use VegetationType   , only : veg_pp
     use ColumnType       , only : col_pp
@@ -1236,6 +1265,7 @@ contains
             qflx_rootsoi_col(c,j) = rootr_col(c,j)*qflx_tran_veg_col(c)
 
          end do
+         qflx_rootsoi_col(c,j:nlevgrnd) = 0.0_r8    ! in case not zeroed during initialization
       end do
 
       do pi = 1,max_patch_per_col

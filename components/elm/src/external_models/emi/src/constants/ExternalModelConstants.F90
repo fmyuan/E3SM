@@ -34,8 +34,8 @@ module ExternalModelConstants
 
   integer, public, parameter :: EM_ID_ATS                                        = 700
   integer, parameter, public :: EM_ATS_SOIL_HYDRO_STAGE                          = 701
-  integer, parameter, public :: EM_ATS_SOIL_THERMAL_STAGE                        = 702
-  integer, parameter, public :: EM_ATS_SOIL_BGC_STAGE                            = 703
+  integer, parameter, public :: EM_ATS_SOIL_THYDRO_STAGE                         = 702
+  integer, parameter, public :: EM_ATS_SOIL_THBGC_STAGE                          = 703
 
   ! ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   ! IDs for variable sent from ALM to External Model

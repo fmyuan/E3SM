@@ -42,7 +42,7 @@ contains
         num_filter, filter, waterflux_vars)
     !
     ! !DESCRIPTION:
-    ! Pack data from ALM waterflux_vars for EM
+    ! Pack data from ELM 'col_wf' for EM
     !
     ! !USES:
     use elm_varpar             , only : nlevsoi, nlevgrnd, nlevsno
@@ -54,7 +54,7 @@ contains
     integer                , intent(in) :: em_stage
     integer                , intent(in) :: num_filter
     integer                , intent(in) :: filter(:)
-    type(waterflux_type)   , intent(in) :: waterflux_vars
+    type(waterflux_type)   , intent(in), optional :: waterflux_vars
     !
     ! !LOCAL_VARIABLES:
     integer                             :: fc,c,j
@@ -211,7 +211,7 @@ contains
           case (L2E_FLUX_SUB_SNOW_VOL)
              do fc = 1, num_filter
                 c = filter(fc)
-                cur_data%data_real_1d(c) = qflx_h2osfc2topsoi(c)
+                cur_data%data_real_1d(c) = qflx_snow2topsoi(c)  !???
              enddo
              cur_data%is_set = .true.
 
@@ -295,7 +295,7 @@ contains
         num_filter, filter, waterflux_vars)
     !
     ! !DESCRIPTION:
-    ! Unpack data for ALM waterflux_vars from EM
+    ! Unpack data for ELM 'col_wf' from EM
     !
     ! !USES:
     use elm_varpar             , only : nlevsoi, nlevgrnd, nlevsno
@@ -307,7 +307,7 @@ contains
     integer                , intent(in) :: em_stage
     integer                , intent(in) :: num_filter
     integer                , intent(in) :: filter(:)
-    type(waterflux_type)   , intent(in) :: waterflux_vars
+    type(waterflux_type)   , intent(in), optional :: waterflux_vars
     !
     ! !LOCAL_VARIABLES:
     integer                             :: fc,c,j
