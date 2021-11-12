@@ -1909,6 +1909,11 @@ sub process_namelist_inline_logic {
   #########################################
   setup_logic_pflotran($opts, $nl_flags, $definition, $defaults, $nl, $physv);
 
+  #########################################
+  # namelist group: elm_ats_inparm   #
+  #########################################
+  setup_logic_ats($opts, $nl_flags, $definition, $defaults, $nl);
+
 }
 
 #-------------------------------------------------------------------------------
@@ -2321,6 +2326,7 @@ sub setup_logic_demand {
   $settings{'use_snicar_ad'}       = $nl_flags->{'use_snicar_ad'};
   $settings{'use_century_decomp'}  = $nl_flags->{'use_century_decomp'};
   $settings{'use_crop'}            = $nl_flags->{'use_crop'};
+  $settings{'use_ats'}             = $nl_flags->{'use_ats'};
 
   my $demand = $nl->get_value('clm_demand');
   if (defined($demand)) {
@@ -3112,6 +3118,24 @@ sub setup_logic_pflotran {
 } # end setup_logic_pflotran
 
 #-------------------------------------------------------------------------------
+sub setup_logic_ats {
+    # elm_ats_inparm
+    #
+    my ($test_files, $nl_flags, $definition, $defaults, $nl) = @_;
+
+    if ( $nl_flags->{'use_ats'}  eq '.true.' ) {
+       add_default($test_files, $nl_flags->{'inputdata_rootdir'}, $definition, $defaults, $nl, 'ats_inputdir' );
+       add_default($test_files, $nl_flags->{'inputdata_rootdir'}, $definition, $defaults, $nl, 'ats_inputfile' );
+       #
+       # Check if $ats_inputfile is set in $inputdata_rootdir/$ats#
+       my $ats_inputdir = $nl->get_value('ats_inputdir');
+       my $ats_inputfile = $nl->get_value('ats_inputfile');
+       #
+    }
+} # end setup_logic_ats
+
+
+#-------------------------------------------------------------------------------
 
 sub setup_logic_fates {
     #
@@ -3171,6 +3195,9 @@ sub write_output_files {
     }
     {
       push @groups, "elm_humanindex_inparm";
+    }
+    {
+      push @groups, "elm_ats_inparm";
     }
   }
 

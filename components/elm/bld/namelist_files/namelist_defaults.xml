@@ -1966,6 +1966,12 @@ this mask will have smb calculated over the entire global land surface
 <pflotran_prefix>pflotran_clm</pflotran_prefix>
 
 <!-- =========================================  -->
+<!-- Defaults for elm_ats_inparm interface -->
+<!-- =========================================  -->
+<ats_inputdir use_ats=".true.">ats</ats_inputdir>
+<ats_inputfile use_ats=".true.">ats_inputfile.xml</ats_inputfile>
+
+<!-- =========================================  -->
 <!-- Defaults for FATES interface -->
 <!-- =========================================  -->
 <fates_spitfire_mode           use_fates=".true.">0</fates_spitfire_mode>

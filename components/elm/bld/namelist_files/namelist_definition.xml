@@ -1782,6 +1782,29 @@ Specifies the method for decomposing CLM grids across processors.
 </entry>
 
 <!-- ========================================================================================  -->
+<!-- Namelist options related to ATS Model coupling with ELM                          -->
+<!-- ========================================================================================  -->
+
+<entry id="use_ats" type="logical" category="default_settings"
+    group="elm_inparm" 
+    valid_values=".true.,.false."
+    value=".false.">
+    Runtime flag to turn on/off EMI-em/ats interface.
+</entry>
+
+<entry id="ats_inputdir" type="char*256" category="elm_ats"
+    group="elm_ats_inparm" valid_values="" >
+    ats input directory in which $ats_inputfile.xml and data contained should be located.
+</entry>
+
+<entry id="ats_inputfile" type="char*256" category="elm_ats"
+    group="elm_ats_inparm"
+    valid_values=""
+    value="ats_inputfile.xml">
+    ats input file name $ats_inputfile.xml located in $input_rootdir/lnd/clm2/ats/.
+</entry>
+
+<!-- ========================================================================================  -->
 <!-- Namelist options related to Variably Saturated Flow Model (VSFM)                          -->
 <!-- ========================================================================================  -->
 
