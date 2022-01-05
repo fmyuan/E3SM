@@ -816,6 +816,12 @@ contains
 
     end if
 
+    ! Prevent situation on restart where states get reset at nstep=1 but cumulative fluxes never get reset
+    if (get_nstep() <= 1 .and. do_budgets) then
+      call WaterBudget_Reset('all')
+      call CNPBudget_Reset('all')
+    endif
+       
     ! ------------------------------------------------------------------------
     ! If appropriate, create interpolated initial conditions
     ! ------------------------------------------------------------------------
