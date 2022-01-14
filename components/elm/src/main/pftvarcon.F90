@@ -329,7 +329,10 @@ module pftvarcon
   real(r8), allocatable :: sal_threshold(:) !threshold for salinity effects (ppt)
   real(r8), allocatable :: KM_salinity(:)    !half saturation constant for omotic inhibition function (ppt)
   real(r8), allocatable :: osm_inhib(:)      !osmotic inhibition factor
-!endif
+  real(r8), allocatable :: sal_opt(:)        !Salinity at which optimal biomass occurs (ppt)
+  real(r8), allocatable :: sal_tol(:)        !Salinity tolerance; width parameter for Gaussian distribution (ppt -1)
+
+  !endif
   !phenology
   real(r8)              :: phen_a
   real(r8)              :: phen_b
@@ -683,6 +686,8 @@ contains
     allocate( sal_threshold (0:mxpft) )
     allocate( KM_salinity (0:mxpft) )
     allocate( osm_inhib (0:mxpft) )
+    allocate( sal_opt (0:mxpft) )
+    allocate( sal_tol (0:mxpft) )
 
     ! Set specific vegetation type values
 
@@ -1096,6 +1101,10 @@ contains
       if ( .not. readv ) KM_salinity(:) = 1.8_r8 !placeholder value for now-update with more accurate -SLL
       call ncd_io('osm_inhib', osm_inhib(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
       if ( .not. readv ) osm_inhib(:) = 1.8_r8 
+      call ncd_io('sal_opt', sal_opt(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+      if ( .not. readv ) sal_opt(:) = 0.0_r8 
+      call ncd_io('sal_tol', sal_tol(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+      if ( .not. readv ) sal_tol(:) = 1.0_r8 
    enddo
    if(num_tide_comps == 0) then
       write(iulog,*) "No tidal coefficients found in parameter file. Using Teri's 2-component fit values for GCREW site as default"

@@ -159,6 +159,8 @@ module VegetationPropertiesType
      real(r8), allocatable :: sal_threshold(:)       !Threshold for salinity effects (ppt)
      real(r8), allocatable :: KM_salinity(:)         !Half saturation constant for omotic inhibition function (ppt)
      real(r8), allocatable :: osm_inhib(:)           !Osmotic inhibition factor
+     real(r8), allocatable :: sal_opt(:)             !Salinity at which optimal biomass occurs (ppt)
+     real(r8), allocatable :: sal_tol(:)             !Salinity tolerance; width parameter for Gaussian distribution (ppt -1)
 
    contains
    procedure, public :: Init => veg_vp_init
@@ -197,7 +199,7 @@ contains
     use pftvarcon , only : fnr, act25, kcha, koha, cpha, vcmaxha, jmaxha, tpuha
     use pftvarcon , only : lmrha, vcmaxhd, jmaxhd, tpuhd, lmrse, qe, theta_cj
     use pftvarcon , only : bbbopt, mbbopt, nstor, br_xr, tc_stress, lmrhd, crit_gdd1, crit_gdd2
-    use pftvarcon , only : sal_threshold, KM_salinity, osm_inhib
+    use pftvarcon , only : sal_threshold, KM_salinity, osm_inhib, sal_opt, sal_tol
     !
     !----------------------F.-M. Yuan (2018-03-23): user-defined parameter file ---------------------------------------------------------------------
     use pftvarcon , only : nonvascular, nfixer
@@ -339,7 +341,8 @@ contains
     allocate( this%sal_threshold(0:numpft))        ; this%sal_threshold(:)       =nan
     allocate( this%KM_salinity(0:numpft))          ; this%KM_salinity(:)         =nan
     allocate( this%osm_inhib(0:numpft))            ; this%osm_inhib(:)           =nan
-
+    allocate( this%sal_opt(0:numpft))              ; this%sal_opt(:)             =nan
+    allocate( this%sal_tol(0:numpft))              ; this%sal_tol(:)             =nan   
     do m = 0,numpft
 
        if (m <= ntree) then
@@ -461,6 +464,8 @@ contains
         this%sal_threshold(m)  = sal_threshold(m)
         this%KM_salinity(m)    = KM_salinity(m)
         this%osm_inhib(m)      = osm_inhib(m)
+        this%sal_opt(m)        = sal_opt(m)
+        this%sal_tol(m)        = sal_tol(m)
 
         do j = 1 , nlevdecomp
            this%decompmicc_patch_vr(m,j) = decompmicc_patch_vr(j,m)
