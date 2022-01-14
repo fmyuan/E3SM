@@ -361,7 +361,9 @@ contains
          h2osoi_liqvol => col_ws%h2osoi_liqvol , & ! Output: [real(r8) (:,:) ]  liquid volumetric moisture, will be used for BeTR
          
          salinity      => col_ws%salinity                      , & !Input: [real(r8) (:)   ] Salinity concentration ppt
-         osm_inhib     => veg_vp%osm_inhib                     , & !Input: [real(r8) (:)   ] osmotic inhibition factor         
+         osm_inhib     => veg_vp%osm_inhib                     , & !Input: [real(r8) (:)   ] osmotic inhibition factor   
+         sal_opt       => veg_vp%sal_opt                       , & !Input: [real(r8) (:)   ] Salinity at which optimal biomass occurs (ppt)     
+         sal_tol       => veg_vp%sal_tol                       , & !Input: [real(r8) (:)   ] Salinity tolerance; width parameter for Gaussian distribution (ppt -1)
          sal_threshold => veg_vp%sal_threshold                 , & ! Input: [real(r8) (:)   ] Threshold for salinity effects (ppt)
          KM_salinity   => veg_vp%KM_salinity                  & ! Input: [real(r8) (:)   ] Half saturation constant for osmotic inhibition
          ) 
@@ -386,7 +388,8 @@ contains
 
                !using osm_inhib to change root uptake -SLL
                if (salinity(1) .ge. sal_threshold(veg_pp%itype(p))) then
-                  osm_inhib(veg_pp%itype(p)) = (1-salinity(c)/(KM_salinity(veg_pp%itype(p))+salinity(c)))
+                  !osm_inhib(veg_pp%itype(p)) = (1-salinity(c)/(KM_salinity(veg_pp%itype(p))+salinity(c)))
+                  osm_inhib(veg_pp%itype(p)) = exp(-0.5*((salinity(1)-sal_opt(veg_pp%itype(p)))**2/sal_tol(veg_pp%itype(p))**2))
                   rresis(p,j) = min( (eff_porosity(c,j)/watsat(c,j))* &
                     (smp_node - smpsc(veg_pp%itype(p))) / (smpso(veg_pp%itype(p)) - smpsc(veg_pp%itype(p))), 1._r8)
                   rresis(p,j) = rresis(p,j)*osm_inhib(veg_pp%itype(p))
