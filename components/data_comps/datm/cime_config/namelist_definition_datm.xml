@@ -2678,6 +2678,10 @@
       <value stream="co2tseries.20tr">extend</value>
       <value stream="co2tseries.omip">extend</value>
       <value stream="co2tseries.SSP">extend</value>
+      <value stream="topo.observed">extend</value>
+      <value stream="presaero.clim_1850" cime_model="e3sm">extend</value>
+      <value stream="presaero.clim_2000" cime_model="e3sm">extend</value>
+      <value stream="presaero.trans_1850-2000" cime_model="e3sm">extend</value>
       <value datm_mode="CLM1PT">cycle</value>
       <value atm_grid="CLM_USRDAT">cycle</value>
     </values>
