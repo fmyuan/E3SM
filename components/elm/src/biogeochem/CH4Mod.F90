@@ -3372,10 +3372,13 @@ contains
                      pondz = h2osfc(c) / 1000._r8 / frac_h2osfc(c) ! Assume all h2osfc corresponds to sat area
                      ! mm      /  mm/m
                      pondres = pondres + pondz / ponddiff
-                  else if (.not. lake .and. sat == 1 .and. frac_h2osfc(c) > 0._r8 .and. &
-                       h2osfc(c)/frac_h2osfc(c) > capthick) then ! Assuming short-circuit logic will avoid FPE here.
+                  !else if (.not. lake .and. sat == 1 .and. frac_h2osfc(c) > 0._r8 .and. &
+                  !     h2osfc(c)/frac_h2osfc(c) > capthick) then ! Assuming short-circuit logic will avoid FPE here.
+                  else if (.not. lake .and. sat == 1 .and. frac_h2osfc(c) > 0._r8) then ! the above will calc. 'h2osfc(c)/frac_h2osfc(c)' no matter whatever, which may cause FGE
+                    if (h2osfc(c)/frac_h2osfc(c) > capthick) then ! Assuming short-circuit logic will avoid FPE here.
                      ! assume surface ice is impermeable
                      pondres = 1/smallnumber
+                    endif
                   end if
 
                   spec_grnd_cond(c,s) = 1._r8/(1._r8/grnd_ch4_cond(c) + snowres(c) + pondres)
