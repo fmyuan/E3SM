@@ -793,7 +793,7 @@ contains
          g = veg_pp%gridcell(p)
 
          if (season_decid(ivt(p)) == 1._r8) then
-            soilt = t_soisno(c,3)
+            soilt = t_soisno(1,3)
             crit_onset_gdd = exp(crit_gdd1(ivt(p)) + 0.13_r8*(annavg_t2m(p) - SHR_CONST_TKFRZ))
             ! set background litterfall rate, background transfer rate, and
             ! long growing season factor to 0 for seasonal deciduous types
@@ -1035,11 +1035,12 @@ contains
                  end if
               end if
             end if
-
+            !make sure a second onset period doesn't occur SL 02-09-22
+            if (ws_flag == 0._r8 .and. dayl(g) < crit_dayl) then
+               onset_flag(p) = 0._r8
+               dormant_flag(p) = 1._r8
+            endif
          end if ! end if seasonal deciduous
-         write(iulog,*) 'ndays_on & ndays_off'
-         write(iulog,*) ndays_on
-         write(iulog,*) ndays_off
          write(iulog,*) 'onset_gdd(p)'
          write(iulog,*) onset_gdd(p)
          write(iulog,*) 'onset_gddflag(p)'
@@ -1048,14 +1049,27 @@ contains
          write(iulog,*) onset_flag(p)
          write(iulog,*) 'onset_counter'
          write(iulog,*) onset_counter(p)
+         write(iulog,*) 'offset_flag'
+         write(iulog,*) offset_flag(p)
+         write(iulog,*) 'offset_counter(p)'
+         write(iulog,*) offset_counter(p)
+         write(iulog,*) 'dormant_flag'
+         write(iulog,*) dormant_flag(p)
+         write(iulog,*) 'ws_flag'
+         write(iulog,*) ws_flag
+         write(iulog,*) 'days_active'
+         write(iulog,*) days_active(p)
          write(iulog,*) 'leafc_storage_to_xfer(p)'
          write(iulog,*) leafc_storage_to_xfer(p)
          write(iulog,*) 'crit_onset_gdd'
          write(iulog,*) crit_onset_gdd
          write(iulog,*) 'soilt'
          write(iulog,*) soilt
-         write(iulog,*) 't_soisno(c,3)'
-         write(iulog,*) t_soisno(c,3)
+         write(iulog,*) 'crit_dayl'
+         write(iulog,*) crit_dayl
+         write(iulog,*) 'dayl'
+         write(iulog,*) dayl(g)
+
       end do ! end of pft loop
      
     end associate
