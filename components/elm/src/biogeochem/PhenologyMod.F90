@@ -790,8 +790,8 @@ contains
       do fp = 1,num_soilp
          p = filter_soilp(fp)
          c = veg_pp%column(p)
-         g = veg_pp%gridcell(p)
-
+         g = veg_pp%gridcell(p)           
+      
          if (season_decid(ivt(p)) == 1._r8) then
             soilt = t_soisno(1,3)
             crit_onset_gdd = exp(crit_gdd1(ivt(p)) + 0.13_r8*(annavg_t2m(p) - SHR_CONST_TKFRZ))
@@ -814,14 +814,17 @@ contains
 
             ! update offset_counter and test for the end of the offset period
             if (offset_flag(p) == 1.0_r8) then
-               ! decrement counter for offset period
-               offset_counter(p) = offset_counter(p) - dt
+               if (c==2) then
+                  offset_counter(p) = offset_counter(p)
+               else if (c==1) then
+                  offset_counter(p) = offset_counter(p) - dt
+               endif
 
                ! if this is the end of the offset_period, reset phenology
                ! flags and indices
                if (offset_counter(p) == 0.0_r8) then
-                  ! this code block was originally handled by call cn_offset_cleanup(p)
-                  ! inlined during vectorization
+               ! this code block was originally handled by call cn_offset_cleanup(p)
+               ! inlined during vectorization
 
                   offset_flag(p) = 0._r8
                   offset_counter(p) = 0._r8
@@ -831,19 +834,22 @@ contains
                   ! reset the previous timestep litterfall flux memory
                   prev_leafc_to_litter(p) = 0._r8
                   prev_frootc_to_litter(p) = 0._r8
-               end if
-            end if
-
+               endif
+            endif   
             ! update onset_counter and test for the end of the onset period
             if (onset_flag(p) == 1.0_r8) then
                ! decrement counter for onset period
-               onset_counter(p) = onset_counter(p) - dt
+               if (c==2) then
+                  onset_counter(p) = onset_counter(p)
+               else if (c==1) then
+                  onset_counter(p) = onset_counter(p) - dt
+               endif
 
-               ! if this is the end of the onset period, reset phenology
-               ! flags and indices
+                  ! if this is the end of the onset period, reset phenology
+                  ! flags and indices
                if (onset_counter(p) == 0.0_r8) then
-                  ! this code block was originally handled by call cn_onset_cleanup(p)
-                  ! inlined during vectorization
+               ! this code block was originally handled by call cn_onset_cleanup(p)
+               ! inlined during vectorization
 
                   onset_flag(p) = 0.0_r8
                   onset_counter(p) = 0.0_r8
@@ -890,7 +896,7 @@ contains
                      deadcrootp_xfer(p) = 0.0_r8
                   end if
                end if
-            end if
+            endif
 
             ! test for switching from dormant period to growth period
             if (dormant_flag(p) == 1.0_r8) then
@@ -904,7 +910,7 @@ contains
                   onset_chil(p) = 0._r8
                   dayl_temp(p) = 0._r8
                end if
-
+            
                ! Test to turn off growing degree-day sum, if on.
                ! This test resets the growing degree day sum if it gets past
                ! the summer solstice without reaching the threshold value.
@@ -1000,7 +1006,7 @@ contains
                end if
 
                ! test for switching from growth period to offset period
-            else if (offset_flag(p) == 0.0_r8) then
+            else if (dormant_flag(p)==0.0_r8 .and. offset_flag(p) == 0.0_r8) then
                ! only begin to test for offset daylength once past the summer sol
 
               if (ivt(p) == 3) then
@@ -1038,9 +1044,11 @@ contains
             !make sure a second onset period doesn't occur SL 02-09-22
             if (ws_flag == 0._r8 .and. dayl(g) < crit_dayl) then
                onset_flag(p) = 0._r8
-               dormant_flag(p) = 1._r8
+               onset_counter = 0._r8 !SL this might interfere with arctic stuff but fixes random fall onset_counter > 0
+               !dormant_flag(p) = 1._r8
             endif
          end if ! end if seasonal deciduous
+
          write(iulog,*) 'onset_gdd(p)'
          write(iulog,*) onset_gdd(p)
          write(iulog,*) 'onset_gddflag(p)'
@@ -1057,10 +1065,6 @@ contains
          write(iulog,*) dormant_flag(p)
          write(iulog,*) 'ws_flag'
          write(iulog,*) ws_flag
-         write(iulog,*) 'days_active'
-         write(iulog,*) days_active(p)
-         write(iulog,*) 'leafc_storage_to_xfer(p)'
-         write(iulog,*) leafc_storage_to_xfer(p)
          write(iulog,*) 'crit_onset_gdd'
          write(iulog,*) crit_onset_gdd
          write(iulog,*) 'soilt'
