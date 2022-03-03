@@ -397,6 +397,8 @@ contains
                else
                   rresis(p,j) = min( (eff_porosity(c,j)/watsat(c,j))* &
                     (smp_node - smpsc(veg_pp%itype(p))) / (smpso(veg_pp%itype(p)) - smpsc(veg_pp%itype(p))), 1._r8)
+               endif
+               
                if (.not. (perchroot .or. perchroot_alt) ) then
                   rootr(p,j) = rootfr(p,j)*rresis(p,j)
                else
