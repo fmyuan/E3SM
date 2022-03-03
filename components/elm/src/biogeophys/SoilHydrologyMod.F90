@@ -312,8 +312,8 @@ contains
 #endif
 #if defined MARSH
       use pftvarcon       , only : num_tide_comps, tide_baseline,tide_coeff_period, tide_coeff_phase, tide_coeff_amp,sfcflow_ratescale
-      use clm_instMod     , only : atm2lnd_vars
-      use clm_varctl      , only : tide_file
+      use elm_instMod     , only : atm2lnd_vars
+      use elm_varctl      , only : tide_file
 #endif
      use clm_time_manager , only : get_step_size, get_curr_date, get_curr_time
      use elm_varcon       , only : secspday

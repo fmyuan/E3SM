@@ -1042,7 +1042,7 @@ contains
               end if
             end if
             !make sure a second onset period doesn't occur SL 02-09-22
-            if (ws_flag == 0._r8 .and. dayl(g) < crit_dayl) then
+            if (ws_flag == 0._r8 .and. dayl(g) < PhenolParamsInst%crit_dayl) then
                onset_flag(p) = 0._r8
                onset_counter = 0._r8 !SL this might interfere with arctic stuff but fixes random fall onset_counter > 0
                !dormant_flag(p) = 1._r8
@@ -1070,7 +1070,7 @@ contains
          write(iulog,*) 'soilt'
          write(iulog,*) soilt
          write(iulog,*) 'crit_dayl'
-         write(iulog,*) crit_dayl
+         write(iulog,*) PhenolParamsInst%crit_dayl
          write(iulog,*) 'dayl'
          write(iulog,*) dayl(g)
 
