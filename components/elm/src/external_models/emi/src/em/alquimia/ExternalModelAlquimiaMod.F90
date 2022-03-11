@@ -1036,7 +1036,8 @@ end subroutine EMAlquimia_Coldstart
                 aux_ints_e2l) 
 
       this%bc(1:this%chem_sizes%num_primary) = total_mobile_e2l(c,1,1:this%chem_sizes%num_primary)/(porosity_l2e(c,1)*0.5_r8)
-      write(iulog,*),'Initialized boundary condition: ',this%bc(1:this%chem_sizes%num_primary)
+      write(iulog,*),'Initialized boundary condition: '
+      call print_alquimia_state(this)
 
     endif
     
@@ -1498,7 +1499,7 @@ end subroutine EMAlquimia_Coldstart
     ! Map out the location of pertinent pools in Alquimia data structure
     ! Assumes that organic matter pools in PFLOTRAN are named the same as decomp_pool_name_history
     ! Currently we are not mapping any non-CTC pools.
-    ! This could be a problem if chemstate_vars is initialized before the decomp cascade pool structure in ELM
+    ! This could be a problem if column chemical state is initialized before the decomp cascade pool structure in ELM
     ! CN pool names in ELM are assigned in init_decompcascade_cn which is called after chemstatemod initialization and restart reading that require alquimia sizes to be set
     ! Maybe best to move this to solve step but only do it if it hasn't been done previously?
     write(iulog,*),'Alquimia carbon pool mapping:'
@@ -1751,7 +1752,7 @@ end subroutine EMAlquimia_Coldstart
   end subroutine map_alquimia_pools
 
   
-  subroutine print_alquimia_state(this,c,j)
+  subroutine print_alquimia_state(this)
 
     use elm_varpar, only : ndecomp_pools,ndecomp_cascade_transitions
     use iso_c_binding, only : c_f_pointer, c_double
@@ -1761,7 +1762,6 @@ end subroutine EMAlquimia_Coldstart
     implicit none
 
     class(em_alquimia_type)              :: this
-    integer, intent(in) :: c,j
 
     integer :: poolnum
     character(len=256) :: poolname
@@ -1850,7 +1850,7 @@ end subroutine EMAlquimia_Coldstart
       if(actual_dt/2 < min_dt) then
         call c_f_string_ptr(this%chem_status%message,status_message)
         write(msg,'(a,i3,a,f5.2,a,i4,a,i3,a,i5)') "Error: Alquimia ReactionStepOperatorSplit failed to converge after ",num_cuts," cuts to dt = ",actual_dt,' s. Newton iterations = ',this%chem_status%num_newton_iterations,' Layer = ',j," Col = ",c
-        call print_alquimia_state(this,c,j)
+        call print_alquimia_state(this)
         call endrun(msg=msg)
       else
         ! If we are not at minimum timestep yet, cut and keep going
@@ -2100,7 +2100,7 @@ end subroutine EMAlquimia_Coldstart
         ! Sometimes solve fails because time step is too short (not sure why)
         ! I wonder if at bailout we should first try pausing transport and solving each layer separately?
         write(msg,'(a,i3,a,f5.3,a,i4,a,i3,a,i5)') "Error: Alquimia ReactionStepOperatorSplit failed to converge after ",num_cuts," cuts to dt = ",actual_dt,' s. Newton iterations = ',this%chem_status%num_newton_iterations,' Layer = ',j," Col = ",c
-        call print_alquimia_state(this,c,j)
+        call print_alquimia_state(this)
         call endrun(msg=msg)
       else
         exit ! Drop out of the layer loop to start over at shorter time step

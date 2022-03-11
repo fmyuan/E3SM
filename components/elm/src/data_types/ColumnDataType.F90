@@ -983,6 +983,46 @@ module ColumnDataType
     procedure, public :: Clean      => col_pf_clean
   end type column_phosphorus_flux
 
+  type, public :: column_chem_state
+
+     real(r8), pointer :: soil_pH               (:,:)   => null() ! soil pH (1:nlevdecomp_full)
+     real(r8), pointer :: soil_salinity         (:,:)   => null() ! soil salinity (ppt) (1:nlevdecomp_full)
+     real(r8), pointer :: soil_O2               (:,:)   => null() ! soil O2 (mol m^-3) (1:nlevdecomp_full)
+     real(r8), pointer :: soil_sulfate          (:,:)   => null() ! soil sulfate (mol m^-3) (1:nlevdecomp_full)
+     real(r8), pointer :: soil_FeOxide          (:,:)   => null() ! soil iron oxide minerals (mol Fe m^-3) (1:nlevdecomp_full)
+     real(r8), pointer :: soil_Fe2              (:,:)   => null() ! soil Fe(II) (mol Fe m^-3) (1:nlevdecomp_full)
+
+     real(r8), pointer :: chem_dt               (:)     => null() ! Time step of successful chemistry solve (s)
+
+     ! Data that must be saved for chemistry model (via alquimia)
+     ! Sizes are set by alquimia
+     ! State variables [col x layer]: water_density, porosity, temperature, aqueous_pressure
+     ! [col x layer x num_primary]: total_mobile, total_immobile
+     ! [col x layer x num_minerals]: mineral_volume_fraction, mineral_specific_surface_area
+     ! [col x layer x num_surface_sites]: surface_site_density
+     ! [col x layer x num_ion_exchange_sites]: cation_exchange_capacity
+     ! [col x layer x num_aux_ints]: aux_ints
+     ! [col x layer x num_aux_doubles]: aux_doubles
+     ! Question: Is there a problem if these are not c doubles?
+     real(r8), pointer :: water_density                   (:,:)  => null() 
+     !  real(r8), pointer :: porosity(:,:)    ! Redundant with soilstate_type%watsat_col
+     !  real(r8), pointer :: temperature(:,:) ! Redundant with columnenergystate%t_soisno
+     real(r8), pointer :: aqueous_pressure                (:,:)  => null()
+
+     real(r8), pointer :: total_mobile                    (:,:,:) => null()
+     real(r8), pointer :: total_immobile                  (:,:,:) => null()
+     real(r8), pointer :: mineral_volume_fraction         (:,:,:) => null()
+     real(r8), pointer :: mineral_specific_surface_area   (:,:,:) => null()
+     real(r8), pointer :: surface_site_density            (:,:,:) => null()
+     real(r8), pointer :: cation_exchange_capacity        (:,:,:) => null()
+     real(r8), pointer :: aux_doubles                     (:,:,:) => null()
+     integer,  pointer :: aux_ints                        (:,:,:) => null()
+
+  contains
+    procedure, public  :: Init           => col_chem_init 
+    procedure, public  :: Restart        => col_chem_restart
+  end type column_chem_state
+
   !-----------------------------------------------------------------------
   ! declare the public instances of column-level data types
   !-----------------------------------------------------------------------
@@ -1003,6 +1043,8 @@ module ColumnDataType
   type(column_nitrogen_flux)         , public, target :: col_nf     ! column nitrogen flux
   type(column_phosphorus_flux)       , public, target :: col_pf     ! column phosphorus flux
 
+  type(column_chem_state)            , public, target :: col_chem   ! column chemistry state
+
   !$acc declare create(col_es)
   !$acc declare create(col_ef)
   !$acc declare create(col_ws)
@@ -1018,6 +1060,8 @@ module ColumnDataType
   !$acc declare create(c14_col_cf)
   !$acc declare create(col_nf    )
   !$acc declare create(col_pf    )
+
+  !$acc declare create(col_chem  )
   !------------------------------------------------------------------------
 
 contains
@@ -11085,5 +11129,260 @@ contains
   end subroutine col_pf_clean
 
     !------------------------------------------------------------------------
+
+  subroutine col_chem_init(this, begc, endc)
+
+   ! use ExternalModelInterfaceMod, only : EMI_Init_EM
+   ! use ExternalModelConstants   , only : EM_ID_ALQUIMIA
+   use elm_varctl               , only : use_alquimia
+   use histFileMod     , only : hist_addfld2d, hist_addfld1d
+
+   use elm_varpar      , only : alquimia_num_primary, alquimia_num_minerals,&
+                                alquimia_num_surface_sites, alquimia_num_ion_exchange_sites, &
+                                alquimia_num_aux_doubles, alquimia_num_aux_ints
+
+   implicit none
+
+   class(column_chem_state)         :: this
+   integer, intent(in)              :: begc, endc
+
+   integer :: lbj,  ubj
+
+   lbj  = 1;
+   ubj  = nlevdecomp_full
+   
+   allocate(this%soil_pH(begc:endc, lbj:ubj))
+
+   ! Data for chemistry model (via alquimia)
+   ! State variables [col x layer]: water_density, porosity*, temperature*, aqueous_pressure
+   ! [col x layer x num_primary]: total_mobile, total_immobile
+   ! [col x layer x num_minerals]: mineral_volume_fraction, mineral_specific_surface_area
+   ! [col x layer x num_surface_sites]: surface_site_density
+   ! [col x layer x num_ion_exchange_sites]: cation_exchange_capacity
+   ! [col x layer x num_aux_ints]: aux_ints
+   ! [col x layer x num_aux_doubles]: aux_doubles
+   if(use_alquimia) then
+      allocate(this%water_density(begc:endc,lbj:ubj))
+      allocate(this%aqueous_pressure(begc:endc,lbj:ubj))
+
+      allocate(this%total_mobile(begc:endc,lbj:ubj,1:alquimia_num_primary))
+      allocate(this%total_immobile(begc:endc,lbj:ubj,1:alquimia_num_primary))
+      allocate(this%mineral_volume_fraction(begc:endc,lbj:ubj,1:alquimia_num_minerals))
+      allocate(this%mineral_specific_surface_area(begc:endc,lbj:ubj,1:alquimia_num_minerals))
+      allocate(this%surface_site_density(begc:endc,lbj:ubj,1:alquimia_num_surface_sites))
+      allocate(this%cation_exchange_capacity(begc:endc,lbj:ubj,1:alquimia_num_ion_exchange_sites))
+      allocate(this%aux_ints(begc:endc,lbj:ubj,1:alquimia_num_aux_ints))
+      allocate(this%aux_doubles(begc:endc,lbj:ubj,1:alquimia_num_aux_doubles))
+
+      allocate(this%soil_salinity(begc:endc, lbj:ubj))
+      allocate(this%soil_O2(begc:endc, lbj:ubj))
+      allocate(this%soil_sulfate(begc:endc, lbj:ubj))
+      allocate(this%soil_FeOxide(begc:endc, lbj:ubj))
+      allocate(this%soil_Fe2(begc:endc, lbj:ubj))
+
+      allocate(this%chem_dt(begc:endc))
+   endif
+
+   if(use_alquimia) then
+     this%soil_pH(begc:endc,:) = 0.0_r8
+     call hist_addfld2d (fname='soil_pH', units='-',  type2d='levdcmp', &
+       avgflag='A', long_name='Soil pH', &
+           ptr_col=this%soil_pH,default='inactive')
+
+     this%soil_salinity(begc:endc,:) = 0.0_r8
+     call hist_addfld2d (fname='soil_salinity', units='ppt',  type2d='levdcmp', &
+       avgflag='A', long_name='Soil salinity', &
+           ptr_col=this%soil_salinity,default='inactive')
+
+     this%soil_O2(begc:endc,:) = 0.0_r8
+     call hist_addfld2d (fname='soil_O2', units='mol m-3',  type2d='levdcmp', &
+       avgflag='A', long_name='Soil porewater dissolved oxygen', &
+           ptr_col=this%soil_O2,default='inactive')
+
+     this%soil_sulfate(begc:endc,:) = 0.0_r8
+     call hist_addfld2d (fname='soil_sulfate', units='mol m-3',  type2d='levdcmp', &
+       avgflag='A', long_name='Soil porewater dissolved sulfate', &
+           ptr_col=this%soil_sulfate,default='inactive')
+
+     this%soil_Fe2(begc:endc,:) = 0.0_r8
+     call hist_addfld2d (fname='soil_Fe2', units='mol m-3',  type2d='levdcmp', &
+       avgflag='A', long_name='Soil porewater dissolved Fe(II)', &
+           ptr_col=this%soil_Fe2,default='inactive')
+
+     this%soil_FeOxide(begc:endc,:) = 0.0_r8
+     call hist_addfld2d (fname='soil_FeOxide', units='mol Fe m-3',  type2d='levdcmp', &
+       avgflag='A', long_name='Soil iron oxide mineral concentration', &
+           ptr_col=this%soil_FeOxide,default='inactive')
+
+     this%chem_dt(begc:endc) = 0.0_r8
+     call hist_addfld1d (fname='chem_dt', units='s', &
+       avgflag='A', long_name='Chemistry solver time step', &
+           ptr_col=this%chem_dt,default='inactive')
+       
+   endif
+
+
+ end subroutine col_chem_init
+
+
+ subroutine col_chem_restart (this,  bounds, ncid, flag )
+
+   use restUtilMod     , only : restartvar
+   use ncdio_pio       , only : file_desc_t,ncd_double, ncd_int
+   use elm_varpar      , only : alquimia_num_primary, alquimia_num_minerals,&
+                                alquimia_num_surface_sites, alquimia_num_ion_exchange_sites, &
+                                alquimia_num_aux_doubles, alquimia_num_aux_ints
+   use elm_varctl               , only : use_alquimia
+   use elm_varpar            , only : nlevdecomp_full
+
+   implicit none
+   !
+   ! !ARGUMENTS:
+   class (column_chem_state)     :: this
+   type(bounds_type) , intent(in)     :: bounds 
+   type(file_desc_t) , intent(inout)  :: ncid   ! netcdf id
+   character(len=*)  , intent(in)     :: flag   !'read' or 'write'
+   !
+   ! !LOCAL VARIABLES:
+   logical :: readvar   ! determine if variable is on initial file
+   integer :: ii
+   character(len=256) :: nc_varname, var_longname, alq_poolname
+   real(r8), pointer :: real2d(:,:)
+   real(r8) , pointer :: int2d(:,:) ! Restart system doesn't actually support 2D integer arrays for some reason. Workaround is cast to real and back
+
+   ! TODO: Check on read that number and order of variables is correct.
+   !       - Make model fail if it fails to read an expected variable (i.e., not enough values stored)
+   !       - At end of expected list, check if there is another in the netCDF file (too many variables stored)
+   !       - See if long_name can be read from file and compared with expected long_name
+   !       In either of these cases, restart does not match current reaction network spec and model should fail
+   if(use_alquimia) then
+     alq_poolname=''
+     do ii=1,alquimia_num_primary
+       !!! TOTAL_MOBILE !!!
+       ! call c_f_string_ptr(name_list(ii),alq_poolname) ! Need to get metadata from alquimia somehow... EMI will not pass character data
+       ! Generate field name as ALQUIMIA_MOBILE_01, ALQUIMIA_MOBILE_02, ...
+       write(nc_varname,'(a,i2.2)') 'ALQUIMIA_MOBILE_',ii
+       var_longname = 'Alquimia total mobile '//trim(alq_poolname)
+       real2d => this%total_mobile(:,:,ii)
+
+       call restartvar(ncid=ncid, flag=flag, varname=nc_varname, xtype=ncd_double,   &
+           dim1name='column', dim2name='levgrnd', switchdim=.true., &
+           long_name=var_longname, units='mol/m^3', &
+           interpinic_flag='interp', readvar=readvar, data=real2d)
+
+       write(nc_varname,'(a,i2.2)') 'ALQUIMIA_IMMOBILE_',ii
+       var_longname = 'Alquimia total immobile '//trim(alq_poolname)
+       real2d => this%total_immobile(:,:,ii)
+
+       call restartvar(ncid=ncid, flag=flag, varname=nc_varname, xtype=ncd_double,   &
+           dim1name='column', dim2name='levgrnd', switchdim=.true., &
+           long_name=var_longname, units='mol/m^3', &
+           interpinic_flag='interp', readvar=readvar, data=real2d)
+
+     enddo ! End of primary species loop
+
+       
+     do ii=1,alquimia_num_minerals
+       !!! mineral_volume_fraction !!!
+       ! Generate field name as ALQUIMIA_MINERAL_01, ALQUIMIA_MINERAL_02, ...
+       write(nc_varname,'(a,i2.2)') 'ALQUIMIA_MINERAL_VF_',ii
+       var_longname = 'Alquimia mineral volume fraction '//trim(alq_poolname)
+       real2d => this%mineral_volume_fraction(:,:,ii)
+
+       call restartvar(ncid=ncid, flag=flag, varname=nc_varname, xtype=ncd_double,   &
+           dim1name='column', dim2name='levgrnd', switchdim=.true., &
+           long_name=var_longname, units='[m^3 mineral/m^3 bulk]', &
+           interpinic_flag='interp', readvar=readvar, data=real2d)
+
+       !!! Mineral specific surface areas !!!
+       ! Generate field name as ALQUIMIA_MINERAL_SSA_01, ALQUIMIA_MINERAL_SSA_02, ...
+       write(nc_varname,'(a,i2.2)') 'ALQUIMIA_MINERAL_SSA_',ii
+       var_longname = 'Alquimia mineral specific surface area '//trim(alq_poolname)
+       real2d => this%mineral_specific_surface_area(:,:,ii)
+
+       call restartvar(ncid=ncid, flag=flag, varname=nc_varname, xtype=ncd_double,   &
+           dim1name='column', dim2name='levgrnd', switchdim=.true., &
+           long_name=var_longname, units='[m^2 mineral/m^3 bulk]', &
+           interpinic_flag='interp', readvar=readvar, data=real2d)
+
+     enddo ! End of mineral species loop
+     
+     
+     do ii=1,alquimia_num_surface_sites
+       !!! surface site density !!!
+       ! call c_f_string_ptr(name_list(ii),alq_poolname)
+       ! Generate field name as ALQUIMIA_SURFACE_SITE_DENS_01, ALQUIMIA_SURFACE_SITE_DENS_02, ...
+       write(nc_varname,'(a,i2.2)') 'ALQUIMIA_SURFACE_SITE_DENS_',ii
+       var_longname = 'Alquimia surface site density '//trim(alq_poolname)
+       real2d => this%surface_site_density(:,:,ii)
+
+       call restartvar(ncid=ncid, flag=flag, varname=nc_varname, xtype=ncd_double,   &
+           dim1name='column', dim2name='levgrnd', switchdim=.true., &
+           long_name=var_longname, units='moles/m^3 bulk', &
+           interpinic_flag='interp', readvar=readvar, data=real2d)
+
+     enddo ! End of surface site densities
+
+
+     do ii=1,alquimia_num_ion_exchange_sites
+       !!! surface site density !!!
+       ! call c_f_string_ptr(name_list(ii),alq_poolname)
+       ! Generate field name as ALQUIMIA_CEC_01, ALQUIMIA_CEC_02, ...
+       write(nc_varname,'(a,i2.2)') 'ALQUIMIA_CEC_',ii
+       var_longname = 'Alquimia cation exchange capacity '//trim(alq_poolname)
+       real2d => this%cation_exchange_capacity(:,:,ii)
+
+       call restartvar(ncid=ncid, flag=flag, varname=nc_varname, xtype=ncd_double,   &
+           dim1name='column', dim2name='levgrnd', switchdim=.true., &
+           long_name=var_longname, units='moles/m^3 bulk', &
+           interpinic_flag='interp', readvar=readvar, data=real2d)
+
+     enddo ! End of ion exchange sites
+
+
+     ! Aux doubles. These don't have metadata
+     do ii=1,alquimia_num_aux_doubles
+       write(nc_varname,'(a,i2.2)') 'ALQUIMIA_AUX_DOUBLE_',ii
+       var_longname = ''
+       real2d => this%aux_doubles(:,:,ii)
+
+       call restartvar(ncid=ncid, flag=flag, varname=nc_varname, xtype=ncd_double,   &
+           dim1name='column', dim2name='levgrnd', switchdim=.true., &
+           long_name=var_longname, units='-', &
+           interpinic_flag='interp', readvar=readvar, data=real2d)
+
+     enddo ! End of aux doubles
+
+
+     ! Aux integers. These don't have metadata
+     ! Restart system only supports 1D ints so I am casting this to real
+     allocate(int2d(bounds%begc:bounds%endc,1:nlevdecomp_full))
+     do ii=1,alquimia_num_aux_ints
+       write(nc_varname,'(a,i2.2)') 'ALQUIMIA_AUX_INT_',ii
+       var_longname = ''
+       if(flag == 'write') int2d = real(this%aux_ints(:,:,ii))
+
+       call restartvar(ncid=ncid, flag=flag, varname=nc_varname, xtype=ncd_int,   &
+           dim1name='column', dim2name='levgrnd', switchdim=.true., &
+           long_name=var_longname, units='-', &
+           interpinic_flag='interp', readvar=readvar, data=int2d)
+
+       if(flag == 'read') this%aux_ints(:,:,ii) = int(int2d)
+
+     enddo ! End of aux ints
+     deallocate(int2d)
+
+     call restartvar(ncid=ncid, flag=flag, varname='ALQUIMIA_WATER_DENSITY', xtype=ncd_double,   &
+       dim1name='column', dim2name='levgrnd', switchdim=.true., &
+       long_name='alquimia water density', units='kg/m^3', &
+       interpinic_flag='interp', readvar=readvar, data=this%water_density)
+
+     call restartvar(ncid=ncid, flag=flag, varname='ALQUIMIA_AQUEOUS_PRESSURE', xtype=ncd_double,   &
+       dim1name='column', dim2name='levgrnd', switchdim=.true., &
+       long_name='alquimia aqueous pressure', units='Pa', &
+       interpinic_flag='interp', readvar=readvar, data=this%aqueous_pressure)
+   endif
+
+ end subroutine col_chem_restart
 
 end module ColumnDataType
