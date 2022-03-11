@@ -34,7 +34,8 @@ module elm_initializeMod
   use ColumnType             , only : col_pp
   use ColumnDataType         , only : col_es , col_ws 
   use VegetationType         , only : veg_pp
-  use VegetationDataType     , only : veg_es
+  use VegetationDataType     , only : veg_es  
+  use ColumnDataType         , only : col_chem
 
   use elm_instMod
   use WaterBudgetMod         , only : WaterBudget_Reset
@@ -1033,7 +1034,7 @@ contains
             dt                = dtime      , &
             soilstate_vars    = soilstate_vars            , &
             waterstate_vars   = waterstate_vars           , &
-            chemstate_vars    = chemstate_vars            , &
+            col_chem          = col_chem            , &
             num_soilc         = filter(nc)%num_soilc                 , &
             filter_soilc      = filter(nc)%soilc              , &
             col_es            = col_es               , &

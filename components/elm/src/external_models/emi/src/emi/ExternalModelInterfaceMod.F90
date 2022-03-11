@@ -821,7 +821,7 @@ contains
        waterstate_vars, temperature_vars,  atm2lnd_vars,      &
        canopystate_vars, energyflux_vars, carbonstate_vars,   &
        carbonflux_vars, nitrogenstate_vars, nitrogenflux_vars,&
-       chemstate_vars, col_es, col_ws, col_wf, num_soilc, filter_soilc)
+       col_es, col_ws, col_wf, col_chem, num_soilc, filter_soilc)
     !
     ! !DESCRIPTION:
     !
@@ -848,7 +848,7 @@ contains
     use ColumnDataType         , only : column_energy_state
     use ColumnDataType         , only : column_water_state
     use ColumnDataType         , only : column_water_flux
-    use ChemStateType          , only : chemstate_type
+    use ColumnDataType         , only : column_chem_state
     use ExternalModelBETRMod   , only : EM_BETR_Solve
     use decompMod              , only : get_clump_bounds
     !
@@ -882,7 +882,7 @@ contains
     type(column_water_flux)  , optional , intent(inout) :: col_wf
     type(column_nitrogen_state)   , optional , intent(inout) :: nitrogenstate_vars
     type(column_nitrogen_flux)   , optional , intent(inout) :: nitrogenflux_vars
-    type(chemstate_type)      , optional , intent(inout) :: chemstate_vars
+    type(column_chem_state)  , optional , intent(inout) :: col_chem
     integer                  , optional , intent(in)    :: num_soilc
     integer                  , optional , intent(in)    :: filter_soilc(:)
     !
@@ -1143,12 +1143,14 @@ contains
             num_soilc, filter_soilc, nitrogenflux_vars)
    endif
 
-   if (present(chemstate_vars)  .and. &
+   if (present(col_chem)  .and. &
       present(num_soilc)   .and. &
       present(filter_soilc)) then
       call EMI_Pack_ChemStateType_at_Column_Level_for_EM(l2e_driver_list(iem), em_stage, &
-            num_soilc, filter_soilc, chemstate_vars)
+            num_soilc, filter_soilc, col_chem)
    endif
+
+
 
    if (present(soilstate_vars)  .and. &
       present(num_soilc)   .and. &
@@ -1318,11 +1320,11 @@ contains
             num_soilc, filter_soilc, nitrogenflux_vars)
     endif
 
-    if (present(chemstate_vars)  .and. &
+    if (present(col_chem)  .and. &
       present(num_soilc)   .and. &
       present(filter_soilc)) then
       call EMI_UnPack_ChemStateType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
-            num_soilc, filter_soilc, chemstate_vars)
+            num_soilc, filter_soilc, col_chem)
    endif
 
     if (em_id == EM_ID_STUB) then

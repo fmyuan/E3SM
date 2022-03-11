@@ -63,8 +63,8 @@ module restFileMod
   use VegetationDataType   , only : veg_cf, c13_veg_cf, c14_veg_cf
   use VegetationDataType   , only : veg_ns, veg_nf
   use VegetationDataType   , only : veg_ps, veg_pf
-  use GridcellDataType     , only : grc_cs, grc_ws 
-  use elm_instMod          , only : chemstate_vars
+  use GridcellDataType     , only : grc_cs, grc_ws
+  use ColumnDataType       , only : col_chem
   
   !
   ! !PUBLIC TYPES:
@@ -286,7 +286,7 @@ contains
     endif
 
     if (use_alquimia) then
-      call chemstate_vars%Restart(bounds, ncid, flag='define')
+      call col_chem%Restart(bounds, ncid, flag='define')
     endif
 
     if (present(rdate)) then 
@@ -427,7 +427,7 @@ contains
     endif
 
     if (use_alquimia) then
-      call chemstate_vars%Restart(bounds, ncid, flag='write')
+      call col_chem%Restart(bounds, ncid, flag='write')
     endif
 
     call hist_restart_ncd (bounds, ncid, flag='write' )
@@ -653,7 +653,7 @@ contains
     endif
 
     if (use_alquimia) then
-      call chemstate_vars%Restart(bounds, ncid, flag='read')
+      call col_chem%Restart(bounds, ncid, flag='read')
     endif
         
     call hist_restart_ncd (bounds, ncid, flag='read')
