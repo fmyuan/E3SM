@@ -4,9 +4,9 @@ module EMI_ChemStateType_ExchangeMod
   use shr_log_mod                           , only : errMsg => shr_log_errMsg
   use abortutils                            , only : endrun
   use elm_varctl                            , only : iulog
-  use EMI_DataMod         , only : emi_data_list, emi_data
-  use EMI_DataDimensionMod , only : emi_data_dimension_list_type
-  use ChemStateType                         , only : chemstate_type
+  use EMI_DataMod                           , only : emi_data_list, emi_data
+  use EMI_DataDimensionMod                  , only : emi_data_dimension_list_type
+  use ColumnDataType       , only : column_chem_state
   use EMI_Atm2LndType_Constants
   use EMI_CanopyStateType_Constants
   use EMI_ChemStateType_Constants
@@ -37,10 +37,10 @@ contains
   
 !-----------------------------------------------------------------------
   subroutine EMI_Pack_ChemStateType_at_Column_Level_for_EM(data_list, em_stage, &
-        num_filter, filter, chemstate_vars)
+        num_filter, filter, col_chem)
     !
     ! !DESCRIPTION:
-    ! Pack data from ALM chemstate_vars for EM
+    ! Pack data from ALM col_chem for EM
     !
     ! !USES:
     use elm_varpar             , only : nlevsoi
@@ -54,11 +54,11 @@ contains
     implicit none
     !
     ! !ARGUMENTS:
-    class(emi_data_list)   , intent(in) :: data_list
-    integer                , intent(in) :: em_stage
-    integer                , intent(in) :: num_filter
-    integer                , intent(in) :: filter(:)
-    type(chemstate_type)   , intent(in) :: chemstate_vars
+    class(emi_data_list)    , intent(in) :: data_list
+    integer                 , intent(in) :: em_stage
+    integer                 , intent(in) :: num_filter
+    integer                 , intent(in) :: filter(:)
+    type(column_chem_state) , intent(in) :: col_chem
     !
     ! !LOCAL_VARIABLES:
     integer                             :: fc,c,j,k
@@ -68,17 +68,17 @@ contains
     integer                             :: count
 
     associate(& 
-         soil_ph                       => chemstate_vars%soil_ph                       , &
-         water_density                 => chemstate_vars%water_density                 , &
-         aqueous_pressure              => chemstate_vars%aqueous_pressure              , &
-         total_mobile                  => chemstate_vars%total_mobile                  , &
-         total_immobile                => chemstate_vars%total_immobile                , &
-         mineral_volume_fraction       => chemstate_vars%mineral_volume_fraction       , &
-         mineral_specific_surface_area => chemstate_vars%mineral_specific_surface_area , &
-         surface_site_density          => chemstate_vars%surface_site_density          , &
-         cation_exchange_capacity      => chemstate_vars%cation_exchange_capacity      , &
-         aux_doubles                   => chemstate_vars%aux_doubles                   , &
-         aux_ints                      => chemstate_vars%aux_ints                        &
+         soil_ph                       => col_chem%soil_ph                       , &
+         water_density                 => col_chem%water_density                 , &
+         aqueous_pressure              => col_chem%aqueous_pressure              , &
+         total_mobile                  => col_chem%total_mobile                  , &
+         total_immobile                => col_chem%total_immobile                , &
+         mineral_volume_fraction       => col_chem%mineral_volume_fraction       , &
+         mineral_specific_surface_area => col_chem%mineral_specific_surface_area , &
+         surface_site_density          => col_chem%surface_site_density          , &
+         cation_exchange_capacity      => col_chem%cation_exchange_capacity      , &
+         aux_doubles                   => col_chem%aux_doubles                   , &
+         aux_ints                      => col_chem%aux_ints                        &
          )
 
     count = 0
@@ -227,10 +227,10 @@ contains
 
 !-----------------------------------------------------------------------
   subroutine EMI_Unpack_ChemStateType_at_Column_Level_from_EM(data_list, em_stage, &
-        num_filter, filter, chemstate_vars)
+        num_filter, filter, col_chem)
     !
     ! !DESCRIPTION:
-    ! Unpack data for ALM chemstate_vars from EM
+    ! Unpack data for ALM col_chem from EM
     !
     ! !USES:
     use elm_varpar             , only : nlevsoi
@@ -244,11 +244,11 @@ contains
     implicit none
     !
     ! !ARGUMENTS:
-    class(emi_data_list)   , intent(in) :: data_list
-    integer                , intent(in) :: em_stage
-    integer                , intent(in) :: num_filter
-    integer                , intent(in) :: filter(:)
-    type(chemstate_type)   , intent(in) :: chemstate_vars
+    class(emi_data_list)    , intent(in) :: data_list
+    integer                 , intent(in) :: em_stage
+    integer                 , intent(in) :: num_filter
+    integer                 , intent(in) :: filter(:)
+    type(column_chem_state) , intent(in) :: col_chem
     !
     ! !LOCAL_VARIABLES:
     integer                             :: fc,c,j,k
@@ -258,23 +258,23 @@ contains
     integer                             :: count
 
     associate(& 
-         soil_ph                       => chemstate_vars%soil_ph                       , &
-         soil_salinity                 => chemstate_vars%soil_salinity                 , &
-         soil_O2                       => chemstate_vars%soil_O2                       , &
-         soil_sulfate                  => chemstate_vars%soil_sulfate                  , &
-         soil_Fe2                      => chemstate_vars%soil_Fe2                      , &
-         soil_FeOxide                  => chemstate_vars%soil_FeOxide                  , &
-         water_density                 => chemstate_vars%water_density                 , &
-         aqueous_pressure              => chemstate_vars%aqueous_pressure              , &
-         total_mobile                  => chemstate_vars%total_mobile                  , &
-         total_immobile                => chemstate_vars%total_immobile                , &
-         mineral_volume_fraction       => chemstate_vars%mineral_volume_fraction       , &
-         mineral_specific_surface_area => chemstate_vars%mineral_specific_surface_area , &
-         surface_site_density          => chemstate_vars%surface_site_density          , &
-         cation_exchange_capacity      => chemstate_vars%cation_exchange_capacity      , &
-         aux_doubles                   => chemstate_vars%aux_doubles                   , &
-         aux_ints                      => chemstate_vars%aux_ints                      , &
-         chem_dt                       => chemstate_vars%chem_dt                         &
+         soil_ph                       => col_chem%soil_ph                       , &
+         soil_salinity                 => col_chem%soil_salinity                 , &
+         soil_O2                       => col_chem%soil_O2                       , &
+         soil_sulfate                  => col_chem%soil_sulfate                  , &
+         soil_Fe2                      => col_chem%soil_Fe2                      , &
+         soil_FeOxide                  => col_chem%soil_FeOxide                  , &
+         water_density                 => col_chem%water_density                 , &
+         aqueous_pressure              => col_chem%aqueous_pressure              , &
+         total_mobile                  => col_chem%total_mobile                  , &
+         total_immobile                => col_chem%total_immobile                , &
+         mineral_volume_fraction       => col_chem%mineral_volume_fraction       , &
+         mineral_specific_surface_area => col_chem%mineral_specific_surface_area , &
+         surface_site_density          => col_chem%surface_site_density          , &
+         cation_exchange_capacity      => col_chem%cation_exchange_capacity      , &
+         aux_doubles                   => col_chem%aux_doubles                   , &
+         aux_ints                      => col_chem%aux_ints                      , &
+         chem_dt                       => col_chem%chem_dt                         &
          )
 
     count = 0
