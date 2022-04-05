@@ -523,7 +523,7 @@ Per tape series history write frequency.
 </entry>
 
 <entry id="tide_file" type="char*400" category="datasets"
-       group="clm_inparm" valid_values="">
+       group="elm_inparm" valid_values="">
 </entry>
 
 <entry id="nsegspc" type="integer" category="elm_performance"
