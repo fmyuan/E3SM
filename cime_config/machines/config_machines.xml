@@ -701,7 +701,13 @@
     <mpirun mpilib="mpi-serial">
       <executable> </executable>
     </mpirun>
-    <mpirun mpilib="mpich,openmpi">
+    <mpirun mpilib="mpich">
+      <executable>$ENV{MPI_ROOT}/bin/mpirun</executable>
+      <arguments>
+        <arg name="num_tasks"> -np $TOTALPES</arg>
+      </arguments>
+    </mpirun>
+    <mpirun mpilib="openmpi">
       <executable>$ENV{MPI_ROOT}/bin/mpirun</executable>
       <arguments>
         <arg name="num_tasks"> -np $TOTALPES</arg>
