@@ -1049,30 +1049,6 @@ contains
             endif
          end if ! end if seasonal deciduous
 
-         write(iulog,*) 'onset_gdd(p)'
-         write(iulog,*) onset_gdd(p)
-         write(iulog,*) 'onset_gddflag(p)'
-         write(iulog,*) onset_gddflag(p)
-         write(iulog,*) 'onset_flag'
-         write(iulog,*) onset_flag(p)
-         write(iulog,*) 'onset_counter'
-         write(iulog,*) onset_counter(p)
-         write(iulog,*) 'offset_flag'
-         write(iulog,*) offset_flag(p)
-         write(iulog,*) 'offset_counter(p)'
-         write(iulog,*) offset_counter(p)
-         write(iulog,*) 'dormant_flag'
-         write(iulog,*) dormant_flag(p)
-         write(iulog,*) 'ws_flag'
-         write(iulog,*) ws_flag
-         write(iulog,*) 'crit_onset_gdd'
-         write(iulog,*) crit_onset_gdd
-         write(iulog,*) 'soilt'
-         write(iulog,*) soilt
-         write(iulog,*) 'crit_dayl'
-         write(iulog,*) PhenolParamsInst%crit_dayl
-         write(iulog,*) 'dayl'
-         write(iulog,*) dayl(g)
 
       end do ! end of pft loop
      
