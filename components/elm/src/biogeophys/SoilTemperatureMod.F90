@@ -567,12 +567,12 @@ contains
                endif
 #ifdef MARSH
                if(tide_file .ne. ' ') then
- #ifdef CPL_BYPASS
                !heat exchange with tide
                eflx_sh_tide=0.0
                tide_temp = atm2lnd_vars%tide_temp(1,1+mod(int((days*secspday+seconds)/3600),atm2lnd_vars%tide_forcing_len))
                eflx_sh_tide = eflx_sh_tide + (tide_temp - t_h2osfc(c))
                t_h2osfc(c) = t_h2osfc(c) + eflx_sh_tide
+               endif
 #endif
 
             endif
