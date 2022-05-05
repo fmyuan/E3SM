@@ -40,13 +40,16 @@
       type(C_PTR), value :: ats
     end subroutine
 
-    subroutine ats_elm_advance(ats, start_t, dt) bind(c, name="ats_advance")
+    subroutine ats_elm_advance(ats, start_t, dt, visout, chkout) &
+        bind(c, name="ats_advance")
       use, intrinsic :: iso_c_binding
       import
       implicit none
       type(C_PTR), value :: ats
-      real(C_DOUBLE), intent(in) :: start_t                      ! unit: second
-      real(C_DOUBLE), intent(in) :: dt                           ! unit: seconds
+      real(C_DOUBLE), intent(in) :: start_t          ! unit: second
+      real(C_DOUBLE), intent(in) :: dt               ! unit: seconds
+      logical(C_BOOL),intent(in), value :: visout            ! instruct ATS output data
+      logical(C_BOOL),intent(in), value :: chkout            ! instruct ATS output checkpoint
     end subroutine
 
     !----------------------------

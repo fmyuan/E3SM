@@ -217,32 +217,25 @@ contains
     end subroutine ats_setSS_f
  !------------------------------------------------------------------------
 
-    subroutine ats_advance_f(this, nstep, dt)
+    subroutine ats_advance_f(this, nstep, dt, ats_visout, ats_chkout)
         implicit none
         class(elm_ats_interface_type) :: this
-        integer, intent(in)  :: nstep          ! ELM timestep counter
-        real(r8), intent(in) :: dt            ! one ELM timestep interval (in seconds)
+        integer, intent(in)  :: nstep                                   ! ELM timestep counter
+        real(r8), intent(in) :: dt                                      ! one ELM timestep interval (in seconds)
+        logical, optional, intent(in) :: ats_visout                     ! instruct ATS output data
+        logical, optional, intent(in) :: ats_chkout                     ! instruct ATS output checkpoint
         !
         ! local variables
         real(r8) :: starting_time             ! second
-        integer  :: resetIC_ats = 0           ! (TODO)
-        integer  :: resetIC_elm = 0           ! (TODO, e.g. restart situation)
-
+        logical(KIND=C_BOOL) :: visout = .true.
+        logical(KIND=C_BOOL) :: chkout = .false.
         ! ----------------------------------------------------------
         !
-#if 0
-        ! NOT YET decide where to reset, here or prior to calling this subroutine
-        resetIC_ats = 0
-        resetIC_elm = 0
-        if (nstep==0) resetIC_elm = 1
-        !if (nstep>0) resetIC_ats = 1
-        if (resetIC_elm==1) then
-          call ats_elm_setIC(this%ptr, patm, soilp, wtd)
-        endif
-#endif
-
         starting_time = nstep*dt
-        call ats_elm_advance(this%ptr, starting_time, dt)
+        if (present(ats_visout)) visout = ats_visout
+        if (present(ats_chkout)) chkout = ats_chkout
+
+        call ats_elm_advance(this%ptr, starting_time, dt, visout, chkout)
 
     end subroutine ats_advance_f
 
