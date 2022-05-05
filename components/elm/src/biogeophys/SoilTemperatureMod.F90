@@ -1668,7 +1668,7 @@ contains
   !-----------------------------------------------------------------------
   subroutine ComputeGroundHeatFluxAndDeriv(bounds, num_nolakec, filter_nolakec, &
        hs_h2osfc, hs_top_snow, hs_soil, hs_top, dhsdT, sabg_lyr_col, &
-       atm2lnd_vars, urbanparams_vars, canopystate_vars,  &
+       urbanparams_vars, canopystate_vars,  &
        solarabs_vars, energyflux_vars)
     !
     ! !DESCRIPTION:
@@ -1685,10 +1685,6 @@ contains
     use column_varcon  , only : icol_road_perv, icol_road_imperv
     use elm_varpar     , only : nlevsno, max_patch_per_col
 
-#ifdef MARSH
-    use elm_instMod     , only : atm2lnd_vars
-    use elm_varctl      , only : tide_file
-#endif
     !
     ! !ARGUMENTS:
     implicit none
@@ -1720,10 +1716,7 @@ contains
     real(r8) :: lwrad_emit_h2osfc(bounds%begc:bounds%endc)             !
     real(r8) :: eflx_gnet_snow                                         !
     real(r8) :: eflx_gnet_soil                                         !
-    real(r8) :: eflx_gnet_h2osfc  
-    real(r8) :: h2osfc_tide
-    real(r8) :: tide_temp
-    real(r8) :: eflx_sh_tide                                     !
+    real(r8) :: eflx_gnet_h2osfc                                   !
     !-----------------------------------------------------------------------
 
     ! Enforce expected array sizes
@@ -1773,7 +1766,6 @@ contains
          sabg_chk                => solarabs_vars%sabg_chk_patch            , & ! Output: [real(r8) (:)   ]  sum of soil/snow using current fsno, for balance check
          sabg_lyr                => solarabs_vars%sabg_lyr_patch            , & ! Output: [real(r8) (:,:) ]  absorbed solar radiation (pft,lyr) [W/m2]
 
-         h2osfc               =>    col_ws%h2osfc              , & ! Output: [real(r8) (:)   ]  surface water (mm)
 
          begc                    => bounds%begc                             , & ! Input:  [integer        ] beginning column index
          endc                    => bounds%endc                               & ! Input:  [integer        ] ending column index
@@ -1825,7 +1817,7 @@ contains
 
                      eflx_gnet_h2osfc = sabg_soil(p) + dlrad(p) &
                           + (1._r8-frac_veg_nosno(p))*emg(c)*forc_lwrad(t) - lwrad_emit_h2osfc(c) &
-                          - (eflx_sh_h2osfc(p)+qflx_ev_h2osfc(p)*htvp(c) - eflx_sh_tide)
+                          - (eflx_sh_h2osfc(p)+qflx_ev_h2osfc(p)*htvp(c))
                   else
                      ! For urban columns we use the net longwave radiation (eflx_lwrad_net) because of
                      ! interactions between urban columns.
