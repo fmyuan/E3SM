@@ -249,7 +249,7 @@ contains
           qflx_lat_aqu               =>    col_wf%qflx_lat_aqu            , & ! Input:   [real(r8) (:)   ]  lateral flow between hummock and hollow (mm H2O /s)
           qflx_tide                  =>    col_wf%qflx_tide               , & ! Input:   [real(r8) (:)   ]  tidal flux between consecutive timesteps (mm H2O /s)
           qflx_surf_input            =>    col_wf%qflx_surf_input         , & ! Input:   [real(r8) (:)   ]  input to hollow surface water from hummock (mm H2O /s)
-          eflx_sh_tide               =>    col_ef%eflx_sh_tide            , % ! Input:   [real(r8) (:)   ]  sensible heat flux from tide
+          eflx_sh_tide               =>    col_ef%eflx_sh_tide            , & ! Input:   [real(r8) (:)   ]  sensible heat flux from tide
 #endif
           snow_sources               =>    col_wf%snow_sources            , & ! Output: [real(r8) (:)   ]  snow sources (mm H2O /s)  
           snow_sinks                 =>    col_wf%snow_sinks              , & ! Output: [real(r8) (:)   ]  snow sinks (mm H2O /s)    
