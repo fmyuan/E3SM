@@ -581,7 +581,7 @@ contains
                   t_h2osfc(c) = t_h2osfc(c) + eflx_sh_tide(c)
                endif
 #endif
-
+#endif
             endif
 
          endif
