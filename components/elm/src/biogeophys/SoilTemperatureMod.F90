@@ -407,7 +407,7 @@ contains
            hs_top( begc:endc ),                                               &
            dhsdT( begc:endc ),                                                &
            sabg_lyr_col( begc:endc, -nlevsno+1: ),                            &
-           atm2lnd_vars, urbanparams_vars, canopystate_vars, &
+           urbanparams_vars, canopystate_vars, &
            solarabs_vars, energyflux_vars)
 
       ! Determine heat diffusion through the layer interface and factor used in computing
@@ -572,13 +572,13 @@ contains
                endif
 #ifdef MARSH
                call get_curr_time(days, seconds)
-               eflx_sh_tide=0.0_r8
+               eflx_sh_tide(c)=0.0_r8
                if(tide_file .ne. ' ') then
 #ifdef CPL_BYPASS               
                   !heat exchange with tide
                   tide_temp = atm2lnd_vars%tide_temp(1,1+mod(int((days*secspday+seconds)/3600),atm2lnd_vars%tide_forcing_len))
-                  eflx_sh_tide = eflx_sh_tide + (tide_temp - t_h2osfc(c))
-                  t_h2osfc(c) = t_h2osfc(c) + eflx_sh_tide
+                  eflx_sh_tide(c) = eflx_sh_tide(c) + (tide_temp - t_h2osfc(c))
+                  t_h2osfc(c) = t_h2osfc(c) + eflx_sh_tide(c)
                endif
 #endif
 
@@ -1704,7 +1704,6 @@ contains
     real(r8)               , intent(out)   :: hs_top (bounds%begc: )                    ! net energy flux into surface layer (col) [W/m2]
     real(r8)               , intent(out)   :: dhsdT( bounds%begc: )                     ! temperature derivative of "hs" [col]
     real(r8)               , intent(out)   :: sabg_lyr_col( bounds%begc:, -nlevsno+1: ) ! absorbed solar radiation (col,lyr) [W/m2]
-    type(atm2lnd_type)     , intent(in)    :: atm2lnd_vars
     type(urbanparams_type) , intent(in)    :: urbanparams_vars
     type(canopystate_type) , intent(in)    :: canopystate_vars
     type(solarabs_type)    , intent(inout) :: solarabs_vars
