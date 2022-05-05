@@ -174,7 +174,8 @@ contains
       !$acc routine seq
     use elm_varpar               , only : nlevsno, nlevgrnd, nlevurb
     use elm_varctl               , only : iulog
-    use elm_varcon               , only : cnfac, cpice, cpliq, denh2o
+    use elm_varcon               , only : cnfac, cpice, cpliq, denh2o, secspday
+    use clm_time_manager         , only : get_step_size, get_curr_date, get_curr_time
     use landunit_varcon          , only : istice, istice_mec, istsoil, istcrop
     use column_varcon            , only : icol_roof, icol_sunwall, icol_shadewall, icol_road_perv, icol_road_imperv
     use landunit_varcon          , only : istwet, istice, istice_mec, istsoil, istcrop
@@ -224,10 +225,14 @@ contains
     real(r8) :: hs_soil(bounds%begc:bounds%endc)                            ! heat flux on soil [W/m2]
     real(r8) :: hs_top_snow(bounds%begc:bounds%endc)                        ! heat flux on top snow layer [W/m2]
     real(r8) :: hs_h2osfc(bounds%begc:bounds%endc)                          ! heat flux on standing water [W/m2]
+#ifdef MARSH
+    real(r8) :: tide_temp                                                   ! temperature of tide water
+#endif
     integer  :: jbot(bounds%begc:bounds%endc)                               ! bottom level at each column
     integer  :: num_nolakec_and_nourbanc
     integer  :: num_nolakec_and_urbanc
     integer  :: num_filter_lun
+    integer  :: days, seconds
     integer, allocatable :: filter_nolakec_and_nourbanc(:)
     integer, allocatable :: filter_nolakec_and_urbanc(:)
     integer, allocatable :: filter_lun(:)
@@ -566,12 +571,14 @@ contains
                   t_h2osfc(c)         = tvector_nourbanc(c,0)          !surface water
                endif
 #ifdef MARSH
+               call get_curr_time(days, seconds)
+               eflx_sh_tide=0.0_r8
                if(tide_file .ne. ' ') then
-               !heat exchange with tide
-               eflx_sh_tide=0.0
-               tide_temp = atm2lnd_vars%tide_temp(1,1+mod(int((days*secspday+seconds)/3600),atm2lnd_vars%tide_forcing_len))
-               eflx_sh_tide = eflx_sh_tide + (tide_temp - t_h2osfc(c))
-               t_h2osfc(c) = t_h2osfc(c) + eflx_sh_tide
+#ifdef CPL_BYPASS               
+                  !heat exchange with tide
+                  tide_temp = atm2lnd_vars%tide_temp(1,1+mod(int((days*secspday+seconds)/3600),atm2lnd_vars%tide_forcing_len))
+                  eflx_sh_tide = eflx_sh_tide + (tide_temp - t_h2osfc(c))
+                  t_h2osfc(c) = t_h2osfc(c) + eflx_sh_tide
                endif
 #endif
 
