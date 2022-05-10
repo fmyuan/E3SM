@@ -41,7 +41,7 @@
     end subroutine
 
     subroutine ats_elm_advance(ats, start_t, dt, visout, chkout) &
-        bind(c, name="ats_advance")
+        bind(c, name="ats_advance_elmstep")
       use, intrinsic :: iso_c_binding
       import
       implicit none
