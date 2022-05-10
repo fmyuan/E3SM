@@ -1070,6 +1070,7 @@ contains
             if(ierr .ne. 0) call endrun('Error finding tide_temp variable')
             ierr = nf90_get_var(ncid, varid, atm2lnd_vars%tide_temp(1,1:atm2lnd_vars%tide_forcing_len),(/1,1/),(/1,atm2lnd_vars%tide_forcing_len/))
             if(ierr .ne. 0) call endrun('Error reading tide_temp variable')
+            write(iulog,*) 'ierr' ierr
 
             ierr = nf90_close(ncid)
             write(iulog,*) 'Reading tide height, salinity, and temp from file '//trim(tide_file)
