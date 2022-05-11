@@ -40,14 +40,13 @@
       type(C_PTR), value :: ats
     end subroutine
 
-    subroutine ats_elm_advance(ats, start_t, dt, visout, chkout) &
+    subroutine ats_elm_advance(ats, dt, visout, chkout) &
         bind(c, name="ats_advance_elmstep")
       use, intrinsic :: iso_c_binding
       import
       implicit none
       type(C_PTR), value :: ats
-      real(C_DOUBLE), intent(in) :: start_t          ! unit: second
-      real(C_DOUBLE), intent(in) :: dt               ! unit: seconds
+      real(C_DOUBLE), intent(in) :: dt                       ! unit: seconds
       logical(C_BOOL),intent(in), value :: visout            ! instruct ATS output data
       logical(C_BOOL),intent(in), value :: chkout            ! instruct ATS output checkpoint
     end subroutine
@@ -82,14 +81,16 @@
       real(C_DOUBLE), dimension(*), intent(in) :: eff_porosity ! effective soil porosity (adjusted, e.g. by ice etc), unit: -, [col,nlevgrnd]
     end subroutine ats_elm_setmats
 
-    subroutine ats_elm_setIC(ats, patm, soilpressure, wtd) bind(c, name="ats_set_initialconditions")
+    subroutine ats_elm_setIC(ats, start_t, patm, soilpressure, wtd, visout) bind(c, name="ats_set_initialconditions")
       use, intrinsic :: iso_c_binding
       import
       implicit none
       type(C_PTR), value :: ats
+      real(C_DOUBLE), intent(in) :: start_t                       ! unit: second
       real(C_DOUBLE), dimension(*), intent(in) :: patm            ! atm. air pressure, unit: Pa, [col]
       real(C_DOUBLE), dimension(*), intent(in) :: soilpressure    ! soil hydraulic pressure, unit: Pa, [col,nlevgrnd]
       real(C_DOUBLE), dimension(*), intent(in) :: wtd             ! soil water table depth, unit: m, [col]
+      logical(C_BOOL),intent(in), value :: visout                 ! instruct ATS output initial data
     end subroutine ats_elm_setIC
 
     subroutine ats_elm_setBC(ats) bind(c, name="ats_set_boundaryconditions")

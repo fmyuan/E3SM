@@ -153,19 +153,26 @@ contains
 
  !------------------------------------------------------------------------
 
-    subroutine ats_setIC_f(this, patm, soilp, wtd)
+    subroutine ats_setIC_f(this, patm, soilp, wtd, starting_time, ats_visout)
         implicit none
         class(elm_ats_interface_type) :: this
         real(r8), pointer, intent(in) :: patm(:)
         real(r8), pointer, intent(in) :: soilp(:,:)
         real(r8), pointer, intent(in) :: wtd(:)
+        real(r8), optional,intent(in) :: starting_time                  ! ELM starting time (in second, 0 by default)
+        logical,  optional,intent(in) :: ats_visout                     ! instruct ATS output initial data
         !
 
         ! Local variables
-
+        real(KIND=C_DOUBLE)  :: stime = 0.0
+        logical(KIND=C_BOOL) :: visout = .true.                         ! a note here: fortran logical is an integer, but C/C++ bool is in byte. So this is a must
         ! ----------------------------------------------------------
         !
-        call ats_elm_setIC(this%ptr, patm, soilp, wtd)
+        if (present(starting_time)) stime = starting_time
+        if (present(ats_visout)) visout = ats_visout
+
+        !
+        call ats_elm_setIC(this%ptr, stime, patm, soilp, wtd, visout)
         !
     end subroutine ats_setIC_f
 
@@ -217,25 +224,23 @@ contains
     end subroutine ats_setSS_f
  !------------------------------------------------------------------------
 
-    subroutine ats_advance_f(this, nstep, dt, ats_visout, ats_chkout)
+    subroutine ats_advance_f(this, dt, ats_visout, ats_chkout)
         implicit none
         class(elm_ats_interface_type) :: this
-        integer, intent(in)  :: nstep                                   ! ELM timestep counter
         real(r8), intent(in) :: dt                                      ! one ELM timestep interval (in seconds)
         logical, optional, intent(in) :: ats_visout                     ! instruct ATS output data
         logical, optional, intent(in) :: ats_chkout                     ! instruct ATS output checkpoint
         !
         ! local variables
-        real(r8) :: starting_time             ! second
         logical(KIND=C_BOOL) :: visout = .true.
         logical(KIND=C_BOOL) :: chkout = .false.
         ! ----------------------------------------------------------
         !
-        starting_time = nstep*dt
+
         if (present(ats_visout)) visout = ats_visout
         if (present(ats_chkout)) chkout = ats_chkout
 
-        call ats_elm_advance(this%ptr, starting_time, dt, visout, chkout)
+        call ats_elm_advance(this%ptr, dt, visout, chkout)
 
     end subroutine ats_advance_f
 

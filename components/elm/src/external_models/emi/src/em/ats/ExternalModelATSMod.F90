@@ -715,16 +715,16 @@ contains
 
     !-----------------------
 
-    ! reset ICs
+    ! reset ICs (TODO: restart nstep)
     if (nstep==0) then
-      call set_initial_conditions(this, l2e_list, bounds_clump)
+      call set_initial_conditions(this, nstep, dt, l2e_list, bounds_clump)
     end if
 
     ! BCs and source-sink terms for each ELM-timestep
     call set_bc_ss(this, l2e_list, bounds_clump)
 
     ! run one ELM-timestep
-    call  this%ats_interface%onestep(nstep, dt)
+    call  this%ats_interface%onestep(dt)
 
     ! NOT-yet finished
     call get_data_for_elm(this, e2l_list, bounds_clump)
@@ -732,7 +732,7 @@ contains
   end subroutine EM_ATS_OneStep
 
   !------------------------------------------------------------------------
-  subroutine set_initial_conditions(this, l2e_list, bounds_clump)
+  subroutine set_initial_conditions(this, nstep, dt, l2e_list, bounds_clump)
     !
     ! !DESCRIPTION:
     !
@@ -744,11 +744,14 @@ contains
     ! !ARGUMENTS
     class(em_ats_type)               :: this
     class(emi_data_list), intent(in) :: l2e_list
+    real(r8)            , intent(in) :: dt             ! unit: seconds
+    integer             , intent(in) :: nstep
     type(bounds_type)   , intent(in) :: bounds_clump
     !
     ! !LOCAL VARIABLES:
     integer           :: fc, c, j
     integer           :: nz
+    real(r8)          :: starting_time
     real(r8), pointer :: patm(:), patm_ats(:)
     real(r8), pointer :: soilp(:,:), soilp_ats(:,:)
     real(r8), pointer :: wtd(:), wtd_ats(:)
@@ -771,7 +774,9 @@ contains
         soilp_ats(fc-1,j-1) = soilp(c,j)
       end do
     end do
-    call this%ats_interface%setic(patm_ats, soilp_ats, wtd_ats)
+
+    starting_time = nstep*dt
+    call this%ats_interface%setic(patm_ats, soilp_ats, wtd_ats, starting_time)
 
     deallocate(patm_ats)
     deallocate(soilp_ats)
