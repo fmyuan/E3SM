@@ -814,8 +814,8 @@ contains
     ! soil water source/sink terms. NOTE: here all variables are the potential rather than actual.
     call l2e_list%GetPointerToReal1D(this%index_l2e_flux_gross_infil            , soilinfl_flux )    ! mmH2O/s, + to soil
     call l2e_list%GetPointerToReal1D(this%index_l2e_flux_gross_evap             , soilevap_flux )    ! mmH2O/s, + to atm
-    allocate(soilinfl_flux_ats(0:nc-1))                            ! index starting from 0, unit: kgH2O/m3/s, + in, - out
-    allocate(soilevap_flux_ats(0:nc-1))
+    allocate(soilinfl_flux_ats(0:nc-1))                            ! index starting from 0, unit: kgH2O/m2/s, + in, - out
+    allocate(soilevap_flux_ats(0:nc-1))                            ! index starting from 0, unit: kgH2O/m2/s, + in, - out
 
     allocate(soilbot_flux_ats(0:nc-1))
     soilbot_flux_ats(:) = 0._r8
@@ -830,11 +830,11 @@ contains
 
     do fc = 1, nc
       c = this%filter_col(fc)
-      soilinfl_flux_ats(fc-1) =  soilinfl_flux(c)*denh2o/col_dz(c,1)/1000.0        !  mm/s = 0.001m3/m2/s *kg/m3 /m, with: + in, - out
-      soilevap_flux_ats(fc-1) = -soilevap_flux(c)*denh2o/col_dz(c,1)/1000.0
+      soilinfl_flux_ats(fc-1) =  soilinfl_flux(c)*denh2o/1000.0                        !  mm/s (0.001m3/m2/s *kg/m3) = 0.001kg/m2/s, with: + in, - out
+      soilevap_flux_ats(fc-1) = -soilevap_flux(c)*denh2o/1000.0
       do j = 1, nz
-        roottran_flux_ats(fc-1,j-1)  = -roottran_flux(c,j)*denh2o/col_dz(c,j)/1000.0
-        soildrain_flux_ats(fc-1,j-1) = -soildrain_flux(c,j)*denh2o/col_dz(c,j)/1000.0
+        roottran_flux_ats(fc-1,j-1)  = -roottran_flux(c,j)*denh2o/1000.0/col_dz(c,j)   !  mm/s (0.001m3/m2/s *kg/m3) /m = 0.001kg/m3/s, with: + in, - out
+        soildrain_flux_ats(fc-1,j-1) = -soildrain_flux(c,j)*denh2o/1000.0/col_dz(c,j)  !  mm/s (0.001m3/m2/s *kg/m3) /m = 0.001kg/m3/s, with: + in, - out
       end do
     end do
 
