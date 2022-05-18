@@ -1096,7 +1096,7 @@ contains
       if (.not. readv) call endrun(msg="Error: Must specify amp, period, and phase for each tide component: i = "//trim(tempname))
       ! salinity parameters
       call ncd_io('sal_threshold', sal_threshold(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
-      if ( .not. readv ) sal_threshold(:) = 1.8_r8 !placeholder value for now-update with more accurate -SLL
+      if ( .not. readv ) sal_threshold(:) = 50.0_r8 !placeholder value for now-update with more accurate -SLL
       call ncd_io('KM_salinity', KM_salinity(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
       if ( .not. readv ) KM_salinity(:) = 1.8_r8 !placeholder value for now-update with more accurate -SLL
       call ncd_io('osm_inhib', osm_inhib(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
@@ -1104,7 +1104,7 @@ contains
       call ncd_io('sal_opt', sal_opt(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
       if ( .not. readv ) sal_opt(:) = 0.0_r8 
       call ncd_io('sal_tol', sal_tol(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
-      if ( .not. readv ) sal_tol(:) = 1.0_r8 
+      if ( .not. readv ) sal_tol(:) = 50.0_r8 
    enddo
    if(num_tide_comps == 0) then
       write(iulog,*) "No tidal coefficients found in parameter file. Using Teri's 2-component fit values for GCREW site as default"
