@@ -29,6 +29,7 @@ module ColumnDataType
   use elm_varctl      , only : hist_wrtch4diag, use_century_decomp
   use elm_varctl      , only : get_carbontag, override_bgc_restart_mismatch_dump
   use elm_varctl      , only : pf_hmode, nu_com
+  use elm_varctl      , only : use_ats
   use ch4varcon       , only : allowlakeprod
   use pftvarcon       , only : VMAX_MINSURF_P_vr, KM_MINSURF_P_vr, pinit_beta1, pinit_beta2
   use soilorder_varcon, only : smax, ks_sorption
@@ -1600,9 +1601,14 @@ contains
              do j = 1, nlevs
                 if (j > nlevbed) then
                    this%h2osoi_vol(c,j) = 0.0_r8
+                   if (use_ats .or. use_pflotran) &
+                      this%h2osoi_vol(c,j) = 1._r8         ! for below soil, assuming saturated initially helps spinup
                 else
-		               if (use_fates_planthydro .or. use_hydrstress) then
+		           if (use_fates_planthydro .or. use_hydrstress) then
                       this%h2osoi_vol(c,j) = 0.70_r8*watsat_input(c,j) !0.15_r8 to avoid very dry conditions that cause errors in FATES HYDRO
+                   elseif (use_ats .or. use_pflotran) then
+                      !this%h2osoi_vol(c,j) = 0.15_r8      ! too dry to reach equilibrium
+                      this%h2osoi_vol(c,j) = 0.75_r8
                    else
                       this%h2osoi_vol(c,j) = 0.15_r8
                    endif
