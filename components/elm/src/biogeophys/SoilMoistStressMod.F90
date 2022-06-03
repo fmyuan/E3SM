@@ -305,7 +305,7 @@ contains
   !--------------------------------------------------------------------------------
   subroutine calc_root_moist_stress_clm45default(bounds, &
        nlevgrnd, fn, filterp, rootfr_unf, &
-       soilstate_vars, energyflux_vars)
+       soilstate_vars, energyflux_vars, canopystate_vars)
     !
     ! DESCRIPTIONS
     ! compute the root water stress using the default clm45 approach
@@ -319,7 +319,9 @@ contains
     use SoilStateType        , only : soilstate_type
     use EnergyFluxType       , only : energyflux_type
     use VegetationType            , only : veg_pp
+    use VegetationDataType   , only : veg_wf
     use elm_varctl       , only : use_hydrstress
+    use CanopyStateType , only : canopystate_type
     !
     ! !ARGUMENTS:
     implicit none
@@ -330,6 +332,7 @@ contains
     real(r8)               , intent(in)    :: rootfr_unf(bounds%begp: , 1: )
     type(energyflux_type)  , intent(inout) :: energyflux_vars
     type(soilstate_type)   , intent(inout) :: soilstate_vars
+    type(canopystate_type) , intent(in)    :: canopystate_vars
     !
     ! !LOCAL VARIABLES:
     real(r8), parameter :: btran0 = 0.0_r8  ! initial value
@@ -361,13 +364,13 @@ contains
          h2osoi_liqvol => col_ws%h2osoi_liqvol , & ! Output: [real(r8) (:,:) ]  liquid volumetric moisture, will be used for BeTR
          
          salinity      => col_ws%salinity                      , & !Input: [real(r8) (:)   ] Salinity concentration ppt
-         osm_inhib     => veg_vp%osm_inhib                     , & !Input: [real(r8) (:)   ] osmotic inhibition factor   
+         osm_inhib     => veg_wf%osm_inhib                     , & !Input: [real(r8) (:)   ] osmotic inhibition factor   
          sal_opt       => veg_vp%sal_opt                       , & !Input: [real(r8) (:)   ] Salinity at which optimal biomass occurs (ppt)     
          sal_tol       => veg_vp%sal_tol                       , & !Input: [real(r8) (:)   ] Salinity tolerance; width parameter for Gaussian distribution (ppt -1)
          sal_threshold => veg_vp%sal_threshold                 , & ! Input: [real(r8) (:)   ] Threshold for salinity effects (ppt)
-         KM_salinity   => veg_vp%KM_salinity                   , & ! Input: [real(r8) (:)   ] Half saturation constant for osmotic inhibition
-         floodf        => veg_vp%floodf                        , & !Input: [real(r8) (:)      ] Flood factor to reduce growth when plants submerged
-         h2osfc        => col_ws%h2osfc                          & ! Input:  [real(r8) (:)   ]  surface water (mm)
+         floodf        => veg_wf%floodf                        , & !Input: [real(r8) (:)      ] Flood factor to reduce growth when plants submerged
+         h2osfc        => col_ws%h2osfc                        , & ! Input:  [real(r8) (:)   ]  surface water (mm)
+         htop          => canopystate_vars%htop_patch            & ! Output: [real(r8) (:) ] canopy top (m)
          ) 
 
       do j = 1,nlevgrnd
@@ -392,23 +395,22 @@ contains
                (smp_node - smpsc(veg_pp%itype(p))) / (smpso(veg_pp%itype(p)) - smpsc(veg_pp%itype(p))), 1._r8)   
                
                !using osm_inhib to change root uptake -SLL
-               if (salinity(1) .ge. sal_threshold(veg_pp%itype(p))) then
-                  !osm_inhib(veg_pp%itype(p)) = (1-salinity(c)/(KM_salinity(veg_pp%itype(p))+salinity(c)))
-                  osm_inhib(veg_pp%itype(p)) = exp(-0.5*((salinity(1)-sal_opt(veg_pp%itype(p)))**2/sal_tol(veg_pp%itype(p))**2))
+               if (salinity(c) .ge. sal_threshold(veg_pp%itype(p))) then
+                  osm_inhib(p) = exp(-0.5*((salinity(c)-sal_opt(veg_pp%itype(p)))**2/sal_tol(veg_pp%itype(p))**2))
                   rresis(p,j) = min( (eff_porosity(c,j)/watsat(c,j))* &
                     (smp_node - smpsc(veg_pp%itype(p))) / (smpso(veg_pp%itype(p)) - smpsc(veg_pp%itype(p))), 1._r8)
-                  rresis(p,j) = rresis(p,j)*osm_inhib(veg_pp%itype(p))
+                  rresis(p,j) = rresis(p,j)*osm_inhib(p)
                endif
 
                !use floodf to change root water uptake
-               if (h2osfc(1) .ge. 0._r8 .and. h2osfc(1) .le. 1000.0_r8) then
-                     floodf(veg_pp%itype(p))=1-0.001*h2osfc(1)
-               elseif(h2osfc(1) .gt. 1000._r8) then
-                     floodf(veg_pp%itype(p))=0.0_r8
-               elseif(h2osfc(1) .lt. 0._r8) then
-                     floodf(veg_pp%itype(p))=1.0_r8                       
+               if (h2osfc(c) .gt. 0._r8 .and. h2osfc(c) .lt. htop(p)*1000) then
+                     floodf(p)=(htop(p)*1000-h2osfc(c))/(htop(p)*1000)
+               elseif(h2osfc(c) .ge. htop(p)*1000) then
+                     floodf(p)=0.0_r8
+               elseif(h2osfc(c) .le. 0._r8) then
+                     floodf(p)=1.0_r8                       
                endif
-               rresis(p,j) = rresis(p,j)*floodf(veg_pp%itype(p))
+               rresis(p,j) = rresis(p,j)*floodf(p)
 
                if (.not. (perchroot .or. perchroot_alt) ) then
                   rootr(p,j) = rootfr(p,j)*rresis(p,j)
@@ -505,6 +507,7 @@ contains
             filterp = filterp,                          &
             energyflux_vars=energyflux_vars,            &
             soilstate_vars=soilstate_vars,              &
+            canopystate_vars=canopystate_vars,          &
             rootfr_unf=rootfr_unf(bounds%begp:bounds%endp,1:nlevgrnd))
 
     case default
