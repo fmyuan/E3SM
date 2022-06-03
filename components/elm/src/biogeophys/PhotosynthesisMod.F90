@@ -411,11 +411,7 @@ contains
          i_vcmax       => veg_vp%i_vc                          , &
          s_vcmax       => veg_vp%s_vc                          , &
          h2o_moss_wc   => veg_ws%h2o_moss_wc                   , & !Input: [real(r8) (:)   ]  Total Moss water content
-         h2osfc        => col_ws%h2osfc                        , & !Input: [real(r8) (:)   ]  Surface water
-         salinity      => col_ws%salinity                      , & !Input: [real(r8) (:)   ]  salinity (SLL 4/9/2021)
-         sal_threshold => veg_vp%sal_threshold                 , & !Input: [real(r8) (:)   ] Threshold salinity concentration to trigger osmotic inhibition (ppt)
-         KM_salinity   => veg_vp%KM_salinity                   , & !Input: [real(r8) (:)   ] half saturation constant for osmotic inhibition function
-         osm_inhib     => veg_vp%osm_inhib                       & !Input: [real(r8) (:)   ] osmotic inhibition factor   
+         h2osfc        => col_ws%h2osfc                          & !Input: [real(r8) (:)   ]  Surface water
          )
 
       if (phase == 'sun') then !sun
@@ -540,15 +536,6 @@ contains
            bbb(p) = max (bbbopt(p)*btran(p), 1._r8)
            mbb(p) = mbbopt(p)
          end if
-!#elseif (defined MARSH)
-         !salinity(c) = 30.0_r8
-         !if (salinity(c) > sal_threshold(p)) then
-         !   btran(p) = (btran(p)*(1-salinity(c)/(KM_salinity(p)+salinity(c))))
-         !   bbb(p) = (bbbopt(p)*btran(p))
-         !else
-         !   bbb(p) = max (bbbopt(p)*btran(p), 1._r8)
-         !   mbb(p) = mbbopt(p)
-         !end if
 #else
          bbb(p) = max (bbbopt(p)*btran(p), 1._r8)
          mbb(p) = mbbopt(p)
@@ -1961,11 +1948,7 @@ contains
          s_vcmax       => veg_vp%s_vc                          , &
          bsw           => soilstate_inst%bsw_col               , & ! Input:  [real(r8) (:,:) ]  Clapp and Hornberger "b"
          sucsat        => soilstate_inst%sucsat_col            , & ! Input:  [real(r8) (:,:) ]  minimum soil suction (mm)
-         ivt           => veg_pp%itype                         , & ! Input:  [integer  (:)   ]  patch vegetation type
-         salinity      => col_ws%salinity                      , & ! Input:  [real(r8) (:)   ] salinity ppt
-         sal_threshold => veg_vp%sal_threshold                 , & !Input: [real(r8) (:)   ] Threshold salinity concentration to trigger osmotic inhibition (ppt)
-         KM_salinity   => veg_vp%KM_salinity                   , & !Input: [real(r8) (:)   ] half saturation constant for osmotic inhibition function
-         osm_inhib     => veg_vp%osm_inhib                       & !Input: [real(r8) (:)   ] osmotic inhibition factor
+         ivt           => veg_pp%itype                           & ! Input:  [integer  (:)   ]  patch vegetation type
       )
       an_sun        =>    photosyns_inst%an_sun_patch         ! Output: [real(r8) (:,:) ]  net sunlit leaf photosynthesis (umol CO2/m**2/s)
       an_sha        =>    photosyns_inst%an_sha_patch         ! Output: [real(r8) (:,:) ]  net shaded leaf photosynthesis (umol CO2/m**2/s)
@@ -2127,16 +2110,6 @@ contains
             mbbopt(p)   = veg_vp%mbbopt(veg_pp%itype(p))   !4._r8
          end if
 
-         ! Soil water stress applied to Ball-Berry parameters
-
-!#if (defined MARSH)
-         !SLL add osm_inhib function here
-         !if (salinity(c) > sal_threshold(veg_pp%itype(p))) then
-         !osm_inhib(veg_pp%itype(p)) = (1-salinity(c)/(KM_salinity(veg_pp%itype(p))+salinity(c)))
-         !   bbb(p) = max (bbbopt(p)*btran(p)*(osm_inhib(veg_pp%itype(p))), 1._r8)
-         !   mbb(p) = mbbopt(p)
-         !end if
-!#endif
 
          ! kc, ko, cp, from: Bernacchi et al (2001) Plant, Cell and Environment
          ! 24:253-259

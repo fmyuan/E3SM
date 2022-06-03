@@ -407,6 +407,7 @@ module ColumnDataType
     real(r8), pointer :: eflx_hs_top_snow        (:)   => null() ! heat flux on top snow layer (W/m2)
     real(r8), pointer :: eflx_hs_soil            (:)   => null() ! heat flux on soil [W/m2
     real(r8), pointer :: eflx_sabg_lyr           (:,:) => null() ! absorbed solar radiation (col,lyr) (W/m2)
+    real(r8), pointer :: eflx_sh_tide            (:)   => null() !sensible heat flux from tide
     ! Derivatives of energy fluxes
     real(r8), pointer :: eflx_dhsdT              (:)   => null() ! deriv. of energy flux into surface layer wrt temp (W/m2/K)
     ! Latent heat terms
@@ -1502,11 +1503,7 @@ contains
    call hist_addfld1d (fname='H2OSFC_TIDE',  units='mm H2O',  &
       avgflag='A', long_name='Tide height above soil surface', &
       ptr_col=this%h2osfc_tide)
-
-   !this%osm_inhib(begc:endc) = spval
-   ! call hist_addfld1d (fname='OSM_INHIB',  units=' ',  &
-   !      avgflag='A', long_name='Factor to reduce growth due to salinity stress', &
-   !      ptr_col=this%osm_inhib)
+   
 
     this%h2osoi_vol(begc:endc,:) = spval
      call hist_addfld2d (fname='H2OSOI',  units='mm3/mm3', type2d='levgrnd', &
@@ -5314,6 +5311,7 @@ contains
     allocate(this%htvp                 (begc:endc))              ; this%htvp                 (:)   = spval
     allocate(this%xmf                  (begc:endc))              ; this%xmf                  (:)   = spval
     allocate(this%xmf_h2osfc           (begc:endc))              ; this%xmf_h2osfc           (:)   = spval
+    allocate(this%eflx_sh_tide         (begc:endc))              ; this%eflx_sh_tide         (:)   = 0.0_r8
     allocate(this%imelt                (begc:endc,-nlevsno+1:nlevgrnd))  ; this%imelt        (:,:) = huge(1)
     allocate(this%eflx_soil_grnd       (begc:endc))              ; this%eflx_soil_grnd       (:)   = spval
     allocate(this%eflx_rnet_soil       (begc:endc))              ; this%eflx_rnet_soil       (:)   = spval

@@ -731,7 +731,6 @@ contains
 #ifdef CPL_BYPASS
                   ! If external forcing tide file is specified then use that via coupler bypass
                   ! Indexing assumes that tide forcing is a time series of hourly values
-                  ! write(iulog,*) h2osfc_tide
                   h2osfc_tide(c) = (atm2lnd_vars%tide_height(1,1+mod(int((days*secspday+seconds)/3600),atm2lnd_vars%tide_forcing_len)))*1000 !convert m to mm
                   col_ws%salinity(c) = atm2lnd_vars%tide_salinity(1,1+mod(int((days*secspday+seconds)/3600),atm2lnd_vars%tide_forcing_len))
                   salinity(c) = col_ws%salinity(c)
