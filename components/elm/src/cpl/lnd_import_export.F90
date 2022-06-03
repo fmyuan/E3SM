@@ -1066,19 +1066,25 @@ contains
             if(ierr .ne. 0) call endrun('Error finding tide_salinity variable')
             ierr = nf90_get_var(ncid, varid, atm2lnd_vars%tide_salinity(1,1:atm2lnd_vars%tide_forcing_len),(/1,1/),(/1,atm2lnd_vars%tide_forcing_len/))
             if(ierr .ne. 0) call endrun('Error reading tide_salinity variable')
+            ierr = nf90_inq_varid(ncid, 'tide_temp',varid)
+            if(ierr .ne. 0) call endrun('Error finding tide_temp variable')
+            ierr = nf90_get_var(ncid, varid, atm2lnd_vars%tide_temp(1,1:atm2lnd_vars%tide_forcing_len),(/1,1/),(/1,atm2lnd_vars%tide_forcing_len/))
+            if(ierr .ne. 0) call endrun('Error reading tide_temp variable')
 
             ierr = nf90_close(ncid)
-            write(iulog,*) 'Reading tide height and salinity from file '//trim(tide_file)
+            write(iulog,*) 'Reading tide height, salinity, and temp from file '//trim(tide_file)
           else
             if(tide_file .ne. ' ') write(iulog,*) 'Did not find tide forcing file '//trim(tide_file)
             atm2lnd_vars%tide_forcing_len = 1
             atm2lnd_vars%tide_height(:,:) = 0.0_r8
             atm2lnd_vars%tide_salinity(:,:) = 0.0_r8
+            atm2lnd_vars%tide_temp(:,:) = 0.0_r8
           endif
         end if
         if (i .eq. 1) then 
            call mpi_bcast (atm2lnd_vars%tide_height, 876000, MPI_REAL8, 0, mpicom, ier)
            call mpi_bcast (atm2lnd_vars%tide_salinity, 876000, MPI_REAL8, 0, mpicom, ier)
+           call mpi_bcast (atm2lnd_vars%tide_temp, 876000, MPI_REAL8, 0, mpicom, ier)
         end if
       end if
 
