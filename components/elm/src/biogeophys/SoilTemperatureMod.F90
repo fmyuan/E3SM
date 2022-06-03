@@ -179,6 +179,9 @@ contains
     use column_varcon            , only : icol_roof, icol_sunwall, icol_shadewall, icol_road_perv, icol_road_imperv
     use landunit_varcon          , only : istwet, istice, istice_mec, istsoil, istcrop
     use BandDiagonalMod          , only : BandDiagonal
+#ifdef MARSH
+    use elm_varctl      , only : tide_file
+#endif
 
     !
     ! !ARGUMENTS:
@@ -277,6 +280,9 @@ contains
          eflx_urban_ac           => col_ef%eflx_urban_ac       , & ! Output: [real(r8) (:)   ]  urban air conditioning flux (W/m**2)
          eflx_urban_heat         => col_ef%eflx_urban_heat     , & ! Output: [real(r8) (:)   ]  urban heating flux (W/m**2)
 
+#ifdef MARSH
+         eflx_sh_tide            => col_ef%eflx_sh_tide        , & ! Input: [real(r8) (:) ] sensible heat flux from tide
+#endif
          emg                     => col_es%emg                              , & ! Input:  [real(r8) (:)   ]  ground emissivity
          hc_soi                  => col_es%hc_soi                           , & ! Input:  [real(r8) (:)   ]  soil heat content (MJ/m2)               ! TODO: make a module variable
          hc_soisno               => col_es%hc_soisno                        , & ! Input:  [real(r8) (:)   ]  soil plus snow plus lake heat content (MJ/m2) !TODO: make a module variable
@@ -559,6 +565,16 @@ contains
                else
                   t_h2osfc(c)         = tvector_nourbanc(c,0)          !surface water
                endif
+#ifdef MARSH
+               if(tide_file .ne. ' ') then
+ #ifdef CPL_BYPASS
+               !heat exchange with tide
+               eflx_sh_tide=0.0
+               tide_temp = atm2lnd_vars%tide_temp(1,1+mod(int((days*secspday+seconds)/3600),atm2lnd_vars%tide_forcing_len))
+               eflx_sh_tide = eflx_sh_tide + (tide_temp - t_h2osfc(c))
+               t_h2osfc(c) = t_h2osfc(c) + eflx_sh_tide
+#endif
+
             endif
 
          endif
@@ -1668,6 +1684,11 @@ contains
     use elm_varcon     , only : sb, hvap
     use column_varcon  , only : icol_road_perv, icol_road_imperv
     use elm_varpar     , only : nlevsno, max_patch_per_col
+
+#ifdef MARSH
+    use elm_instMod     , only : atm2lnd_vars
+    use elm_varctl      , only : tide_file
+#endif
     !
     ! !ARGUMENTS:
     implicit none
@@ -1699,7 +1720,10 @@ contains
     real(r8) :: lwrad_emit_h2osfc(bounds%begc:bounds%endc)             !
     real(r8) :: eflx_gnet_snow                                         !
     real(r8) :: eflx_gnet_soil                                         !
-    real(r8) :: eflx_gnet_h2osfc                                       !
+    real(r8) :: eflx_gnet_h2osfc  
+    real(r8) :: h2osfc_tide
+    real(r8) :: tide_temp
+    real(r8) :: eflx_sh_tide                                     !
     !-----------------------------------------------------------------------
 
     ! Enforce expected array sizes
@@ -1748,6 +1772,8 @@ contains
          sabg_snow               => solarabs_vars%sabg_snow_patch           , & ! Input:  [real(r8) (:)   ]  solar radiation absorbed by snow (W/m**2)
          sabg_chk                => solarabs_vars%sabg_chk_patch            , & ! Output: [real(r8) (:)   ]  sum of soil/snow using current fsno, for balance check
          sabg_lyr                => solarabs_vars%sabg_lyr_patch            , & ! Output: [real(r8) (:,:) ]  absorbed solar radiation (pft,lyr) [W/m2]
+
+         h2osfc               =>    col_ws%h2osfc              , & ! Output: [real(r8) (:)   ]  surface water (mm)
 
          begc                    => bounds%begc                             , & ! Input:  [integer        ] beginning column index
          endc                    => bounds%endc                               & ! Input:  [integer        ] ending column index
@@ -1799,7 +1825,7 @@ contains
 
                      eflx_gnet_h2osfc = sabg_soil(p) + dlrad(p) &
                           + (1._r8-frac_veg_nosno(p))*emg(c)*forc_lwrad(t) - lwrad_emit_h2osfc(c) &
-                          - (eflx_sh_h2osfc(p)+qflx_ev_h2osfc(p)*htvp(c))
+                          - (eflx_sh_h2osfc(p)+qflx_ev_h2osfc(p)*htvp(c) - eflx_sh_tide)
                   else
                      ! For urban columns we use the net longwave radiation (eflx_lwrad_net) because of
                      ! interactions between urban columns.

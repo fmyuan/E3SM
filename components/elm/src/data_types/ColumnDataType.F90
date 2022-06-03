@@ -395,6 +395,7 @@ module ColumnDataType
     real(r8), pointer :: eflx_hs_top_snow        (:)   => null() ! heat flux on top snow layer (W/m2)
     real(r8), pointer :: eflx_hs_soil            (:)   => null() ! heat flux on soil [W/m2
     real(r8), pointer :: eflx_sabg_lyr           (:,:) => null() ! absorbed solar radiation (col,lyr) (W/m2)
+    real(r8), pointer :: eflx_sh_tide            (:)   => null() !sensible heat flux from tide
     ! Derivatives of energy fluxes
     real(r8), pointer :: eflx_dhsdT              (:)   => null() ! deriv. of energy flux into surface layer wrt temp (W/m2/K)
     ! Latent heat terms
@@ -5249,6 +5250,7 @@ contains
     allocate(this%eflx_hs_soil         (begc:endc))              ; this%eflx_hs_soil         (:)   = nan
     allocate(this%eflx_sabg_lyr        (begc:endc, -nlevsno+1:1)); this%eflx_sabg_lyr        (:,:) = nan
     allocate(this%eflx_dhsdT           (begc:endc))              ; this%eflx_dhsdT           (:)   = nan
+    allocate(this%eflx_sh_tide         (begc:endc))              ; this%eflx_sh_tide         (:)   = nan
     allocate(this%htvp                 (begc:endc))              ; this%htvp                 (:)   = nan
     allocate(this%xmf                  (begc:endc))              ; this%xmf                  (:)   = nan
     allocate(this%xmf_h2osfc           (begc:endc))              ; this%xmf_h2osfc           (:)   = nan

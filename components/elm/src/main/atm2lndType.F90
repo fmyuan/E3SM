@@ -70,6 +70,7 @@ module atm2lndType
       ! BSulman: To support coastal system points. Leaving in coupler bypass until we work on what actual coupling will need
       real(r8), pointer :: tide_height               (:,:) => null()  ! Height in meters (need to figure what it's relative to though - long-term mean or something?) 
       real(r8), pointer :: tide_salinity             (:,:) => null()  ! Salinity in ppt
+      real(r8), pointer :: tide_temp                 (:,:) => null()  ! temperature in K
       integer,  pointer :: tide_forcing_len                => null()
 #endif
      ! atm->lnd not downscaled

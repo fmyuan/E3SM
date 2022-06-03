@@ -249,6 +249,7 @@ contains
           qflx_lat_aqu               =>    col_wf%qflx_lat_aqu            , & ! Input:   [real(r8) (:)   ]  lateral flow between hummock and hollow (mm H2O /s)
           qflx_tide                  =>    col_wf%qflx_tide               , & ! Input:   [real(r8) (:)   ]  tidal flux between consecutive timesteps (mm H2O /s)
           qflx_surf_input            =>    col_wf%qflx_surf_input         , & ! Input:   [real(r8) (:)   ]  input to hollow surface water from hummock (mm H2O /s)
+          eflx_sh_tide               =>    col_ef%eflx_sh_tide            , % ! Input:   [real(r8) (:)   ]  sensible heat flux from tide
 #endif
           snow_sources               =>    col_wf%snow_sources            , & ! Output: [real(r8) (:)   ]  snow sources (mm H2O /s)  
           snow_sinks                 =>    col_wf%snow_sinks              , & ! Output: [real(r8) (:)   ]  snow sinks (mm H2O /s)    
@@ -626,7 +627,7 @@ contains
 
              if (.not. lun_pp%urbpoi(l)) then
                 errseb(p) = sabv(p) + sabg_chk(p) + forc_lwrad(t) - eflx_lwrad_out(p) &
-                     - eflx_sh_tot(p) - eflx_lh_tot(p) - eflx_soil_grnd(p)
+                     - eflx_sh_tot(p) - eflx_lh_tot(p) - eflx_soil_grnd(p) + eflx_sh_tide !SL added eflx_sh_tide 5-5-22
              else
                 errseb(p) = sabv(p) + sabg(p) &
                      - eflx_lwrad_net(p) &
