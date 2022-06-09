@@ -62,7 +62,8 @@ contains
 
     associate(& 
          h2osoi_liqvol => col_ws%h2osoi_liqvol , &
-         h2osfc        => col_ws%h2osfc          &
+         h2osfc        => col_ws%h2osfc        , &
+         salinity      => col_ws%salinity        &
          )
 
     count = 0
@@ -92,13 +93,20 @@ contains
              enddo
              cur_data%is_set = .true.
 
-            case (L2E_STATE_H2OSFC_COL)
-               do fc = 1, num_filter
-                  c = filter(fc)
-                  cur_data%data_real_1d(c) = h2osfc(c)
-               enddo
-               cur_data%is_set = .true.
-  
+          case (L2E_STATE_H2OSFC_COL)
+             do fc = 1, num_filter
+                c = filter(fc)
+                cur_data%data_real_1d(c) = h2osfc(c)
+             enddo
+             cur_data%is_set = .true.
+
+          case (L2E_STATE_SALINITY_COL)
+             do fc = 1, num_filter
+                c = filter(fc)
+                cur_data%data_real_1d(c) = salinity(c)
+             enddo
+             cur_data%is_set = .true.
+
           end select
 
        endif

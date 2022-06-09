@@ -68,6 +68,7 @@ module ExternalModelAlquimiaMod
     integer :: index_l2e_flux_qflx_lat_aqu_layer
     integer :: index_l2e_state_wtd
     integer :: index_l2e_state_h2osfc
+    integer :: index_l2e_state_flood_salinity
     
     ! Solve data returned to land model
     integer :: index_e2l_state_decomp_cpools
@@ -350,13 +351,17 @@ contains
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_l2e_flux_qflx_lat_aqu_layer      = index
 
-    id                                   = L2E_STATE_WTD
+    id                                   = L2E_STATE_SALINITY_COL
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
-    this%index_l2e_state_wtd      = index
+    this%index_l2e_state_flood_salinity      = index
 
     id                                   = L2E_STATE_H2OSFC_COL
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_l2e_state_h2osfc      = index
+
+    id                                   = L2E_STATE_WTD
+    call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_l2e_state_wtd      = index
 
 
     ! Needed for both stages
@@ -897,7 +902,7 @@ end subroutine EMAlquimia_Coldstart
     real(r8) , pointer, dimension(:,:,:) :: aux_doubles_l2e , aux_doubles_e2l
     integer  , pointer, dimension(:,:,:)   :: aux_ints_l2e, aux_ints_e2l
     real(r8) , pointer, dimension(:,:)    :: qflx_adv_l2e, qflx_lat_aqu_l2e
-    real(r8) , pointer, dimension(:)     :: wtd_l2e, h2osfc_l2e
+    real(r8) , pointer, dimension(:)      :: flood_salinity_l2e, h2osfc_l2e, wtd_l2e
     real(r8) , pointer, dimension(:,:)    :: DOC_e2l, DON_e2l, DIC_e2l
     real(r8) , pointer, dimension(:,:)    :: pH_e2l, O2_e2l, salinity_e2l, sulfate_e2l, Fe2_e2l, FeOxide_e2l, carbonate_e2l
     real(r8) , pointer, dimension(:)     :: actual_dt_e2l
@@ -993,6 +998,8 @@ end subroutine EMAlquimia_Coldstart
     call l2e_list%GetPointerToReal1D(this%index_l2e_state_wtd       , wtd_l2e     )
     call l2e_list%GetPointerToReal1D(this%index_l2e_state_h2osfc    , h2osfc_l2e  )
 
+    call l2e_list%GetPointerToReal1D(this%index_l2e_state_flood_salinity , flood_salinity_l2e )
+
     call e2l_list%GetPointerToReal2D(this%index_e2l_state_DIC , DIC_e2l)
     call e2l_list%GetPointerToReal2D(this%index_e2l_state_DOC , DOC_e2l)
     call e2l_list%GetPointerToReal2D(this%index_e2l_state_DON , DON_e2l)
@@ -1055,7 +1062,6 @@ end subroutine EMAlquimia_Coldstart
     endif
     
      ! Run the reactions engine for a step. Alquimia works on one cell at a time
-     ! TODO: Transport needs to be integrated somehow. 
     do fc = 1, num_soilc
       c = filter_soilc(fc)
 
@@ -1132,6 +1138,18 @@ end subroutine EMAlquimia_Coldstart
               ! write(iulog,*),__LINE__,'lat_flow',qflx_lat_aqu_l2e(c,:)/dt
               ! This changes total_mobile_l2e so we need to make sure we aren't using that for conservation checks
 
+#ifdef MARSH
+              ! Set lateral (tidal flooding) and surface (infiltration) boundary conditions for salinity
+              if(this%chloride_pool_number>0) then
+                lat_bc(this%chloride_pool_number) = flood_salinity_l2e(c)*(1000.0*porosity_l2e(c,j)*max(h2o_liqvol(c,j)/porosity_l2e(c,j),0.01))/(35.453*1.80655*1000.0)
+                
+                ! Need to distinguish between tidal flooding and rainfall infiltration. Doing based on h2osfc but not sure if that's correct
+                if (h2osfc_l2e(c)>0) then
+                  surf_bc(this%chloride_pool_number) = flood_salinity_l2e(c)*(1000.0*porosity_l2e(c,j)*max(h2o_liqvol(c,j)/porosity_l2e(c,j),0.01))/(35.453*1.80655*1000.0)
+                endif
+              endif
+#endif
+
               call run_column_onestep(this, c, dt,0,max_cuts,&
                   water_density_l2e,&
                   aqueous_pressure_l2e,&
@@ -1143,7 +1161,14 @@ end subroutine EMAlquimia_Coldstart
                   cation_exchange_capacity_l2e,&
                   aux_doubles_l2e,&
                   aux_ints_l2e,&
-                  porosity_l2e,temperature,dz,h2o_liqvol/porosity_l2e,-qflx_adv_l2e(:,0:nlevdecomp),qflx_lat_aqu_l2e/dt,lat_bc,lat_flux,surf_bc,surf_flux)
+                  porosity_l2e,temperature,dz,&
+                  h2o_liqvol/porosity_l2e,    &    ! Water content as fraction of saturation
+                  -qflx_adv_l2e(:,0:nlevdecomp),&  ! Vertical water flux
+                  qflx_lat_aqu_l2e/dt,         &      ! Horizontal water flux (depth-resolved)
+                  lat_bc,                   &      ! Lateral flux concentration boundary condition
+                  lat_flux,                 &      ! Output: Lateral flux of each solute
+                  surf_bc,                  &      ! Surface boundary condition
+                  surf_flux)                      ! Output: Surface flux of each solute
 
               ! if(max_cuts>3) write(iulog,'(a,i2,a,2i3)'),"Alquimia converged after",max_cuts," cuts. Column",c
               actual_dt_e2l(c)=dt/2**max_cuts

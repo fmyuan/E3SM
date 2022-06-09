@@ -5,5 +5,6 @@ module EMI_ColumnWaterStateType_Constants
   !
   integer, parameter, public :: L2E_STATE_SOIL_LIQ_VOL_COL  = 0401
   integer, parameter, public :: L2E_STATE_H2OSFC_COL        = 0402
+  integer, parameter, public :: L2E_STATE_SALINITY_COL      = 0403
 
 end module EMI_ColumnWaterStateType_Constants
