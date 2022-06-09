@@ -689,6 +689,13 @@ contains
     allocate( sal_opt (0:mxpft) )
     allocate( sal_tol (0:mxpft) )
 
+    ! Make sure they are initialized to some values
+    sal_threshold(:) = 50.0_r8
+    KM_salinity(:) = 1.8_r8
+    osm_inhib(:) = 1.8_r8
+    sal_opt(:) = 0.0_r8
+    sal_tol(:) = 50.0_r8
+
     ! Set specific vegetation type values
 
     if (masterproc) then
@@ -1094,17 +1101,6 @@ contains
       if (.not. readv) call endrun(msg="Error: Must specify amp, period, and phase for each tide component: i = "//trim(tempname))
       call ncd_io('tide_coeff_phase_'//trim(tempname),tide_coeff_phase(i), 'read', ncid, readvar=readv, posNOTonfile=.true.)
       if (.not. readv) call endrun(msg="Error: Must specify amp, period, and phase for each tide component: i = "//trim(tempname))
-      ! salinity parameters
-      call ncd_io('sal_threshold', sal_threshold(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
-      if ( .not. readv ) sal_threshold(:) = 50.0_r8 !placeholder value for now-update with more accurate -SLL
-      call ncd_io('KM_salinity', KM_salinity(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
-      if ( .not. readv ) KM_salinity(:) = 1.8_r8 !placeholder value for now-update with more accurate -SLL
-      call ncd_io('osm_inhib', osm_inhib(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
-      if ( .not. readv ) osm_inhib(:) = 1.8_r8 
-      call ncd_io('sal_opt', sal_opt(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
-      if ( .not. readv ) sal_opt(:) = 0.0_r8 
-      call ncd_io('sal_tol', sal_tol(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
-      if ( .not. readv ) sal_tol(:) = 50.0_r8 
    enddo
    if(num_tide_comps == 0) then
       write(iulog,*) "No tidal coefficients found in parameter file. Using Teri's 2-component fit values for GCREW site as default"
@@ -1118,6 +1114,18 @@ contains
    endif
    call ncd_io('sfcflow_ratescale',sfcflow_ratescale, 'read', ncid, readvar=readv, posNOTonfile=.true.)
    if (.not. readv) sfcflow_ratescale = 7.0e-5_r8 ! Probably better to have default be zero for safety
+
+   ! salinity parameters
+   call ncd_io('sal_threshold', sal_threshold(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+   if ( .not. readv ) sal_threshold(:) = 50.0_r8 !placeholder value for now-update with more accurate -SLL
+   call ncd_io('KM_salinity', KM_salinity(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+   if ( .not. readv ) KM_salinity(:) = 1.8_r8 !placeholder value for now-update with more accurate -SLL
+   call ncd_io('osm_inhib', osm_inhib(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+   if ( .not. readv ) osm_inhib(:) = 1.8_r8 
+   call ncd_io('sal_opt', sal_opt(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+   if ( .not. readv ) sal_opt(:) = 0.0_r8 
+   call ncd_io('sal_tol', sal_tol(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+   if ( .not. readv ) sal_tol(:) = 50.0_r8 
 #endif
 
     call ncd_io('phen_a', phen_a, 'read', ncid, readvar=readv, posNOTonfile=.true.)
