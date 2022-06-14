@@ -387,26 +387,36 @@ contains
              budg_fluxL(:,ip)  = 0.0_r8
              budg_fluxG(:,ip)  = 0.0_r8
              budg_fluxN(:,ip)  = 0.0_r8
+             budg_stateL(:,ip) = 0.0_r8
+             budg_stateG(:,ip) = 0.0_r8
           endif
           if (ip==p_day .and. sec==0) then
              budg_fluxL(:,ip)  = 0.0_r8
              budg_fluxG(:,ip)  = 0.0_r8
              budg_fluxN(:,ip)  = 0.0_r8
+             budg_stateL(:,ip) = 0.0_r8
+             budg_stateG(:,ip) = 0.0_r8
           endif
           if (ip==p_mon .and. day==1 .and. sec==0) then
              budg_fluxL(:,ip)  = 0.0_r8
              budg_fluxG(:,ip)  = 0.0_r8
              budg_fluxN(:,ip)  = 0.0_r8
+             budg_stateL(:,ip) = 0.0_r8
+             budg_stateG(:,ip) = 0.0_r8
           endif
           if (ip==p_ann .and. mon==1 .and. day==1 .and. sec==0) then
              budg_fluxL(:,ip)  = 0.0_r8
              budg_fluxG(:,ip)  = 0.0_r8
              budg_fluxN(:,ip)  = 0.0_r8
+             budg_stateL(:,ip) = 0.0_r8
+             budg_stateG(:,ip) = 0.0_r8
           endif
           if (ip==p_inf .and. get_nstep()==1) then
              budg_fluxL(:,ip)  = 0.0_r8
              budg_fluxG(:,ip)  = 0.0_r8
              budg_fluxN(:,ip)  = 0.0_r8
+             budg_stateL(:,ip) = 0.0_r8
+             budg_stateG(:,ip) = 0.0_r8
           endif
        enddo
 
@@ -489,7 +499,7 @@ contains
        call Restart_Read(bounds, ncid, flag, 'N', n_f_size, n_s_size, &
             n_budg_fluxG, n_budg_fluxN, n_budg_stateL)
        call Restart_Read(bounds, ncid, flag, 'P', p_f_size, p_s_size, &
-            p_budg_fluxG, p_budg_fluxN, n_budg_stateL)
+            p_budg_fluxG, p_budg_fluxN, p_budg_stateL)
 
     case default
        write(iulog,*) trim(subname),' ERROR: unknown flag = ',flag
@@ -622,7 +632,7 @@ contains
          end_totprodc              => grc_cs%end_totprodc          , & ! Input: [real(r8) (:)] (gC/m2) total column wood product carbon
          end_ctrunc                => grc_cs%end_ctrunc            , & ! Input: [real(r8) (:)] (gC/m2) total column truncation carbon sink
          end_cropseedc_deficit     => grc_cs%end_cropseedc_deficit , & ! Input: [real(r8) (:)] (gC/m2) column carbon pool for seeding new growth
-         errcb                     => grc_cs%errcb                 , & ! Input: [real(r8) (:)] (gC/m^2/s)total SOM C loss by erosion
+         errcb                     => grc_cs%errcb                 , & ! Input: [real(r8) (:)] (gC/m^2) carbon mass balance error
          gpp                       => grc_cf%gpp                   , & ! Input: [real(r8) (:)] (gC/m2/s) gross primary production
          er                        => grc_cf%er                    , & ! Input: [real(r8) (:)] (gC/m2/s) total ecosystem respiration, autotrophic + heterotrophic
          fire_closs                => grc_cf%fire_closs            , & ! Input: [real(r8) (:)] (gC/m2/s) total column-level fire C loss
