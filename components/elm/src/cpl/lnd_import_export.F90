@@ -1066,12 +1066,12 @@ contains
             if(ierr .ne. 0) call endrun('Error finding tide_salinity variable')
             ierr = nf90_get_var(ncid, varid, atm2lnd_vars%tide_salinity(1,1:atm2lnd_vars%tide_forcing_len),(/1,1/),(/1,atm2lnd_vars%tide_forcing_len/))
             if(ierr .ne. 0) call endrun('Error reading tide_salinity variable')
-            ierr = nf90_inq_varid(ncid, 'tide_temp',varid)
-            if(ierr .ne. 0) call endrun('Error finding tide_temp variable')
-            ierr = nf90_get_var(ncid, varid, atm2lnd_vars%tide_temp(1,1:atm2lnd_vars%tide_forcing_len),(/1,1/),(/1,atm2lnd_vars%tide_forcing_len/))
-            write(iulog,*) 'ierr'
-            write(iulog,*) ierr
-            if(ierr .ne. 0) call endrun('Error reading tide_temp variable')
+            !ierr = nf90_inq_varid(ncid, 'tide_temp',varid)
+            !if(ierr .ne. 0) call endrun('Error finding tide_temp variable')
+            !ierr = nf90_get_var(ncid, varid, atm2lnd_vars%tide_temp(1,1:atm2lnd_vars%tide_forcing_len),(/1,1/),(/1,atm2lnd_vars%tide_forcing_len/))
+            !write(iulog,*) 'ierr'
+            !write(iulog,*) ierr
+            !if(ierr .ne. 0) call endrun('Error reading tide_temp variable')
             
 
             ierr = nf90_close(ncid)
