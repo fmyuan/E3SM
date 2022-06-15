@@ -61,6 +61,7 @@ module ExternalModelATSMod
      integer :: index_l2e_init_state_h2osoi_ice
      integer :: index_l2e_init_state_soilp
      integer :: index_l2e_init_state_smp
+     integer :: index_l2e_init_state_zwt
 
      integer :: index_l2e_init_state_ts_soil
      integer :: index_l2e_init_state_ts_snow
@@ -85,11 +86,13 @@ module ExternalModelATSMod
      integer :: index_l2e_state_h2osoi_ice
      integer :: index_l2e_state_soilp
      integer :: index_l2e_state_smp
+     integer :: index_l2e_state_zwt
 
      integer :: index_e2l_state_h2osoi_liq
      integer :: index_e2l_state_h2osoi_ice
      integer :: index_e2l_state_soilp
      integer :: index_e2l_state_smp
+     integer :: index_e2l_state_zwt
 
      integer :: index_l2e_flux_gross_infil
      integer :: index_l2e_flux_gross_evap
@@ -231,6 +234,10 @@ contains
     call l2e_init_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_l2e_init_state_ts_h2osfc       = index
 
+    id                                         = L2E_STATE_WTD
+    call l2e_init_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_l2e_init_state_zwt              = index
+
     !--------
     id                                         = L2E_PARAMETER_WATSATC
     call l2e_init_list%AddDataByID(id, number_em_stages, em_stages, index)
@@ -294,7 +301,7 @@ contains
 
     id                                        = E2L_STATE_WTD
     call e2l_init_list%AddDataByID(id, number_em_stages, em_stages, index)
-    this%index_e2l_init_state_wtd             = index
+    this%index_e2l_init_state_zwt             = index
 
     id                                        = E2L_FLUX_SNOW_LYR_DISAPPERANCE_MASS_FLUX
     call e2l_init_list%AddDataByID(id, number_em_stages, em_stages, index)
@@ -381,13 +388,13 @@ contains
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_l2e_flux_surf             = index
 
+    !id                                   = L2E_STATE_WTD
+    !call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
+    !this%index_l2e_state_zwt             = index
+
     !-----------------
     if (em_stages(1) == EM_ATS_SOIL_THYDRO_STAGE .or. &
         em_stages(1) == EM_ATS_SOIL_THBGC_STAGE) then
-
-        id                                   = L2E_STATE_FORC_PBOT_DOWNSCALED
-        call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
-        this%index_l2e_state_forc_pbot       = index
 
         id                                   = L2E_STATE_TSOIL_NLEVGRND_COL
         call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
@@ -466,7 +473,7 @@ contains
 
     id                              = E2L_STATE_WTD
     call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
-    this%index_e2l_state_wtd        = index
+    this%index_e2l_state_zwt        = index
 #endif
     deallocate(em_stages)
 
@@ -519,13 +526,15 @@ contains
       call set_material_properties(this, l2e_init_list, bounds_clump)
 
       ! 'mpicom' is communicator group id for land component
+      print *, ''
+      print *, '============================================================='
+      print *,''
+      print *, ' -------- ELM-ATS Coupled Mode ------------------------------'
+      print *, ''
       print *, 'EM_ATS_Init: ats inputs - ', trim(ats_inputdir), ' ', trim(ats_inputfile)
       print *, 'communicator id: ', mpicom
       call this%ats_interface%setup(ats_inputdir, ats_inputfile, mpicom)
       !
-      ! reset ICs for ATS
-      ! call set_initial_conditions(this, l2e_init_list, bounds_clump)  ! soilp not yet available at this stage ?
-
       ! after setting up mesh, materials
       init_timesecond = nstep_mod * dtime_mod
       call this%ats_interface%init()
@@ -566,9 +575,6 @@ contains
     real(r8)  , pointer                  :: col_nodes (:)
 
     !-----------------------------------------------------------------------
-    !allocate(surf_xi (bounds_clump%bounds_proc_begc_all:bounds_clump%bounds_proc_endc_all))
-    !allocate(surf_yi (bounds_clump%bounds_proc_begc_all:bounds_clump%bounds_proc_endc_all))
-    !allocate(surf_zi (bounds_clump%bounds_proc_begc_all:bounds_clump%bounds_proc_endc_all))
 
     allocate(surf_xi(0:this%filter_col_num))           ! 0 index starting, so ready for c++ ats data
     allocate(surf_yi(0:1))                             ! assuming columns arranged along X-axis, so gridY nodes is 2
@@ -639,6 +645,7 @@ contains
     real(r8), pointer    :: ats_sucsat(:,:)
     real(r8), pointer    :: ats_eff_porosity(:,:)
     real(r8), pointer    :: ats_residual_sat(:,:)
+    real(r8), pointer    :: ats_zwt(:)
     !
     integer              :: fc, c, j
     integer              :: nz
@@ -651,6 +658,8 @@ contains
     call l2e_init_list%GetPointerToReal2D(this%index_l2e_init_parameter_sucsatc      , elm_sucsat       )
     call l2e_init_list%GetPointerToReal2D(this%index_l2e_init_parameter_effporosityc , elm_eff_porosity )
 
+    call l2e_init_list%GetPointerToReal1D(this%index_l2e_init_state_zwt              , elm_zwt          )
+
     ! Allocate memory (on local rank only), note all dimensions are 0-based
     nz = size(elm_watsat(1,:))
     allocate(ats_watsat       (0:this%filter_col_num-1, 0:nz-1 ))
@@ -659,6 +668,9 @@ contains
     allocate(ats_sucsat       (0:this%filter_col_num-1, 0:nz-1 ))
     allocate(ats_eff_porosity (0:this%filter_col_num-1, 0:nz-1 ))
     allocate(ats_residual_sat (0:this%filter_col_num-1, 0:nz-1 ))
+    allocate(ats_zwt          (0:this%filter_col_num-1))
+
+
 
     ! Initialize
     ats_watsat       (:,:) = 0._r8
@@ -666,7 +678,8 @@ contains
     ats_bsw          (:,:) = 0._r8
     ats_sucsat       (:,:) = 0._r8
     ats_eff_porosity (:,:) = 0._r8
-    ats_residual_sat (:,:) = 0._r8  ! alway zero from ELM
+    ats_residual_sat (:,:) = 0._r8    ! alway zero from ELM
+    ats_zwt          (:)   = -5.0_r8  ! meters below ground surface
 
     do fc = 1, this%filter_col_num
       c = this%filter_col(fc)
@@ -677,11 +690,12 @@ contains
          ats_sucsat(fc-1,j-1)       = elm_sucsat(c,j)
          ats_eff_porosity(fc-1,j-1) = elm_eff_porosity(c,j)
       end do
+      ats_zwt(fc-1)                 = -elm_zwt(c)   ! meters below ground surface
     end do
 
     ! pass data to ATS
     call this%ats_interface%setmat(ats_watsat, ats_hksat, ats_bsw, ats_sucsat, &
-             ats_residual_sat, ats_eff_porosity)
+             ats_residual_sat, ats_eff_porosity, ats_zwt)
 
     deallocate(ats_watsat)
     deallocate(ats_hksat)
@@ -689,6 +703,7 @@ contains
     deallocate(ats_sucsat)
     deallocate(ats_eff_porosity)
     deallocate(ats_residual_sat)
+    deallocate(ats_zwt)
 
   end subroutine set_material_properties
 
@@ -764,9 +779,9 @@ contains
     nz = size(soilp(1,:))
     allocate(soilp_ats(0:this%filter_col_num-1, 0:nz-1))                               ! index starting from 0 at soil bottom
 
-    !call l2e_list%GetPointerToReal1D(this%index_l2e_state_wtd             , wtd   )   ! TODO
+    !call l2e_list%GetPointerToReal1D(this%index_l2e_state_zwt              , wtd   )   ! TODO
     allocate(wtd_ats(0:this%filter_col_num-1))
-    wtd_ats(:) = 100.0_r8 ! TODO
+    wtd_ats(:) = -999.9_r8 ! TODO
 
     do fc = 1, this%filter_col_num
       c = this%filter_col(fc)

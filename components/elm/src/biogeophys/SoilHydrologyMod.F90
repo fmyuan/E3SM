@@ -682,7 +682,7 @@ contains
           rous=max(rous,0.02_r8)
 
           !--  water table is below the soil column  --------------------------------------
-		      g = col_pp%gridcell(c)
+          g = col_pp%gridcell(c)
           l = col_pp%landunit(c)
           qcharge_temp = qcharge(c)
 
@@ -690,7 +690,7 @@ contains
           zwt(c) = zwt(c) + (qflx_grnd_irrig_col(c) * dtime)/1000._r8/rous
 
           if(jwt(c) == nlevbed) then
-	           if (.not. (zengdecker_2009_with_var_soil_thick)) then
+           if (.not. (zengdecker_2009_with_var_soil_thick)) then
                 wa(c)  = wa(c) + qcharge(c)  * dtime
                 zwt(c) = zwt(c) - (qcharge(c)  * dtime)/1000._r8/rous
              end if

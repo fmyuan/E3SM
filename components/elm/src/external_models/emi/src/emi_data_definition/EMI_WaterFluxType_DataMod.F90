@@ -170,8 +170,8 @@ contains
 
     case(L2E_FLUX_GROSS_INFL_SOIL)
        id_val         =  L2E_FLUX_GROSS_INFL_SOIL
-       name_val       =  'Gross evaporation infiltration'
-       long_name_val  =  'Gross evaporation infiltration: ELM to EM'
+       name_val       =  'Gross infiltration into soil'
+       long_name_val  =  'Gross infiltration into soil: ELM to EM'
        units_val      =  '[mm H2O/s]'
        is_real_type   =  .true.
        ndim           =  1

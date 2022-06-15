@@ -133,7 +133,7 @@ contains
   !----------------------------------------------------------------------------------
 
     subroutine ats_setmats_f(this, ats_watsat, ats_hksat, ats_bsw, ats_sucsat, &
-             ats_residual_sat, ats_eff_porosity)
+             ats_residual_sat, ats_eff_porosity, ats_initzwt)
 
         implicit none
         class(elm_ats_interface_type) :: this
@@ -143,11 +143,12 @@ contains
         real(r8), pointer, intent(in) :: ats_sucsat(:,:)
         real(r8), pointer, intent(in) :: ats_residual_sat(:,:)
         real(r8), pointer, intent(in) :: ats_eff_porosity(:,:)
+        real(r8), pointer, intent(in) :: ats_initzwt(:)
         !
         ! ----------------------------------------------------------
         !
         call ats_elm_setmats(this%ptr, ats_watsat, ats_hksat, ats_bsw, ats_sucsat, &
-             ats_residual_sat, ats_eff_porosity)
+             ats_residual_sat, ats_eff_porosity, ats_initzwt)
         !
     end subroutine ats_setmats_f
 

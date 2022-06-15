@@ -149,7 +149,7 @@ contains
        call EMI_Driver(EM_ID_ATS, EM_ATS_SOIL_HYDRO_STAGE,                        &
             dt=dt, number_step=nstep, clump_rank=bounds%clump_index,              &
             soilstate_vars=soilstate_vars,                                        &  !
-            !waterflux_vars=waterflux_vars,                                        &  ! needed?
+            soilhydrology_vars=soilhydrology_vars,                                &  !
             waterstate_vars=waterstate_vars,                                      &
             col_ws=col_ws, col_wf=col_wf,                                         &
             num_soilc=num_hydrologyc, filter_soilc=filter_hydrologyc)             ! NOTE: here 'num_hydrologyc/filter_hydroogyc' are dummy, upon actual ones

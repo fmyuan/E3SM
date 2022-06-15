@@ -68,7 +68,7 @@
     end subroutine ats_elm_setmesh
 
     subroutine ats_elm_setmats(ats, porosity, hksat, CH_bsw, CH_smpsat, CH_sr, &
-             eff_porosity) bind(c, name="ats_set_materials")
+             eff_porosity, zwt) bind(c, name="ats_set_materials")
       use, intrinsic :: iso_c_binding
       import
       implicit none
@@ -79,6 +79,7 @@
       real(C_DOUBLE), dimension(*), intent(in) :: CH_smpsat    ! Clapp-Hornberger "smpsat",   unit: Pa,[col,nlevgrnd]
       real(C_DOUBLE), dimension(*), intent(in) :: CH_sr        ! Clapp-Hornberger res. sat. if any, unit: -, [col,nlevgrnd]
       real(C_DOUBLE), dimension(*), intent(in) :: eff_porosity ! effective soil porosity (adjusted, e.g. by ice etc), unit: -, [col,nlevgrnd]
+      real(C_DOUBLE), dimension(*), intent(in) :: zwt          ! ground water depth (below surface), unit: meters, [col]
     end subroutine ats_elm_setmats
 
     subroutine ats_elm_setIC(ats, start_t, patm, soilpressure, wtd, visout) bind(c, name="ats_set_initialconditions")
