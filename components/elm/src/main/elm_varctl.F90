@@ -467,6 +467,7 @@ module elm_varctl
   logical, public :: ats_thmode     = .false.        ! switch for 'T+H' mode, subsurface thermal-hydrological coupling (will be updated in interface)
   logical, public :: ats_thcmode    = .false.        ! switch for 'T+H+C' mode, subsurface thermal-hydrological-biogeochemical coupling (will be updated in interface)
   logical, public :: ats_gmode      = .false.        ! switch for 'G' mode, ground/surface T+H coupling (will be updated in interface)
+  logical, public :: ats_chkout     = .false.        ! switch for ATS write out checkpoint file
   !$acc declare copyin(use_ats       )
   !$acc declare copyin(ats_hmode     )
   !$acc declare copyin(ats_thmode    )

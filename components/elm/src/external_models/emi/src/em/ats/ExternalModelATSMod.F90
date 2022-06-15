@@ -12,8 +12,14 @@ module ExternalModelATSMod
   use decompMod                    , only : bounds_type
   use elm_varpar                   , only : nlevgrnd
   ! a few ats coupling options
-  use elm_varctl                   , only : use_ats, ats_hmode, ats_thmode, ats_thcmode, ats_gmode
+  use elm_varctl                   , only : use_ats
+  use elm_varctl                   , only : ats_hmode, ats_thmode, ats_thcmode, ats_gmode
+  use elm_varctl                   , only : ats_chkout
+
+  ! a few constants
   use elm_varcon                   , only : denh2o, denice, tfrz, grav
+  use histFileMod                  , only : hist_nhtfrq
+
 
   ! EMI modules
   use EMI_DataMod                  , only : emi_data_list, emi_data
@@ -728,6 +734,9 @@ contains
     class(emi_data_list) , intent(inout) :: e2l_list
     type(bounds_type)    , intent(in)    :: bounds_clump
 
+    ! local variables
+    logical :: elm_histout
+    logical :: elm_restout
     !-----------------------
 
     ! reset ICs (TODO: restart nstep)
@@ -739,7 +748,14 @@ contains
     call set_bc_ss(this, l2e_list, bounds_clump)
 
     ! run one ELM-timestep
-    call  this%ats_interface%onestep(dt)
+
+    elm_histout = .false.
+    elm_restout = .false.
+    ! hist_tape(1) write-out frequency
+    if (mod(nstep,hist_nhtfrq(1)) == 0) elm_histout = .true.
+    if (ats_chkout) elm_restout = .true.
+
+    call  this%ats_interface%onestep(dt, elm_histout, elm_restout)
 
     ! NOT-yet finished
     call get_data_for_elm(this, e2l_list, bounds_clump)

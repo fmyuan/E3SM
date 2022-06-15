@@ -165,6 +165,11 @@ module elm_driver
   use elm_interface_funcsMod      , only : update_bgc_data_pf2elm, update_th_data_pf2elm
   use elm_interface_pflotranMod   , only : elm_pf_run, elm_pf_write_restart
   use elm_interface_pflotranMod   , only : elm_pf_finalize
+  ! (3) ats
+  use elm_varctl                  , only : use_ats
+  use elm_varctl                  , only : ats_hmode, ats_thmode, ats_thcmode, ats_gmode
+  use elm_varctl                  , only : ats_chkout
+
   !----------------------------------------------------------------------------
   use WaterBudgetMod              , only : WaterBudget_Reset, WaterBudget_Run, WaterBudget_Accum, WaterBudget_Print
   use WaterBudgetMod              , only : WaterBudget_SetBeginningMonthlyStates
@@ -256,6 +261,8 @@ contains
        end if
     end if
 
+    ! ELM-ats coupling check point write out switch
+    if (use_ats) ats_chkout = rstwr
 
     ! ============================================================================
     ! Specified phenology
