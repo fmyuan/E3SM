@@ -71,6 +71,8 @@ contains
          mflx_snowlyr_disp    => col_wf%mflx_snowlyr_disp    , &
          mflx_snowlyr         => col_wf%mflx_snowlyr         , &
          mflx_drain           => col_wf%mflx_drain           , &
+         qflx_top_soil        => col_wf%qflx_top_soil        , &
+         qflx_evap_soi        => veg_wf%qflx_evap_soi        , &
          qflx_infl            => col_wf%qflx_infl            , &
          qflx_totdrain        => col_wf%qflx_totdrain        , &
          qflx_gross_evap_soil => col_wf%qflx_gross_evap_soil , &
@@ -176,14 +178,26 @@ contains
           case (L2E_FLUX_GROSS_EVAP_SOIL)
              do fc = 1, num_filter
                 c = filter(fc)
+#ifdef USE_ATS_LIB
+                ! when coupling with ATS, ground surface hydrology is integrated into subsurface hydrology
+                ! soil evap is that between soil/ground and near-air
+                cur_data%data_real_1d(c) = qflx_evap_soi(c)
+#else
                 cur_data%data_real_1d(c) = qflx_gross_evap_soil(c)
+#endif
              enddo
              cur_data%is_set = .true.
 
           case (L2E_FLUX_GROSS_INFL_SOIL)
              do fc = 1, num_filter
                 c = filter(fc)
+#ifdef USE_ATS_LIB
+                ! when coupling with ATS, ground surface hydrology is integrated into subsurface hydrology
+                ! So, water input into soil should be rainfall+snowmelt (todo check if dew is accounted into soil evap???)
+                cur_data%data_real_1d(c) = qflx_top_soil(c)
+#else
                 cur_data%data_real_1d(c) = qflx_gross_infl_soil(c)
+#endif
              enddo
              cur_data%is_set = .true.
 
