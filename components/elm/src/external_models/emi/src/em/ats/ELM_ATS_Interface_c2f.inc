@@ -101,13 +101,14 @@
       type(C_PTR), value :: ats
     end subroutine ats_elm_setBC
 
-    subroutine ats_elm_setSS(ats, ss_soilinfl, ss_soilevap, ss_roottran, ncols, ncells) bind(c, name="ats_set_sources")
+    subroutine ats_elm_setSS(ats, ss_soilinfl, ss_soilevap, ss_vegtran, ss_roottran, ncols, ncells) bind(c, name="ats_set_sources")
       use, intrinsic :: iso_c_binding
       import
       implicit none
       type(C_PTR), value :: ats
       real(C_DOUBLE), dimension(*), intent(in) :: ss_soilinfl        ! water source/sink into/on top soil - gross infiltration, unit: m/s, [col]
       real(C_DOUBLE), dimension(*), intent(in) :: ss_soilevap        ! water source/sink into/on top soil - potential evaporation, unit: m/s, [col]
+	  real(C_DOUBLE), dimension(*), intent(in) :: ss_vegtran         ! water source/sink of total potential vegetation transpiration, unit: m/s, [col]
       real(C_DOUBLE), dimension(*), intent(in) :: ss_roottran        ! water root extranction potential, unit: m/s, [col,nlevgrnd]
       integer(C_INT), intent(in) :: ncols                            ! col (for data checking)
       integer(C_INT), intent(in) :: ncells                           ! col*nlevgrnd (for data checking)

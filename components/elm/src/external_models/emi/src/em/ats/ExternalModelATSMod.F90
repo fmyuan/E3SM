@@ -102,6 +102,7 @@ module ExternalModelATSMod
 
      integer :: index_l2e_flux_gross_infil
      integer :: index_l2e_flux_gross_evap
+     integer :: index_l2e_flux_tran_veg
      integer :: index_l2e_flux_tran_vr
      integer :: index_l2e_flux_drain_vr
      integer :: index_l2e_flux_surf
@@ -377,6 +378,10 @@ contains
     id                                   = L2E_FLUX_GROSS_INFL_SOIL
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_l2e_flux_gross_infil      = index
+
+    id                                   = L2E_FLUX_TRAN_VEG
+    call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_l2e_flux_tran             = index
 
     id                                   = L2E_FLUX_ROOTSOI
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
@@ -835,7 +840,8 @@ contains
     real(r8), pointer    :: col_dz(:,:)
     real(r8), pointer    :: soilevap_flux(:),    soilinfl_flux(:),       soilevap_flux_ats(:),    soilinfl_flux_ats(:)
     real(r8), pointer    :: soilbot_flux(:),                             soilbot_flux_ats(:)
-    real(r8), pointer    :: roottran_flux(:,:),                          roottran_flux_ats(:,:)
+    real(r8), pointer    :: vegtran_flux(:),                             vegtran_flux_ats(:)       ! summed veg. transpiration
+    real(r8), pointer    :: roottran_flux(:,:),                          roottran_flux_ats(:,:)    ! root-distributed veg. transpiration
     real(r8), pointer    :: soildrain_flux(:,:),                         soildrain_flux_ats(:,:)
     !-----------------------------------------------------------------------
     nc = this%filter_col_num
@@ -843,13 +849,21 @@ contains
     call l2e_list%GetPointerToReal2D(this%index_l2e_column_dz                   , col_dz        )    ! layer thickness (1:nlevgrnd)
 
     ! soil water source/sink terms. NOTE: here all variables are the potential rather than actual.
+    ! (1) column-wisely summed 1D
     call l2e_list%GetPointerToReal1D(this%index_l2e_flux_gross_infil            , soilinfl_flux )    ! mmH2O/s, + to soil
     call l2e_list%GetPointerToReal1D(this%index_l2e_flux_gross_evap             , soilevap_flux )    ! mmH2O/s, + to atm
     allocate(soilinfl_flux_ats(0:nc-1))                            ! index starting from 0, unit: kgH2O/m2/s, + in, - out
     allocate(soilevap_flux_ats(0:nc-1))                            ! index starting from 0, unit: kgH2O/m2/s, + in, - out
 
     allocate(soilbot_flux_ats(0:nc-1))
-    soilbot_flux_ats(:) = 0._r8
+    soilbot_flux_ats(:) = 0._r8                                    ! TODO: temporarily set to 0
+
+    call l2e_list%GetPointerToReal1D(this%index_l2e_flux_tran                   , vegtran_flux )    ! mmH2O/s, + to atm
+    allocate(vegtran_flux_ats(0:nc-1))                            ! index starting from 0, unit: kgH2O/m2/s, + in, - out
+
+    ! (2) column-wisely and vertically distributed (2D)
+    !     In ATS, either 'vegtran_flux_ats' or 'rootran_flux_ats' will be used, BUT NOT both
+    !     In ATS, either 'soilbot_flux_ats' or 'soildrain_flux_ats' will be used, BUT NOT both
 
     call l2e_list%GetPointerToReal2D(this%index_l2e_flux_tran_vr                , roottran_flux )   ! mmH2O/s, + to atm
     nz = size(roottran_flux(1,:))
@@ -863,6 +877,7 @@ contains
       c = this%filter_col(fc)
       soilinfl_flux_ats(fc-1) =  soilinfl_flux(c)*denh2o/1000.0                        !  mm/s (0.001m3/m2/s *kg/m3) = 0.001kg/m2/s, with: + in, - out
       soilevap_flux_ats(fc-1) = -soilevap_flux(c)*denh2o/1000.0
+      vegtran_flux_ats(fc-1)  = -vegtran_flux(c)*denh2o/1000.0
       do j = 1, nz
         roottran_flux_ats(fc-1,j-1)  = -roottran_flux(c,j)*denh2o/1000.0/col_dz(c,j)   !  mm/s (0.001m3/m2/s *kg/m3) /m = 0.001kg/m3/s, with: + in, - out
         soildrain_flux_ats(fc-1,j-1) = -soildrain_flux(c,j)*denh2o/1000.0/col_dz(c,j)  !  mm/s (0.001m3/m2/s *kg/m3) /m = 0.001kg/m3/s, with: + in, - out
@@ -870,7 +885,7 @@ contains
     end do
 
     call this%ats_interface%setss(soilinfl_flux_ats, soilevap_flux_ats, soilbot_flux_ats, &
-                                      roottran_flux_ats, soildrain_flux_ats)
+                                      vegtran_flux_ats, roottran_flux_ats, soildrain_flux_ats)
 
   end subroutine set_bc_ss
 
