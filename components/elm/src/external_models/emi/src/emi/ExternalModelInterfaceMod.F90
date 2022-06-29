@@ -404,7 +404,7 @@ contains
 
            ! Unpack all data sent from the external model
            !call EMI_Unpack_WaterStateType_at_Column_Level_from_EM(e2l_init_list(clump_rank), em_stage, &
-          !      num_filter_col, filter_col, waterstate_vars)
+          !      num_filter_col, filter_col)
 
            ! Ensure all data sent by external model is unpacked
          !   write(iulog,*)'     1.2.4 Value of variables received by ELM'
@@ -531,7 +531,7 @@ contains
           call EMI_Unpack_SoilStateType_at_Column_Level_from_EM(e2l_init_list(clump_rank), em_stage, &
                num_e2l_filter_col, e2l_filter_col, soilstate_vars)
           call EMI_Unpack_WaterStateType_at_Column_Level_from_EM(e2l_init_list(clump_rank), em_stage, &
-               num_e2l_filter_col, e2l_filter_col, waterstate_vars)
+               num_e2l_filter_col, e2l_filter_col)
           call EMI_Unpack_WaterFluxType_at_Column_Level_from_EM(e2l_init_list(clump_rank), em_stage, &
                num_e2l_filter_col, e2l_filter_col, waterflux_vars)
           call EMI_Unpack_SoilHydrologyType_at_Column_Level_from_EM(e2l_init_list(clump_rank), em_stage, &
@@ -654,8 +654,10 @@ contains
           ! Fill the data list:
           !  - Data need during the initialization
           call em_ats(clump_rank)%Populate_L2E_Init_List(l2e_init_list(clump_rank))
+#ifdef ATS_READY
+          ! DON'T INITIALIZE ELM by ATS's states
           call em_ats(clump_rank)%Populate_E2L_Init_List(e2l_init_list(clump_rank))
-
+#endif
           !  - Data need during timestepping
           call em_ats(clump_rank)%Populate_L2E_List(l2e_driver_list(iem))
           call em_ats(clump_rank)%Populate_E2L_List(e2l_driver_list(iem))
@@ -742,7 +744,7 @@ contains
           call EMI_Unpack_SoilStateType_at_Column_Level_from_EM(e2l_init_list(clump_rank), em_stage, &
                num_e2l_filter_col, e2l_filter_col, soilstate_vars)
           call EMI_Unpack_WaterStateType_at_Column_Level_from_EM(e2l_init_list(clump_rank), em_stage, &
-               num_e2l_filter_col, e2l_filter_col, waterstate_vars)
+               num_e2l_filter_col, e2l_filter_col)
           call EMI_Unpack_WaterFluxType_at_Column_Level_from_EM(e2l_init_list(clump_rank), em_stage, &
                num_e2l_filter_col, e2l_filter_col, waterflux_vars)
           call EMI_Unpack_SoilHydrologyType_at_Column_Level_from_EM(e2l_init_list(clump_rank), em_stage, &
@@ -844,7 +846,7 @@ contains
 
           ! Unpack all data sent from the external model
           call EMI_Unpack_WaterStateType_at_Column_Level_from_EM(e2l_init_list(clump_rank), em_stage, &
-               num_filter_col, filter_col, waterstate_vars)
+               num_filter_col, filter_col)
 
           ! Ensure all data sent by external model is unpacked
          !  write(iulog,*)'     1.2.4 Value of variables received by ELM'
@@ -1400,20 +1402,18 @@ contains
     ! ------------------------------------------------------------------------
     ! Unpack the data for EM
     ! ------------------------------------------------------------------------
-    if ( present(waterstate_vars)) then 
         if ( present(num_hydrologyc)  .and. &
          present(filter_hydrologyc)) then
 
             call EMI_Unpack_WaterStateType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
-                  num_hydrologyc, filter_hydrologyc, waterstate_vars)
+                  num_hydrologyc, filter_hydrologyc)
 
          elseif ( present(num_soilc)  .and. &
             present(filter_soilc)) then
    
             call EMI_Unpack_WaterStateType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
-                  num_soilc, filter_soilc, waterstate_vars)
+                  num_soilc, filter_soilc)
          endif
-    endif
     
 
     if ( present(waterflux_vars) .and. &

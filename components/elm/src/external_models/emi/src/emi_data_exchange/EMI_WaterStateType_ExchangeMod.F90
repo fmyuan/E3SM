@@ -8,21 +8,7 @@ module EMI_WaterStateType_ExchangeMod
   use EMI_DataDimensionMod                  , only : emi_data_dimension_list_type
   use WaterStateType                        , only : waterstate_type
   use ColumnDataType                        , only : col_ws
-  use EMI_Atm2LndType_Constants
-  use EMI_CanopyStateType_Constants
-  use EMI_ChemStateType_Constants
-  use EMI_CNCarbonStateType_Constants
-  use EMI_CNNitrogenStateType_Constants
-  use EMI_CNNitrogenFluxType_Constants
-  use EMI_CNCarbonFluxType_Constants
-  use EMI_ColumnEnergyStateType_Constants
   use EMI_ColumnWaterStateType_Constants
-  use EMI_ColumnWaterFluxType_Constants
-  use EMI_EnergyFluxType_Constants
-  use EMI_SoilHydrologyType_Constants
-  use EMI_SoilStateType_Constants
-  use EMI_TemperatureType_Constants
-  use EMI_WaterFluxType_Constants
   use EMI_WaterStateType_Constants
   use EMI_Filter_Constants
   use EMI_ColumnType_Constants
@@ -41,7 +27,7 @@ contains
         num_filter, filter, waterstate_vars)
     !
     ! !DESCRIPTION:
-    ! Pack data from ALM waterstate_vars for EM
+    ! Pack data from ELM waterstate_vars for EM
     !
     ! !USES:
     use elm_varpar             , only : nlevsoi, nlevgrnd, nlevsno
@@ -74,7 +60,7 @@ contains
          air_vol       => col_ws%air_vol       , &
          rho_vap       => waterstate_vars%rho_vap_col       , &
          rhvap_soi     => waterstate_vars%rhvap_soi_col     , &
-         smp_l         => col_ws%smp_l         , &
+         smp_l         => col_ws%smp_l         , &    ! -mmH2O
          h2osno        => col_ws%h2osno        , &
          h2osfc        => col_ws%h2osfc        , &
          frac_sno_eff  => col_ws%frac_sno_eff    &
@@ -272,10 +258,10 @@ contains
 
 !-----------------------------------------------------------------------
   subroutine EMI_Unpack_WaterStateType_at_Column_Level_from_EM(data_list, em_stage, &
-        num_filter, filter, waterstate_vars)
+        num_filter, filter)
     !
     ! !DESCRIPTION:
-    ! Unpack data for ALM waterstate_vars from EM
+    ! Unpack data for ELM waterstate_vars from EM
     !
     ! !USES:
     use elm_varpar             , only : nlevsoi, nlevgrnd, nlevsno
@@ -287,7 +273,6 @@ contains
     integer                , intent(in) :: em_stage
     integer                , intent(in) :: num_filter
     integer                , intent(in) :: filter(:)
-    type(waterstate_type)  , intent(in) :: waterstate_vars
     !
     ! !LOCAL_VARIABLES:
     integer                             :: fc,c,j

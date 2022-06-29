@@ -151,8 +151,9 @@ contains
             soilstate_vars=soilstate_vars,                                        &  !
             soilhydrology_vars=soilhydrology_vars,                                &  !
             waterstate_vars=waterstate_vars,                                      &
+            num_hydrologyc=num_hydrologyc, filter_hydrologyc=filter_hydrologyc,   &  ! NOTE: here 'num_hydrologyc/filter_hydroogyc' are dummy, upon actual ones
             col_ws=col_ws, col_wf=col_wf,                                         &
-            num_soilc=num_hydrologyc, filter_soilc=filter_hydrologyc)             ! NOTE: here 'num_hydrologyc/filter_hydroogyc' are dummy, upon actual ones
+            num_soilc=num_hydrologyc, filter_soilc=filter_hydrologyc)                ! NOTE: here 'num_hydrologyc/filter_hydroogyc' are dummy, upon actual ones
 
 #endif
 #endif

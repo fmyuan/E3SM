@@ -288,7 +288,9 @@ contains
     number_em_stages = 1
     allocate(em_stages(number_em_stages))
     em_stages(1) = EM_INITIALIZATION_STAGE
+
 #ifdef ATS_READY
+  ! DON'T INITIALIZE ELM by ATS's states
     id                                        = E2L_STATE_H2OSOI_LIQ
     call e2l_init_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_e2l_init_state_h2osoi_liq      = index
@@ -297,18 +299,26 @@ contains
     call e2l_init_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_e2l_init_state_h2osoi_ice      = index
 
-    id                                        = E2L_STATE_SOIL_MATRIC_POTENTIAL_NLEVSOI
+    id                                        = E2L_STATE_SOIL_MATRIC_POTENTIAL
     call e2l_init_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_e2l_init_state_smp             = index
+
+    id                                        = E2L_STATE_VSFM_PROGNOSTIC_SOILP
+    call e2l_init_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_e2l_init_state_soilp           = index
 
     id                                        = E2L_STATE_WTD
     call e2l_init_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_e2l_init_state_zwt             = index
 
-    id                                        = E2L_FLUX_SNOW_LYR_DISAPPERANCE_MASS_FLUX
-    call e2l_init_list%AddDataByID(id, number_em_stages, em_stages, index)
-    this%index_e2l_init_flux_mflx_snowlyr_col = index
+    if (em_stages(1) == EM_ATS_SOIL_THYDRO_STAGE .or. &
+        em_stages(1) == EM_ATS_SOIL_THBGC_STAGE) then
+      id                                      = E2L_STATE_TSOIL_NLEVGRND_COL
+      call e2l_init_list%AddDataByID(id, number_em_stages, em_stages, index)
+      this%index_e2l_init_state_tsoil         = index
+    end if
 #endif
+
     deallocate(em_stages)
 
   end subroutine EM_ATS_Populate_E2L_Init_List
@@ -444,7 +454,7 @@ contains
     number_em_stages = 1
     allocate(em_stages(number_em_stages))
     em_stages(1) = EM_ATS_SOIL_HYDRO_STAGE
-#ifdef ATS_READY
+
     id                              = E2L_STATE_H2OSOI_LIQ
     call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_e2l_state_h2osoi_liq = index
@@ -457,10 +467,23 @@ contains
     call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_e2l_state_smp        = index
 
+    id                              = E2L_STATE_VSFM_PROGNOSTIC_SOILP
+    call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_e2l_state_soilp      = index
+
     id                              = E2L_STATE_WTD
     call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_e2l_state_zwt        = index
-#endif
+
+    !-----------------
+    if (em_stages(1) == EM_ATS_SOIL_THYDRO_STAGE .or. &
+        em_stages(1) == EM_ATS_SOIL_THBGC_STAGE) then
+
+      id                              = E2L_STATE_TSOIL_NLEVGRND_COL
+      call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
+      this%index_e2l_state_tsoil      = index
+    end if
+
     deallocate(em_stages)
 
   end subroutine EM_ATS_Populate_E2L_List
@@ -887,6 +910,13 @@ contains
 
     ! !LOCAL VARIABLES:
     integer :: bounds_proc_begc, bounds_proc_endc
+
+    real(r8)  , pointer                  :: e2l_h2osoi_liq(:,:)
+    real(r8)  , pointer                  :: e2l_h2osoi_ice(:,:)
+    real(r8)  , pointer                  :: e2l_smp(:,:)
+    real(r8)  , pointer                  :: e2l_zwt(:)
+    real(r8)  , pointer                  :: e2l_soilp(:,:)
+
     !-----------------------------------------------------------------------
 
     bounds_proc_begc     = bounds_clump%begc
@@ -894,6 +924,14 @@ contains
 
     ! currently only checking the ATS data as it is, i.e. NO returning data for ELM
     call this%ats_interface%getdata()
+
+    !
+    !call e2l_list%GetPointerToReal1D(this%index_e2l_state_zwt        , e2l_zwt               )
+    !call e2l_list%GetPointerToReal2D(this%index_e2l_state_h2osoi_liq , e2l_h2osoi_liq        )
+    !call e2l_list%GetPointerToReal2D(this%index_e2l_state_h2osoi_ice , e2l_h2osoi_ice        )
+    !call e2l_list%GetPointerToReal2D(this%index_e2l_state_smp        , e2l_smp               )
+    !call e2l_list%GetPointerToReal2D(this%index_e2l_state_soilp      , e2l_soilp             )
+
 
    end subroutine get_data_for_elm
 
