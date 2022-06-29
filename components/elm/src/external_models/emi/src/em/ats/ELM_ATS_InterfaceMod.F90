@@ -196,15 +196,16 @@ contains
 
  !------------------------------------------------------------------------
 
-    subroutine ats_setSS_f(this, soilinfl_flux, soilevap_flux, soilbot_flux, &
+    subroutine ats_setSS_f(this, soilinfl_flux, soilevap_flux, pfttran_flux, soilbot_flux, &
                            roottran_flux, soildrain_flux)
 
         implicit none
         class(elm_ats_interface_type) :: this
         real(r8), pointer, intent(in) :: soilinfl_flux(:)       ! unit: kgH2O/m3/s
         real(r8), pointer, intent(in) :: soilevap_flux(:)
+        real(r8), pointer, intent(in) :: pfttran_flux(:,:)      ! pft-level (root-fraction summed) transpiration [col, pft]
         real(r8), pointer, intent(in) :: soilbot_flux(:)
-        real(r8), pointer, intent(in) :: roottran_flux(:,:)
+        real(r8), pointer, intent(in) :: roottran_flux(:,:)     ! root-level (pft-summed) transpiration [col, soil-layer]
         real(r8), pointer, intent(in) :: soildrain_flux(:,:)
         !
 
@@ -219,7 +220,8 @@ contains
 
         ! maybe add-up of roottran_flux + soildrain_flux later on
 
-        call ats_elm_setSS(this%ptr, soilinfl_flux, soilevap_flux, roottran_flux, &
+        call ats_elm_setSS(this%ptr, soilinfl_flux, soilevap_flux, &
+          pfttran_flux, roottran_flux, soildrain_flux, &
           ncols, ncells)
 
     end subroutine ats_setSS_f

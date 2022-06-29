@@ -67,6 +67,8 @@ module ExternalModelATSMod
      integer :: index_l2e_init_state_h2osoi_ice
      integer :: index_l2e_init_state_soilp
      integer :: index_l2e_init_state_smp
+     integer :: index_l2e_init_state_frac_h2osfc
+     integer :: index_l2e_init_state_h2osfc
      integer :: index_l2e_init_state_zwt
 
      integer :: index_l2e_init_state_ts_soil
@@ -102,33 +104,18 @@ module ExternalModelATSMod
 
      integer :: index_l2e_flux_gross_infil
      integer :: index_l2e_flux_gross_evap
-     integer :: index_l2e_flux_tran_veg
+     integer :: index_l2e_flux_tran_pft
      integer :: index_l2e_flux_tran_vr
      integer :: index_l2e_flux_drain_vr
      integer :: index_l2e_flux_surf
-
-     integer :: index_e2l_flux_qrecharge
 
      integer :: index_l2e_state_ts_soil
      integer :: index_l2e_state_ts_snow
      integer :: index_l2e_state_ts_h2osfc
 
      integer :: index_e2l_state_tsoil
-
      integer :: index_l2e_flux_hs_soil
-     integer :: index_l2e_flux_hs_top_snow
-     integer :: index_l2e_flux_hs_h2osfc
-     integer :: index_l2e_flux_dhsdT
-     integer :: index_l2e_flux_sabg_lyr
 
-     ! IDs to indentify the conditions for ATS
-     integer :: ats_cond_id_for_infil
-     integer :: ats_cond_id_for_et
-     integer :: ats_cond_id_for_dew
-     integer :: ats_cond_id_for_drainage
-     integer :: ats_cond_id_for_snow
-     integer :: ats_cond_id_for_sublimation
-     integer :: ats_cond_id_for_lateral_flux
 
      !
      integer                      :: filter_col_num
@@ -241,9 +228,17 @@ contains
     call l2e_init_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_l2e_init_state_ts_h2osfc       = index
 
-    id                                         = L2E_STATE_WTD
+    id                                        = L2E_STATE_FRAC_H2OSFC
     call l2e_init_list%AddDataByID(id, number_em_stages, em_stages, index)
-    this%index_l2e_init_state_zwt              = index
+    this%index_l2e_init_state_frac_h2osfc     = index
+
+    id                                        = L2E_STATE_H2OSFC
+    call l2e_init_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_l2e_init_state_h2osfc          = index
+
+    id                                        = L2E_STATE_WTD
+    call l2e_init_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_l2e_init_state_zwt             = index
 
     !--------
     id                                         = L2E_PARAMETER_WATSATC
@@ -381,7 +376,7 @@ contains
 
     id                                   = L2E_FLUX_TRAN_VEG
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
-    this%index_l2e_flux_tran             = index
+    this%index_l2e_flux_tran_pft         = index
 
     id                                   = L2E_FLUX_ROOTSOI
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
@@ -399,10 +394,6 @@ contains
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_l2e_flux_surf             = index
 
-    !id                                   = L2E_STATE_WTD
-    !call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
-    !this%index_l2e_state_zwt             = index
-
     !-----------------
     if (em_stages(1) == EM_ATS_SOIL_THYDRO_STAGE .or. &
         em_stages(1) == EM_ATS_SOIL_THBGC_STAGE) then
@@ -419,25 +410,9 @@ contains
         call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
         this%index_l2e_state_ts_h2osfc       = index
 
-        id                                   = L2E_FLUX_ABSORBED_SOLAR_RADIATION
-        call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
-        this%index_l2e_flux_sabg_lyr         = index
-
         id                                   = L2E_FLUX_SOIL_HEAT_FLUX
         call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
         this%index_l2e_flux_hs_soil          = index
-
-        id                                   = L2E_FLUX_SNOW_HEAT_FLUX
-        call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
-        this%index_l2e_flux_hs_top_snow      = index
-
-        id                                   = L2E_FLUX_H2OSFC_HEAT_FLUX
-        call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
-        this%index_l2e_flux_hs_h2osfc                  = index
-
-        id                                   = L2E_FLUX_DERIVATIVE_OF_HEAT_FLUX
-        call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
-        this%index_l2e_flux_dhsdT            = index
 
     endif
 
@@ -835,16 +810,17 @@ contains
     type(bounds_type)   , intent(in) :: bounds_clump
     !
     ! !LOCAL VARIABLES:
-    integer              :: c, fc,  j            ! do loop indices
-    integer              :: nc, nz
+    integer              :: c, fc,  j,  p            ! do loop indices
+    integer              :: nc, nz, npft
     real(r8), pointer    :: col_dz(:,:)
     real(r8), pointer    :: soilevap_flux(:),    soilinfl_flux(:),       soilevap_flux_ats(:),    soilinfl_flux_ats(:)
     real(r8), pointer    :: soilbot_flux(:),                             soilbot_flux_ats(:)
-    real(r8), pointer    :: vegtran_flux(:),                             vegtran_flux_ats(:)       ! summed veg. transpiration
-    real(r8), pointer    :: roottran_flux(:,:),                          roottran_flux_ats(:,:)    ! root-distributed veg. transpiration
+    real(r8), pointer    :: pfttran_flux(:),                             pfttran_flux_ats(:,:)     ! summed veg. transpiration for individual pft
+    real(r8), pointer    :: roottran_flux(:,:),                          roottran_flux_ats(:,:)    ! root-distributed all-pft transpiration
     real(r8), pointer    :: soildrain_flux(:,:),                         soildrain_flux_ats(:,:)
     !-----------------------------------------------------------------------
     nc = this%filter_col_num
+    npft = 1   ! (TODO) colmun -> (col,pft)
 
     call l2e_list%GetPointerToReal2D(this%index_l2e_column_dz                   , col_dz        )    ! layer thickness (1:nlevgrnd)
 
@@ -858,8 +834,8 @@ contains
     allocate(soilbot_flux_ats(0:nc-1))
     soilbot_flux_ats(:) = 0._r8                                    ! TODO: temporarily set to 0
 
-    call l2e_list%GetPointerToReal1D(this%index_l2e_flux_tran                   , vegtran_flux )    ! mmH2O/s, + to atm
-    allocate(vegtran_flux_ats(0:nc-1))                            ! index starting from 0, unit: kgH2O/m2/s, + in, - out
+    call l2e_list%GetPointerToReal1D(this%index_l2e_flux_tran_pft               , pfttran_flux )    ! mmH2O/s, + to atm
+    allocate(pfttran_flux_ats(0:nc-1, 0:npft-1))                    ! index starting from 0, unit: kgH2O/m2/s, + in, - out
 
     ! (2) column-wisely and vertically distributed (2D)
     !     In ATS, either 'vegtran_flux_ats' or 'rootran_flux_ats' will be used, BUT NOT both
@@ -877,15 +853,17 @@ contains
       c = this%filter_col(fc)
       soilinfl_flux_ats(fc-1) =  soilinfl_flux(c)*denh2o/1000.0                        !  mm/s (0.001m3/m2/s *kg/m3) = 0.001kg/m2/s, with: + in, - out
       soilevap_flux_ats(fc-1) = -soilevap_flux(c)*denh2o/1000.0
-      vegtran_flux_ats(fc-1)  = -vegtran_flux(c)*denh2o/1000.0
       do j = 1, nz
         roottran_flux_ats(fc-1,j-1)  = -roottran_flux(c,j)*denh2o/1000.0/col_dz(c,j)   !  mm/s (0.001m3/m2/s *kg/m3) /m = 0.001kg/m3/s, with: + in, - out
         soildrain_flux_ats(fc-1,j-1) = -soildrain_flux(c,j)*denh2o/1000.0/col_dz(c,j)  !  mm/s (0.001m3/m2/s *kg/m3) /m = 0.001kg/m3/s, with: + in, - out
       end do
+      do p = 1, npft
+        pfttran_flux_ats(fc-1,p-1)  = -pfttran_flux(c)*denh2o/1000.0                   !  mm/s (0.001m3/m2/s *kg/m3)  = 0.001kg/m2/s, with: + in, - out
+      end do
     end do
 
-    call this%ats_interface%setss(soilinfl_flux_ats, soilevap_flux_ats, soilbot_flux_ats, &
-                                      vegtran_flux_ats, roottran_flux_ats, soildrain_flux_ats)
+    call this%ats_interface%setss(soilinfl_flux_ats, soilevap_flux_ats, pfttran_flux_ats, soilbot_flux_ats, &
+                                       roottran_flux_ats, soildrain_flux_ats)
 
   end subroutine set_bc_ss
 
