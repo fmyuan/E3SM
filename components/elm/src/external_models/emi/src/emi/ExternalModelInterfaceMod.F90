@@ -1150,7 +1150,12 @@ contains
             num_soilc, filter_soilc, col_chem)
    endif
 
-
+   if (present(soilhydrology_vars)  .and. &
+      present(num_soilc)   .and. &
+      present(filter_soilc)) then
+          call EMI_Pack_SoilHydrologyType_at_Column_Level_for_EM(l2e_driver_list(iem), em_stage, &
+               num_soilc, filter_soilc, soilhydrology_vars)
+   endif
 
    if (present(soilstate_vars)  .and. &
       present(num_soilc)   .and. &
@@ -1326,6 +1331,7 @@ contains
       call EMI_UnPack_ChemStateType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
             num_soilc, filter_soilc, col_chem)
    endif
+
 
     if (em_id == EM_ID_STUB) then
        write(iulog,*)'     2.4 Value of variables received by ELM'

@@ -66,6 +66,8 @@ module ExternalModelAlquimiaMod
     integer :: index_l2e_flux_plantNdemand
     integer :: index_l2e_flux_qflx_adv
     integer :: index_l2e_flux_qflx_lat_aqu_layer
+    integer :: index_l2e_state_wtd
+    integer :: index_l2e_state_h2osfc
     
     ! Solve data returned to land model
     integer :: index_e2l_state_decomp_cpools
@@ -348,6 +350,13 @@ contains
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_l2e_flux_qflx_lat_aqu_layer      = index
 
+    id                                   = L2E_STATE_WTD
+    call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_l2e_state_wtd      = index
+
+    id                                   = L2E_STATE_H2OSFC_COL
+    call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_l2e_state_h2osfc      = index
 
 
     ! Needed for both stages
@@ -888,6 +897,7 @@ end subroutine EMAlquimia_Coldstart
     real(r8) , pointer, dimension(:,:,:) :: aux_doubles_l2e , aux_doubles_e2l
     integer  , pointer, dimension(:,:,:)   :: aux_ints_l2e, aux_ints_e2l
     real(r8) , pointer, dimension(:,:)    :: qflx_adv_l2e, qflx_lat_aqu_l2e
+    real(r8) , pointer, dimension(:)     :: wtd_l2e, h2osfc_l2e
     real(r8) , pointer, dimension(:,:)    :: DOC_e2l, DON_e2l, DIC_e2l
     real(r8) , pointer, dimension(:,:)    :: pH_e2l, O2_e2l, salinity_e2l, sulfate_e2l, Fe2_e2l, FeOxide_e2l, carbonate_e2l
     real(r8) , pointer, dimension(:)     :: actual_dt_e2l
@@ -978,7 +988,10 @@ end subroutine EMAlquimia_Coldstart
     call l2e_list%GetPointerToInt3D(this%index_l2e_aux_ints, aux_ints_l2e)
 
     call l2e_list%GetPointerToReal2D(this%index_l2e_flux_qflx_adv       , qflx_adv_l2e     )
-    call l2e_list%GetPointerToReal2D(this%index_l2e_flux_qflx_lat_aqu_layer       , qflx_lat_aqu_l2e     )
+    call l2e_list%GetPointerToReal2D(this%index_l2e_flux_qflx_lat_aqu_layer    , qflx_lat_aqu_l2e     )
+
+    call l2e_list%GetPointerToReal1D(this%index_l2e_state_wtd       , wtd_l2e     )
+    call l2e_list%GetPointerToReal1D(this%index_l2e_state_h2osfc    , h2osfc_l2e  )
 
     call e2l_list%GetPointerToReal2D(this%index_e2l_state_DIC , DIC_e2l)
     call e2l_list%GetPointerToReal2D(this%index_e2l_state_DOC , DOC_e2l)
