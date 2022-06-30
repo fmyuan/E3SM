@@ -146,7 +146,11 @@ contains
     integer                             :: count
 
     associate(& 
+#ifdef ATS_READY
          zwt     => soilhydrology_vars%zwt_col     , &
+#else
+         zwt     => soilhydrology_vars%zwt2_col    , &
+#endif
          qcharge => soilhydrology_vars%qcharge_col   &
          )
 

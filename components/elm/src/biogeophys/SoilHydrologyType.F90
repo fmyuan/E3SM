@@ -9,11 +9,12 @@ Module SoilHydrologyType
   use elm_varpar            , only : more_vertlayers, nlevsoifl, toplev_equalspace
   use elm_varcon            , only : zsoi, dzsoi, zisoi, spval
   use elm_varctl            , only : iulog
-  use SharedParamsMod     , only : ParamsShareInst
+  use SharedParamsMod       , only : ParamsShareInst
   use LandunitType          , only : lun_pp                
   use ColumnType            , only : col_pp      
   use GridcellType          , only : grc_pp   
   use topounit_varcon       , only : max_topounits
+  use elm_varctl            , only : use_ats
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -33,6 +34,7 @@ Module SoilHydrologyType
      ! NON-VIC
      real(r8), pointer :: frost_table_col   (:)    => null() ! col frost table depth
      real(r8), pointer :: zwt_col           (:)    => null() ! col water table depth
+     real(r8), pointer :: zwt2_col          (:)    => null() ! col water table depth 2, e.g. from ATS
      real(r8), pointer :: zwts_col          (:)    => null() ! col water table depth, the shallower of the two water depths
      real(r8), pointer :: zwt_perched_col   (:)    => null() ! col perched water table depth
      real(r8), pointer :: wa_col            (:)    => null() ! col water in the unconfined aquifer (mm)
@@ -122,6 +124,7 @@ contains
 
     allocate(this%frost_table_col   (begc:endc))                 ; this%frost_table_col   (:)     = spval
     allocate(this%zwt_col           (begc:endc))                 ; this%zwt_col           (:)     = spval
+    allocate(this%zwt2_col          (begc:endc))                 ; this%zwt2_col          (:)     = spval
     allocate(this%qflx_bot_col      (begc:endc))                 ; this%qflx_bot_col      (:)     = spval
     allocate(this%zwt_perched_col   (begc:endc))                 ; this%zwt_perched_col   (:)     = spval
     allocate(this%zwts_col          (begc:endc))                 ; this%zwts_col          (:)     = spval
@@ -209,6 +212,13 @@ contains
     call hist_addfld1d (fname='ZWT',  units='m',  &
          avgflag='A', long_name='water table depth (vegetated landunits only)', &
          ptr_col=this%zwt_col, l2g_scale_type='veg')
+
+    if (use_ats) then
+      this%zwt2_col(begc:endc) = spval
+      call hist_addfld1d (fname='ZWT2',  units='m',  &
+         avgflag='A', long_name='water table depth (vegetated landunits only), from external model e.g. ATS', &
+         ptr_col=this%zwt2_col, l2g_scale_type='veg', default='inactive')
+    end if
 
     this%zwt_perched_col(begc:endc) = spval
     call hist_addfld1d (fname='ZWT_PERCH',  units='m',  &

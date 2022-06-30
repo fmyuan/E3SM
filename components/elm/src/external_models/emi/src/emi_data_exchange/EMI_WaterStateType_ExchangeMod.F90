@@ -282,9 +282,16 @@ contains
     integer                             :: count
 
     associate(& 
+#ifdef ATS_READY
          h2osoi_liq => col_ws%h2osoi_liq , &
          h2osoi_ice => col_ws%h2osoi_ice , &
          soilp      => col_ws%soilp        &
+#else
+         h2osoi_liq => col_ws%h2osoi2_liq , &
+         h2osoi_ice => col_ws%h2osoi2_ice , &
+         soilp      => col_ws%soilp2        &
+
+#endif
          )
 
     count = 0

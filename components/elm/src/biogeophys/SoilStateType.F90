@@ -52,6 +52,7 @@ module SoilStateType
      real(r8), pointer :: hksat_min_col        (:,:) ! col mineral hydraulic conductivity at saturation (hksat) (mm/s)
      real(r8), pointer :: hk_l_col             (:,:) ! col hydraulic conductivity (mm/s)
      real(r8), pointer :: smp_l_col            (:,:) ! col soil matric potential (mm)
+     real(r8), pointer :: smp2_l_col            (:,:) ! col soil matric potential (mm), e.g. from ATS
      real(r8), pointer :: smpmin_col           (:)   ! col restriction for min of soil potential (mm)
      real(r8), pointer :: bsw_col              (:,:) ! col Clapp and Hornberger "b" (nlevgrnd)
      real(r8), pointer :: watsat_col           (:,:) ! col volumetric soil water at saturation (porosity)
@@ -152,6 +153,7 @@ contains
     allocate(this%hksat_min_col        (begc:endc,nlevgrnd))            ; this%hksat_min_col        (:,:) = spval
     allocate(this%hk_l_col             (begc:endc,nlevgrnd))            ; this%hk_l_col             (:,:) = spval
     allocate(this%smp_l_col            (begc:endc,nlevgrnd))            ; this%smp_l_col            (:,:) = spval
+    allocate(this%smp2_l_col           (begc:endc,nlevgrnd))            ; this%smp2_l_col           (:,:) = spval
     allocate(this%smpmin_col           (begc:endc))                     ; this%smpmin_col           (:)   = spval
 
     allocate(this%bsw_col              (begc_all:endc_all,nlevgrnd))    ; this%bsw_col              (:,:) = spval
@@ -226,6 +228,12 @@ contains
     call hist_addfld2d (fname='SMP',  units='mm', type2d='levgrnd',  &
          avgflag='A', long_name='soil matric potential (vegetated landunits only)', &
          ptr_col=this%smp_l_col, set_spec=spval, l2g_scale_type='veg', default=active)
+
+    if (use_ats) then
+      call hist_addfld2d (fname='SMP2',  units='mm', type2d='levgrnd',  &
+         avgflag='A', long_name='soil matric potential (vegetated landunits only), from e.g. ATS', &
+         ptr_col=this%smp2_l_col, set_spec=spval, l2g_scale_type='veg', default='inactive')
+    end if
 
     if (use_cn) then
        this%bsw_col(begc:endc,:) = spval
