@@ -116,16 +116,16 @@
     end subroutine ats_elm_setSS
 
     !----------------------------
-    subroutine ats_elm_getwaterstate(ats, surf_pd, soil_pres, soil_psi, satliq, satice, ncols, ncells) bind(c, name="ats_get_waterstate")
+    subroutine ats_elm_getwaterstate(ats, surf_pd, soil_pres, soil_psi, h2oliq, h2oice, ncols, ncells) bind(c, name="ats_get_waterstate")
       use, intrinsic :: iso_c_binding
       import
       implicit none
       type(C_PTR), value :: ats
-      real(C_DOUBLE), dimension(*), intent(out) :: surf_pd         ! surface water ponding depth (m)
+      real(C_DOUBLE), dimension(*), intent(out) :: surf_pd           ! surface water ponding depth (m)
       real(C_DOUBLE), dimension(*), intent(out) :: soil_pres         ! soil water pressure (Pa)
-      real(C_DOUBLE), dimension(*), intent(out) :: soil_psi          ! soil matric potential (-Pa)
-      real(C_DOUBLE), dimension(*), intent(out) :: satliq            ! soil liq. water saturation [0 - 1.0]
-      real(C_DOUBLE), dimension(*), intent(out) :: satice            ! soil ice water saturation [0 - 1.0]
+      real(C_DOUBLE), dimension(*), intent(out) :: soil_psi          ! soil matric potential (+Pa)
+      real(C_DOUBLE), dimension(*), intent(out) :: h2oliq            ! soil liq. water content [kgH2O/m3]
+      real(C_DOUBLE), dimension(*), intent(out) :: h2oice            ! soil ice water content [kgH2O/m3]
       integer(C_INT), intent(in) :: ncols                            ! col (for data checking)
       integer(C_INT), intent(in) :: ncells                           ! col*nlevgrnd (for data checking)
      end subroutine ats_elm_getwaterstate

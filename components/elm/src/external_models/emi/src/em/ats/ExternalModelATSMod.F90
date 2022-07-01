@@ -120,6 +120,7 @@ module ExternalModelATSMod
      !
      integer                      :: filter_col_num
      integer   , pointer          :: filter_col(:)
+     real(r8)  , pointer          :: dz(:) !saved soil thickness for consistency
 
 
      type(elm_ats_interface_type) :: ats_interface
@@ -610,6 +611,9 @@ contains
     nz_nodes = size(col_zi(1,:))
     surf_zi(:,:) = 0.0         ! (TO-FIX) temporarily set to 0
 
+    allocate(this%dz(1:size(col_z(1,:))))
+    this%dz(:) = col_dz(1,:)          ! saved for output usage
+
     allocate(col_nodes(0:nz_nodes-1))
     c = 1                                       ! here assuming soil column node coords are same for all ELM columns
     j = 0
@@ -770,9 +774,6 @@ contains
     !
     ! !DESCRIPTION:
     !
-    !use elm_instMod               , only : soilstate_vars
-    !use elm_instMod               , only : soilhydrology_vars
-    !
     implicit none
     !
     ! !ARGUMENTS
@@ -821,9 +822,6 @@ contains
   subroutine set_bc_ss(this, l2e_list, bounds_clump)
     !
     ! !DESCRIPTION:
-    !
-    !use elm_instMod               , only : soilstate_vars
-    !use elm_instMod               , only : soilhydrology_vars
     !
     implicit none
     !
@@ -909,29 +907,51 @@ contains
     type(bounds_type)    , intent(in)    :: bounds_clump
 
     ! !LOCAL VARIABLES:
-    integer :: bounds_proc_begc, bounds_proc_endc
+    integer              :: c, fc,  j,  p            ! do loop indices
+    integer              :: nc, nz, npft
+    real(r8), pointer    :: col_dz(:,:)
 
-    real(r8)  , pointer                  :: e2l_h2osoi_liq(:,:)
-    real(r8)  , pointer                  :: e2l_h2osoi_ice(:,:)
-    real(r8)  , pointer                  :: e2l_smp(:,:)
-    real(r8)  , pointer                  :: e2l_zwt(:)
-    real(r8)  , pointer                  :: e2l_soilp(:,:)
+    real(r8)  , pointer                  :: e2l_h2osoi_liq(:,:), h2oliq_ats(:,:)
+    real(r8)  , pointer                  :: e2l_h2osoi_ice(:,:), h2oice_ats(:,:)
+    real(r8)  , pointer                  :: e2l_smp(:,:),        psi_ats(:,:)
+    real(r8)  , pointer                  :: e2l_zwt(:),          zwt_ats(:)
+    real(r8)  , pointer                  :: e2l_soilp(:,:),      soilp_ats(:,:)
 
     !-----------------------------------------------------------------------
+    !
+    call e2l_list%GetPointerToReal1D(this%index_e2l_state_zwt        , e2l_zwt               )
+    call e2l_list%GetPointerToReal2D(this%index_e2l_state_h2osoi_liq , e2l_h2osoi_liq        )
+    call e2l_list%GetPointerToReal2D(this%index_e2l_state_h2osoi_ice , e2l_h2osoi_ice        )
+    call e2l_list%GetPointerToReal2D(this%index_e2l_state_smp        , e2l_smp               )
+    call e2l_list%GetPointerToReal2D(this%index_e2l_state_soilp      , e2l_soilp             )
+    nz = size(e2l_soilp(1,:))
 
-    bounds_proc_begc     = bounds_clump%begc
-    bounds_proc_endc     = bounds_clump%endc
+    ! index starting from 0
+    allocate(zwt_ats(0:this%filter_col_num-1))
+    allocate(h2oliq_ats(0:this%filter_col_num-1, 0:nz-1))
+    allocate(h2oice_ats(0:this%filter_col_num-1, 0:nz-1))
+    allocate(psi_ats(0:this%filter_col_num-1, 0:nz-1))
+    allocate(soilp_ats(0:this%filter_col_num-1, 0:nz-1))
 
     ! currently only checking the ATS data as it is, i.e. NO returning data for ELM
-    call this%ats_interface%getdata()
+    call this%ats_interface%getdata_hydro(zwt_ats, h2oliq_ats, h2oice_ats, psi_ats, soilp_ats)
 
-    !
-    !call e2l_list%GetPointerToReal1D(this%index_e2l_state_zwt        , e2l_zwt               )
-    !call e2l_list%GetPointerToReal2D(this%index_e2l_state_h2osoi_liq , e2l_h2osoi_liq        )
-    !call e2l_list%GetPointerToReal2D(this%index_e2l_state_h2osoi_ice , e2l_h2osoi_ice        )
-    !call e2l_list%GetPointerToReal2D(this%index_e2l_state_smp        , e2l_smp               )
-    !call e2l_list%GetPointerToReal2D(this%index_e2l_state_soilp      , e2l_soilp             )
+    do fc = 1, this%filter_col_num
+      c = this%filter_col(fc)
+      e2l_zwt(c) = zwt_ats(fc-1)
+      do j = 1, nz
+         e2l_h2osoi_liq(c,j) = h2oliq_ats(fc-1,j-1)*this%dz(j) ! kg/m3 --> kgH2O/m2
+         e2l_h2osoi_ice(c,j) = h2oice_ats(fc-1,j-1)
+         e2l_smp(c,j)   = psi_ats(fc-1,j-1)/(-9.8_r8)    ! Pa ---> -mmH2O
+         e2l_soilp(c,j) = soilp_ats(fc-1,j-1)*1.0e-6_r8  ! Pa ---> MPa
+      end do
+    end do
 
+    deallocate(zwt_ats)
+    deallocate(h2oliq_ats)
+    deallocate(h2oice_ats)
+    deallocate(psi_ats)
+    deallocate(soilp_ats)
 
    end subroutine get_data_for_elm
 
@@ -955,6 +975,7 @@ contains
 
     ! (TODO)
     if (associated(this%filter_col)) deallocate(this%filter_col)
+    if (associated(this%dz)) deallocate(this%dz)
 
   end subroutine EM_ATS_Finalize
 

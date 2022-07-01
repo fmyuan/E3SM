@@ -36,7 +36,7 @@ module ELM_ATS_InterfaceMod
       procedure, public :: setss        => ats_setSS_f
 
       procedure, public :: getmesh      => ats_getmesh_f
-      procedure, public :: getdata      => ats_getdata_f
+      procedure, public :: getdata_hydro=> ats_getdata_hydro_f
 
   end type elm_ats_interface_type
   !------------------------------------------------------------------------
@@ -271,24 +271,26 @@ contains
     end subroutine ats_getmesh_f
 
  !------------------------------------------------------------------------
-    subroutine ats_getdata_f(this)
+    subroutine ats_getdata_hydro_f(this, zwt, h2oliq, h2oice, psi, soilp)
         implicit none
         class(elm_ats_interface_type) :: this
 
-        real(r8), pointer :: surf_pres(:)
-        real(r8), pointer :: soil_pres(:,:)
-        real(r8), pointer :: satliq(:,:)
+        real(r8), pointer :: zwt(:)          ! meters
+        real(r8), pointer :: h2oliq(:,:)     ! kgH2O/m3
+        real(r8), pointer :: h2oice(:,:)     ! kgH2O/m3
+        real(r8), pointer :: psi(:,:)        ! non-negative Pa
+        real(r8), pointer :: soilp(:,:)      ! Pa (atm-pressue additive)
         integer(C_INT) :: ncols
         integer(C_INT) :: ncells
 
         ! ----------------------------------------------------------
-        ! (TODO: not finished)
-        ncols = 1 !size(surf_pres)
-        ncells= 15 !size(soil_pres)
-        !call ats_elm_getwaterstate(this%ptr, surf_pres, soil_pres, satliq, ncols, ncells)
+        ! (TODO: not finished fully)
+        ncols = size(zwt)
+        ncells= size(soilp)
+        call ats_elm_getwaterstate(this%ptr, zwt, soilp, psi, h2oliq, h2oice, ncols, ncells)   ! note: zwt NOT really what is now (TODO)
         !
 
-    end subroutine ats_getdata_f
+    end subroutine ats_getdata_hydro_f
 
  !------------------------------------------------------------------------
 
