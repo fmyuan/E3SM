@@ -365,7 +365,9 @@ contains
          sal_opt       => veg_vp%sal_opt                       , & !Input: [real(r8) (:)   ] Salinity at which optimal biomass occurs (ppt)     
          sal_tol       => veg_vp%sal_tol                       , & !Input: [real(r8) (:)   ] Salinity tolerance; width parameter for Gaussian distribution (ppt -1)
          sal_threshold => veg_vp%sal_threshold                 , & ! Input: [real(r8) (:)   ] Threshold for salinity effects (ppt)
-         KM_salinity   => veg_vp%KM_salinity                  & ! Input: [real(r8) (:)   ] Half saturation constant for osmotic inhibition
+         KM_salinity   => veg_vp%KM_salinity                   , & ! Input: [real(r8) (:)   ] Half saturation constant for osmotic inhibition
+         floodf        => veg_vp%floodf                        , & !Input: [real(r8) (:)      ] Flood factor to reduce growth when plants submerged
+         h2osfc        => col_ws%h2osfc                          & ! Input:  [real(r8) (:)   ]  surface water (mm)
          ) 
 
       do j = 1,nlevgrnd
@@ -385,7 +387,10 @@ contains
                smp_node = -sucsat(c,j)*s_node**( -bsw(c,j) )
 
                smp_node = max(smpsc(veg_pp%itype(p)), smp_node)
-
+               
+               rresis(p,j) = min( (eff_porosity(c,j)/watsat(c,j))* &
+               (smp_node - smpsc(veg_pp%itype(p))) / (smpso(veg_pp%itype(p)) - smpsc(veg_pp%itype(p))), 1._r8)   
+               
                !using osm_inhib to change root uptake -SLL
                if (salinity(1) .ge. sal_threshold(veg_pp%itype(p))) then
                   !osm_inhib(veg_pp%itype(p)) = (1-salinity(c)/(KM_salinity(veg_pp%itype(p))+salinity(c)))
@@ -393,12 +398,13 @@ contains
                   rresis(p,j) = min( (eff_porosity(c,j)/watsat(c,j))* &
                     (smp_node - smpsc(veg_pp%itype(p))) / (smpso(veg_pp%itype(p)) - smpsc(veg_pp%itype(p))), 1._r8)
                   rresis(p,j) = rresis(p,j)*osm_inhib(veg_pp%itype(p))
-                  
-               else
-                  rresis(p,j) = min( (eff_porosity(c,j)/watsat(c,j))* &
-                    (smp_node - smpsc(veg_pp%itype(p))) / (smpso(veg_pp%itype(p)) - smpsc(veg_pp%itype(p))), 1._r8)
                endif
-               
+
+               !use floodf to change root water uptake
+               if (h2osfc(1) .ge. 100._r8) then
+                     rresis(p,j) = rresis(p,j)*floodf(veg_pp%itype(p))
+               endif
+
                if (.not. (perchroot .or. perchroot_alt) ) then
                   rootr(p,j) = rootfr(p,j)*rresis(p,j)
                else
