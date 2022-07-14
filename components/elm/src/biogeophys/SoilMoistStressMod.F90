@@ -401,9 +401,14 @@ contains
                endif
 
                !use floodf to change root water uptake
-               if (h2osfc(1) .ge. 100._r8) then
-                     rresis(p,j) = rresis(p,j)*floodf(veg_pp%itype(p))
+               if (h2osfc(1) .ge. 0._r8 .and. h2osfc(1) .le. 1000.0_r8) then
+                     floodf(veg_pp%itype(p))=1-0.001*h2osfc(1)
+               elseif(h2osfc(1) .gt. 1000._r8) then
+                     floodf(veg_pp%itype(p))=0.0_r8
+               elseif(h2osfc(1) .lt. 0._r8) then
+                     floodf(veg_pp%itype(p))=1.0_r8                       
                endif
+               rresis(p,j) = rresis(p,j)*floodf(veg_pp%itype(p))
 
                if (.not. (perchroot .or. perchroot_alt) ) then
                   rootr(p,j) = rootfr(p,j)*rresis(p,j)
