@@ -988,7 +988,7 @@ end subroutine EMAlquimia_Coldstart
     call l2e_list%GetPointerToInt3D(this%index_l2e_aux_ints, aux_ints_l2e)
 
     call l2e_list%GetPointerToReal2D(this%index_l2e_flux_qflx_adv       , qflx_adv_l2e     )
-    call l2e_list%GetPointerToReal2D(this%index_l2e_flux_qflx_lat_aqu_layer    , qflx_lat_aqu_l2e     )
+    call l2e_list%GetPointerToReal2D(this%index_l2e_flux_qflx_lat_aqu_layer    , qflx_lat_aqu_l2e     ) ! ELM units are mm/m2 (integrated over time step)
 
     call l2e_list%GetPointerToReal1D(this%index_l2e_state_wtd       , wtd_l2e     )
     call l2e_list%GetPointerToReal1D(this%index_l2e_state_h2osfc    , h2osfc_l2e  )
@@ -1129,6 +1129,7 @@ end subroutine EMAlquimia_Coldstart
               if(this%NH4_pool_number>0) surf_bc(this%NH4_pool_number) = 0.0_r8
               ! write(iulog,*),'Boundary condition',this%bc
               ! write(iulog,*),__LINE__,'adv_flow',qflx_adv_l2e(c,:)
+              ! write(iulog,*),__LINE__,'lat_flow',qflx_lat_aqu_l2e(c,:)/dt
               ! This changes total_mobile_l2e so we need to make sure we aren't using that for conservation checks
 
               call run_column_onestep(this, c, dt,0,max_cuts,&
@@ -1142,7 +1143,7 @@ end subroutine EMAlquimia_Coldstart
                   cation_exchange_capacity_l2e,&
                   aux_doubles_l2e,&
                   aux_ints_l2e,&
-                  porosity_l2e,temperature,dz,h2o_liqvol/porosity_l2e,-qflx_adv_l2e(:,0:nlevdecomp),qflx_lat_aqu_l2e,lat_bc,lat_flux,surf_bc,surf_flux)
+                  porosity_l2e,temperature,dz,h2o_liqvol/porosity_l2e,-qflx_adv_l2e(:,0:nlevdecomp),qflx_lat_aqu_l2e/dt,lat_bc,lat_flux,surf_bc,surf_flux)
 
               ! if(max_cuts>3) write(iulog,'(a,i2,a,2i3)'),"Alquimia converged after",max_cuts," cuts. Column",c
               actual_dt_e2l(c)=dt/2**max_cuts
@@ -2004,7 +2005,7 @@ end subroutine EMAlquimia_Coldstart
       else
         source_term(j,k) = lat_flow(c,j)*1e-3_r8 * total_mobile(c,j,k)
       endif
-      lat_flux_step(k) = lat_flux_step(k) + source_term(j,k)*dzsoi_decomp(j)
+      lat_flux_step(k) = lat_flux_step(k) + source_term(j,k)*dzsoi_decomp(j)*actual_dt/2
 
     enddo
     
@@ -2086,7 +2087,7 @@ end subroutine EMAlquimia_Coldstart
         if(this%is_dissolved_gas(k) .and. (surf_bc(k) > 0.0) .and. &
             ((surf_bc(k)*porosity(c,1)*max(sat(1),0.3) - total_mobile(c,1,k) )/(surf_bc(k)*porosity(c,1)*max(sat(1),0.3)) > 0.25)) then
               this%chem_status%converged = .FALSE.
-              if(num_cuts>6) write(iulog,'(a,f5.2,x,a,i4,a)'),'Cutting time step to dt = ',actual_dt,' because species',k,'reduced too fast in layer 1'
+              if(num_cuts>6) write(iulog,'(a,f5.2,x,a,x,i4,x,a)'),'Cutting time step to dt = ',actual_dt,' because species',k,'reduced too fast in layer 1'
         endif
       enddo
     endif
@@ -2270,7 +2271,7 @@ end subroutine EMAlquimia_Coldstart
         else
           source_term(j,k) = lat_flow(c,j)*1e-3_r8 * total_mobile(c,j,k)
         endif
-        lat_flux_step(k) = lat_flux_step(k) + source_term(j,k)*dzsoi_decomp(j)
+        lat_flux_step(k) = lat_flux_step(k) + source_term(j,k)*dzsoi_decomp(j)*actual_dt/2
   
       enddo
 
