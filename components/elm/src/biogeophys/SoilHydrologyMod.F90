@@ -1095,7 +1095,7 @@ contains
        do fc = 1, num_hydrologyc
            c = filter_hydrologyc(fc)
 
-           !qflx_lat_aqu_layer(c,:) = 0.0
+           qflx_lat_aqu_layer(c,:) = 0.0
     
     ! use analytical expression for aquifer specific yield
              rous = watsat(c,nlevbed) &

@@ -1068,7 +1068,7 @@ contains
             if(thistimelen>876000) write(iulog,*), 'Warning: truncating tide forcing data length to 876000'
             atm2lnd_vars%tide_forcing_len = min(thistimelen,876000)
 
-            ierr = nf90_inq_varid(ncid, 'tide_height',varid)
+            ierr = nf90_inq_varid(ncid, 'tide_height',varid) ! Tide height should be in m
             if(ierr .ne. 0) call endrun('Error finding tide_height variable')
             ierr = nf90_get_var(ncid, varid, atm2lnd_vars%tide_height(1,1:atm2lnd_vars%tide_forcing_len),(/1,1/),(/1,atm2lnd_vars%tide_forcing_len/))
             if(ierr .ne. 0) call endrun('Error reading tide_height variable')
