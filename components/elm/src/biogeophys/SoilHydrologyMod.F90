@@ -763,9 +763,9 @@ contains
                 h2osfc_tide = max(h2osfc_tide + tide_baseline, 0.0)
                !  qflx_tide(c) = (h2osfc(c)-h2osfc_before)/dtime
                 qflx_lat_aqu(2) = qflx_lat_aqu(2) + (h2osfc_tide-h2osfc(c))/dtime
-                write(iulog,*), 'qflx_lat_aqu(1)', qflx_lat_aqu(1)
-                write(iulog,*), 'qflx_lat_aqu(2)', qflx_lat_aqu(2)
-                write(iulog,*), 'h2osfc(c)', h2osfc(1), h2osfc(2)                
+               !  write(iulog,*), 'qflx_lat_aqu(1)', qflx_lat_aqu(1)
+               !  write(iulog,*), 'qflx_lat_aqu(2)', qflx_lat_aqu(2)
+               !  write(iulog,*), 'h2osfc(c)', h2osfc(1), h2osfc(2)                
                 ! If flooded water surface of one column is higher than the other, add faster flow since aquifer transfer (ka parameters) is slow
                 if(h2osfc(2)>0 .and. h2osfc(2)>(h2osfc(1)+humhol_ht*1000.0)) then
                   qflx_lat_aqu(2) = qflx_lat_aqu(2) - min((h2osfc(2)-(h2osfc(1)+humhol_ht*1000.0))*sfcflow_ratescale,h2osfc(2)*0.5/dtime)
@@ -774,9 +774,9 @@ contains
                   qflx_lat_aqu(2) = qflx_lat_aqu(2) + min((h2osfc(1)-(h2osfc(2)-humhol_ht*1000.0))*sfcflow_ratescale,h2osfc(1)*0.5/dtime)
                   qflx_lat_aqu(1) = qflx_lat_aqu(1) - min((h2osfc(1)-(h2osfc(2)-humhol_ht*1000.0))*sfcflow_ratescale,h2osfc(1)*0.5/dtime)
                 endif
-                write(iulog,*), 'qflx_lat_aqu(1) after', qflx_lat_aqu(1)
-                write(iulog,*), 'qflx_lat_aqu(2) after', qflx_lat_aqu(2)                 
-                write(iulog,*), 'h2osfc(c) after', h2osfc(1), h2osfc(2) 
+               !  write(iulog,*), 'qflx_lat_aqu(1) after', qflx_lat_aqu(1)
+               !  write(iulog,*), 'qflx_lat_aqu(2) after', qflx_lat_aqu(2)                 
+               !  write(iulog,*), 'h2osfc(c) after', h2osfc(1), h2osfc(2) 
 #endif
              endif
 #endif
