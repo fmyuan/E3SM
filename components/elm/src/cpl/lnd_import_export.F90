@@ -1075,7 +1075,7 @@ contains
             
 
             ierr = nf90_close(ncid)
-            write(iulog,*) 'Reading tide height, salinity from file '//trim(tide_file)
+             write(iulog,*) 'Reading tide height, salinity from file '//trim(tide_file)
           else
             if(tide_file .ne. ' ') write(iulog,*) 'Did not find tide forcing file '//trim(tide_file)
             atm2lnd_vars%tide_forcing_len = 1
