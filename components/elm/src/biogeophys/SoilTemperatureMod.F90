@@ -570,18 +570,18 @@ contains
                else
                   t_h2osfc(c)         = tvector_nourbanc(c,0)          !surface water
                endif
-#ifdef MARSH
-               call get_curr_time(days, seconds)
-               eflx_sh_tide(c)=0.0_r8
-               if(tide_file .ne. ' ') then
-#ifdef CPL_BYPASS               
-                  !heat exchange with tide
-                  tide_temp = atm2lnd_vars%tide_temp(1,1+mod(int((days*secspday+seconds)/3600),atm2lnd_vars%tide_forcing_len))
-                  eflx_sh_tide(c) = eflx_sh_tide(c) + (tide_temp - t_h2osfc(c))
-                  t_h2osfc(c) = t_h2osfc(c) + eflx_sh_tide(c)
-               endif
-#endif
-#endif
+!#ifdef MARSH
+!               call get_curr_time(days, seconds)
+!               eflx_sh_tide(c)=0.0_r8
+!               if(tide_file .ne. ' ') then
+!#ifdef CPL_BYPASS               
+!                  !heat exchange with tide
+!                  tide_temp = atm2lnd_vars%tide_temp(1,1+mod(int((days*secspday+seconds)/3600),atm2lnd_vars%tide_forcing_len))
+!                  eflx_sh_tide(c) = eflx_sh_tide(c) + (tide_temp - t_h2osfc(c))
+!                  t_h2osfc(c) = t_h2osfc(c) + eflx_sh_tide(c)
+!               endif
+!#endif
+!#endif
             endif
 
          endif
