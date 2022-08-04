@@ -305,7 +305,7 @@ contains
   !--------------------------------------------------------------------------------
   subroutine calc_root_moist_stress_clm45default(bounds, &
        nlevgrnd, fn, filterp, rootfr_unf, &
-       soilstate_vars, energyflux_vars)
+       soilstate_vars, energyflux_vars, canopystate_vars)
     !
     ! DESCRIPTIONS
     ! compute the root water stress using the default clm45 approach
@@ -320,6 +320,7 @@ contains
     use EnergyFluxType       , only : energyflux_type
     use VegetationType            , only : veg_pp
     use elm_varctl       , only : use_hydrstress
+    use CanopyStateType , only : canopystate_type
     !
     ! !ARGUMENTS:
     implicit none
@@ -330,6 +331,7 @@ contains
     real(r8)               , intent(in)    :: rootfr_unf(bounds%begp: , 1: )
     type(energyflux_type)  , intent(inout) :: energyflux_vars
     type(soilstate_type)   , intent(inout) :: soilstate_vars
+    type(canopystate_type) , intent(in)    :: canopystate_vars
     !
     ! !LOCAL VARIABLES:
     real(r8), parameter :: btran0 = 0.0_r8  ! initial value
@@ -367,7 +369,8 @@ contains
          sal_threshold => veg_vp%sal_threshold                 , & ! Input: [real(r8) (:)   ] Threshold for salinity effects (ppt)
          KM_salinity   => veg_vp%KM_salinity                   , & ! Input: [real(r8) (:)   ] Half saturation constant for osmotic inhibition
          floodf        => veg_vp%floodf                        , & !Input: [real(r8) (:)      ] Flood factor to reduce growth when plants submerged
-         h2osfc        => col_ws%h2osfc                          & ! Input:  [real(r8) (:)   ]  surface water (mm)
+         h2osfc        => col_ws%h2osfc                        , & ! Input:  [real(r8) (:)   ]  surface water (mm)
+         htop          => canopystate_vars%htop_patch            & ! Output: [real(r8) (:) ] canopy top (m)
          ) 
 
       do j = 1,nlevgrnd
@@ -401,9 +404,9 @@ contains
                endif
 
                !use floodf to change root water uptake
-               if (h2osfc(1) .ge. 0._r8 .and. h2osfc(1) .le. 1000.0_r8) then
-                     floodf(veg_pp%itype(p))=1-0.001*h2osfc(1)
-               elseif(h2osfc(1) .gt. 1000._r8) then
+               if (h2osfc(1) .ge. 0._r8 .and. h2osfc(1) .le. htop(p)) then
+                     floodf(veg_pp%itype(p))=htop(p)-0.001*h2osfc(1)
+               elseif(h2osfc(1) .gt. htop(p)) then
                      floodf(veg_pp%itype(p))=0.0_r8
                elseif(h2osfc(1) .lt. 0._r8) then
                      floodf(veg_pp%itype(p))=1.0_r8                       
@@ -505,6 +508,7 @@ contains
             filterp = filterp,                          &
             energyflux_vars=energyflux_vars,            &
             soilstate_vars=soilstate_vars,              &
+            canopystate_vars=canopystate_vars,          &
             rootfr_unf=rootfr_unf(bounds%begp:bounds%endp,1:nlevgrnd))
 
     case default
