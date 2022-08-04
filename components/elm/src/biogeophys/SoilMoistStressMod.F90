@@ -404,9 +404,9 @@ contains
                endif
 
                !use floodf to change root water uptake
-               if (h2osfc(1) .ge. 0._r8 .and. h2osfc(1) .le. htop(p)) then
-                     floodf(veg_pp%itype(p))=htop(p)-0.001*h2osfc(1)
-               elseif(h2osfc(1) .gt. htop(p)) then
+               if (h2osfc(1) .ge. 0._r8 .and. h2osfc(1) .le. htop(p)*1000) then
+                     floodf(veg_pp%itype(p))=htop(p)*1000-h2osfc(1)
+               elseif(h2osfc(1) .gt. htop(p)*1000) then
                      floodf(veg_pp%itype(p))=0.0_r8
                elseif(h2osfc(1) .lt. 0._r8) then
                      floodf(veg_pp%itype(p))=1.0_r8                       
