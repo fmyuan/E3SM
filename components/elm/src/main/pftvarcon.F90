@@ -331,7 +331,7 @@ module pftvarcon
   real(r8), allocatable :: osm_inhib(:)      !osmotic inhibition factor
   real(r8), allocatable :: sal_opt(:)        !Salinity at which optimal biomass occurs (ppt)
   real(r8), allocatable :: sal_tol(:)        !Salinity tolerance; width parameter for Gaussian distribution (ppt -1)
-  real(r8), allocatable :: floodf(:)         !flood factor, inhibit growth due to inundation
+  !real(r8), allocatable :: floodf(:)         !flood factor, inhibit growth due to inundation
 
   !endif
   !phenology
@@ -689,7 +689,7 @@ contains
     allocate( osm_inhib (0:mxpft) )
     allocate( sal_opt (0:mxpft) )
     allocate( sal_tol (0:mxpft) )
-    allocate( floodf (0:mxpft) )
+    !allocate( floodf (0:mxpft) )
 
     ! Make sure they are initialized to some values
     sal_threshold(:) = 50.0_r8
@@ -697,7 +697,7 @@ contains
     osm_inhib(:) = 1.8_r8
     sal_opt(:) = 0.0_r8
     sal_tol(:) = 50.0_r8
-    floodf(:) = 1.0_r8
+    !floodf(:) = 1.0_r8
 
     ! Set specific vegetation type values
 
@@ -1129,8 +1129,8 @@ contains
    if ( .not. readv ) sal_opt(:) = 0.0_r8 
    call ncd_io('sal_tol', sal_tol(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
    if ( .not. readv ) sal_tol(:) = 50.0_r8 
-   call ncd_io('floodf', floodf(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
-   if ( .not. readv ) floodf(:) = 1.0_r8 
+   !call ncd_io('floodf', floodf(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+   !if ( .not. readv ) floodf(:) = 1.0_r8 
 #endif
 
     call ncd_io('phen_a', phen_a, 'read', ncid, readvar=readv, posNOTonfile=.true.)

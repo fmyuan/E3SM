@@ -368,7 +368,7 @@ contains
          sal_tol       => veg_vp%sal_tol                       , & !Input: [real(r8) (:)   ] Salinity tolerance; width parameter for Gaussian distribution (ppt -1)
          sal_threshold => veg_vp%sal_threshold                 , & ! Input: [real(r8) (:)   ] Threshold for salinity effects (ppt)
          KM_salinity   => veg_vp%KM_salinity                   , & ! Input: [real(r8) (:)   ] Half saturation constant for osmotic inhibition
-         floodf        => veg_vp%floodf                        , & !Input: [real(r8) (:)      ] Flood factor to reduce growth when plants submerged
+         floodf        => col_ws%floodf                        , & !Input: [real(r8) (:)      ] Flood factor to reduce growth when plants submerged
          h2osfc        => col_ws%h2osfc                        , & ! Input:  [real(r8) (:)   ]  surface water (mm)
          htop          => canopystate_vars%htop_patch            & ! Output: [real(r8) (:) ] canopy top (m)
          ) 
@@ -404,14 +404,14 @@ contains
                endif
 
                !use floodf to change root water uptake
-               if (h2osfc(1) .ge. 0._r8 .and. h2osfc(1) .le. htop(p)*1000) then
-                     floodf(veg_pp%itype(p))=htop(p)*1000-h2osfc(1)
-               elseif(h2osfc(1) .gt. htop(p)*1000) then
-                     floodf(veg_pp%itype(p))=0.0_r8
-               elseif(h2osfc(1) .lt. 0._r8) then
-                     floodf(veg_pp%itype(p))=1.0_r8                       
+               if (h2osfc(1) .gt. 0._r8 .and. h2osfc(1) .lt. htop(p)*1000) then
+                     floodf(1)=(htop(p)*1000-h2osfc(1))/1000
+               elseif(h2osfc(1) .ge. htop(p)*1000) then
+                     floodf(1)=0.0_r8
+               elseif(h2osfc(1) .le. 0._r8) then
+                     floodf(1)=1.0_r8                       
                endif
-               rresis(p,j) = rresis(p,j)*floodf(veg_pp%itype(p))
+               rresis(p,j) = rresis(p,j)*floodf(1)
 
                if (.not. (perchroot .or. perchroot_alt) ) then
                   rootr(p,j) = rootfr(p,j)*rresis(p,j)
