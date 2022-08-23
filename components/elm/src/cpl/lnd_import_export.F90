@@ -28,8 +28,8 @@ contains
     ! !USES:
     use elm_varctl       , only: co2_type, co2_ppmv, iulog, use_c13, create_glacier_mec_landunit, &
                                  metdata_type, metdata_bypass, metdata_biases, co2_file, aero_file, use_atm_downscaling_to_topunit
-    use elm_varctl       , only: const_climate_hist, add_temperature, add_co2, use_cn, use_fates
-    use elm_varctl       , only: startdate_add_temperature, startdate_add_co2
+    use elm_varctl       , only: const_climate_hist, add_temperature, add_co2, use_cn, use_fates, scale_rain, scale_snow
+    use elm_varctl       , only: startdate_add_temperature, startdate_add_co2, startdate_scale_rain, startdate_scale_snow
     use elm_varcon       , only: rair, o2_molar_const, c13ratio
     use elm_time_manager , only: get_nstep, get_step_size, get_curr_calday, get_curr_date 
     use controlMod       , only: NLFilename
@@ -102,6 +102,8 @@ contains
     integer :: xtoget, ytoget, thisx, thisy, calday_start
     integer :: sdate_addt, sy_addt, sm_addt, sd_addt
     integer :: sdate_addco2, sy_addco2, sm_addco2, sd_addco2
+    integer :: sdate_sclr, sy_sclr, sm_sclr, sd_sclr
+    integer :: sdate_scls, sy_scls, sm_scls, sd_scls
     character(len=200) metsource_str, thisline
     character(len=*), parameter :: sub = 'lnd_import_mct'
     integer :: av, v, n, nummetdims, g3, gtoget, ztoget, line, mystart, tod_start, thistimelen  
@@ -1035,7 +1037,6 @@ contains
 
        !Parse startdate for adding temperature
        if (startdate_add_temperature .ne. '') then 
-         call get_curr_date( yr, mon, day, tod )
          read(startdate_add_temperature,*) sdate_addt
          sy_addt     = sdate_addt/10000
          sm_addt     = (sdate_addt-sy_addt*10000)/100
@@ -1100,6 +1101,22 @@ contains
          end do
        end if
 
+       ! parse startedate for scaling precipitation
+       if (startdate_scale_rain .ne. '') then 
+        !call get_curr_date( yr, mon, day, tod ) ! is this in the right place?   ! not needed (already in L216)
+        read(startdate_scale_rain,*) sdate_sclr
+        sy_sclr     = sdate_sclr/10000
+        sm_sclr     = (sdate_sclr-sy_sclr*10000)/100
+        sd_sclr     = sdate_sclr-sy_sclr*10000-sm_sclr*100
+       end if 
+       if (startdate_scale_snow .ne. '') then 
+        !call get_curr_date( yr, mon, day, tod ) ! is this in the right place?   ! not needed (already in L216)
+        read(startdate_scale_snow,*) sdate_scls
+        sy_scls     = sdate_scls/10000
+        sm_scls     = (sdate_scls-sy_scls*10000)/100
+        sd_scls     = sdate_scls-sy_scls*10000-sm_scls*100
+       end if 
+
        !set the topounit-level atmospheric variables that are not handled in downscaling code
        do topo = grc_pp%topi(g), grc_pp%topf(g)
          ! first, all the state forcings
@@ -1111,6 +1128,45 @@ contains
          if (atm_gustiness) then
             top_as%windbot(topo) = sqrt(top_as%windbot(topo)**2 + top_as%ugust(topo)**2)
          end if
+
+         ! Relative humidity (percent)
+         if (top_as%tbot(topo) > SHR_CONST_TKFRZ) then
+            e = esatw(tdc(top_as%tbot(topo)))
+         else
+            e = esati(tdc(top_as%tbot(topo)))
+         end if
+         qsat           = 0.622_r8*e / (top_as%pbot(topo) - 0.378_r8*e)
+         top_as%rhbot(topo) = 100.0_r8*(top_as%qbot(topo) / qsat)
+         ! partial pressure of oxygen (Pa)
+         top_as%po2bot(topo) = o2_molar_const * top_as%pbot(topo)
+         ! air density (kg/m**3) - uses a temporary calculation of water vapor pressure (Pa)
+         vp = top_as%qbot(topo) * top_as%pbot(topo)  / (0.622_r8 + 0.378_r8 * top_as%qbot(topo))
+         top_as%rhobot(topo) = (top_as%pbot(topo) - 0.378_r8 * vp) / (rair * top_as%tbot(topo))
+
+         ! second, all the flux forcings
+         top_af%rain(topo)    = forc_rainc + forc_rainl            ! sum of convective and large-scale rain
+         top_af%snow(topo)    = forc_snowc + forc_snowl            ! sum of convective and large-scale snow
+         ! scale precip if invoked:
+         if (startdate_scale_rain .ne. '') then
+           if ((yr == sy_sclr .and. mon == sm_sclr .and. day >= sd_sclr) .or. &
+               (yr == sy_sclr .and. mon > sm_sclr) .or. (yr > sy_sclr)) then
+             top_af%rain(topo) = top_af%rain(topo) * scale_rain
+           end if
+         end if
+         if (startdate_scale_snow .ne. '') then
+          if ((yr == sy_scls .and. mon == sm_scls .and. day >= sd_scls) .or. &
+              (yr == sy_scls .and. mon > sm_scls) .or. (yr > sy_scls)) then
+            top_af%snow(topo) = top_af%snow(topo) * scale_snow
+          end if
+         end if
+         top_af%solad(topo,2) = atm2lnd_vars%forc_solad_grc(g,2)   ! forc_sollxy  Atm flux  W/m^2
+         top_af%solad(topo,1) = atm2lnd_vars%forc_solad_grc(g,1)   ! forc_solsxy  Atm flux  W/m^2
+         top_af%solai(topo,2) = atm2lnd_vars%forc_solai_grc(g,2)   ! forc_solldxy Atm flux  W/m^2
+         top_af%solai(topo,1) = atm2lnd_vars%forc_solai_grc(g,1)   ! forc_solsdxy Atm flux  W/m^2
+         top_af%lwrad(topo)   = atm2lnd_vars%forc_lwrad_not_downscaled_grc(g)     ! flwdsxy Atm flux  W/m^2
+         ! derived flux forcings
+         top_af%solar(topo) = top_af%solad(topo,2) + top_af%solad(topo,1) + &
+                              top_af%solai(topo,2) + top_af%solai(topo,1)
        end do
      
 !---------------------------------- CO2 -------------------------------------------------------------------
