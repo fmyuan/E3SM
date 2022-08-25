@@ -405,7 +405,7 @@ contains
 
                !use floodf to change root water uptake
                if (h2osfc(1) .gt. 0._r8 .and. h2osfc(1) .lt. htop(p)*1000) then
-                     floodf(1)=(htop(p)*1000-h2osfc(1))/1000
+                     floodf(1)=(htop(p)*1000-h2osfc(1))/(htop(p)*1000)
                elseif(h2osfc(1) .ge. htop(p)*1000) then
                      floodf(1)=0.0_r8
                elseif(h2osfc(1) .le. 0._r8) then
