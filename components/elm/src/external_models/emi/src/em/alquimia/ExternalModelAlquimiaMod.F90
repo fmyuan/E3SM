@@ -156,7 +156,8 @@ module ExternalModelAlquimiaMod
     integer                              :: plantNO3uptake_pool_number,plantNH4uptake_pool_number
     integer                              :: plantNO3demand_pool_number,plantNH4demand_pool_number
     integer                              :: plantNO3uptake_reaction_number,plantNH4uptake_reaction_number
-    integer                              :: Hplus_pool_number,sulfate_pool_number,O2_pool_number,chloride_pool_number,Fe2_pool_number,FeOH3_pool_number
+    integer                              :: Hplus_pool_number,sulfate_pool_number,O2_pool_number,chloride_pool_number,&
+                                            Fe2_pool_number,FeOH3_pool_number,sodium_pool_number,sulfide_pool_number
     logical, pointer, dimension(:)       :: is_dissolved_gas
     real(r8),pointer,dimension(:)        :: DOC_content,DIC_content,DON_content,carbonate_C_content ! Also add extra SOM content tracker for pools beyond ELM's litter and SOM?
     real(r8),pointer,dimension(:)        :: bc ! Boundary condition (len of chem_sizes%num_primary)
@@ -1128,7 +1129,7 @@ end subroutine EMAlquimia_Coldstart
           ! Need to save lateral flow for C balance
               surf_flux(:) = 0.0_r8 ! Positive means into soil
               lat_flux(:)  = 0.0_r8
-              lat_bc(:) = this%bc(:) ! Currently setting to initial condition. Should update so it tracks saline/fresh
+              lat_bc(:) = 0.0_r8 ! this%bc(:) ! Currently setting to initial condition. Should update so it tracks saline/fresh
               surf_bc(:) = this%bc(:) ! Currently setting to initial condition. Should update so it tracks atmospheric O2, CO2, CH4 concentrations
               ! Assume surface water has no dissolved N. At some point should track N content of surface water though
               if(this%NO3_pool_number>0) surf_bc(this%NO3_pool_number) = 0.0_r8
@@ -1140,15 +1141,41 @@ end subroutine EMAlquimia_Coldstart
 
 #ifdef MARSH
               ! Set lateral (tidal flooding) and surface (infiltration) boundary conditions for salinity
+              ! Boundary conditions are in mol/m3 of H2O (NOT mol/L). Salinity in parts per thousand (g/kg = g/L = kg/m3)
+              ! 1 ppt = 1000 g salt/m3 water / (35.453 g Cl/mol Cl * 1.8066 g salt/g Cl)
               if(this%chloride_pool_number>0) then
-                lat_bc(this%chloride_pool_number) = flood_salinity_l2e(c)*(1000.0*porosity_l2e(c,j)*max(h2o_liqvol(c,j)/porosity_l2e(c,j),0.01))/(35.453*1.80655*1000.0)
+                lat_bc(this%chloride_pool_number) = flood_salinity_l2e(c)/(35.453*1.80655)*1000.0
+                if (this%sulfate_pool_number>0) then
+                  lat_bc(this%sulfate_pool_number) = lat_bc(this%chloride_pool_number)*0.14_r8 ! Ratio from Jiaze's manuscript
+                endif
+                if(this%sodium_pool_number>0) lat_bc(this%sodium_pool_number) = lat_bc(this%chloride_pool_number)*0.5769_r8
+                if(this%sulfide_pool_number>0) lat_bc(this%sulfide_pool_number) = lat_bc(this%chloride_pool_number)*1e-9_r8
+                ! Hard coding ocean water pH for now
+                ! if(this%Hplus_pool_number>0) lat_bc(this%Hplus_pool_number) = 1e-7_r8*1000.0
                 
                 ! Need to distinguish between tidal flooding and rainfall infiltration. Doing based on h2osfc but not sure if that's correct
                 if (h2osfc_l2e(c)>0) then
-                  surf_bc(this%chloride_pool_number) = flood_salinity_l2e(c)*(1000.0*porosity_l2e(c,j)*max(h2o_liqvol(c,j)/porosity_l2e(c,j),0.01))/(35.453*1.80655*1000.0)
+                  surf_bc(this%chloride_pool_number) = flood_salinity_l2e(c)/(35.453*1.80655)*1000.0
+                  if (this%sulfate_pool_number>0) then
+                    surf_bc(this%sulfate_pool_number) = surf_bc(this%chloride_pool_number)*0.14_r8 ! Ratio from Jiaze's manuscript
+                  endif
+                  if(this%sodium_pool_number>0) surf_bc(this%sodium_pool_number) = surf_bc(this%sodium_pool_number)*0.5769_r8
+                  if(this%sulfide_pool_number>0) surf_bc(this%sulfide_pool_number) = surf_bc(this%chloride_pool_number)*1e-9_r8
+                  ! if(this%Hplus_pool_number>0) surf_bc(this%Hplus_pool_number) = 1e-7_r8*1000.0
                 endif
+
               endif
+
+              if (c .ne. 2) then ! skip chemistry for the tidal channel column
 #endif
+              ! Limit velocity of vertical water flux to 1 cm/hour for now (for purposes of advection)
+              do j = 0, nlevdecomp 
+                if(qflx_adv_l2e(c,j) > 10.0/dt) then
+                  qflx_adv_l2e(c,j) = 10.0/dt
+                elseif(qflx_adv_l2e(c,j) < -10.0/dt) then
+                  qflx_adv_l2e(c,j) = -10.0/dt
+                endif
+              enddo
 
               call run_column_onestep(this, c, dt,0,max_cuts,&
                   water_density_l2e,&
@@ -1163,7 +1190,7 @@ end subroutine EMAlquimia_Coldstart
                   aux_ints_l2e,&
                   porosity_l2e,temperature,dz,&
                   h2o_liqvol/porosity_l2e,    &    ! Water content as fraction of saturation
-                  -qflx_adv_l2e(:,0:nlevdecomp),&  ! Vertical water flux
+                  -qflx_adv_l2e(:,0:nlevdecomp),&  ! Vertical water flux (mm/s)
                   qflx_lat_aqu_l2e/dt,         &      ! Horizontal water flux (depth-resolved)
                   lat_bc,                   &      ! Lateral flux concentration boundary condition
                   lat_flux,                 &      ! Output: Lateral flux of each solute
@@ -1175,6 +1202,10 @@ end subroutine EMAlquimia_Coldstart
               ! write(iulog,*), 'lat_flux (mol/m2) = ',lat_flux
               ! write(iulog,*), 'surf_flux (mol/m2) = ',surf_flux
               ! write(iulog,*), 'bc',this%bc
+
+#ifdef MARSH
+            endif
+#endif
 
               ! Save back to ELM
               water_density_e2l                 = water_density_l2e
@@ -1272,6 +1303,7 @@ end subroutine EMAlquimia_Coldstart
               endif
 
               ! Maybe these should also use free ion concentration?
+              ! May want to add sulfide concentration also
               if(this%sulfate_pool_number>0) then
                   sulfate_e2l(c,j) = total_mobile_e2l(c,j,this%sulfate_pool_number)
               else
@@ -1285,8 +1317,8 @@ end subroutine EMAlquimia_Coldstart
               endif
 
               if(this%chloride_pool_number>0) then
-                  ! Chloride concentration needs to be converted to ppt (by mass) in water = mg/L. mol/L Cl- * 35.453 g/mol * 1.8066 g salt/g Cl * 1000 mg/g
-                  salinity_e2l(c,j) = total_mobile_e2l(c,j,this%chloride_pool_number)/(1000.0*porosity_l2e(c,j)*max(h2o_liqvol(c,j)/porosity_l2e(c,j),0.01))*35.453*1.80655*1000.0
+                  ! Chloride concentration needs to be converted to ppt (by mass) in water = mg/L . mol Cl- /m3 water * 35.453 g/mol * 1.8066 g salt/g Cl / 1000 g Cl/kg Cl
+                  salinity_e2l(c,j) = total_mobile_e2l(c,j,this%chloride_pool_number)/(porosity_l2e(c,j)*max(h2o_liqvol(c,j)/porosity_l2e(c,j),0.01))*35.453*1.80655/1000.0
               else
                   salinity_e2l(c,j) = 0.0_r8
               endif
@@ -1765,12 +1797,16 @@ end subroutine EMAlquimia_Coldstart
     this%O2_pool_number = find_alquimia_pool('O2(aq)',name_list,this%chem_sizes%num_primary)
     this%chloride_pool_number = find_alquimia_pool('Cl-',name_list,this%chem_sizes%num_primary)
     this%Fe2_pool_number = find_alquimia_pool('Fe++',name_list,this%chem_sizes%num_primary)
+    this%sodium_pool_number = find_alquimia_pool('Na+',name_list,this%chem_sizes%num_primary)
+    this%sulfide_pool_number = find_alquimia_pool('HS-',name_list,this%chem_sizes%num_primary)
 
     if(this%Hplus_pool_number>0) write(iulog,'(a,6x,a,i3,1x)'),'H+', '<-> Alquimia pool',this%Hplus_pool_number
     if(this%sulfate_pool_number>0) write(iulog,'(a,6x,a,i3,1x)'),'SO4--', '<-> Alquimia pool',this%sulfate_pool_number
     if(this%O2_pool_number>0) write(iulog,'(a,6x,a,i3,1x)'),'O2(aq)', '<-> Alquimia pool',this%O2_pool_number
     if(this%chloride_pool_number>0) write(iulog,'(a,6x,a,i3,1x)'),'Cl-', '<-> Alquimia pool',this%chloride_pool_number
     if(this%Fe2_pool_number>0) write(iulog,'(a,6x,a,i3,1x)'),'Fe++', '<-> Alquimia pool',this%Fe2_pool_number
+    if(this%sodium_pool_number>0) write(iulog,'(a,6x,a,i3,1x)'),'Na+', '<-> Alquimia pool',this%sodium_pool_number
+    if(this%sulfide_pool_number>0) write(iulog,'(a,6x,a,i3,1x)'),'HS-', '<-> Alquimia pool',this%sulfide_pool_number
     
     ! Minerals might be trickier because they could have different stoichiometries and molar volumes
     ! Might be better to do this similar to DIC_content to allow for different Fe oxide minerals
@@ -1964,7 +2000,7 @@ end subroutine EMAlquimia_Coldstart
                             cation_exchange_capacity_tmp(1,nlevdecomp,this%chem_sizes%num_ion_exchange_sites),&
                             aux_doubles_tmp(1,nlevdecomp,this%chem_sizes%num_aux_doubles)
     integer            ::   aux_ints_tmp(1,nlevdecomp,this%chem_sizes%num_aux_integers)
-    real(r8) :: diffus(nlevdecomp), sat(nlevdecomp)
+    real(r8) :: diffus(nlevdecomp), sat(nlevdecomp), dissolved_frac(0:nlevdecomp)
     real(r8) :: transport_change_rate(nlevdecomp,this%chem_sizes%num_primary),source_term(nlevdecomp,this%chem_sizes%num_primary)
     real(r8) :: surf_adv_step(this%chem_sizes%num_primary),surf_equil_step(this%chem_sizes%num_primary), lat_flux_step(this%chem_sizes%num_primary)
     ! real(r8) :: bot_adv_step(this%chem_sizes%num_primary)
@@ -1999,7 +2035,7 @@ end subroutine EMAlquimia_Coldstart
       ! For gases, diffusion rates are set using gas diffusive transport (Meslin et al., SSSAJ, 2010. doi:10.2136/sssaj2009.0474)
       ! Estimating gas diffusion coefficient of 0.2 cm2/s and dry soil diffusion coefficient of 30% of gas (Moldrup et al 2004, SSSAJ)
       do j=1,nlevdecomp
-        diffus(j) = 2.0e-5_r8*0.3_r8*(1.0_r8 - sat(j))**2.5
+        diffus(j) = 2.0e-5_r8*porosity(c,j)*0.3_r8*(1.0_r8 - sat(j))**2.5
       enddo
 
       ! Equilibrate top layer of dissolved gases w.r.t. upper BC. BC is in mol/m3 H2O units and total_mobile is in mol/m3 units
@@ -2007,9 +2043,15 @@ end subroutine EMAlquimia_Coldstart
       ! Possible issue in low-moisture conditions: Total layer stock of O2 might be really low because not that much fits in the small amount of water
       ! In reality water should be in equilibrium with soil pore air space
       ! If we don't multiply by sat here, I guess we shove all the layer gas into the water...
-      surf_equil_step(k) = ( surf_bc(k)*porosity(c,1)*max(sat(1),0.3) - total_mobile(c,1,k) )*dzsoi_decomp(1)
+      surf_equil_step(k) = ( surf_bc(k)*porosity(c,1)*max(sat(1),1.0) - total_mobile(c,1,k) )*dzsoi_decomp(1)
       ! write(iulog,*),'Dissolved gas',k,'BC',surf_bc(k)*porosity(c,1)*sat(1),'Surf conc',total_mobile(c,1,k),'(mol m-3 equivalent)','porosity',porosity(c,1),'saturation',sat(1),'flux',surf_equil_step(k)
-      total_mobile(c,1,k) = surf_bc(k)*porosity(c,1)*max(sat(1),0.3)
+      total_mobile(c,1,k) = surf_bc(k)*porosity(c,1)*max(sat(1),1.0)
+      ! Eventually replace this with calculation using actual saturation/ebullition concentration
+      dissolved_frac(0:nlevdecomp) = 0.0
+    elseif (lat_bc(k) > 0.0_r8) then
+      dissolved_frac(0:nlevdecomp) = 0.9
+    else
+      dissolved_frac(0:nlevdecomp) = 0.1
     endif
     
     do j=1,nlevdecomp
@@ -2028,7 +2070,7 @@ end subroutine EMAlquimia_Coldstart
       if(lat_flow(c,j) > 0) then
         source_term(j,k) = lat_flow(c,j)*1e-3_r8 * lat_bc(k)*porosity(c,j)*sat(j) ! mol/m3 bulk/s
       else
-        source_term(j,k) = lat_flow(c,j)*1e-3_r8 * total_mobile(c,j,k)
+        source_term(j,k) = lat_flow(c,j)*1e-3_r8 * total_mobile(c,j,k)*dissolved_frac(j)
       endif
       lat_flux_step(k) = lat_flux_step(k) + source_term(j,k)*dzsoi_decomp(j)*actual_dt/2
 
@@ -2036,9 +2078,9 @@ end subroutine EMAlquimia_Coldstart
     
       ! adv_flux units are mm H2O/s
     if(adv_flux(c,1)<0.0_r8) then ! Downward flow uses surface boundary condition
-      surf_adv_step(k) = - adv_flux(c,1)*1e-3_r8*surf_bc(k)*actual_dt/2 
+      surf_adv_step(k) = - adv_flux(c,1)*1e-3_r8*surf_bc(k)*dissolved_frac(0)*actual_dt/2 
     else ! Upward flow uses surface layer concentration. Should this concentration be per bulk volume or per water volume?
-      surf_adv_step(k) = - adv_flux(c,1)*1e-3_r8*total_mobile(c,1,k)*actual_dt/2
+      surf_adv_step(k) = - adv_flux(c,1)*1e-3_r8*total_mobile(c,1,k)*dissolved_frac(1)*actual_dt/2
     endif
     ! if(adv_flux(c,nlevdecomp+1)<0.0_r8) then
       ! bot_adv_step(k) = -adv_flux(c,nlevdecomp+1)*1e-3_r8*total_mobile(c,nlevdecomp,k)*actual_dt/2
@@ -2057,7 +2099,7 @@ end subroutine EMAlquimia_Coldstart
     ! write(iulog,*) 'saturation',sat(:) ! Need to account for when saturation is 0
     ! write(iulog,*),'Mobile spec',k,'Before: ',total_mobile(c,1:nlevdecomp,k)
     ! write(iulog,*),__LINE__,'adv_flux',adv_flux(c,1:nlevdecomp+1)
-    call advection_diffusion(total_mobile(c,1:nlevdecomp,k),adv_flux(c,1:nlevdecomp+1)*1e-3,diffus(1:nlevdecomp),& 
+    call advection_diffusion(total_mobile(c,1:nlevdecomp,k),adv_flux(c,1:nlevdecomp+1)*1e-3*dissolved_frac(0:nlevdecomp),diffus(1:nlevdecomp),& 
       source_term(1:nlevdecomp,k),&
       surf_bc(k),actual_dt/2,transport_change_rate(1:nlevdecomp,k))
     ! At this point perhaps we should go through and re-equilibrate dissolved gases in top layer if unsaturated?
@@ -2268,14 +2310,20 @@ end subroutine EMAlquimia_Coldstart
         ! Estimating gas diffusion coefficient of 0.2 cm2/s and dry soil diffusion coefficient of 30% of gas (Moldrup et al 2004, SSSAJ)
         ! Consider some different diffusion exponents? Previous CORPSE work ended up with an exponent of 0.6 rather than 2.5. But Cusack project gave vals around 1.5-2.5
         do j=1,nlevdecomp
-          diffus(j) = 2.0e-5_r8*0.3_r8*(1.0_r8 - sat(j))**2.5
+          diffus(j) = 2.0e-5_r8*porosity(c,j)*0.3_r8*(1.0_r8 - sat(j))**2.5
         enddo
   
         ! Equilibrate top layer of dissolved gases w.r.t. upper BC. BC is in mol/m3 H2O units and total_mobile is in mol/m3 units
         ! write(iulog,*),'Dissolved gas',k,'BC',surf_bc(k)*porosity(c,1)*sat(1),'Surf conc',total_mobile(c,1,k),'(mol m-3 equivalent)','porosity',porosity(c,1),'saturation',sat(1)
-        surf_equil_step(k) = ( surf_bc(k)*porosity(c,1)*max(sat(1),0.3) - total_mobile(c,1,k) )*dzsoi_decomp(1)
-        total_mobile(c,1,k) = surf_bc(k)*porosity(c,1)*max(sat(1),0.3)
+        surf_equil_step(k) = ( surf_bc(k)*porosity(c,1)*max(sat(1),1.0) - total_mobile(c,1,k) )*dzsoi_decomp(1)
+        total_mobile(c,1,k) = surf_bc(k)*porosity(c,1)*max(sat(1),1.0)
       
+        ! Eventually replace this with calculation using actual saturation/ebullition concentration
+        dissolved_frac(0:nlevdecomp) = 0.0
+      elseif (lat_bc(k) > 0.0_r8) then
+        dissolved_frac(0:nlevdecomp) = 0.9
+      else
+        dissolved_frac(0:nlevdecomp) = 0.1
       endif
       
       do j=1,nlevdecomp
@@ -2294,7 +2342,7 @@ end subroutine EMAlquimia_Coldstart
         if(lat_flow(c,j) > 0) then
           source_term(j,k) = lat_flow(c,j)*1e-3_r8 * lat_bc(k)*porosity(c,j)*sat(j) ! mol/m3 bulk/s
         else
-          source_term(j,k) = lat_flow(c,j)*1e-3_r8 * total_mobile(c,j,k)
+          source_term(j,k) = lat_flow(c,j)*1e-3_r8 * total_mobile(c,j,k)*dissolved_frac(j)
         endif
         lat_flux_step(k) = lat_flux_step(k) + source_term(j,k)*dzsoi_decomp(j)*actual_dt/2
   
@@ -2302,9 +2350,9 @@ end subroutine EMAlquimia_Coldstart
 
       ! adv_flux units are mm H2O/s
       if(adv_flux(c,1)<0.0_r8) then ! Downward flow uses surface boundary condition
-        surf_adv_step(k) = - adv_flux(c,1)*1e-3_r8*surf_bc(k)*actual_dt/2 
+        surf_adv_step(k) = - adv_flux(c,1)*1e-3_r8*surf_bc(k)*actual_dt/2 *dissolved_frac(0)
       else ! Upward flow uses surface layer concentration. Should this concentration be per bulk volume or per water volume?
-        surf_adv_step(k) = - adv_flux(c,1)*1e-3_r8*total_mobile(c,1,k)*actual_dt/2
+        surf_adv_step(k) = - adv_flux(c,1)*1e-3_r8*total_mobile(c,1,k)*actual_dt/2*dissolved_frac(1)
       endif    
       ! if(adv_flux(c,nlevdecomp+1)>0.0_r8) then
         ! bot_adv_step(k) = -adv_flux(c,nlevdecomp+1)*1e-3_r8*total_mobile(c,nlevdecomp,k)*actual_dt/2
@@ -2323,7 +2371,7 @@ end subroutine EMAlquimia_Coldstart
       ! write(iulog,*) 'saturation',sat(:) ! Need to account for when saturation is 0
       ! write(iulog,*),'Mobile spec',k,'Before: ',total_mobile(c,1:nlevdecomp,k)
       ! write(iulog,*),__LINE__,'adv_flux',adv_flux(c,1:nlevdecomp+1)
-      call advection_diffusion(total_mobile(c,1:nlevdecomp,k),adv_flux(c,1:nlevdecomp+1)*1e-3,diffus(1:nlevdecomp),& 
+      call advection_diffusion(total_mobile(c,1:nlevdecomp,k),adv_flux(c,1:nlevdecomp+1)*1e-3*dissolved_frac(0:nlevdecomp),diffus(1:nlevdecomp),& 
         source_term(1:nlevdecomp,k),&
         surf_bc(k),actual_dt/2,transport_change_rate(1:nlevdecomp,k))
       ! At this point perhaps we should go through and re-equilibrate dissolved gases in top layer if unsaturated?
