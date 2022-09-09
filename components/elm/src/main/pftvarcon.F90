@@ -1077,6 +1077,8 @@ contains
 !if (defined HUM_HOL)
     call ncd_io('humhol_ht', humhol_ht, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) humhol_ht = 0.15_r8
+    call ncd_io('humhol_ht_frac', humhol_ht_frac, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if ( .not. readv) humhol_ht_frac = 1.0_r8
     call ncd_io('humhol_dist', humhol_dist, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) humhol_dist = 1.0_r8
     call ncd_io('hum_frac', hum_frac, 'read', ncid, readvar=readv, posNOTonfile=.true.)
@@ -1084,7 +1086,7 @@ contains
     call ncd_io('qflx_h2osfc_surfrate', qflx_h2osfc_surfrate, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) qflx_h2osfc_surfrate = 1.0e-7_r8
 
-#ifdef MARSH
+#if (defined MARSH || defined COL3RD)
 ! Tidal cycle parameters
     ! Defaults from Teri's hard coded numbers
     ! Multiple parameters specified in params file like tide_coeff_amp_1, tide_coeff_amp_2, ...
