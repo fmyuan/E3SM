@@ -587,7 +587,7 @@ contains
             this%h2osfc_thresh_col(c) = 0._r8
          endif
 
-#if (defined MARSH)
+#if (defined MARSH || defined COL3RD)
          this%h2osfc_thresh_col(c) = 2.e3_r8    ! set to zero for no h2osfc (w/frac_infclust =large) changed from 0 to 1 TAO 29/8/2018
 #endif
 
@@ -901,7 +901,7 @@ contains
      origflag = 0
      h2osfcflag = 1
 
-#if (defined HUM_HOL || defined MARSH)
+#if (defined HUM_HOL || defined MARSH || defined COL3RD)
      origflag = 1    
 #endif      
 

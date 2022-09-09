@@ -112,6 +112,7 @@ module ColumnDataType
     real(r8), pointer :: h2osoi_vol         (:,:) => null() ! volumetric soil water (0<=h2osoi_vol<=watsat) (1:nlevgrnd) (m3/m3)
     real(r8), pointer :: h2osfc             (:)   => null() ! surface water (kg/m2)
     real(r8), pointer :: salinity           (:)   => null() ! salinity from PFLOTRAN when using interface (TAO 5/19/2020)
+    real(r8), pointer :: humhol_ht          (:)   => null() ! humhol_ht added to output (WH 8/21/2023)
     real(r8), pointer :: salt_content       (:,:) => null() ! salt mass for each soil layer
     real(r8), pointer :: floodf             (:)   => null() ! Flood factor to reduce growth when plants submerged
     real(r8), pointer :: h2ocan             (:)   => null() ! canopy water integrated to column (kg/m2)
@@ -1427,6 +1428,7 @@ contains
     allocate(this%salinity           (begc:endc))                     ; this%salinity           (:)   = spval
     allocate(this%salt_content       (begc:endc,1:nlevgrnd))          ; this%salt_content       (:,:) = spval
     allocate(this%floodf             (begc:endc))                     ; this%floodf             (:)   = spval
+    allocate(this%humhol_ht          (begc:endc))                     ; this%humhol_ht          (:)   = spval
     allocate(this%soilp              (begc:endc,1:nlevgrnd))          ; this%soilp              (:,:) = 0._r8
     allocate(this%swe_old            (begc:endc,-nlevsno+1:0))        ; this%swe_old            (:,:) = spval
     allocate(this%snw_rds            (begc:endc,-nlevsno+1:0))        ; this%snw_rds            (:,:) = spval
@@ -1564,6 +1566,11 @@ contains
          avgflag='A', long_name='Factor 0-1 to reduce plant growth due to flooding', &
          ptr_col=this%floodf)
    
+   this%humhol_ht(begc:endc) = spval
+    call hist_addfld1d (fname='HUMHOL_HT', units='mm', &
+         avgflag='A', long_name='Humhol_ht', &
+         ptr_col=this%humhol_ht)
+
     this%h2osoi_vol(begc:endc,:) = spval
      call hist_addfld2d (fname='H2OSOI',  units='mm3/mm3', type2d='levgrnd', &
           avgflag='A', long_name='volumetric soil water (vegetated landunits only)', &
@@ -1715,6 +1722,7 @@ contains
        this%h2osfc(c)                 = 0._r8
        this%h2ocan(c)                 = 0._r8
        this%salinity(c)               = 0._r8
+       this%humhol_ht(c)              = 0._r8
        this%salt_content(c,:)         = 0._r8
        this%floodf(c)                 = 0._r8
        this%frac_h2osfc(c)            = 0._r8

@@ -336,6 +336,7 @@ module pftvarcon
 
   real(r8)              :: qflx_h2osfc_surfrate
   real(r8)              :: humhol_ht
+  real(r8)              :: humhol_ht_frac   ![Wei Huang 2022-08-17]fraction for 2nd plant
   real(r8)              :: hum_frac
   real(r8)              :: humhol_dist
   ! Tidal cycle controls
@@ -1105,6 +1106,8 @@ contains
     call ncd_io('humhol_ht', humhol_ht, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     !if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
     if ( .not. readv) humhol_ht = 0.15_r8
+    call ncd_io('humhol_ht_frac', humhol_ht_frac, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if ( .not. readv) humhol_ht_frac = 1.0_r8
     call ncd_io('humhol_dist', humhol_dist, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     !if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
     if ( .not. readv) humhol_dist = 1.0_r8
@@ -1114,7 +1117,8 @@ contains
     call ncd_io('qflx_h2osfc_surfrate', qflx_h2osfc_surfrate, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     !if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
     if ( .not. readv) qflx_h2osfc_surfrate = 1.0e-7_r8
-#ifdef MARSH
+
+#if (defined MARSH || defined COL3RD)
     ! Tidal cycle parameters
     ! Defaults from Teri's hard coded numbers
     ! Multiple parameters specified in params file like tide_coeff_amp_1, tide_coeff_amp_2, ...
