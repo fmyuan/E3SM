@@ -75,7 +75,7 @@ contains
     SoilLittVertTranspParamsInst%som_diffus = 1e-4_r8 / (secspday * 365._r8)
 #if (defined HUM_HOL)
     SoilLittVertTranspParamsInst%som_diffus = 5e-4_r8 / (secspday * 365._r8)
-#elif (defined MARSH)
+#elif (defined MARSH || defined COL3RD)
     SoilLittVertTranspParamsInst%som_diffus = 5e-4_r8 / (secspday * 365._r8)
 #endif
 

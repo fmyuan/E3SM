@@ -72,6 +72,7 @@ module atm2lndType
       real(r8), pointer :: tide_salinity             (:,:) => null()  ! Salinity in ppt
       real(r8), pointer :: tide_temp                 (:,:) => null()  ! temperature in K
       integer,  pointer :: tide_forcing_len                => null()
+      real(r8), pointer :: tide_time                 (:)   => null()  !time in julian days (starting from 1/1/1) for tide_file
 #endif
      ! atm->lnd not downscaled
      real(r8), pointer :: forc_u_grc                    (:)   => null() ! atm wind speed, east direction (m/s)
@@ -229,6 +230,7 @@ contains
     allocate(this%tide_height                      (1,876000))        ; this%tide_height               (:,:)   = ival
     allocate(this%tide_salinity                    (1,876000))        ; this%tide_salinity             (:,:)   = ival
     allocate(this%tide_forcing_len                           )       ; this%tide_forcing_len                  = ival_int
+    allocate(this%tide_time                         (876000))        ; this%tide_time                   (:)   = ival
     !END DMR
 #endif
     allocate(this%forc_u_grc                    (begg:endg))        ; this%forc_u_grc                    (:)   = ival

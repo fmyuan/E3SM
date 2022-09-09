@@ -230,6 +230,8 @@ contains
             atm2lnd_vars%metsource = 4
           else if (index(metdata_type,'cpl') .gt. 0) then 
             atm2lnd_vars%metsource = 5
+          !else if (index(metdata_type,'gswp3_w5e5') .gt. 0) then !added by W. Huang [02/23/2023]
+          !  atm2lnd_vars%metsource = 6 !added by W. Huang [02/23/2023]
           else
             call endrun( sub//' ERROR: Invalid met data source for cpl_bypass' )
           end if
@@ -297,10 +299,13 @@ contains
           else if (atm2lnd_vars%metsource == 4) then 
             atm2lnd_vars%endyear_met_trans  = 2014
             if(index(metdata_type, 'v1') .gt. 0) atm2lnd_vars%endyear_met_trans  = 2010
+            if(index(metdata_type, 'w5e5') .gt. 0) atm2lnd_vars%endyear_met_trans  = 2019
           else if (atm2lnd_vars%metsource == 5) then
             atm2lnd_vars%startyear_met      = 566 !76
             atm2lnd_vars%endyear_met_spinup = 590 !100
             atm2lnd_vars%endyear_met_trans  = 590 !100
+          !else if (atm2lnd_vars%metsource == 6) then !added by W. Huang [02/23/2023]
+          !  atm2lnd_vars%endyear_met_trans  = 2019 !added by W. Huang [02/23/2023]
           end if
 
           if (use_livneh) then 
@@ -399,12 +404,20 @@ contains
                 metdata_fname = 'GSWP3_' // trim(metvars(v)) // '_1901-2014_z' // zst(2:3) // '.nc'
                 if(index(metdata_type, 'v1') .gt. 0) &
                     metdata_fname = 'GSWP3_' // trim(metvars(v)) // '_1901-2010_z' // zst(2:3) // '.nc'
-
+                if(index(metdata_type, 'w5e5') .gt. 0) &
+                    metdata_fname = 'gswp_w5e5_' // trim(metvars(v)) // '_1901-2019_z'// zst(2:3) // '.nc'
+                    !above two lines added by W. Huang [02/23/2023]
+                if(index(metdata_type, 'met4') .gt. 0) &
+                    metdata_fname = 'GSWP3_daymet4_' // trim(metvars(v)) //'_1980-2014_z' // zst(2:3) // '.nc'
+                    !above two lines added by W. Huang [03/20/2023]
                 if (use_livneh .and. ztoget .ge. 16 .and. ztoget .le. 20) then 
                     metdata_fname = 'GSWP3_Livneh_' // trim(metvars(v)) // '_1950-2010_z' // zst(2:3) // '.nc'                
                 else if (use_daymet .and. ztoget .ge. 16 .and. ztoget .le. 20) then 
                     metdata_fname = 'GSWP3_Daymet3_' // trim(metvars(v)) // '_1980-2010_z' // zst(2:3) // '.nc' 
                 end if
+            !else if (atm2lnd_vars%metsource == 6) then
+            !    metdata_fname = 'gswp_w5e5_' // trim(metvars(v)) // '_1901-2019_z'// zst(2:3) // '.nc' 
+                !above two lines added by W. Huang [02/23/2023]
             else if (atm2lnd_vars%metsource == 5) then 
                     !metdata_fname = 'WCYCL1850S.ne30_' // trim(metvars(v)) // '_0076-0100_z' // zst(2:3) // '.nc'
                     metdata_fname = 'CBGC1850S.ne30_' // trim(metvars(v)) // '_0566-0590_z' // zst(2:3) // '.nc'
@@ -1057,7 +1070,7 @@ contains
             write(iulog,*),'Reading tide forcing file. Found time dimension of length',thistimelen
             if(thistimelen>876000) write(iulog,*), 'Warning: truncating tide forcing data length to 876000'
             atm2lnd_vars%tide_forcing_len = min(thistimelen,876000)
-
+ 
             ierr = nf90_inq_varid(ncid, 'tide_height',varid)
             if(ierr .ne. 0) call endrun('Error finding tide_height variable')
             ierr = nf90_get_var(ncid, varid, atm2lnd_vars%tide_height(1,1:atm2lnd_vars%tide_forcing_len),(/1,1/),(/1,atm2lnd_vars%tide_forcing_len/))
@@ -1066,6 +1079,10 @@ contains
             if(ierr .ne. 0) call endrun('Error finding tide_salinity variable')
             ierr = nf90_get_var(ncid, varid, atm2lnd_vars%tide_salinity(1,1:atm2lnd_vars%tide_forcing_len),(/1,1/),(/1,atm2lnd_vars%tide_forcing_len/))
             if(ierr .ne. 0) call endrun('Error reading tide_salinity variable')
+            ierr = nf90_inq_varid(ncid, 'time',varid)
+            if(ierr .ne. 0) call endrun('Error finding time variable')
+            ierr = nf90_get_var(ncid, varid,atm2lnd_vars%tide_time(1:atm2lnd_vars%tide_forcing_len),(/1/),(/atm2lnd_vars%tide_forcing_len/))
+            if(ierr .ne. 0) call endrun('Error reading time variable')
             !ierr = nf90_inq_varid(ncid, 'tide_temp',varid)
             !if(ierr .ne. 0) call endrun('Error finding tide_temp variable')
             !ierr = nf90_get_var(ncid, varid, atm2lnd_vars%tide_temp(1,1:atm2lnd_vars%tide_forcing_len),(/1,1/),(/1,atm2lnd_vars%tide_forcing_len/))
