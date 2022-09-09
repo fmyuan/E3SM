@@ -285,7 +285,7 @@ contains
          eflx_urban_ac           => col_ef%eflx_urban_ac       , & ! Output: [real(r8) (:)   ]  urban air conditioning flux (W/m**2)
          eflx_urban_heat         => col_ef%eflx_urban_heat     , & ! Output: [real(r8) (:)   ]  urban heating flux (W/m**2)
 
-#ifdef MARSH
+#if (defined MARSH || defined COL3RD)
          eflx_sh_tide            => col_ef%eflx_sh_tide        , & ! Input: [real(r8) (:) ] sensible heat flux from tide
 #endif
          emg                     => col_es%emg                              , & ! Input:  [real(r8) (:)   ]  ground emissivity
@@ -570,18 +570,18 @@ contains
                else
                   t_h2osfc(c)         = tvector_nourbanc(c,0)          !surface water
                endif
-!#ifdef MARSH
-!               call get_curr_time(days, seconds)
-!               eflx_sh_tide(c)=0.0_r8
-!               if(tide_file .ne. ' ') then
+#if (defined MARSH || defined COL3RD)
+               call get_curr_time(days, seconds)
+               eflx_sh_tide(c)=0.0_r8
 !#ifdef CPL_BYPASS               
+!               if(tide_file .ne. ' ') then
 !                  !heat exchange with tide
 !                  tide_temp = atm2lnd_vars%tide_temp(1,1+mod(int((days*secspday+seconds)/3600),atm2lnd_vars%tide_forcing_len))
-!                  eflx_sh_tide(c) = eflx_sh_tide(c) + (tide_temp - t_h2osfc(c))
+!                  eflx_sh_tide(c) = eflx_sh_tide(c) + (tide_temp - t_h2osfc(c))  ! this is not correct (TODO)
 !                  t_h2osfc(c) = t_h2osfc(c) + eflx_sh_tide(c)
 !               endif
 !#endif
-!#endif
+#endif
             endif
 
          endif
