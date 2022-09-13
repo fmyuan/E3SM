@@ -316,6 +316,7 @@ module pftvarcon
 !if (defined HUM_HOL)
   real(r8)              :: qflx_h2osfc_surfrate
   real(r8)              :: humhol_ht
+  real(r8)              :: humhol_ht_frac   ![Wei Huang 2022-08-17]fraction for 2nd plant
   real(r8)              :: hum_frac
   real(r8)              :: humhol_dist
 ! Tidal cycle controls
