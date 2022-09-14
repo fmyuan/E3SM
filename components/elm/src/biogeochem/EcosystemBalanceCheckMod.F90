@@ -266,7 +266,7 @@ contains
             col_coutputs(c) = col_coutputs(c) + som_c_yield(c)
          end if
 
-         if (use_alquimia) col_coutputs = col_coutputs + col_cf%DOC_runoff(c) + col_cf%DIC_runoff(c)
+         if (use_alquimia) col_coutputs = col_coutputs + col_cf%DOC_runoff(c) + col_cf%DIC_runoff(c) + col_cf%ch4flux(c)
 
          ! calculate the total column-level carbon balance error for this time step
          col_errcb(c) = (col_cinputs(c) - col_coutputs(c))*dt - (col_endcb(c) - col_begcb(c))
@@ -319,6 +319,7 @@ contains
             if (use_alquimia) then
                write(iulog,*)'DIC_runoff            = ',col_cf%DIC_runoff(c)*dt
                write(iulog,*)'DOC_runoff            = ',col_cf%DOC_runoff(c)*dt
+               write(iulog,*)'CH4 flux              = ',col_cf%ch4flux(c)*dt
                write(iulog,*)'SIC (carbonates)      = ',col_cs%totSIC(c) 
             endif
 
@@ -955,6 +956,8 @@ contains
                c2l_scale_type = 'unity', l2g_scale_type = 'unity')
       call c2g(bounds, col_cf%DIC_runoff(bounds%begc:bounds%endc), grc_cf%DIC_runoff(bounds%begg:bounds%endg), &
                c2l_scale_type = 'unity', l2g_scale_type = 'unity')
+      call c2g(bounds, col_cf%ch4flux(bounds%begc:bounds%endc), grc_cf%ch4flux(bounds%begg:bounds%endg), &
+               c2l_scale_type = 'unity', l2g_scale_type = 'unity')
 
       dt = real( get_step_size(), r8 )
       nstep = get_nstep()
@@ -970,7 +973,7 @@ contains
             grc_coutputs(g) = grc_coutputs(g) + grc_som_c_yield(g)
          end if
 
-         if (use_alquimia) grc_coutputs(g) = grc_coutputs(g) + grc_cf%DOC_runoff(g) + grc_cf%DIC_runoff(g)
+         if (use_alquimia) grc_coutputs(g) = grc_coutputs(g) + grc_cf%DOC_runoff(g) + grc_cf%DIC_runoff(g) + grc_cf%ch4flux(g)
 
          grc_errcb(g) = (grc_cinputs(g) - grc_coutputs(g))*dt - (end_totc(g) - beg_totc(g))
 

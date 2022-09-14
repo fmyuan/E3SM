@@ -653,6 +653,7 @@ module ColumnDataType
 
     real(r8), pointer :: DOC_runoff                            (:)     => null() ! column dissolved organic carbon runoff (gC/m2/s)
     real(r8), pointer :: DIC_runoff                            (:)     => null() ! column dissolved inorganic carbon runoff (gC/m2/s)
+    real(r8), pointer :: ch4flux                               (:)     => null() ! (gC/m2/s) total methane flux
 
   contains
     procedure, public :: Init       => col_cf_init
@@ -1012,6 +1013,7 @@ module ColumnDataType
      real(r8), pointer :: soil_salinity         (:,:)   => null() ! soil salinity (ppt) (1:nlevdecomp_full)
      real(r8), pointer :: soil_O2               (:,:)   => null() ! soil O2 (mol m^-3) (1:nlevdecomp_full)
      real(r8), pointer :: soil_sulfate          (:,:)   => null() ! soil sulfate (mol m^-3) (1:nlevdecomp_full)
+     real(r8), pointer :: soil_sulfide          (:,:)   => null() ! soil sulfide (mol m^-3) (1:nlevdecomp_full)
      real(r8), pointer :: soil_FeOxide          (:,:)   => null() ! soil iron oxide minerals (mol Fe m^-3) (1:nlevdecomp_full)
      real(r8), pointer :: soil_Fe2              (:,:)   => null() ! soil Fe(II) (mol Fe m^-3) (1:nlevdecomp_full)
 
@@ -5910,6 +5912,7 @@ contains
     allocate(this%f_co2_soil                        (begc:endc))                  ; this%f_co2_soil                   (:)   = spval
     allocate(this%DOC_runoff                        (begc:endc))                  ; this%DOC_runoff                   (:)   = 0.0_r8
     allocate(this%DIC_runoff                        (begc:endc))                  ; this%DIC_runoff                   (:)   = 0.0_r8
+    allocate(this%ch4flux                           (begc:endc))                  ; this%ch4flux                      (:)   = 0.0_r8
 
     !-----------------------------------------------------------------------
     ! initialize history fields for select members of col_cf
@@ -6260,7 +6263,12 @@ contains
          this%DIC_runoff(begc:endc) = spval
          call hist_addfld1d (fname='DIC_RUNOFF', units='gC/m^2/s', &
                avgflag='A', long_name='total dissolved inorganic carbon runoff', &
-               ptr_col=this%DIC_runoff,default='inactive')    
+               ptr_col=this%DIC_runoff,default='inactive')  
+               
+         this%ch4flux(begc:endc) = spval
+         call hist_addfld1d (fname='CH4FLUX_ALQUIMIA', units='gC/m^2/s', &
+               avgflag='A', long_name='total methane flux', &
+               ptr_col=this%hr,default='inactive')
        endif     
 
        this%hr(begc:endc) = spval
@@ -7089,6 +7097,7 @@ contains
        enddo
     endif
     ! Alquimia should have directly set this%hr based on calculated surface flux
+    ! Alquimia should also set ch4flux
     
     ! some zeroing
     do fc = 1,num_soilc
@@ -7624,8 +7633,9 @@ contains
        this%wood_harvestc(i)         = value_column
        this%hrv_xsmrpool_to_atm(i)   = value_column
 
-       this%DOC_runoff               = value_column
-       this%DIC_runoff               = value_column
+       this%DOC_runoff(i)            = value_column
+       this%DIC_runoff(i)            = value_column
+       this%ch4flux(i)               = value_column
     end do
 
     do k = 1, ndecomp_pools
@@ -11303,6 +11313,7 @@ contains
       allocate(this%soil_salinity(begc:endc, lbj:ubj))
       allocate(this%soil_O2(begc:endc, lbj:ubj))
       allocate(this%soil_sulfate(begc:endc, lbj:ubj))
+      allocate(this%soil_sulfide(begc:endc, lbj:ubj))
       allocate(this%soil_FeOxide(begc:endc, lbj:ubj))
       allocate(this%soil_Fe2(begc:endc, lbj:ubj))
 
@@ -11329,6 +11340,11 @@ contains
      call hist_addfld2d (fname='soil_sulfate', units='mol m-3',  type2d='levdcmp', &
        avgflag='A', long_name='Soil porewater dissolved sulfate', &
            ptr_col=this%soil_sulfate,default='inactive')
+
+     this%soil_sulfide(begc:endc,:) = 0.0_r8
+     call hist_addfld2d (fname='soil_sulfide', units='mol m-3',  type2d='levdcmp', &
+       avgflag='A', long_name='Soil porewater dissolved sulfide', &
+           ptr_col=this%soil_sulfide,default='inactive')
 
      this%soil_Fe2(begc:endc,:) = 0.0_r8
      call hist_addfld2d (fname='soil_Fe2', units='mol m-3',  type2d='levdcmp', &

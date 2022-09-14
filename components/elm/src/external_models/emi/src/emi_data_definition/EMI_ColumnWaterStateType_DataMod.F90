@@ -53,7 +53,6 @@ contains
     dim4_end_name  = ''
 
     select case(data_id)
-      
 
     case(L2E_STATE_SOIL_LIQ_VOL_COL)
        id_val         =  L2E_STATE_SOIL_LIQ_VOL_COL
