@@ -159,6 +159,7 @@ contains
          decomp_cascade_hr_vr => col_cf%decomp_cascade_hr_vr , &
          hr_vr                => col_cf%hr_vr                , &
          hr                   => col_cf%hr                   , &
+         ch4flux              => col_cf%ch4flux              , &
          DIC_runoff           => col_cf%DIC_runoff           , &
          DOC_runoff           => col_cf%DOC_runoff             &
          )
@@ -205,6 +206,13 @@ contains
              do fc = 1, num_filter
                 c = filter(fc)
                 hr(c) = cur_data%data_real_1d(c)
+             enddo
+             cur_data%is_set = .true.
+
+          case (E2L_FLUX_METHANE)
+             do fc = 1, num_filter
+                c = filter(fc)
+                ch4flux(c) = cur_data%data_real_1d(c)
              enddo
              cur_data%is_set = .true.
 

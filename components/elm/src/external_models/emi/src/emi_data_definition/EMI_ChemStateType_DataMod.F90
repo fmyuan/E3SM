@@ -265,6 +265,19 @@ contains
        dim2_end_name  =  dimname_nlevsoi
        data_found   =  .true.
 
+    case(E2L_STATE_SOIL_SULFIDE)
+       id_val         =  E2L_STATE_SOIL_SULFIDE
+       name_val       =  'Soil sulfide'
+       long_name_val  =  'Soil sulfide: EM to ELM'
+       units_val      =  '[mol m^-3]'
+       is_real_type   =  .true.
+       ndim           =  2
+       dim1_beg_name  =  dimname_begc
+       dim1_end_name  =  dimname_endc
+       dim2_beg_name  =  dimname_one
+       dim2_end_name  =  dimname_nlevsoi
+       data_found   =  .true.
+
     case(E2L_STATE_SOIL_FE2)
        id_val         =  E2L_STATE_SOIL_FE2
        name_val       =  'Soil Fe(II)'

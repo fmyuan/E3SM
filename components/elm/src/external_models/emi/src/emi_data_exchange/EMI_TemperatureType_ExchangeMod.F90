@@ -44,7 +44,9 @@ contains
     ! Pack data from ALM temperature_vars for EM
     !
     ! !USES:
-    use elm_varpar             , only : nlevsoi, nlevgrnd, nlevsno
+    use elm_varpar             , only : nlevgrnd
+    use elm_varpar             , only : nlevsno
+    use elm_varpar             , only : nlevsoi
     !
     implicit none
     !

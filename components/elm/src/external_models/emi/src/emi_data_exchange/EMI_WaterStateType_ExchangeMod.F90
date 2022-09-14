@@ -43,7 +43,9 @@ contains
     ! Pack data from ALM waterstate_vars for EM
     !
     ! !USES:
-    use elm_varpar             , only : nlevsoi, nlevgrnd, nlevsno
+    use elm_varpar             , only : nlevgrnd
+    use elm_varpar             , only : nlevsoi
+    use elm_varpar             , only : nlevsno
     !
     implicit none
     !
@@ -277,7 +279,7 @@ contains
     ! Unpack data for ALM waterstate_vars from EM
     !
     ! !USES:
-    use elm_varpar             , only : nlevsoi, nlevgrnd, nlevsno
+    use elm_varpar             , only : nlevgrnd
     !
     implicit none
     !

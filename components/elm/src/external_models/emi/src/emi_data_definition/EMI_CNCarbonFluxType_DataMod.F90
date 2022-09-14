@@ -136,6 +136,17 @@ contains
        dim1_end_name  =  dimname_endc
        data_found   =  .true.
 
+    case(E2L_FLUX_METHANE)
+       id_val         =  E2L_FLUX_METHANE
+       name_val       =  'hr'
+       long_name_val  =  'hr: EM to ELM'
+       units_val      =  '[gC/m2/s]'
+       is_real_type   =  .true.
+       ndim           =  1
+       dim1_beg_name  =  dimname_begc
+       dim1_end_name  =  dimname_endc
+       data_found   =  .true.
+
     case(E2L_FLUX_DIC_RUNOFF)
        id_val         =  E2L_FLUX_DIC_RUNOFF
        name_val       =  'DIC_runoff'

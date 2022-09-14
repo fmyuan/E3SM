@@ -19,18 +19,19 @@ module EMI_ChemStateType_Constants
   integer, parameter, public :: E2L_STATE_SOIL_SALINITY                  = 1813
   integer, parameter, public :: E2L_STATE_SOIL_O2                        = 1814
   integer, parameter, public :: E2L_STATE_SOIL_SULFATE                   = 1815
-  integer, parameter, public :: E2L_STATE_SOIL_FE2                       = 1816
-  integer, parameter, public :: E2L_STATE_SOIL_FE_OXIDE                  = 1817
-  integer, parameter, public :: E2L_STATE_WATER_DENSITY                  = 1818
-  integer, parameter, public :: E2L_STATE_AQUEOUS_PRESSURE               = 1819
-  integer, parameter, public :: E2L_STATE_TOTAL_MOBILE                   = 1820
-  integer, parameter, public :: E2L_STATE_TOTAL_IMMOBILE                 = 1821
-  integer, parameter, public :: E2L_STATE_MINERAL_VOLUME_FRACTION        = 1822
-  integer, parameter, public :: E2L_STATE_MINERAL_SPECIFIC_SURFACE_AREA  = 1823
-  integer, parameter, public :: E2L_STATE_SURFACE_SITE_DENSITY           = 1824
-  integer, parameter, public :: E2L_STATE_CATION_EXCHANGE_CAPACITY       = 1825
-  integer, parameter, public :: E2L_STATE_AUX_DOUBLES                    = 1826
-  integer, parameter, public :: E2L_STATE_AUX_INTS                       = 1827
-  integer, parameter, public :: E2L_STATE_CHEM_DT                        = 1828
+  integer, parameter, public :: E2L_STATE_SOIL_SULFIDE                   = 1816
+  integer, parameter, public :: E2L_STATE_SOIL_FE2                       = 1817
+  integer, parameter, public :: E2L_STATE_SOIL_FE_OXIDE                  = 1818
+  integer, parameter, public :: E2L_STATE_WATER_DENSITY                  = 1819
+  integer, parameter, public :: E2L_STATE_AQUEOUS_PRESSURE               = 1820
+  integer, parameter, public :: E2L_STATE_TOTAL_MOBILE                   = 1821
+  integer, parameter, public :: E2L_STATE_TOTAL_IMMOBILE                 = 1822
+  integer, parameter, public :: E2L_STATE_MINERAL_VOLUME_FRACTION        = 1823
+  integer, parameter, public :: E2L_STATE_MINERAL_SPECIFIC_SURFACE_AREA  = 1824
+  integer, parameter, public :: E2L_STATE_SURFACE_SITE_DENSITY           = 1825
+  integer, parameter, public :: E2L_STATE_CATION_EXCHANGE_CAPACITY       = 1826
+  integer, parameter, public :: E2L_STATE_AUX_DOUBLES                    = 1827
+  integer, parameter, public :: E2L_STATE_AUX_INTS                       = 1828
+  integer, parameter, public :: E2L_STATE_CHEM_DT                        = 1829
 
 end module EMI_ChemStateType_Constants

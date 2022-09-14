@@ -262,6 +262,7 @@ contains
          soil_salinity                 => col_chem%soil_salinity                 , &
          soil_O2                       => col_chem%soil_O2                       , &
          soil_sulfate                  => col_chem%soil_sulfate                  , &
+         soil_sulfide                  => col_chem%soil_sulfide                  , &
          soil_Fe2                      => col_chem%soil_Fe2                      , &
          soil_FeOxide                  => col_chem%soil_FeOxide                  , &
          water_density                 => col_chem%water_density                 , &
@@ -327,6 +328,15 @@ contains
                 c = filter(fc)
                 do j = 1, nlevsoi
                    soil_sulfate(c,j) = cur_data%data_real_2d(c,j)
+                enddo
+             enddo
+             cur_data%is_set = .true.
+
+          case (E2L_STATE_SOIL_SULFIDE)
+             do fc = 1, num_filter
+                c = filter(fc)
+                do j = 1, nlevsoi
+                   soil_sulfide(c,j) = cur_data%data_real_2d(c,j)
                 enddo
              enddo
              cur_data%is_set = .true.

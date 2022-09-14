@@ -74,6 +74,7 @@ module ExternalModelAlquimiaMod
     integer :: index_e2l_state_decomp_cpools
     integer :: index_e2l_state_decomp_npools
     integer :: index_e2l_flux_hr
+    integer :: index_e2l_flux_ch4
     integer :: index_e2l_state_nh4
     integer :: index_e2l_state_no3
     integer :: index_e2l_state_DOC
@@ -83,6 +84,7 @@ module ExternalModelAlquimiaMod
     integer :: index_e2l_state_ph
     integer :: index_e2l_state_salinity
     integer :: index_e2l_state_sulfate
+    integer :: index_e2l_state_sulfide
     integer :: index_e2l_state_O2
     integer :: index_e2l_state_Fe2
     integer :: index_e2l_state_FeOxide
@@ -150,7 +152,7 @@ module ExternalModelAlquimiaMod
     integer, pointer, dimension(:)       :: carbon_pool_mapping
     integer, pointer, dimension(:)       :: nitrogen_pool_mapping
     integer, pointer, dimension(:)       :: pool_reaction_mapping
-    integer                              :: CO2_pool_number
+    integer                              :: CO2_pool_number,CH4_pool_number
     integer                              :: NH4_pool_number,NO3_pool_number
     integer                              :: Nimm_pool_number,Nmin_pool_number,Nimp_pool_number
     integer                              :: plantNO3uptake_pool_number,plantNH4uptake_pool_number
@@ -435,6 +437,10 @@ contains
     id                                             = E2L_FLUX_HETEROTROPHIC_RESP!_VERTICALLY_RESOLVED
     call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_e2l_flux_hr              = index
+
+    id                                             = E2L_FLUX_METHANE!_VERTICALLY_RESOLVED
+    call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_e2l_flux_ch4              = index
     
     id                                             = E2L_STATE_NH4_VERTICALLY_RESOLVED
     call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
@@ -507,6 +513,10 @@ contains
     id                                             = E2L_STATE_SOIL_SULFATE
     call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_e2l_state_sulfate              = index
+
+    id                                             = E2L_STATE_SOIL_SULFIDE
+    call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_e2l_state_sulfide              = index
 
     id                                             = E2L_STATE_SOIL_FE2
     call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
@@ -887,7 +897,7 @@ end subroutine EMAlquimia_Coldstart
     real(r8) , pointer, dimension(:,:,:)    :: soilnitrogen_l2e,soilnitrogen_e2l 
     real(r8) , pointer, dimension(:,:,:)    :: decomp_k
     real(r8) , pointer, dimension(:,:)    :: temperature, h2o_liqvol
-    real(r8) , pointer, dimension(:)     :: hr_e2l ! 1D total surface emission
+    real(r8) , pointer, dimension(:)     :: hr_e2l,methaneflux_e2l ! 1D total surface emission
     real(r8) , pointer, dimension(:)     :: NO3runoff_e2l,DONrunoff_e2l ! 1D total column runoff (gN/m2/s)
     real(r8) , pointer, dimension(:)     :: DICrunoff_e2l,DOCrunoff_e2l ! 1D total column runoff (gN/m2/s)
     real(r8) , pointer, dimension(:,:)  :: no3_e2l,no3_l2e,nh4_e2l,nh4_l2e
@@ -905,7 +915,7 @@ end subroutine EMAlquimia_Coldstart
     real(r8) , pointer, dimension(:,:)    :: qflx_adv_l2e, qflx_lat_aqu_l2e
     real(r8) , pointer, dimension(:)      :: flood_salinity_l2e, h2osfc_l2e, wtd_l2e
     real(r8) , pointer, dimension(:,:)    :: DOC_e2l, DON_e2l, DIC_e2l
-    real(r8) , pointer, dimension(:,:)    :: pH_e2l, O2_e2l, salinity_e2l, sulfate_e2l, Fe2_e2l, FeOxide_e2l, carbonate_e2l
+    real(r8) , pointer, dimension(:,:)    :: pH_e2l, O2_e2l, salinity_e2l, sulfate_e2l, sulfide_e2l, Fe2_e2l, FeOxide_e2l, carbonate_e2l
     real(r8) , pointer, dimension(:)     :: actual_dt_e2l
     real(r8)                            :: CO2_before, molperL_to_molperm3
     real(r8), parameter                 :: minval = 1.e-30_r8 ! Minimum value to pass to PFLOTRAN to avoid numerical errors with concentrations of 0
@@ -954,6 +964,8 @@ end subroutine EMAlquimia_Coldstart
     call e2l_list%GetPointerToReal3D(this%index_e2l_state_decomp_npools , soilnitrogen_e2l) ! gN/m2
     ! call e2l_list%GetPointerToReal2D(this%index_e2l_flux_hr , hr_e2l) ! (gC/m3/s)
     call e2l_list%GetPointerToReal1D(this%index_e2l_flux_hr , hr_e2l) ! (gC/m2/s)
+
+    call e2l_list%GetPointerToReal1D(this%index_e2l_flux_ch4 , methaneflux_e2l) ! (gC/m2/s)
     
     call e2l_list%GetPointerToReal2D(this%index_e2l_state_no3 , no3_e2l) ! gN/m3
     call e2l_list%GetPointerToReal2D(this%index_e2l_state_nh4 , nh4_e2l) ! gN/m3
@@ -1009,6 +1021,7 @@ end subroutine EMAlquimia_Coldstart
     call e2l_list%GetPointerToReal2D(this%index_e2l_state_salinity , salinity_e2l)
     call e2l_list%GetPointerToReal2D(this%index_e2l_state_O2 , O2_e2l)
     call e2l_list%GetPointerToReal2D(this%index_e2l_state_sulfate , sulfate_e2l)
+    call e2l_list%GetPointerToReal2D(this%index_e2l_state_sulfide , sulfide_e2l)
     call e2l_list%GetPointerToReal2D(this%index_e2l_state_Fe2 , Fe2_e2l)
     call e2l_list%GetPointerToReal2D(this%index_e2l_state_FeOxide , FeOxide_e2l)
     call e2l_list%GetPointerToReal2D(this%index_e2l_state_carbonate , carbonate_e2l)
@@ -1224,6 +1237,13 @@ end subroutine EMAlquimia_Coldstart
               else
                 hr_e2l(c) = 0.0_r8
               endif
+
+              if(this%CH4_pool_number>0) then
+                methaneflux_e2l(c) = -surf_flux(this%CH4_pool_number)*catomw/dt ! Is this an issue if there is surface water?
+              else
+                methaneflux_e2l(c) = 0.0_r8
+              endif
+
               ! Surface flow of dissolved NO3 and NH4 need to be accounted for either by adding to runoff/leaching or tracking content in h2osfc
               ! Infiltration is a potential issue currently since we should really be tracking dissolved N stock in surface water as part of the column
               ! We will need to add DOC and DON runoff to ELM balance calculations eventually as well
@@ -1240,7 +1260,7 @@ end subroutine EMAlquimia_Coldstart
 
               DONrunoff_e2l(c) = 0.0_r8
               DOCrunoff_e2l(c) = 0.0_r8
-              DICrunoff_e2l(c) = -hr_e2l(c) ! Subtract HR to avoid double counting surface flux
+              DICrunoff_e2l(c) = -hr_e2l(c)-methaneflux_e2l(c) ! Subtract HR to avoid double counting surface flux
               do k=1, this%chem_sizes%num_primary
                 DONrunoff_e2l(c) = DONrunoff_e2l(c) - (surf_flux(k)+lat_flux(k))*this%DON_content(k)*natomw/dt
                 DOCrunoff_e2l(c) = DOCrunoff_e2l(c) - (surf_flux(k)+lat_flux(k))*this%DOC_content(k)*catomw/dt
@@ -1308,6 +1328,12 @@ end subroutine EMAlquimia_Coldstart
                   sulfate_e2l(c,j) = total_mobile_e2l(c,j,this%sulfate_pool_number)
               else
                   sulfate_e2l(c,j) = 0.0_r8
+              endif
+
+              if(this%sulfate_pool_number>0) then
+                sulfide_e2l(c,j) = total_mobile_e2l(c,j,this%sulfide_pool_number)
+              else
+                sulfide_e2l(c,j) = 0.0_r8
               endif
 
               if(this%O2_pool_number>0) then
@@ -1799,6 +1825,7 @@ end subroutine EMAlquimia_Coldstart
     this%Fe2_pool_number = find_alquimia_pool('Fe++',name_list,this%chem_sizes%num_primary)
     this%sodium_pool_number = find_alquimia_pool('Na+',name_list,this%chem_sizes%num_primary)
     this%sulfide_pool_number = find_alquimia_pool('HS-',name_list,this%chem_sizes%num_primary)
+    this%CH4_pool_number = find_alquimia_pool('CH4(aq)',name_list,this%chem_sizes%num_primary)
 
     if(this%Hplus_pool_number>0) write(iulog,'(a,6x,a,i3,1x)'),'H+', '<-> Alquimia pool',this%Hplus_pool_number
     if(this%sulfate_pool_number>0) write(iulog,'(a,6x,a,i3,1x)'),'SO4--', '<-> Alquimia pool',this%sulfate_pool_number
@@ -1807,6 +1834,7 @@ end subroutine EMAlquimia_Coldstart
     if(this%Fe2_pool_number>0) write(iulog,'(a,6x,a,i3,1x)'),'Fe++', '<-> Alquimia pool',this%Fe2_pool_number
     if(this%sodium_pool_number>0) write(iulog,'(a,6x,a,i3,1x)'),'Na+', '<-> Alquimia pool',this%sodium_pool_number
     if(this%sulfide_pool_number>0) write(iulog,'(a,6x,a,i3,1x)'),'HS-', '<-> Alquimia pool',this%sulfide_pool_number
+    if(this%CH4_pool_number>0) write(iulog,'(a,6x,a,i3,1x)'),'CH4(aq)', '<-> Alquimia pool',this%CH4_pool_number
     
     ! Minerals might be trickier because they could have different stoichiometries and molar volumes
     ! Might be better to do this similar to DIC_content to allow for different Fe oxide minerals
