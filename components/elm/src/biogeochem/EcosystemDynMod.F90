@@ -141,6 +141,7 @@ contains
     use perf_mod             , only: t_startf, t_stopf
     use shr_sys_mod          , only: shr_sys_flush
     use PhosphorusDynamicsMod         , only: PhosphorusBiochemMin_balance
+    use elm_varctl                , only: use_alquimia
 
     !
     ! !ARGUMENTS:
@@ -202,7 +203,7 @@ contains
 
     !-----------------------------------------------------------------------
     ! pflotran: when both 'pf-bgc' and 'pf-h' on, no need to call CLM-CN's N leaching module
-    if (.not. (pf_cmode .and. pf_hmode)) then
+    if (.not. (pf_cmode .and. pf_hmode) .and. .not. use_alquimia) then
      call NitrogenLeaching(bounds, num_soilc, filter_soilc, dt)
 
      call PhosphorusLeaching(bounds, num_soilc, filter_soilc, dt)
