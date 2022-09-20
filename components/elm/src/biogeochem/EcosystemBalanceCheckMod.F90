@@ -280,7 +280,7 @@ contains
          end if
 
          ! check for significant errors
-         if (abs(col_errcb(c)) > 1e-8_r8) then
+         if (abs(col_errcb(c)) > balance_check_tolerance) then
             err_found = .true.
             err_index = c
          end if
@@ -508,7 +508,7 @@ contains
             ! here is '-' adjustment. It says that the adding to PF decomp n pools was less.
          end if
 
-         if (abs(col_errnb(c)) > 1e-8_r8) then
+         if (abs(col_errnb(c)) > balance_check_tolerance) then
             err_found = .true.
             err_index = c
          end if
@@ -743,7 +743,7 @@ contains
          col_errpb(c) = (col_pinputs(c) - col_poutputs(c))*dt - &
               (col_endpb(c) - col_begpb(c))
 
-         if (abs(col_errpb(c)) > 1e-8_r8) then
+         if (abs(col_errpb(c)) > balance_check_tolerance) then
             err_found = .true.
             err_index = c
          end if
