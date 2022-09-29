@@ -1059,7 +1059,7 @@ contains
             write(iulog,*),'Reading tide forcing file. Found time dimension of length',thistimelen
             if(thistimelen>876000) write(iulog,*), 'Warning: truncating tide forcing data length to 876000'
             atm2lnd_vars%tide_forcing_len = min(thistimelen,876000)
-
+ 
             ierr = nf90_inq_varid(ncid, 'tide_height',varid)
             if(ierr .ne. 0) call endrun('Error finding tide_height variable')
             ierr = nf90_get_var(ncid, varid, atm2lnd_vars%tide_height(1,1:atm2lnd_vars%tide_forcing_len),(/1,1/),(/1,atm2lnd_vars%tide_forcing_len/))
@@ -1068,6 +1068,10 @@ contains
             if(ierr .ne. 0) call endrun('Error finding tide_salinity variable')
             ierr = nf90_get_var(ncid, varid, atm2lnd_vars%tide_salinity(1,1:atm2lnd_vars%tide_forcing_len),(/1,1/),(/1,atm2lnd_vars%tide_forcing_len/))
             if(ierr .ne. 0) call endrun('Error reading tide_salinity variable')
+            ierr = nf90_inq_varid(ncid, 'time',varid)
+            if(ierr .ne. 0) call endrun('Error finding time variable')
+            ierr = nf90_get_var(ncid, varid,atm2lnd_vars%tide_time(1:atm2lnd_vars%tide_forcing_len),(/1/),(/atm2lnd_vars%tide_forcing_len/))
+            if(ierr .ne. 0) call endrun('Error reading time variable')
             !ierr = nf90_inq_varid(ncid, 'tide_temp',varid)
             !if(ierr .ne. 0) call endrun('Error finding tide_temp variable')
             !ierr = nf90_get_var(ncid, varid, atm2lnd_vars%tide_temp(1,1:atm2lnd_vars%tide_forcing_len),(/1,1/),(/1,atm2lnd_vars%tide_forcing_len/))

@@ -404,6 +404,7 @@ contains
      real(r8) :: ka_hu1, ka_hu2                    ! hydraulic conductivity terms at saturation for hummock (mmH2O/s)
      real(r8) :: zwt_hu1, zwt_hu2                  ! water table depth for hollows and 2 hummocks (m) [Wei Huang 2022-08-10]
 #endif
+     integer  :: tide_time_idx
      real(r8) :: s_node
      integer  :: jwt(bounds%begc:bounds%endc)
      integer  :: yr, mon, day, tod               !
@@ -867,16 +868,33 @@ contains
                call get_curr_time(days, seconds)
                h2osfc_tide = 0.0_r8
                if(tide_file .ne. ' ') then
+               write(iulog,*),'current_time:',days,seconds
+               
 #ifdef CPL_BYPASS
                   ! If external forcing tide file is specified then use that via coupler bypass
                   ! Indexing assumes that tide forcing is a time series of hourly values
-                  write(iulog,*), h2osfc_tide
-                  h2osfc_tide = (atm2lnd_vars%tide_height(1,1+mod(int((days*secspday+seconds)/3600),atm2lnd_vars%tide_forcing_len)))*1000 !convert m to mm
-                  col_ws%salinity(c) = atm2lnd_vars%tide_salinity(1,1+mod(int((days*secspday+seconds)/3600),atm2lnd_vars%tide_forcing_len))
-                  salinity(1) = col_ws%salinity(c)
-                  write(iulog,*), h2osfc_tide
-#endif
+                  !int((days*secspday+seconds)/3600)
+                  !if(int((days*secspday+seconds)/3600)/24>=atm2lnd_vars%tide_time(1)) then
+                  !if((days*secspday+seconds)/3600/24>=atm2lnd_vars%tide_time(1)) then
+                  if((days*secspday+seconds)/3600>=atm2lnd_vars%tide_time(1)*24-16216800) then !hours since 1850-1-1 to the first time of salinity/tides, 16216800 is the hours of 1850-1-1
+                     !1+int((days*secspday+seconds)/3600)-atm2lnd_vars%tide_time(1)*24
+                     write(iulog,*),'current_time:',(days*secspday+seconds)/3600
+                     tide_time_idx=1+int((days*secspday+seconds)/3600+16216800-atm2lnd_vars%tide_time(1)*24)
+                     write(iulog,*),'tide_time_idx:',tide_time_idx
+                     h2osfc_tide = (atm2lnd_vars%tide_height(1,tide_time_idx))*1000 !convert m to mm
+                     col_ws%salinity(c) = atm2lnd_vars%tide_salinity(1,1+tide_time_idx)
+                     salinity(c) = col_ws%salinity(c)
+                     write(iulog,*), 'h2osfc_tide1:',h2osfc_tide
+                  else
+                     salinity(c) = sum(atm2lnd_vars%tide_salinity)/atm2lnd_vars%tide_forcing_len
+                     do ii=1,num_tide_comps
+                        h2osfc_tide =    h2osfc_tide    +  tide_coeff_amp(ii) * sin(2.0_r8*SHR_CONST_PI/tide_coeff_period(ii)*(days*secspday+seconds) + tide_coeff_phase(ii))
+                     enddo
+                     write(iulog,*), 'h2osfc_tide2:',h2osfc_tide
+                  endif
+#endif 
                else
+                  h2osfc_tide = 0.0_r8
                   do ii=1,num_tide_comps
                      !h2osfc_tide =    h2osfc_tide    +  tide_coeff_amp(ii) * sin(2.0_r8*SHR_CONST_PI*(1/tide_coeff_period(ii)*(days*secspday+seconds) + tide_coeff_phase(ii)))
                      !equation fixed by Wei Huang on 7/7/2022
@@ -884,7 +902,7 @@ contains
                      !write(iulog,*), 'h2osfc_tide=',h2osfc_tide
                   enddo
                endif
-
+               write(iulog,*), 'h2osfc_tide3:',h2osfc_tide 
                 h2osfc_tide = max(h2osfc_tide + tide_baseline, 0.0)
                !  qflx_tide(c) = (h2osfc(c)-h2osfc_before)/dtime
                 qflx_lat_aqu(3) = qflx_lat_aqu(3) + (h2osfc_tide-h2osfc(c))/dtime
