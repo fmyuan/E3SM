@@ -5,7 +5,7 @@ module ELM_ATS_InterfaceMod
   !-----------------------------------------------------------------------
   ! !DESCRIPTION:
   ! The ELM Interface to ATS Fortran interface,
-  ! which corresponding to ATS's ats_elm_interface (extern "C" interface)
+  ! which corresponding to ATS's ats_interface (extern "C" interface)
   !
   use iso_c_binding
   use shr_kind_mod                 , only : r8 => shr_kind_r8
@@ -19,24 +19,22 @@ module ELM_ATS_InterfaceMod
   !------------------------------------------------------------------------
   !
   type, public :: elm_ats_interface_type
-      private
-      type(C_PTR) :: ptr                ! pointer to ats driver
+     private
+     type(C_PTR) :: ptr                ! pointer to ats driver
 
-  contains
+   contains
 
-      final :: ats_delete
-      procedure, public :: setup        => ats_setup_f
-      procedure, public :: init         => ats_init_f
-      procedure, public :: onestep      => ats_advance_f
+     final :: ats_delete
+     procedure, public :: setup        => ats_setup
+     procedure, public :: init         => ats_init
+     procedure, public :: onestep      => ats_advance
 
-      procedure, public :: setmesh      => ats_setmesh_f
-      procedure, public :: setmat       => ats_setmats_f
-      procedure, public :: setic        => ats_setIC_f
-      procedure, public :: setbc        => ats_setBC_f
-      procedure, public :: setss        => ats_setSS_f
+     procedure, public :: setmat       => ats_setmats
+     procedure, public :: setss        => ats_setSS
+     procedure, public :: getss        => ats_getSS
 
-      procedure, public :: getmesh      => ats_getmesh_f
-      procedure, public :: getdata_hydro=> ats_getdata_hydro_f
+     procedure, public :: getmesh      => ats_getmesh
+     procedure, public :: getdata_hydro=> ats_getdata_hydro
 
   end type elm_ats_interface_type
   !------------------------------------------------------------------------
@@ -44,255 +42,173 @@ module ELM_ATS_InterfaceMod
   type(elm_ats_interface_type), public:: ats_drv
 
   interface ats_drv
-      procedure ats_create
-  end interface
+     procedure ats_create
+  end interface ats_drv
 
   !------------------------------------------------------------------------
 contains
 
   ! wrap the C++ functions/classes of ATS and data passing
+  function ats_create(input_dir, input_file, mpicomm)
+    implicit none
+    type(elm_ats_interface_type) :: ats_create
 
-  function ats_create()
-      implicit none
-      type(elm_ats_interface_type) :: ats_create
-      ats_create%ptr = ats_elm_create()
-  end function
+    character(len=*), intent(in) :: input_dir
+    character(len=*), intent(in) :: input_file
+    integer, intent(in) :: mpicomm  ! mpi communicator group id (i.e. MPI_COMM_WORLD for lnd model???)
 
- !------------------------------------------------------------------------
+    ! local variables
+    character(kind=C_CHAR) :: c_input_file(len_trim(input_dir)+len_trim(input_file)+2)
+    integer :: i, n1, n2
+    integer :: ierr
+
+    ! ----------------------------------------------------------
+    ! Converting Fortran-type input filename, incl. dir, to C-type
+    n1 = len_trim(input_dir)
+    do i = 1, n1
+       c_input_file(i) = input_dir(i:i)
+    end do
+    c_input_file(n1+1:n1+1) = '/'
+    n2 = len_trim(input_file)
+    do i = 1, n2
+       c_input_file(n1+1+i) = input_file(i:i)
+    end do
+    c_input_file(n1+n2+2) = C_NULL_CHAR
+
+    ats_create%ptr = ats_create_f(mpicomm, c_input_file)
+  end function ats_create
+
+  !------------------------------------------------------------------------
 
   subroutine ats_delete(this)
-      implicit none
-      type(elm_ats_interface_type) :: this
-      call ats_elm_delete(this%ptr)
-  end subroutine
+    implicit none
+    type(elm_ats_interface_type) :: this
+    call ats_delete_f(this%ptr)
+  end subroutine ats_delete
 
- !------------------------------------------------------------------------
+  !------------------------------------------------------------------------
 
-  subroutine ats_setup_f(this, input_dir, input_file, mpicomm)
-      implicit none
-      class(elm_ats_interface_type) :: this
-      character(len=*), intent(in) :: input_dir
-      character(len=*), intent(in) :: input_file
-      integer, intent(in) :: mpicomm  ! mpi communicator group id (i.e. MPI_COMM_WORLD for lnd model???)
+  subroutine ats_setup(this)
+    implicit none
+    class(elm_ats_interface_type) :: this
 
-      ! local variables
-      character(kind=C_CHAR) :: c_input_file(len_trim(input_dir)+len_trim(input_file)+2)
-      integer :: i, n1, n2
-      integer :: ierr
+    ! setup
+    call ats_setup_f(this%ptr) ! mpicomm is from 'spmdMod'
+  end subroutine ats_setup
 
-      ! ----------------------------------------------------------
-      ! Converting Fortran-type input filename, incl. dir, to C-type
-      n1 = len_trim(input_dir)
-      do i = 1, n1
-          c_input_file(i) = input_dir(i:i)
-      end do
-      c_input_file(n1+1:n1+1) = '/'
-      n2 = len_trim(input_file)
-      do i = 1, n2
-          c_input_file(n1+1+i) = input_file(i:i)
-      end do
-      c_input_file(n1+n2+2) = C_NULL_CHAR
+  !------------------------------------------------------------------------
 
-      ! setup
-      call ats_elm_setup(this%ptr, mpicomm, c_input_file) ! mpicomm is from 'spmdMod'
+  subroutine ats_init(this, starting_time, patm, soilp)
+    implicit none
+    class(elm_ats_interface_type) :: this
 
-   end subroutine ats_setup_f
-
- !------------------------------------------------------------------------
-
-   subroutine ats_init_f(this)
-
-      implicit none
-      class(elm_ats_interface_type) :: this
-
-        ! initialize
-        call ats_elm_initialize(this%ptr)
-
-    end subroutine ats_init_f
-
- !------------------------------------------------------------------------
-    subroutine ats_setmesh_f(this, surfgX, surfgY, surfgZ, soilcol_nodes)
-
-        implicit none
-        class(elm_ats_interface_type) :: this
-        real(r8), pointer, intent(in) :: surfgX(:), surfgY(:), surfgZ(:,:)
-        real(r8), pointer, intent(in) :: soilcol_nodes(:)
-
-        ! local variables
-        integer(C_INT) :: lx=2, ly=2, lz=16
-
-        ! ----------------------------------------------------------
-        lx = size(surfgX)
-        ly = size(surfgY)
-        lz = size(soilcol_nodes)
-        ! elm surface-grids/soil column dimensions pass to ats
-        call ats_elm_setmesh(this%ptr, surfgX, surfgY, surfgZ, soilcol_nodes, lx, ly, lz)
-
-    end subroutine ats_setmesh_f
+    real(r8), optional,intent(in) :: starting_time                  ! ELM starting time (in second, 0 by default)
+    real(r8), pointer, intent(in) :: patm(:)
+    real(r8), pointer, intent(in) :: soilp(:,:)
+    call ats_initialize_f(this%ptr, starting_time, patm, soilp)
+  end subroutine ats_init
 
   !----------------------------------------------------------------------------------
 
-    subroutine ats_setmats_f(this, ats_watsat, ats_hksat, ats_bsw, ats_sucsat, &
-             ats_residual_sat, ats_eff_porosity, ats_initzwt)
+  subroutine ats_setmats(this, porosity, hksat, CH_bsw, CH_sucsat, &
+       CH_residual_sat)
+    implicit none
+    class(elm_ats_interface_type) :: this
+    real(r8), pointer, intent(in) :: porosity(:,:)
+    real(r8), pointer, intent(in) :: hksat (:,:)
+    real(r8), pointer, intent(in) :: CH_bsw   (:,:)
+    real(r8), pointer, intent(in) :: CH_sucsat(:,:)
+    real(r8), pointer, intent(in) :: CH_residual_sat(:,:)
+    call ats_set_soil_hydrologic_properties_f(this%ptr, porosity, hksat, CH_bsw, CH_sucsat, &
+         CH_residual_sat)
+  end subroutine ats_setmats
 
-        implicit none
-        class(elm_ats_interface_type) :: this
-        real(r8), pointer, intent(in) :: ats_watsat(:,:)
-        real(r8), pointer, intent(in) :: ats_hksat (:,:)
-        real(r8), pointer, intent(in) :: ats_bsw   (:,:)
-        real(r8), pointer, intent(in) :: ats_sucsat(:,:)
-        real(r8), pointer, intent(in) :: ats_residual_sat(:,:)
-        real(r8), pointer, intent(in) :: ats_eff_porosity(:,:)
-        real(r8), pointer, intent(in) :: ats_initzwt(:)
-        !
-        ! ----------------------------------------------------------
-        !
-        call ats_elm_setmats(this%ptr, ats_watsat, ats_hksat, ats_bsw, ats_sucsat, &
-             ats_residual_sat, ats_eff_porosity, ats_initzwt)
-        !
-    end subroutine ats_setmats_f
+  !------------------------------------------------------------------------
 
- !------------------------------------------------------------------------
+  subroutine ats_setSS(this, soilinfl_flux, soilevap_flux, pfttran_flux)
+    implicit none
+    class(elm_ats_interface_type) :: this
+    real(r8), pointer, intent(in) :: soilinfl_flux(:)       ! unit: kgH2O/m3/s
+    real(r8), pointer, intent(in) :: soilevap_flux(:)
+    real(r8), pointer, intent(in) :: pfttran_flux(:,:)      ! pft-level (root-fraction summed) transpiration [col, pft]
+    call ats_set_potential_sources_f(this%ptr, soilinfl_flux, soilevap_flux, pfttran_flux)
+  end subroutine ats_setSS
 
-    subroutine ats_setIC_f(this, patm, soilp, wtd, starting_time, ats_visout)
-        implicit none
-        class(elm_ats_interface_type) :: this
-        real(r8), pointer, intent(in) :: patm(:)
-        real(r8), pointer, intent(in) :: soilp(:,:)
-        real(r8), pointer, intent(in) :: wtd(:)
-        real(r8), optional,intent(in) :: starting_time                  ! ELM starting time (in second, 0 by default)
-        logical,  optional,intent(in) :: ats_visout                     ! instruct ATS output initial data
-        !
+  !------------------------------------------------------------------------
 
-        ! Local variables
-        real(KIND=C_DOUBLE)  :: stime = 0.0
-        logical(KIND=C_BOOL) :: visout = .true.                         ! a note here: fortran logical is an integer, but C/C++ bool is in byte. So this is a must
-        ! ----------------------------------------------------------
-        !
-        if (present(starting_time)) stime = starting_time
-        if (present(ats_visout)) visout = ats_visout
+  subroutine ats_getSS(this, soilinfl_flux, soilevap_flux, pfttran_flux)
+    implicit none
+    class(elm_ats_interface_type) :: this
+    real(r8), pointer, intent(out) :: soilinfl_flux(:)       ! unit: kgH2O/m3/s
+    real(r8), pointer, intent(out) :: soilevap_flux(:)
+    real(r8), pointer, intent(out) :: pfttran_flux(:,:)      ! pft-level (root-fraction summed) transpiration [col, pft]
+    call ats_get_actual_sources_f(this%ptr, soilinfl_flux, soilevap_flux, pfttran_flux)
+  end subroutine ats_getSS
 
-        !
-        call ats_elm_setIC(this%ptr, stime, patm, soilp, wtd, visout)
-        !
-    end subroutine ats_setIC_f
+  !------------------------------------------------------------------------
+  
+  subroutine ats_advance(this, dt, ats_visout, ats_chkout)
+    implicit none
+    class(elm_ats_interface_type) :: this
+    real(r8), intent(in) :: dt                                      ! one ELM timestep interval (in seconds)
+    logical, optional, intent(in) :: ats_visout                     ! instruct ATS output data
+    logical, optional, intent(in) :: ats_chkout                     ! instruct ATS output checkpoint
+    !
+    ! local variables
+    logical(KIND=C_BOOL) :: visout = .true.
+    logical(KIND=C_BOOL) :: chkout = .false.
+    ! ----------------------------------------------------------
+    !
 
- !------------------------------------------------------------------------
+    if (present(ats_visout)) visout = ats_visout
+    if (present(ats_chkout)) chkout = ats_chkout
 
-    subroutine ats_setBC_f(this, soilbot_flux, soildrain_flux)
-        implicit none
-        class(elm_ats_interface_type) :: this
-        !
-        real(r8), pointer, intent(in) :: soilbot_flux(:)
-        real(r8), pointer, intent(in) :: soildrain_flux(:,:)
+    !call ats_advance_f(this%ptr, dt, visout, chkout)
+    call ats_advance_f(this%ptr, dt)
+  end subroutine ats_advance
 
-        ! Local variables
+  !------------------------------------------------------------------------
 
-        ! ----------------------------------------------------------
-        ! TODO
-        call ats_elm_setBC(this%ptr)
-        !
-    end subroutine ats_setBC_f
+  subroutine ats_getmesh(this, ncols_local, ncols_global, ncells_per_col, &
+       lat, lon, elev, surf_area, dz, depth)
+    implicit none
+    class(elm_ats_interface_type) :: this
+    integer(C_INT) :: ncols_local
+    integer(C_INT) :: ncols_global
+    integer(C_INT) :: ncells_per_col
 
- !------------------------------------------------------------------------
+    real(r8), pointer :: lat(:)
+    real(r8), pointer :: lon(:)
+    real(r8), pointer :: elev(:)
+    real(r8), pointer :: surf_area(:)
 
-    subroutine ats_setSS_f(this, soilinfl_flux, soilevap_flux, pfttran_flux, soilbot_flux, &
-                           roottran_flux, soildrain_flux)
+    real(r8), pointer :: dz(:,:)
+    real(r8), pointer :: depth(:,:)
 
-        implicit none
-        class(elm_ats_interface_type) :: this
-        real(r8), pointer, intent(in) :: soilinfl_flux(:)       ! unit: kgH2O/m3/s
-        real(r8), pointer, intent(in) :: soilevap_flux(:)
-        real(r8), pointer, intent(in) :: pfttran_flux(:,:)      ! pft-level (root-fraction summed) transpiration [col, pft]
-        real(r8), pointer, intent(in) :: soilbot_flux(:)
-        real(r8), pointer, intent(in) :: roottran_flux(:,:)     ! root-level (pft-summed) transpiration [col, soil-layer]
-        real(r8), pointer, intent(in) :: soildrain_flux(:,:)
-        !
+    ! ----------------------------------------------------------
 
-        ! Local variables
-        integer(C_INT) :: ncols
-        integer(C_INT) :: ncells
+    call ats_get_mesh_info_f(this%ptr, ncols_local, ncols_global, ncells_per_col, &
+         lat, lon, elev, surf_area, dz, depth)
+    !
+  end subroutine ats_getmesh
 
-        ! ----------------------------------------------------------
-        !
-        ncols = size(soilevap_flux)
-        ncells= size(roottran_flux)
+  !------------------------------------------------------------------------
+  subroutine ats_getdata_hydro(this, zwt, soilp, psi, h2oliq, h2oice)
+    implicit none
+    class(elm_ats_interface_type) :: this
 
-        ! maybe add-up of roottran_flux + soildrain_flux later on
+    real(r8), pointer :: zwt(:)          ! meters
+    real(r8), pointer :: soilp(:,:)      ! Pa (atm-pressue additive)
+    real(r8), pointer :: psi(:,:)        ! non-negative Pa
+    real(r8), pointer :: h2oliq(:,:)     ! kgH2O/m3
+    real(r8), pointer :: h2oice(:,:)     ! kgH2O/m3
 
-        call ats_elm_setSS(this%ptr, soilinfl_flux, soilevap_flux, &
-          pfttran_flux, roottran_flux, soildrain_flux, &
-          ncols, ncells)
+    ! note: zwt NOT really what is now (TODO)
+    call ats_get_waterstate_f(this%ptr, zwt, soilp, psi, h2oliq, h2oice)
+    !
+  end subroutine ats_getdata_hydro
 
-    end subroutine ats_setSS_f
- !------------------------------------------------------------------------
-
-    subroutine ats_advance_f(this, dt, ats_visout, ats_chkout)
-        implicit none
-        class(elm_ats_interface_type) :: this
-        real(r8), intent(in) :: dt                                      ! one ELM timestep interval (in seconds)
-        logical, optional, intent(in) :: ats_visout                     ! instruct ATS output data
-        logical, optional, intent(in) :: ats_chkout                     ! instruct ATS output checkpoint
-        !
-        ! local variables
-        logical(KIND=C_BOOL) :: visout = .true.
-        logical(KIND=C_BOOL) :: chkout = .false.
-        ! ----------------------------------------------------------
-        !
-
-        if (present(ats_visout)) visout = ats_visout
-        if (present(ats_chkout)) chkout = ats_chkout
-
-        call ats_elm_advance(this%ptr, dt, visout, chkout)
-
-    end subroutine ats_advance_f
-
- !------------------------------------------------------------------------
-
-    subroutine ats_getmesh_f(this)
-        implicit none
-        class(elm_ats_interface_type) :: this
-        real(r8), pointer :: dz(:)
-        real(r8), pointer :: depth(:)
-        real(r8), pointer :: elev(:)
-        real(r8), pointer :: surf_area_m2(:)
-        real(r8), pointer :: lat(:)
-        real(r8), pointer :: lon(:)
-        integer(C_INT) :: ncols_local
-        integer(C_INT) :: ncols_global
-        integer(C_INT) :: ncells_per_col
-
-        ! ----------------------------------------------------------
-
-        call ats_elm_getmesh(this%ptr, ncols_local, ncols_global, ncells_per_col, dz, depth, elev, &
-          surf_area_m2, lat, lon)
-        !
-
-    end subroutine ats_getmesh_f
-
- !------------------------------------------------------------------------
-    subroutine ats_getdata_hydro_f(this, zwt, h2oliq, h2oice, psi, soilp)
-        implicit none
-        class(elm_ats_interface_type) :: this
-
-        real(r8), pointer :: zwt(:)          ! meters
-        real(r8), pointer :: h2oliq(:,:)     ! kgH2O/m3
-        real(r8), pointer :: h2oice(:,:)     ! kgH2O/m3
-        real(r8), pointer :: psi(:,:)        ! non-negative Pa
-        real(r8), pointer :: soilp(:,:)      ! Pa (atm-pressue additive)
-        integer(C_INT) :: ncols
-        integer(C_INT) :: ncells
-
-        ! ----------------------------------------------------------
-        ! (TODO: not finished fully)
-        ncols = size(zwt)
-        ncells= size(soilp)
-        call ats_elm_getwaterstate(this%ptr, zwt, soilp, psi, h2oliq, h2oice, ncols, ncells)   ! note: zwt NOT really what is now (TODO)
-        !
-
-    end subroutine ats_getdata_hydro_f
-
- !------------------------------------------------------------------------
+  !------------------------------------------------------------------------
 
 
 #endif
