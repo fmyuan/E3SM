@@ -759,7 +759,9 @@ contains
     elm_histout = .false.
     elm_restout = .false.
     ! hist_tape(1) write-out frequency
-    if (mod(nstep,hist_nhtfrq(1)) == 0) elm_histout = .true.
+    if (hist_nhtfrq(1)>0) then
+      if (mod(nstep,hist_nhtfrq(1)) == 0) elm_histout = .true.
+    end if
     if (ats_chkout) elm_restout = .true.
 
     call  this%ats_interface%onestep(dt, elm_histout, elm_restout)
