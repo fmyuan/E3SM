@@ -1023,7 +1023,6 @@ contains
     use elm_varpar    , only: nlevdecomp,ndecomp_cascade_transitions,ndecomp_pools
     use subgridAveMod , only: p2c
     use pftvarcon     , only : npcropmin 
-    use tracer_varcon , only: is_active_betr_bgc
     use elm_varpar    , only: nlevdecomp_full
     !
     ! !ARGUMENTS:

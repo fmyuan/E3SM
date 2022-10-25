@@ -5,9 +5,6 @@
 	path = components/elm/src/external_models/mpp
 	branch = alm/develop
     url=https://github.com/MPP-LSM/MPP.git
-[submodule "sbetr"]
-	path = components/elm/src/external_models/sbetr
-    url=https://github.com/BeTR-biogeochemistry-modeling/sbetr.git
 [submodule "externals/kokkos"]
 	path = externals/kokkos
 	branch = e3sm/kokkos

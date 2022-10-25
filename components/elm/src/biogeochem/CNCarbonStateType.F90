@@ -366,9 +366,6 @@ contains
     if (carbon_type == 'c12') then
 
 
-       !those variables are now ouput in betr
-
-
     end if
 
     !-------------------------------
@@ -632,7 +629,6 @@ contains
 
     use restUtilMod
     use ncdio_pio
-    use tracer_varcon  , only : is_active_betr_bgc
     !
     ! !ARGUMENTS:
     class (carbonstate_type) :: this

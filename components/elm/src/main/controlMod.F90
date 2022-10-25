@@ -119,7 +119,6 @@ contains
     use fileutils                 , only : getavu, relavu
     use shr_string_mod            , only : shr_string_getParentDir
     use elm_interface_pflotranMod , only : elm_pf_readnl
-    use ELMBeTRNLMod              , only : betr_readNL
     
     implicit none
     
@@ -556,10 +555,6 @@ contains
     if (use_pflotran) then
        call elm_pf_readnl(NLFilename)
     end if
-
-    if (use_betr) then
-       call betr_readNL( NLFilename, use_c13, use_c14, nsoilorder)
-    endif
 
     ! ----------------------------------------------------------------------
     ! consistency checks

@@ -15,7 +15,7 @@ module restFileMod
   use accumulMod           , only : accumulRest
   use histFileMod          , only : hist_restart_ncd
   use elm_varpar           , only : crop_prog
-  use elm_varctl           , only : use_cn, use_c13, use_c14, use_lch4, use_fates, use_betr
+  use elm_varctl           , only : use_cn, use_c13, use_c14, use_lch4, use_fates
   use elm_varctl           , only : use_erosion
   use elm_varctl           , only : create_glacier_mec_landunit, iulog 
   use elm_varcon           , only : c13ratio, c14ratio
@@ -41,14 +41,9 @@ module restFileMod
   use lnd2atmType          , only : lnd2atm_type
   use glc2lndMod           , only : glc2lnd_type
   use lnd2glcMod           , only : lnd2glc_type
-  use BeTRTracerType       , only : BeTRTracer_Type    
-  use TracerStateType      , only : TracerState_type
-  use TracerFluxType       , only : TracerFlux_Type
-  use tracercoefftype      , only : tracercoeff_type
   use ncdio_pio            , only : file_desc_t, ncd_pio_createfile, ncd_pio_openfile, ncd_global
   use ncdio_pio            , only : ncd_pio_closefile, ncd_defdim, ncd_putatt, ncd_enddef, check_dim
   use ncdio_pio            , only : check_att, ncd_getatt
-  use BeTRSimulationELM    , only : betr_simulation_elm_type
   use CropType             , only : crop_type
   use GridcellDataType     , only : grc_wf
   use TopounitDataType     , only : top_es
@@ -105,7 +100,7 @@ contains
        ch4_vars, energyflux_vars, frictionvel_vars, lakestate_vars, &
        photosyns_vars, soilhydrology_vars,                          &
        soilstate_vars, solarabs_vars, surfalb_vars,                 &
-       sedflux_vars, ep_betr, alm_fates, crop_vars,                 &
+       sedflux_vars, alm_fates, crop_vars,                 &
        rdate, noptr)
     !
     ! !DESCRIPTION:
@@ -134,7 +129,6 @@ contains
     type(soilstate_type)           , intent(inout) :: soilstate_vars
     type(solarabs_type)            , intent(in)    :: solarabs_vars
     type(surfalb_type)             , intent(in)    :: surfalb_vars
-    class(betr_simulation_elm_type), intent(inout):: ep_betr
     type(hlm_fates_interface_type) , intent(inout) :: alm_fates
     type(crop_type)                , intent(inout) :: crop_vars
     character(len=*)               , intent(in), optional :: rdate     ! restart file time stamp for name
@@ -280,10 +274,6 @@ contains
              soilstate_inst=soilstate_vars)
     end if
 
-    if (use_betr) then
-       call ep_betr%BeTRRestart(bounds, ncid, flag='define')
-    endif
-
     if (present(rdate)) then 
        call hist_restart_ncd (bounds, ncid, flag='define', rdate=rdate )
     end if
@@ -416,10 +406,6 @@ contains
 
     end if
 
-    if (use_betr) then
-       call ep_betr%BeTRRestart(bounds, ncid, flag='write')
-    endif
-
     call hist_restart_ncd (bounds, ncid, flag='write' )
 
     if (do_budgets) then
@@ -455,7 +441,7 @@ contains
        ch4_vars, energyflux_vars, frictionvel_vars, lakestate_vars, &
        photosyns_vars, soilhydrology_vars,                          &
        soilstate_vars, solarabs_vars, surfalb_vars,                 &
-       sedflux_vars, ep_betr,                                       &
+       sedflux_vars,                                                &
        alm_fates, glc2lnd_vars, crop_vars)
     !
     ! !DESCRIPTION:
@@ -490,7 +476,6 @@ contains
     type(soilstate_type)           , intent(inout) :: soilstate_vars
     type(solarabs_type)            , intent(inout) :: solarabs_vars
     type(surfalb_type)             , intent(inout) :: surfalb_vars
-    class(betr_simulation_elm_type), intent(inout) :: ep_betr
     type(hlm_fates_interface_type) , intent(inout) :: alm_fates
     type(glc2lnd_type)             , intent(inout) :: glc2lnd_vars
     type(crop_type)                , intent(inout) :: crop_vars
@@ -637,10 +622,7 @@ contains
     end if
 
 
-    if (use_betr) then
-       call ep_betr%BeTRRestart(bounds, ncid, flag='read')
-    endif
-        
+
     call hist_restart_ncd (bounds, ncid, flag='read')
 
     if (do_budgets) then
