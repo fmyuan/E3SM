@@ -6,7 +6,7 @@ module elm_varpar
   !
   ! !USES:
   use shr_kind_mod , only: r8 => shr_kind_r8
-  use elm_varctl   , only: use_extralakelayers, use_vertsoilc, use_crop, use_betr
+  use elm_varctl   , only: use_extralakelayers, use_vertsoilc, use_crop
   use elm_varctl   , only: use_century_decomp, use_c13, use_c14, use_fates
   use elm_varctl   , only: iulog, create_crop_landunit, irrigate
   use elm_varctl   , only: use_vichydro
@@ -218,9 +218,6 @@ contains
     end if
     
     nlevtrc_full   = nlevsoi
-    if(use_betr) then
-      nlevtrc_soil = nlevsoi
-    endif
 
     if (.not. use_extralakelayers) then
        nlevlak     =  10     ! number of lake layers

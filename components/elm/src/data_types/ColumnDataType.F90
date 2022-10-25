@@ -12,7 +12,6 @@ module ColumnDataType
   use shr_log_mod     , only : errMsg => shr_log_errMsg
   use shr_sys_mod     , only : shr_sys_flush
   use abortutils      , only : endrun
-  use MathfuncMod     , only : dot_sum
   use elm_varpar      , only : nlevsoi, nlevsno, nlevgrnd, nlevlak, nlevurb
   use elm_varpar      , only : ndecomp_cascade_transitions, ndecomp_pools, nlevcan
   use elm_varpar      , only : nlevdecomp_full, crop_prog, nlevdecomp
@@ -44,7 +43,6 @@ module ColumnDataType
   use spmdMod         , only : masterproc
   use restUtilMod
   use CNStateType     , only: cnstate_type
-  use tracer_varcon   , only : is_active_betr_bgc
   use CNDecompCascadeConType , only : decomp_cascade_con
   use ColumnType      , only : col_pp
   use LandunitType    , only : lun_pp
@@ -2610,16 +2608,6 @@ contains
           call endrun(msg='ERROR:: '//trim(varname)//' is required on an initialization dataset'//&
                errMsg(__FILE__, __LINE__))
        end if
-
-       if(is_active_betr_bgc)then
-          call restartvar(ncid=ncid, flag=flag, varname='totblgc', xtype=ncd_double,  &
-               dim1name='column', long_name='', units='', &
-               interpinic_flag='interp', readvar=readvar, data=this%totblgc)
-
-          call restartvar(ncid=ncid, flag=flag, varname='cwdc', xtype=ncd_double,  &
-               dim1name='column', long_name='', units='', &
-               interpinic_flag='interp', readvar=readvar, data=this%cwdc)
-       endif
 
        call restartvar(ncid=ncid, flag=flag, varname='totlitc', xtype=ncd_double,  &
             dim1name='column', long_name='', units='', &
@@ -6297,7 +6285,8 @@ contains
                 avgflag='A', long_name=longname, &
                  ptr_col=data2dptr, default='inactive')
        end do
-       if(.not. is_active_betr_bgc )then
+
+       !
           this%decomp_cascade_hr(begc:endc,:)             = spval
           this%decomp_cascade_hr_vr(begc:endc,:,:)        = spval
           this%decomp_cascade_ctransfer(begc:endc,:)      = spval
@@ -6403,7 +6392,7 @@ contains
                        ptr_col=data2dptr, default='inactive')
              endif
           end do
-       endif ! .not. is_active_betr_bgc
+       !
        ! still in C12 block
 
        this%t_scalar(begc:endc,:) = spval
@@ -6639,7 +6628,7 @@ contains
              end if
           endif
        end do
-       if(.not. is_active_betr_bgc)then
+       !
           this%decomp_cascade_hr(begc:endc,:)             = spval
           this%decomp_cascade_hr_vr(begc:endc,:,:)        = spval
           this%decomp_cascade_ctransfer(begc:endc,:)      = spval
@@ -6684,7 +6673,7 @@ contains
                        ptr_col=data2dptr, default='inactive')
              endif
           end do
-       endif ! .not. is_active_betr_bgc
+       !
 
        this%lithr(begc:endc) = spval
         call hist_addfld1d (fname='C13_LITHR', units='gC13/m^2/s', &
@@ -6841,7 +6830,7 @@ contains
              end if
           endif
        end do
-       if(.not. is_active_betr_bgc)then
+       !
           this%decomp_cascade_hr(begc:endc,:)             = spval
           this%decomp_cascade_hr_vr(begc:endc,:,:)        = spval
           this%decomp_cascade_ctransfer(begc:endc,:)      = spval
@@ -6886,7 +6875,7 @@ contains
                        ptr_col=data2dptr, default='inactive')
              endif
           end do
-       endif ! .not. is_active_betr_bgc
+       !
 
        this%lithr(begc:endc) = spval
         call hist_addfld1d (fname='C14_LITHR', units='gC14/m^2/s', &
@@ -7240,8 +7229,7 @@ contains
        this%somc_yield(c)         = 0._r8
     end do
 
-    if ( (.not. is_active_betr_bgc           ) .and. &
-         (.not. (use_pflotran .and. pf_cmode))) then
+    if (.not. (use_pflotran .and. pf_cmode)) then
 
        ! vertically integrate HR and decomposition cascade fluxes
        do k = 1, ndecomp_cascade_transitions
@@ -7264,12 +7252,6 @@ contains
                this%somhr(c)
        end do
 
-    elseif (is_active_betr_bgc) then
-
-       do fc = 1, num_soilc
-          c = filter_soilc(fc)
-          this%hr(c) = dot_sum(this%hr_vr(c,1:nlevdecomp),dzsoi_decomp(1:nlevdecomp))
-       enddo
     endif
 
     ! some zeroing
@@ -7466,7 +7448,7 @@ contains
        end do
     end if
 
-    if  (.not. is_active_betr_bgc) then
+    !
 
        ! (cWDC_HR) - coarse woody debris heterotrophic respiration
        do fc = 1,num_soilc
@@ -7553,7 +7535,7 @@ contains
           end do
        end if
 
-    end if ! .not. is_active_betr_bgc
+    !
 
     do fc = 1,num_soilc
         c = filter_soilc(fc)
@@ -7617,8 +7599,7 @@ contains
        end if
     enddo
 
-    if ( (.not. is_active_betr_bgc           ) .and. &
-         (.not. (use_pflotran .and. pf_cmode))) then
+    if (.not. (use_pflotran .and. pf_cmode)) then
       ! vertically integrate HR and decomposition cascade fluxes
       do k = 1, ndecomp_cascade_transitions
 
@@ -9626,8 +9607,8 @@ contains
        this%somn_yield(c)          = 0._r8
     end do
 
-    if (  (.not. (use_pflotran .and. pf_cmode)) ) then
-       ! BeTR is off AND PFLOTRAN's pf_cmode is false
+    if (.not. (use_pflotran .and. pf_cmode)) then
+       ! PFLOTRAN's pf_cmode is false
        ! vertically integrate decomposing N cascade fluxes and
        !soil mineral N fluxes associated with decomposition cascade
        do k = 1, ndecomp_cascade_transitions
