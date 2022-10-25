@@ -772,7 +772,7 @@ contains
                   do ii=1,num_tide_comps
                      !h2osfc_tide =    h2osfc_tide    +  tide_coeff_amp(ii) * sin(2.0_r8*SHR_CONST_PI*(1/tide_coeff_period(ii)*(days*secspday+seconds) + tide_coeff_phase(ii)))
                      !equation editted by Wei Huang on 7/7/2022
-                     h2osfc_tide =    h2osfc_tide    +  tide_coeff_amp(ii) * sin(2.0_r8*SHR_CONST_PI/tide_coeff_period(ii)*(days*secspday+seconds) + tide_coeff_phase(ii))
+                     h2osfc_tide =    h2osfc_tide    +  tide_coeff_amp(ii) * sin(2.0_r8*SHR_CONST_PI/tide_coeff_period(ii)*(days*secspday+seconds)/360 + tide_coeff_phase(ii))
                   enddo
                endif
 
@@ -881,14 +881,31 @@ contains
                      write(iulog,*),'current_time:',(days*secspday+seconds)/3600
                      tide_time_idx=1+int((days*secspday+seconds)/3600+16216800-atm2lnd_vars%tide_time(1)*24)
                      write(iulog,*),'tide_time_idx:',tide_time_idx
-                     h2osfc_tide = (atm2lnd_vars%tide_height(1,tide_time_idx))*1000 !convert m to mm
-                     col_ws%salinity(c) = atm2lnd_vars%tide_salinity(1,1+tide_time_idx)
-                     salinity(c) = col_ws%salinity(c)
-                     write(iulog,*), 'h2osfc_tide1:',h2osfc_tide
+                     if(tide_time_idx<atm2lnd_vars%tide_forcing_len) then
+                        h2osfc_tide = (atm2lnd_vars%tide_height(1,tide_time_idx))*1000 !convert m to mm
+                        col_ws%salinity(c) = atm2lnd_vars%tide_salinity(1,1+tide_time_idx)
+                        salinity(1) = col_ws%salinity(c)
+                        salinity(2) = salinity(1)
+                        write(iulog,*), 'h2osfc_tide1_1:',h2osfc_tide
+                        write(iulog,*), 'tide_salinity_1:',salinity(1)
+                     else
+                        col_ws%salinity(c) = sum(atm2lnd_vars%tide_salinity)/atm2lnd_vars%tide_forcing_len
+                        salinity(1) = col_ws%salinity(c)
+                        salinity(2) = salinity(1)
+                        h2osfc_tide = 0.0_r8
+                        do ii=1,num_tide_comps
+                           h2osfc_tide =    h2osfc_tide    +  tide_coeff_amp(ii) * sin(2.0_r8*SHR_CONST_PI/tide_coeff_period(ii)*(days*secspday+seconds)/360 + tide_coeff_phase(ii))
+                        enddo
+                        write(iulog,*), 'h2osfc_tide1_2:',h2osfc_tide
+                        write(iulog,*), 'tide_salinity_2:',salinity(1)
+                     endif
                   else
-                     salinity(c) = sum(atm2lnd_vars%tide_salinity)/atm2lnd_vars%tide_forcing_len
+                     col_ws%salinity(c) = sum(atm2lnd_vars%tide_salinity)/atm2lnd_vars%tide_forcing_len
+                     salinity(1) = col_ws%salinity(c)
+                     salinity(2) = salinity(1)
+                     h2osfc_tide = 0.0_r8
                      do ii=1,num_tide_comps
-                        h2osfc_tide =    h2osfc_tide    +  tide_coeff_amp(ii) * sin(2.0_r8*SHR_CONST_PI/tide_coeff_period(ii)*(days*secspday+seconds) + tide_coeff_phase(ii))
+                        h2osfc_tide =    h2osfc_tide    +  tide_coeff_amp(ii) * sin(2.0_r8*SHR_CONST_PI/tide_coeff_period(ii)*(days*secspday+seconds)/360 + tide_coeff_phase(ii))
                      enddo
                      write(iulog,*), 'h2osfc_tide2:',h2osfc_tide
                   endif
@@ -898,11 +915,11 @@ contains
                   do ii=1,num_tide_comps
                      !h2osfc_tide =    h2osfc_tide    +  tide_coeff_amp(ii) * sin(2.0_r8*SHR_CONST_PI*(1/tide_coeff_period(ii)*(days*secspday+seconds) + tide_coeff_phase(ii)))
                      !equation fixed by Wei Huang on 7/7/2022
-                     h2osfc_tide =    h2osfc_tide    +  tide_coeff_amp(ii) * sin(2.0_r8*SHR_CONST_PI/tide_coeff_period(ii)*(days*secspday+seconds) + tide_coeff_phase(ii))
-                     !write(iulog,*), 'h2osfc_tide=',h2osfc_tide
+                     h2osfc_tide =    h2osfc_tide    +  tide_coeff_amp(ii) * sin(2.0_r8*SHR_CONST_PI/tide_coeff_period(ii)*(days*secspday+seconds)/360 + tide_coeff_phase(ii))
                   enddo
+                  write(iulog,*), 'h2osfc_tide3:',h2osfc_tide
                endif
-               write(iulog,*), 'h2osfc_tide3:',h2osfc_tide 
+               write(iulog,*), 'h2osfc_tide_final:',h2osfc_tide 
                 h2osfc_tide = max(h2osfc_tide + tide_baseline, 0.0)
                !  qflx_tide(c) = (h2osfc(c)-h2osfc_before)/dtime
                 qflx_lat_aqu(3) = qflx_lat_aqu(3) + (h2osfc_tide-h2osfc(c))/dtime
