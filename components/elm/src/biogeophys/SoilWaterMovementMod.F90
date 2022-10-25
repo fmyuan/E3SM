@@ -87,7 +87,6 @@ contains
     !
     !USES
       !$acc routine seq
-    use elm_varctl                 , only : use_betr
     use elm_varctl                 , only : use_var_soil_thick
     use shr_kind_mod               , only : r8 => shr_kind_r8
     use elm_varpar                 , only : nlevsoi
@@ -156,9 +155,7 @@ contains
 #endif
     end select
 
-    if(use_betr)then
-    !a work around of the negative liquid water embarrassment, which is
-    !critical for a meaningufl tracer transport in betr. Jinyun Tang, Jan 14, 2015
+    !a work around of the negative liquid water embarrassment
 
     do fc = 1, num_hydrologyc
        c = filter_hydrologyc(fc)
@@ -195,7 +192,6 @@ contains
                             + h2osoi_ice(c,j)/(dz(c,j)*denice)
        enddo
     enddo
-    endif
   end associate
 
   end subroutine SoilWater

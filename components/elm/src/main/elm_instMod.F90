@@ -6,7 +6,7 @@ module elm_instMod
   use shr_log_mod                , only : errMsg => shr_log_errMsg
   use abortutils                 , only : endrun
   use decompMod                  , only : bounds_type, get_proc_bounds
-  use elm_varctl                 , only : use_cn, use_voc, use_c13, use_c14, use_fates, use_betr
+  use elm_varctl                 , only : use_cn, use_voc, use_c13, use_c14, use_fates
   !-----------------------------------------
   ! Definition of component types
   !-----------------------------------------
@@ -72,7 +72,6 @@ module elm_instMod
 
   use elm_interface_dataType     , only : elm_interface_data_type
   use ChemStateType              , only : chemstate_type     ! structure for chemical indices of the soil, such as pH and Eh
-  use BeTRSimulationELM          , only : betr_simulation_elm_type
   use PlantMicKineticsMod        , only : PlantMicKinetics_type
   use ELMFatesInterfaceMod       , only : hlm_fates_interface_type
 
@@ -128,7 +127,6 @@ module elm_instMod
   type(elm_interface_data_type)                       :: elm_interface_data
   type(chemstate_type)                                :: chemstate_vars
   type(hlm_fates_interface_type)                      :: alm_fates
-  class(betr_simulation_elm_type), pointer            :: ep_betr
   type(PlantMicKinetics_type)                         :: PlantMicKinetics_vars
   public :: elm_inst_biogeochem
   public :: elm_inst_biogeophys
@@ -210,10 +208,6 @@ contains
 
        call grc_pf%Init(begg, endg)
        call col_pf%Init(begc, endc)
-
-       if(use_betr)then
-          call PlantMicKinetics_vars%Init(bounds_proc)
-       endif
 
     endif
 
@@ -464,9 +458,6 @@ contains
     call cnstate_vars%Init(bounds_proc)
 
     call sedflux_vars%Init(bounds_proc)
-    ! --------------------------------------------------------------
-    ! Initialise the BeTR
-    ! --------------------------------------------------------------
 
     deallocate (h2osno_col)
     deallocate (snow_depth_col)

@@ -40,7 +40,6 @@ contains
     use elm_varctl , only : iulog, use_c13, use_c14, use_fates
     use elm_varpar , only : nlevdecomp_full, crop_prog
     use pftvarcon  , only : nc3crop
-    use tracer_varcon          , only : is_active_betr_bgc
     use CNDecompCascadeConType , only : decomp_cascade_con
     !
     ! !ARGUMENTS:
@@ -559,7 +558,6 @@ contains
          end do ! end of pft loop
       end if ! end of if(.not.use_fates)
 
-      if (.not. is_active_betr_bgc) then
 
          ! column loop
          do fc = 1,num_soilc
@@ -746,8 +744,6 @@ contains
          endif
 
        endif  !if ECA
-
-      endif ! if (.not. is_active_betr_bgc)
 
 
     end associate
