@@ -137,7 +137,7 @@ contains
   !-----------------------------------------------------------------------
   subroutine dynSubgrid_driver(bounds_proc, &
        urbanparams_vars, soilstate_vars, soilhydrology_vars, lakestate_vars, &
-       energyflux_vars, canopystate_vars, photosyns_vars, cnstate_vars, &
+       canopystate_vars, photosyns_vars, cnstate_vars, &
        veg_cs, c13_veg_cs, c14_veg_cs, &
        col_cs, c13_col_cs, c14_col_cs, col_cf, &
        grc_cs, grc_cf, glc2lnd_vars, crop_vars)
@@ -178,7 +178,6 @@ contains
     type(soilstate_type)     , intent(in)    :: soilstate_vars
     type(soilhydrology_type) , intent(inout) :: soilhydrology_vars
     type(lakestate_type)     , intent(in)    :: lakestate_vars
-    type(energyflux_type)    , intent(inout) :: energyflux_vars
     type(canopystate_type)   , intent(inout) :: canopystate_vars
     type(photosyns_type)     , intent(inout) :: photosyns_vars
     type(cnstate_type)       , intent(inout) :: cnstate_vars
@@ -219,8 +218,7 @@ contains
        call dyn_hwcontent_init(bounds_clump, &
             filter(nc)%num_nolakec, filter(nc)%nolakec, &
             filter(nc)%num_lakec, filter(nc)%lakec, &
-            urbanparams_vars, soilstate_vars, soilhydrology_vars, lakestate_vars, &
-            energyflux_vars)
+            urbanparams_vars, soilstate_vars, soilhydrology_vars, lakestate_vars)
 
        call set_prior_weights(prior_weights, bounds_clump)
        call set_old_patch_weights  (patch_state_updater,bounds_clump)
@@ -283,7 +281,7 @@ contains
             filter(nc)%num_nolakec, filter(nc)%nolakec, &
             filter(nc)%num_lakec, filter(nc)%lakec, &
             urbanparams_vars, soilstate_vars, soilhydrology_vars, lakestate_vars, &
-            energyflux_vars, dt)
+            dt)
 
        if (use_cn) then
           call dyn_cnbal_patch(bounds_clump, &

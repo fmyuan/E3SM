@@ -43,7 +43,6 @@ module CanopyFluxesMod
 
   !!! using elm_instMod messes with the compilation order
   use elm_instMod           , only : alm_fates, soil_water_retention_curve
-  use TemperatureType , only : temperature_vars
   use perfMod_GPU
   use timeinfoMod
   use spmdmod          , only: masterproc
@@ -569,7 +568,7 @@ contains
       if(use_fates)then
 #ifndef _OPENACC
          call alm_fates%wrap_btran(bounds, fn, filterc_tmp(1:fn), soilstate_vars, &
-               temperature_vars, energyflux_vars, soil_water_retention_curve)
+               energyflux_vars, soil_water_retention_curve)
 #endif
       else
          !calculate root moisture stress
@@ -877,7 +876,7 @@ contains
             call alm_fates%wrap_photosynthesis(bounds, fn, filterp(1:fn), &
                   svpts(begp:endp), eah(begp:endp), o2(begp:endp), &
                   co2(begp:endp), rb(begp:endp), dayl_factor(begp:endp), &
-                  atm2lnd_vars, temperature_vars, canopystate_vars, photosyns_vars)
+                  atm2lnd_vars, canopystate_vars, photosyns_vars)
 #endif
          else ! not use_fates
 

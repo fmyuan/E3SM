@@ -12,7 +12,6 @@ module SurfaceResistanceMod
   use shr_const_mod , only : SHR_CONST_TKFRZ
   use elm_varctl    , only : iulog
   use SoilStateType , only : soilstate_type
-  use WaterStateType, only : waterstate_type
   use ColumnDataType, only : col_ws
   use abortutils        , only : endrun
 

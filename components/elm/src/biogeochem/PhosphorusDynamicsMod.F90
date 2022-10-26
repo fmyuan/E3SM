@@ -13,7 +13,6 @@ module PhosphorusDynamicsMod
   use decompMod           , only : bounds_type
   use elm_varcon          , only : dzsoi_decomp, zisoi
   use atm2lndType         , only : atm2lnd_type
-  use CNCarbonFluxType    , only : carbonflux_type
   use elm_varpar          , only : nlevdecomp
   use elm_varctl          , only : use_vertsoilc
 

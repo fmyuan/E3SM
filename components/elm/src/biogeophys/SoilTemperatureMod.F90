@@ -33,11 +33,6 @@ module SoilTemperatureMod
   use ExternalModelConstants   , only : EM_PTM_TBASED_SOLVE_STAGE
   use ExternalModelInterfaceMod, only : EMI_Driver
 
-  !! Needed beacuse EMI is still using them as arguments
-  use WaterstateType    , only : waterstate_type
-  use TemperatureType   , only : temperature_type
-  use WaterfluxType     , only : waterflux_type
-  use elm_instMod , only : waterflux_vars, waterstate_vars, temperature_vars
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -495,10 +490,7 @@ contains
               num_nolakec_and_nourbanc = num_nolakec_and_nourbanc,       &
               filter_nolakec_and_nourbanc = filter_nolakec_and_nourbanc, &
               num_filter_lun = num_filter_lun,                           &
-              filter_lun = filter_lun,                                   &
-              waterstate_vars = waterstate_vars,                         &
-              energyflux_vars = energyflux_vars,                         &
-              temperature_vars = temperature_vars)
+              filter_lun = filter_lun)
 #endif
       end select
 
@@ -4738,7 +4730,6 @@ contains
     !
     ! !USES:
     use shr_kind_mod    , only : r8 => shr_kind_r8
-    use TemperatureType , only : temperature_type
     use elm_varpar      , only : nlevsno
     !
     implicit none

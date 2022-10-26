@@ -466,8 +466,8 @@ contains
        num_soilc, filter_soilc,                                                 &
        num_soilp, filter_soilp, num_pcropp, filter_pcropp, doalb,               &
        num_ppercropp, filter_ppercropp,                                         &
-       cnstate_vars,                                              &
-       atm2lnd_vars,               &
+       cnstate_vars,                                                            &
+       atm2lnd_vars,                                           &
        canopystate_vars, soilstate_vars,  crop_vars, ch4_vars, &
        photosyns_vars, soilhydrology_vars, energyflux_vars,          &
        sedflux_vars)

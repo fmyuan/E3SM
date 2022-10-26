@@ -15,7 +15,6 @@ module NitrogenDynamicsMod
   use subgridAveMod       , only : p2c
   use atm2lndType         , only : atm2lnd_type
   use CNStateType         , only : cnstate_type
-  use WaterFluxType       , only : waterflux_type
   use CropType            , only : crop_type
   use ColumnType          , only : col_pp
   use ColumnDataType      , only : col_es, col_ws, col_wf, col_cf, col_ns, col_nf

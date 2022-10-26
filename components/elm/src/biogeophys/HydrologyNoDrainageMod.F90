@@ -12,7 +12,6 @@ Module HydrologyNoDrainageMod
   use atm2lndType       , only : atm2lnd_type
   use lnd2atmType       , only : lnd2atm_type
   use AerosolType       , only : aerosol_type
-  use EnergyFluxType    , only : energyflux_type
   use CanopyStateType  , only  : canopystate_type
   use SoilHydrologyType , only : soilhydrology_type
   use SoilStateType     , only : soilstate_type
@@ -45,7 +44,7 @@ contains
        num_snowc, filter_snowc, &
        num_nosnowc, filter_nosnowc, canopystate_vars, &
        atm2lnd_vars, lnd2atm_vars, soilstate_vars,    &
-       energyflux_vars, soilhydrology_vars, aerosol_vars)
+       soilhydrology_vars, aerosol_vars)
     ! !DESCRIPTION:
     ! This is the main subroutine to execute the calculation of soil/snow
     ! hydrology
@@ -95,7 +94,6 @@ contains
     type(atm2lnd_type)       , intent(in)    :: atm2lnd_vars
     type(lnd2atm_type)       , intent(in)    :: lnd2atm_vars
     type(soilstate_type)     , intent(inout) :: soilstate_vars
-    type(energyflux_type)    , intent(in)    :: energyflux_vars
     type(canopystate_type)   , intent(in)  :: canopystate_vars
     type(aerosol_type)       , intent(inout) :: aerosol_vars
     type(soilhydrology_type) , intent(inout) :: soilhydrology_vars
@@ -195,13 +193,13 @@ contains
 
         call Infiltration(bounds, num_hydrononsoic, filter_hydrononsoic, &
              num_urbanc, filter_urbanc, atm2lnd_vars, lnd2atm_vars,      &
-             energyflux_vars, soilhydrology_vars, soilstate_vars, dtime)
+             soilhydrology_vars, soilstate_vars, dtime)
 
       else
       !------------------------------------------------------------------------------------
 
         call Infiltration(bounds, num_hydrologyc, filter_hydrologyc, num_urbanc, filter_urbanc, &
-             atm2lnd_vars, lnd2atm_vars, energyflux_vars, soilhydrology_vars, soilstate_vars, dtime)
+             atm2lnd_vars, lnd2atm_vars, soilhydrology_vars, soilstate_vars, dtime)
 
       !------------------------------------------------------------------------------------
       end if
@@ -214,7 +212,7 @@ contains
       endif
 
       call Compute_EffecRootFrac_And_VertTranSink(bounds, num_hydrologyc, &
-           filter_hydrologyc, soilstate_vars, canopystate_vars, energyflux_vars)
+           filter_hydrologyc, soilstate_vars, canopystate_vars)
 
 #ifndef _OPENACC
       ! If FATES plant hydraulics is turned on, over-ride default transpiration sink calculation

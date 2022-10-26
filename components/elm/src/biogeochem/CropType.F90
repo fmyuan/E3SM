@@ -566,7 +566,7 @@ contains
   end subroutine Restart
 
   !-----------------------------------------------------------------------
-  subroutine UpdateAccVars(this, bounds, temperature_vars)
+  subroutine UpdateAccVars(this, bounds)
     !
     ! !DESCRIPTION:
     ! Update accumulated variables. Should be called every time step.
@@ -578,14 +578,12 @@ contains
     use shr_const_mod    , only : SHR_CONST_CDAY, SHR_CONST_TKFRZ
     use clm_time_manager , only : get_step_size, get_nstep
     use pftvarcon        , only : nwcereal, nwcerealirrig, mxtmp, baset
-    use TemperatureType  , only : temperature_type
     use VegetationType   , only : veg_pp                
     use ColumnType       , only : col_pp
     !
     ! !ARGUMENTS:
     class(crop_type)       , intent(inout) :: this
     type(bounds_type)      , intent(in)    :: bounds
-    type(temperature_type) , intent(in)    :: temperature_vars
     !
     ! !LOCAL VARIABLES:
     integer :: p,c   ! indices

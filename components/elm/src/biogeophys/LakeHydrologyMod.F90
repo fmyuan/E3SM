@@ -340,7 +340,7 @@ contains
              aerosol_vars%mss_dsttot_col(c,:) = 0._r8
              aerosol_vars%mss_dst_col_col(c)  = 0._r8
              aerosol_vars%mss_dst_top_col(c)  = 0._r8
-             ! call waterstate_vars%Reset(column=c)
+
              col_ws%snw_rds(c,0) = snw_rds_min
 
          end if

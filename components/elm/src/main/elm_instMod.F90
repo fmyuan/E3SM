@@ -13,14 +13,7 @@ module elm_instMod
   use AerosolType                , only : aerosol_type
   use CanopyStateType            , only : canopystate_type
   use CH4Mod                     , only : ch4_type
-  use CNCarbonFluxType           , only : carbonflux_type
-  use CNCarbonStateType          , only : carbonstate_type
   use CNStateType                , only : cnstate_type
-  use CNNitrogenFluxType         , only : nitrogenflux_type
-  use CNNitrogenStateType        , only : nitrogenstate_type
-
-  use PhosphorusFluxType         , only : phosphorusflux_type
-  use PhosphorusStateType        , only : phosphorusstate_type
 
   use CropType                   , only : crop_type
   use DryDepVelocity             , only : drydepvel_type
@@ -36,9 +29,6 @@ module elm_instMod
   use SurfaceRadiationMod        , only : surfrad_type
   use SurfaceAlbedoType          , only : SurfaceAlbedoInitTimeConst !TODO - can this be merged into the type?
   use SurfaceAlbedoType          , only : surfalb_type
-  use TemperatureType            , only : temperature_type, temperature_vars
-  use WaterfluxType              , only : waterflux_type,   waterflux_vars
-  use WaterstateType             , only : waterstate_type, waterstate_vars
   use VOCEmissionMod             , only : vocemis_type
   use atm2lndType                , only : atm2lnd_type
   use lnd2atmType                , only : lnd2atm_type
@@ -46,7 +36,7 @@ module elm_instMod
   use glc2lndMod                 , only : glc2lnd_type
   use glcDiagnosticsMod          , only : glc_diagnostics_type
   use SoilWaterRetentionCurveMod , only : soil_water_retention_curve_type
-  use VegetationPropertiesType   , only : veg_vp             ! Ecophysical Constants
+  use VegetationPropertiesType   , only : veg_vp               ! Ecophysical Constants
   use SoilorderConType           , only : soilordercon         ! Constants
 
   use GridcellDataType           , only : grc_es, grc_ef, grc_ws, grc_wf
@@ -91,14 +81,14 @@ module elm_instMod
   !-----------------------------------------
   !
   type(ch4_type)                                      :: ch4_vars
-  type(carbonstate_type)                              :: carbonstate_vars
-  type(carbonstate_type)                              :: c13_carbonstate_vars
-  type(carbonstate_type)                              :: c14_carbonstate_vars
-  type(carbonflux_type)                               :: carbonflux_vars
-  type(carbonflux_type)                               :: c13_carbonflux_vars
-  type(carbonflux_type)                               :: c14_carbonflux_vars
-  type(nitrogenstate_type)                            :: nitrogenstate_vars
-  type(nitrogenflux_type)                             :: nitrogenflux_vars
+  !type(carbonstate_type)                              :: carbonstate_vars
+  !type(carbonstate_type)                              :: c13_carbonstate_vars
+  !type(carbonstate_type)                              :: c14_carbonstate_vars
+  !type(carbonflux_type)                               :: carbonflux_vars
+  !type(carbonflux_type)                               :: c13_carbonflux_vars
+  !type(carbonflux_type)                               :: c14_carbonflux_vars
+  !type(nitrogenstate_type)                            :: nitrogenstate_vars
+  !type(nitrogenflux_type)                             :: nitrogenflux_vars
   type(crop_type)                                     :: crop_vars
   type(cnstate_type)                                  :: cnstate_vars
   type(dust_type)                                     :: dust_vars
@@ -122,8 +112,8 @@ module elm_instMod
   type(lnd2glc_type)                                  :: lnd2glc_vars
   type(glc_diagnostics_type)                          :: glc_diagnostics_vars
   class(soil_water_retention_curve_type), allocatable :: soil_water_retention_curve
-  type(phosphorusstate_type)                          :: phosphorusstate_vars
-  type(phosphorusflux_type)                           :: phosphorusflux_vars
+  !type(phosphorusstate_type)                          :: phosphorusstate_vars
+  !type(phosphorusflux_type)                           :: phosphorusflux_vars
   type(elm_interface_data_type)                       :: elm_interface_data
   type(chemstate_type)                                :: chemstate_vars
   type(hlm_fates_interface_type)                      :: alm_fates
@@ -392,12 +382,6 @@ contains
 
     call soilstate_vars%init(bounds_proc)
 
-    call waterstate_vars%init(bounds_proc,         &
-         h2osno_col(begc:endc),                    &
-         snow_depth_col(begc:endc),                &
-         soilstate_vars%watsat_col(begc:endc, 1:), &
-         col_es%t_soisno(begc:endc, -nlevsno+1:) )
-
     call grc_ws%Init(bounds_proc%begg_all, bounds_proc%endg_all)
     call lun_ws%Init(bounds_proc%begl_all, bounds_proc%endl_all)
     call col_ws%Init(bounds_proc%begc_all, bounds_proc%endc_all, &
@@ -405,8 +389,6 @@ contains
          snow_depth_col(begc:endc),                &
          soilstate_vars%watsat_col(begc:endc, 1:))
     call veg_ws%Init(bounds_proc%begp_all, bounds_proc%endp_all)
-
-    call waterflux_vars%init(bounds_proc)
 
     call grc_wf%Init(bounds_proc%begg_all, bounds_proc%endg_all, bounds_proc)
     call col_wf%Init(bounds_proc%begc_all, bounds_proc%endc_all)
