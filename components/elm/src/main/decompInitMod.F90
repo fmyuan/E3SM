@@ -22,7 +22,8 @@ module decompInitMod
   use decompMod
   use mct_mod  
   use topounit_varcon   , only : max_topounits, has_topounit
-  use domainMod         , only: ldomain
+  use domainMod         , only : ldomain
+  use elm_varctl        , only : ni_sum, nj_sum, ng_sum
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -30,9 +31,10 @@ module decompInitMod
   ! !PUBLIC MEMBER FUNCTIONS:
   public decompInit_lnd          ! initializes lnd grid decomposition into clumps and processors
   public decompInit_clumps       ! initializes atm grid decomposition into clumps
-  public decompInit_gtlcp         ! initializes g,l,c,p decomp info
+  public decompInit_gtlcp        ! initializes g,l,c,p decomp info
   public decompInit_lnd_using_gp ! initialize lnd grid decomposition into clumps and processors using graph partitioning approach
   public decompInit_ghosts       ! initialize ghost/halo for land grid
+  public decompInit_lnd_loc      ! initializes lnd grid decomposition into clumps for local processor
   !
   ! !PRIVATE TYPES:
   private
@@ -340,6 +342,266 @@ contains
     call shr_sys_flush(iulog)
 
   end subroutine decompInit_lnd
+
+  !------------------------------------------------------------------------------
+  subroutine decompInit_lnd_loc(lni,lnj,amask,lni0,lnj0)
+    !
+    ! !DESCRIPTION:
+    ! This subroutine initializes the land surface decomposition into a clump
+    ! data structure FOR current local processor
+    !
+    ! !USES:
+    use spmdMod
+
+    !
+    ! !ARGUMENTS:
+    implicit none
+    integer , intent(in) :: amask(:)    ! domain local land mask
+    integer , intent(in) :: lni,lnj     ! domain local size
+    integer , intent(in) :: lni0,lnj0   ! domain local indices offset
+    !
+    ! !LOCAL VARIABLES:
+    integer :: lns, lns0                 ! local domain size and global offset
+    integer :: ln,lj                     ! indices
+    integer :: ag,an,ai,aj               ! indices
+    integer :: numg, numg_perc, numg_mod ! number of land gridcells
+    integer :: cid, cid1, cid2, pid      ! indices of clump/process
+    integer :: n, ng, ngx                ! indices
+    integer :: ier                       ! error code
+    integer :: beg,end,lsize,gsize       ! used for gsmap init
+    integer, pointer :: gindex(:)        ! global index for gsmap init
+    integer, pointer :: clumpcnt(:)      ! clump index counter
+    integer, allocatable :: proc_begg(:) ! beginning land-masked cell index assigned to a process
+    integer, allocatable :: proc_ncell(:)! number of land-masked cells assigned to a process
+    !------------------------------------------------------------------------------
+
+    lns = lni * lnj
+
+    !--- set and verify nclumps ---
+    if (clump_pproc > 0) then
+       nclumps = clump_pproc * npes
+       if (nclumps < npes) then
+          write(iulog,*) 'decompInit_lnd(): Number of gridcell clumps= ',nclumps, &
+               ' is less than the number of processes = ', npes
+          call endrun(msg=errMsg(__FILE__, __LINE__))
+       end if
+    else
+       write(iulog,*)'clump_pproc= ',clump_pproc,'  must be greater than 0'
+       call endrun(msg=errMsg(__FILE__, __LINE__))
+    end if
+
+    ! allocate and initialize procinfo (from decompMod.F90) and clumps
+    ! beg and end indices initialized for simple addition of cells later
+
+    allocate(procinfo%cid(clump_pproc), stat=ier)
+    if (ier /= 0) then
+       write(iulog,*) 'decompInit_lnd_loc(): allocation error for procinfo%cid'
+       call endrun(msg=errMsg(__FILE__, __LINE__))
+    endif
+    procinfo%nclumps   = clump_pproc
+    procinfo%cid(:)    = -1
+    procinfo%ncells    = 0
+    procinfo%ntunits   = 0
+    procinfo%nlunits   = 0
+    procinfo%ncols     = 0
+    procinfo%npfts     = 0
+    procinfo%nCohorts  = 0
+    procinfo%begg      = 1
+    procinfo%begt      = 1
+    procinfo%begl      = 1
+    procinfo%begc      = 1
+    procinfo%begp      = 1
+    procinfo%begCohort = 1
+    procinfo%endg      = 0
+    procinfo%endt      = 0
+    procinfo%endl      = 0
+    procinfo%endc      = 0
+    procinfo%endp      = 0
+    procinfo%endCohort = 0
+
+    cid1 = clump_pproc * iam + 1  ! start cid (1-based) of clumps on current local proc
+    cid2 = cid1 + clump_pproc - 1 ! end cid (1-based) of clumps on current local proc
+    allocate(clumps(cid1:cid2), stat=ier)       ! clump indexing globally but only a segment of local proc
+    if (ier /= 0) then
+       write(iulog,*) 'decompInit_lnd_loc(): allocation error for clumps on proc ', iam
+       call endrun(msg=errMsg(__FILE__, __LINE__))
+    end if
+    clumps(cid1:cid2)%owner    = -1
+    clumps(cid1:cid2)%ncells   = 0
+    clumps(cid1:cid2)%ntunits  = 0
+    clumps(cid1:cid2)%nlunits  = 0
+    clumps(cid1:cid2)%ncols    = 0
+    clumps(cid1:cid2)%npfts    = 0
+    clumps(cid1:cid2)%nCohorts = 0
+    clumps(cid1:cid2)%begg     = 1
+    clumps(cid1:cid2)%begt     = 1
+    clumps(cid1:cid2)%begl     = 1
+    clumps(cid1:cid2)%begc     = 1
+    clumps(cid1:cid2)%begp     = 1
+    clumps(cid1:cid2)%begCohort= 1
+    clumps(cid1:cid2)%endg     = 0
+    clumps(cid1:cid2)%endt     = 0
+    clumps(cid1:cid2)%endl     = 0
+    clumps(cid1:cid2)%endc     = 0
+    clumps(cid1:cid2)%endp     = 0
+    clumps(cid1:cid2)%endCohort= 0
+
+    ! assign clumps to proc
+    do n = cid1, cid2
+       clumps(n)%owner = iam
+       procinfo%cid(n-cid1+1) = n
+    enddo
+
+    ! Assign gridcells to clumps (and thus pes) ---
+
+    lns0 = lni0*lnj0                           ! global index offset
+    allocate(lcid(lns0+1:lns0+lns), stat=ier)  ! note: this is global gridcell' clump indexing
+    if (ier /= 0) then
+       write(iulog,*) 'decompInit_lnd_loc(): allocation error for lcid'
+       call endrun(msg=errMsg(__FILE__, __LINE__))
+    end if
+
+    ! count total land gridcells on local
+    numg = 0
+    do ln = 1,lns
+       if (amask(ln) == 1) then
+          numg = numg + 1
+       endif
+    enddo
+
+    lcid(lns0+1:lns0+lns) = 0
+    ng = 1
+    cid = cid1
+    numg_perc = int(numg/clump_pproc)
+    numg_mod  = mod(numg, clump_pproc)
+    do ln = lns0+1,lns0+lns
+
+       if (amask(ln-lns0) == 1) then
+          ! assign gridcell to clump by continuous block
+          lcid(ln) = cid
+
+          !--- give gridcell cell to pe that owns cid ---
+          !--- this needs to be done to subsequently use function
+          !--- get_proc_bounds(begg,endg)
+          procinfo%ncells  = procinfo%ncells  + 1
+
+          !--- give gridcell to cid ---
+          clumps(cid)%ncells  = clumps(cid)%ncells  + 1
+
+          ! cid assignment by a block of land grids
+          ngx = (cid - cid1 + 1)*numg_perc
+          if (numg_mod>0) then
+            ! add residual grid counts evenly (1) for first few clumps
+            ngx = ngx + 1
+            numg_mod = numg_mod - 1
+          endif
+          if (ng > ngx) cid = cid + 1
+          ng = ng  + 1
+
+       end if
+    enddo
+
+    ! determine offset (begg) for all processes, after all reach to this point
+    call mpi_barrier(mpicom, ier)
+    allocate(proc_ncell(0:npes-1), stat=ier)
+    call mpi_gather(procinfo%ncells, 1, MPI_INTEGER, &
+                    proc_ncell, 1, MPI_INTEGER, 0, mpicom, ier)
+    call mpi_bcast(proc_ncell, npes, MPI_INTEGER, 0, mpicom, ier)
+    if (ier /= 0) then
+       write(iulog,*) 'decompInit_lnd(): allocation error for proc_begg'
+       call endrun(msg=errMsg(__FILE__, __LINE__))
+    end if
+
+    allocate(proc_begg(0:npes-1), stat=ier)
+    proc_begg(0) = 1
+    do pid = 1,npes-1
+       proc_begg(pid) = proc_begg(pid-1) + proc_ncell(pid-1)
+    enddo
+
+    ! current proc (iam)
+    procinfo%begg = proc_begg(iam)
+    procinfo%endg = (procinfo%begg-1) + procinfo%ncells
+
+    ! determine offset for each clump assigned to current process
+    ! (re-using proc_begg as work space)
+    do cid = cid1, cid2
+      clumps(cid)%begg = proc_begg(clumps(cid)%owner)
+      proc_begg(clumps(cid)%owner) = proc_begg(clumps(cid)%owner) &
+                                   + clumps(cid)%ncells
+      clumps(cid)%endg = proc_begg(clumps(cid)%owner) - 1
+    enddo
+
+    ! free work space
+    deallocate(proc_begg, proc_ncell)
+
+    ! Set ldecomp
+
+    allocate(ldecomp%gdc2glo(procinfo%begg:procinfo%endg), stat=ier)
+    if (ier /= 0) then
+       write(iulog,*) 'decompInit_lnd(): allocation error1 for ldecomp, etc'
+       call endrun(msg=errMsg(__FILE__, __LINE__))
+    end if
+
+    ldecomp%gdc2glo(procinfo%begg:procinfo%endg) = 0
+    ag = 0
+
+    ! clumpcnt is the start gdc index of each clump
+    allocate(clumpcnt(cid1: cid2),stat=ier)
+    if (ier /= 0) then
+       write(iulog,*) 'decompInit_lnd(): allocation error1 for clumpcnt'
+       call endrun(msg=errMsg(__FILE__, __LINE__))
+    end if
+    clumpcnt(cid1: cid2) = 0
+    do cid = cid1, cid2
+       clumpcnt(cid) = clumps(cid)%begg
+    enddo
+
+    ! now go through gridcells one at a time and increment clumpcnt
+    ! in order to set gdc2glo
+    lns0 = lnj0*lni0
+    do aj = 1, lnj
+      do ai = 1, lni
+        an = lns0 + (aj-1)*lni + ai   ! (TODO) need changing this to continuous block method
+        cid = lcid(an)
+        if (cid > 0) then
+          ag = clumpcnt(cid)
+          ldecomp%gdc2glo(ag) = an
+          clumpcnt(cid) = clumpcnt(cid) + 1
+        end if
+      end do
+    end do
+    deallocate(clumpcnt)
+
+    ! Set gsMap_lnd_gdc2glo (the global index here includes mask=0 or ocean points)
+
+    call get_proc_bounds(beg, end)
+    allocate(gindex(beg:end))
+    do n = beg,end
+       gindex(n) = ldecomp%gdc2glo(n)
+    enddo
+    lsize = end-beg+1
+
+    gsize = ni_sum * nj_sum
+    call mct_gsMap_init(gsMap_lnd_gdc2glo, gindex, mpicom, comp_id, lsize, gsize)
+    deallocate(gindex)
+
+    ! Diagnostic output
+    call mpi_allreduce(numg,ng_sum,1,MPI_INTEGER,MPI_SUM,mpicom,ier)
+    if (masterproc) then
+       write(iulog,*)' Surface Grid Characteristics'
+       write(iulog,*)'   longitude points               = ',ni_sum
+       write(iulog,*)'   latitude points                = ',nj_sum
+       write(iulog,*)'   total number of land gridcells = ',ng_sum
+       write(iulog,*)' Decomposition Characteristics'
+       write(iulog,*)'   clumps per process             = ',clump_pproc
+       write(iulog,*)' gsMap Characteristics'
+       write(iulog,*) '  lnd gsmap glo num of segs      = ',mct_gsMap_ngseg(gsMap_lnd_gdc2glo)
+       write(iulog,*)
+    end if
+
+    call shr_sys_flush(iulog)
+
+  end subroutine decompInit_lnd_loc
 
   !------------------------------------------------------------------------------
   subroutine decompInit_clumps(glcmask)
