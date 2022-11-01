@@ -1102,17 +1102,12 @@ contains
 
        !Parse startdate for adding temperature
        if (startdate_add_temperature .ne. '') then 
-         call get_curr_date( yr, mon, day, tod )
+         !call get_curr_date( yr, mon, day, tod) ! not needed
          read(startdate_add_temperature,*) sdate_addt
          sy_addt     = sdate_addt/10000
          sm_addt     = (sdate_addt-sy_addt*10000)/100
          sd_addt     = sdate_addt-sy_addt*10000-sm_addt*100
-         read(startdate_add_co2,*) sdate_addco2
-         sy_addco2     = sdate_addco2/10000
-         sm_addco2     = (sdate_addco2-sy_addco2*10000)/100
-         sd_addco2     = sdate_addco2-sy_addco2*10000-sm_addt*100
-       end if 
-       if (startdate_add_temperature .ne. '') then
+
          if ((yr == sy_addt .and. mon == sm_addt .and. day >= sd_addt) .or. &
              (yr == sy_addt .and. mon > sm_addt) .or. (yr > sy_addt)) then
            atm2lnd_vars%forc_t_not_downscaled_grc(g) = atm2lnd_vars%forc_t_not_downscaled_grc(g) + add_temperature
@@ -1203,12 +1198,25 @@ contains
         wt2(1) = 1._r8 - wt1(1)
 
         co2_ppmv_val = atm2lnd_vars%co2_input(1,1,nindex(1))*wt1(1) + atm2lnd_vars%co2_input(1,1,nindex(2))*wt2(1)
+
+       !Parse startdate for adding co2
+       if (startdate_add_co2 .ne. '') then
+         read(startdate_add_co2,*) sdate_addco2
+         sy_addco2     = sdate_addco2/10000
+         sm_addco2     = (sdate_addco2-sy_addco2*10000)/100
+         sd_addco2     = sdate_addco2-sy_addco2*10000-sm_addt*100
+
+         !call get_curr_date( yr, mon, day, tod )
+         if ((yr == sy_addco2 .and. mon == sm_addco2 .and. day >= sd_addco2) .or. &
+              (yr == sy_addco2 .and. mon > sm_addco2) .or. (yr > sy_addco2)) then
+            co2_ppmv_val=co2_ppmv_val + add_co2
+         end if
+       end if
+
         if (use_c13) then
           atm2lnd_vars%forc_pc13o2_grc(g) = (atm2lnd_vars%c13o2_input(1,1,nindex(1))*wt1(1) + &
              atm2lnd_vars%c13o2_input(1,1,nindex(2))*wt2(1)) * 1.e-6_r8 * atm2lnd_vars%forc_pbot_not_downscaled_grc(g)
         end if
-        !TEST (FACE-like experiment begins in 2010)
-        !if (yr .ge. 2010) atm2lnd_vars%co2_input = 550.
 
         ! bypass mode doesn't receive _prog/_diag from atm, but have to reset them here
         co2_ppmv_prog = co2_ppmv_val
