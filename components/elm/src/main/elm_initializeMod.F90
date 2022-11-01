@@ -5,6 +5,7 @@ module elm_initializeMod
   !
   use shr_kind_mod     , only : r8 => shr_kind_r8
   use spmdMod          , only : masterproc, iam
+  use spmdMod          , only : npes
   use shr_sys_mod      , only : shr_sys_flush
   use shr_log_mod      , only : errMsg => shr_log_errMsg
   use decompMod        , only : bounds_type, get_proc_bounds, get_proc_clumps, get_clump_bounds
@@ -74,6 +75,7 @@ contains
     use surfrdMod                 , only: surfrd_get_grid_conn, surfrd_topounit_data
     use elm_varctl                , only: lateral_connectivity, domain_decomp_type
     use decompInitMod             , only: decompInit_lnd_using_gp, decompInit_ghosts
+    use decompInitMod             , only: decompInit_lnd_loc
     use domainLateralMod          , only: ldomain_lateral, domainlateral_init
     use SoilTemperatureMod        , only: init_soil_temperature
     use ExternalModelInterfaceMod , only: EMI_Determine_Active_EMs
@@ -81,7 +83,9 @@ contains
     use filterMod                 , only: allocFilters
     use reweightMod               , only: reweight_wrapup
     use ELMFatesInterfaceMod      , only: ELMFatesGlobals
-    use topounit_varcon           , only: max_topounits, has_topounit, topounit_varcon_init    
+    use topounit_varcon           , only: max_topounits, has_topounit, topounit_varcon_init
+    use elm_varctl                , only: metdata_bypass, ldomain_subed, metdata_subed, subnum_str, fname_len, ni_sum, nj_sum
+    use spmdMod
     !
     ! !LOCAL VARIABLES:
     integer           :: ier                     ! error status
@@ -104,7 +108,14 @@ contains
     integer           :: maxEdges                ! max number of edges/neighbors
     integer           :: nclumps                 ! number of clumps on this processor
     integer           :: nc                      ! clump index
+    !
+    integer           :: pid
+    integer ,pointer  :: amask_loc(:)            ! local land mask
+    integer ,pointer  :: lni_offset(:), lnj_offset(:)
+    integer ,pointer  :: lni_all(:), lnj_all(:)
+    character(len=4)  :: numstr
     character(len=32) :: subname = 'initialize1' ! subroutine name
+
     !-----------------------------------------------------------------------
 
     call t_startf('elm_init1')
@@ -143,7 +154,59 @@ contains
        write(iulog,*) 'Attempting to read global land mask from ',trim(fatmlndfrc)
        call shr_sys_flush(iulog)
     endif
+
     call surfrd_get_globmask(filename=fatmlndfrc, mask=amask, ni=ni, nj=nj)
+
+    ! the following is required in case data not-subzoned.
+    ni_sum = ni
+    nj_sum = nj
+
+    ldomain_subed = .false.
+    metdata_subed = .false.
+#if defined LDOMAIN_SUB
+    ! with high-res land model, sud-domains, surfdatas, and/or metdata are all under one sub-directories
+    ! under 'metdata_bypass' folder
+    inquire(file=trim(metdata_bypass) // '/sub001/domain.nc', exist=ldomain_subed)
+    inquire(file=trim(metdata_bypass) // '/sub001/zone_mappings.txt', exist=metdata_subed)
+
+    if (ldomain_subed .or. metdata_subed) then
+       ! note: those two may not be both '.true.', upon how metdata zoned and placed.
+       !       But, if ldomain_subed = .true., then metdata_subed = .true.
+       write(numstr, '(I4)') 1001+iam
+       subnum_str = 'sub' // numstr(2:4)
+    end if
+!
+    if (ldomain_subed) then
+       fatmlndfrc = trim(metdata_bypass) // '/' // subnum_str // '/domain.nc'
+       fsurdat = trim(metdata_bypass) // '/' // subnum_str // '/surfdata.nc'
+       call surfrd_get_globmask(filename=trim(fatmlndfrc), mask=amask_loc, ni=ni, nj=nj)
+
+       call mpi_barrier(mpicom,ier)
+       ! HERE, it's assumed that sub-domains appendable by 'ni' only, 'nj' by maximum.
+       call mpi_allreduce(ni,ni_sum,1,MPI_INTEGER,MPI_SUM,mpicom,ier)
+       call mpi_allreduce(nj,nj_sum,1,MPI_INTEGER,MPI_MAX,mpicom,ier)  ! (TODO: need further checking here)
+
+       allocate(lni_all(0:npes-1))
+       call mpi_gather(ni, 1, MPI_INTEGER, &
+                       lni_all, 1, MPI_INTEGER, 0, mpicom, ier)
+       call mpi_bcast(lni_all, npes, MPI_INTEGER, 0, mpicom, ier)
+
+       allocate(lnj_all(0:npes-1))
+       call mpi_gather(nj, 1, MPI_INTEGER, &
+                       lnj_all, 1, MPI_INTEGER, 0, mpicom, ier)
+       call mpi_bcast(lnj_all, npes, MPI_INTEGER, 0, mpicom, ier)
+
+       allocate(amask(ni_sum*nj_sum))
+       amask(:)=0
+       call mpi_gather(amask_loc, ni*nj, MPI_INTEGER, &
+                       amask, ni*nj, MPI_INTEGER, 0, mpicom, ier)
+       call mpi_bcast(amask, ni_sum*nj_sum, MPI_INTEGER, 0, mpicom, ier)
+
+       call mpi_barrier(mpicom, ier)
+
+    end if
+
+#endif
 
     ! Exit early if no valid land points
     if ( all(amask == 0) )then
@@ -171,6 +234,29 @@ contains
     ! Determine clm gridcell decomposition and processor bounds for gridcells
     ! ------------------------------------------------------------------------
 
+#ifdef LDOMAIN_SUB
+    if (ldomain_subed) then
+        ! offset for each process
+        allocate(lni_offset(0:npes-1))
+        allocate(lnj_offset(0:npes-1))
+        lni_offset(0) = 0
+        lnj_offset(0) = 0
+        do pid = 1,npes-1
+           lni_offset(pid) = lni_offset(pid-1) + lni_all(pid-1)  ! sub-domains appendable by 'ni' only
+           lnj_offset(pid) = nj_sum                              ! 'nj' not appendable
+        enddo
+        call decompInit_lnd_loc(ni, nj, amask_loc, lni_offset(iam), lnj_offset(iam))
+        deallocate(amask_loc)
+        deallocate(lni_offset)
+        deallocate(lnj_offset)
+        deallocate(lni_all)
+        deallocate(lnj_all)
+    else
+        call decompInit_lnd(ni, nj, amask)
+    end if
+    deallocate(amask)
+
+#else
     select case (trim(domain_decomp_type))
     case ("round_robin")
        call decompInit_lnd(ni, nj, amask)
@@ -181,6 +267,7 @@ contains
        call endrun(msg='ERROR elm_initializeMod: '//&
             'Unsupported domain_decomp_type = ' // trim(domain_decomp_type))
     end select
+#endif
 
     if (lateral_connectivity) then
        call domainlateral_init(ldomain_lateral, cellsOnCell, edgesOnCell, &

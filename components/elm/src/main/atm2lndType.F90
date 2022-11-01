@@ -39,12 +39,13 @@ module atm2lndType
       !DMR additions for CPL_BYPASS option
 #ifdef CPL_BYPASS
       integer*2, pointer :: atm_input                (:,:,:,:) => null()  !Single-site meteorological input
+      integer, pointer  :: atm_ngrid                           => null()
       integer, pointer  :: loaded_bypassdata                   => null()
       real(r8), pointer :: add_offsets                     (:) => null()  !offsets for compressed met drivers
       real(r8), pointer :: scale_factors                   (:) => null()  !scale factors for compressed met drivers      
-      integer(r8), pointer :: startyear_met                    => null()  !staring driver met year
-      integer(r8), pointer :: endyear_met_spinup               => null()  !end driver met year for spinup cycle
-      integer(r8), pointer :: endyear_met_trans                => null()  !end driver met year for transient simulation
+      integer, pointer  :: startyear_met                       => null()  !staring driver met year
+      integer, pointer  :: endyear_met_spinup                  => null()  !end driver met year for spinup cycle
+      integer, pointer  :: endyear_met_trans                   => null()  !end driver met year for transient simulation
       real(r8), pointer :: timeres                         (:) => null()  !time resolution of driver met (hours)
       real(r8), pointer :: var_offset                  (:,:,:) => null()  !correction offset for grid->site driver met (monthly)
       real(r8), pointer :: var_mult                    (:,:,:) => null()  !correction factor for grid->site driver met (monthly)
@@ -199,6 +200,7 @@ contains
     allocate(this%metsource                                )        ; this%metsource                           = ival_int   
     allocate(this%npf                                (1:14))        ; this%npf                           (:)   = ival
     !allocate(this%atm_input       (14,begg:endg,1,1:600000))        ; this%atm_input               (:,:,:,:)   = ival_short
+    allocate(this%atm_ngrid                                )        ; this%atm_ngrid                           = ival_int
     allocate(this%loaded_bypassdata                        )        ; this%loaded_bypassdata                   = 0
     allocate(this%add_offsets                        (1:14))        ; this%add_offsets                   (:)   = ival_float 
     allocate(this%scale_factors                      (1:14))        ; this%scale_factors                 (:)   = ival_float
