@@ -525,12 +525,15 @@ contains
 
     !
     ! create an ATS driver object
-    this%ats_interface = ats_drv()
+    this%ats_interface = ats_create(ats_inputdir, ats_inputfile, mpicom)
 
 
     if (use_ats) then
       ! pass mesh data to ATS prior to ATS setup (as long as ATS driver object ready)
-      call set_mesh(this, l2e_init_list, bounds_clump)
+      !call set_mesh(this, l2e_init_list, bounds_clump)
+
+      ! OR, pass mesh from ATS to ELM
+      call get_mesh(this, e2l_init_list, bounds_clump)  ! in progress .......
 
       ! pass material properties to ATS prior to ATS setup
       call set_material_properties(this, l2e_init_list, bounds_clump)
@@ -543,11 +546,8 @@ contains
       print *, ''
       print *, 'EM_ATS_Init: ats inputs - ', trim(ats_inputdir), ' ', trim(ats_inputfile)
       print *, 'communicator id: ', mpicom
-      call this%ats_interface%setup(ats_inputdir, ats_inputfile, mpicom)
+      call this%ats_interface%setup()
       !
-      ! after setting up mesh, materials
-      init_timesecond = nstep_mod * dtime_mod
-      call this%ats_interface%init()
 
     end if
 
@@ -559,7 +559,7 @@ contains
   subroutine set_mesh(this, l2e_init_list, bounds_clump)
     !
     !DESCRIPTION
-    !  Saves
+    !  mesh from ELM to ATS
     !
     !
     implicit none
@@ -619,7 +619,7 @@ contains
     j = 0
     col_nodes(:) = surf_zi(c,0) - col_zi(c,:)   ! elevation (m) for all vertical nodes
 
-    call this%ats_interface%setmesh(surf_xi, surf_yi, surf_zi, col_nodes)
+    !call this%ats_interface%setmesh(surf_xi, surf_yi, surf_zi, col_nodes)
 
     deallocate(surf_xi)
     deallocate(surf_yi)
@@ -628,6 +628,57 @@ contains
     deallocate(col_nodes)
 
   end subroutine set_mesh
+
+  !------------------------------------------------------------------------
+
+
+  subroutine get_mesh(this, e2l_init_list, bounds_clump)
+    !
+    !DESCRIPTION
+    !  mesh from ATS to ELM
+    !
+    !
+    implicit none
+    !
+    ! !ARGUMENTS
+    class(em_ats_type)                   :: this
+    class(emi_data_list) , intent(inout) :: e2l_init_list
+    type(bounds_type)    , intent(in)    :: bounds_clump
+
+    ! !LOCAL VARIABLES:
+    integer                              :: c, fc, j
+
+    integer                              :: ncols_local, ncols_global
+    integer                              :: ncells_per_col
+    real(r8)  , pointer                  :: surf_xi(:)
+    real(r8)  , pointer                  :: surf_yi(:)
+    real(r8)  , pointer                  :: surf_zi(:)
+    real(r8)  , pointer                  :: surf_area(:)
+    real(r8)  , pointer                  :: col_zi(:,:)
+    real(r8)  , pointer                  :: col_dz(:,:)
+
+    !-----------------------------------------------------------------------
+
+    allocate(surf_xi(1:this%filter_col_num))           !
+    allocate(surf_yi(1:this%filter_col_num))           !
+    allocate(surf_zi(1:this%filter_col_num))           !
+    allocate(surf_area(1:this%filter_col_num))         !
+
+    allocate(col_zi(1:this%filter_col_num, 1:15))      ! col. cell bottom, assuming top-face of 1st cell is the surf (0.0m)
+
+
+    ! in progress ...
+    call this%ats_interface%getmesh(ncols_local, ncols_global, ncells_per_col,  &
+       surf_yi, surf_xi, surf_zi, surf_area, col_zi)
+
+    deallocate(surf_xi)
+    deallocate(surf_yi)
+    deallocate(surf_zi)
+    deallocate(surf_area)
+    deallocate(col_zi)
+    deallocate(col_dz)
+
+  end subroutine get_mesh
 
   !------------------------------------------------------------------------
   subroutine set_material_properties(this, l2e_init_list, bounds_clump)
@@ -659,6 +710,10 @@ contains
     real(r8), pointer    :: ats_eff_porosity(:,:)
     real(r8), pointer    :: ats_residual_sat(:,:)
     real(r8), pointer    :: ats_zwt(:)
+
+    real(r8), pointer    :: ats_pft_tugor(:)
+    real(r8), pointer    :: ats_pft_wp(:)
+
     !
     integer              :: fc, c, j
     integer              :: nz
@@ -707,8 +762,8 @@ contains
     end do
 
     ! pass data to ATS
-    call this%ats_interface%setmat(ats_watsat, ats_hksat, ats_bsw, ats_sucsat, &
-             ats_residual_sat, ats_eff_porosity, ats_zwt)
+    call this%ats_interface%setsoilveg(ats_watsat, ats_hksat, &
+         ats_bsw, ats_sucsat, ats_residual_sat, ats_pft_tugor, ats_pft_wp)
 
     deallocate(ats_watsat)
     deallocate(ats_hksat)
@@ -813,12 +868,47 @@ contains
     end do
 
     starting_time = nstep*dt
-    call this%ats_interface%setic(patm_ats, soilp_ats, wtd_ats, starting_time)
+    call this%ats_interface%init(starting_time, patm_ats, soilp_ats)
 
     deallocate(patm_ats)
     deallocate(soilp_ats)
     deallocate(wtd_ats)
   end subroutine set_initial_conditions
+
+  !------------------------------------------------------------------------
+  subroutine set_dyn_properties(this, l2e_list, bounds_clump)
+    !
+    ! !DESCRIPTION:
+    !
+    implicit none
+    !
+    ! !ARGUMENTS
+    class(em_ats_type)               :: this
+    class(emi_data_list), intent(in) :: l2e_list
+    type(bounds_type)   , intent(in) :: bounds_clump
+    !
+    ! !LOCAL VARIABLES:
+    integer           :: fc, c, j
+    integer           :: nz, npft
+    real(r8), pointer :: soil_effporo(:,:),     soil_effporo_ats(:,:)
+    real(r8), pointer :: pft_rootfrac(:,:,:),   pft_rootfrac_ats(:,:,:)
+    !-----------------------------------------------------------------------
+
+    !call l2e_list%GetPointerToReal2D(this%index_l2e_state_effporo         , soil_effporo )
+    nz = 15 !size(soilp_effporo(1,:))
+    allocate(soil_effporo_ats(0:this%filter_col_num-1, 0:nz-1))                               ! index starting from 0 at soil bottom
+
+    !call l2e_list%GetPointerToReal1D(this%index_l2e_state_rootfrac         , pft_rootfrac)   ! TODO
+    npft = 17
+    allocate(pft_rootfrac_ats(0:this%filter_col_num-1, 0:nz-1, 0:npft-1))
+
+    ! in progress ...
+    call this%ats_interface%setsoilveg_dyn(soil_effporo_ats, pft_rootfrac_ats)
+
+    deallocate(soil_effporo_ats)
+    deallocate(pft_rootfrac_ats)
+
+  end subroutine set_dyn_properties
 
   !------------------------------------------------------------------------
   subroutine set_bc_ss(this, l2e_list, bounds_clump)
@@ -885,8 +975,7 @@ contains
       end do
     end do
 
-    call this%ats_interface%setss(soilinfl_flux_ats, soilevap_flux_ats, pfttran_flux_ats, soilbot_flux_ats, &
-                                       roottran_flux_ats, soildrain_flux_ats)
+    call this%ats_interface%setss_hydro(soilinfl_flux_ats, soilevap_flux_ats, pfttran_flux_ats)
 
   end subroutine set_bc_ss
 
@@ -913,11 +1002,17 @@ contains
     integer              :: nc, nz, npft
     real(r8), pointer    :: col_dz(:,:)
 
-    real(r8)  , pointer                  :: e2l_h2osoi_liq(:,:), h2oliq_ats(:,:)
-    real(r8)  , pointer                  :: e2l_h2osoi_ice(:,:), h2oice_ats(:,:)
-    real(r8)  , pointer                  :: e2l_smp(:,:),        psi_ats(:,:)
-    real(r8)  , pointer                  :: e2l_zwt(:),          zwt_ats(:)
-    real(r8)  , pointer                  :: e2l_soilp(:,:),      soilp_ats(:,:)
+    real(r8)  , pointer  :: e2l_h2osoi_liq(:,:), h2oliq_ats(:,:)
+    real(r8)  , pointer  :: e2l_h2osoi_ice(:,:), h2oice_ats(:,:)
+    real(r8)  , pointer  :: e2l_smp(:,:),        psi_ats(:,:)
+    real(r8)  , pointer  :: e2l_zwt(:),          zwt_ats(:)
+    real(r8)  , pointer  :: e2l_soilp(:,:),      soilp_ats(:,:)
+
+    real(r8)  , pointer  :: soilinfl_flux_ats(:)
+    real(r8)  , pointer  :: evap_flux_ats(:)
+    real(r8)  , pointer  :: pfttran_flux_ats(:,:,:)
+    real(r8)  , pointer  :: net_sub_flux_ats(:)
+    real(r8)  , pointer  :: net_srf_flux_ats(:)
 
     !-----------------------------------------------------------------------
     !
@@ -927,6 +1022,7 @@ contains
     call e2l_list%GetPointerToReal2D(this%index_e2l_state_smp        , e2l_smp               )
     call e2l_list%GetPointerToReal2D(this%index_e2l_state_soilp      , e2l_soilp             )
     nz = size(e2l_soilp(1,:))
+    npft = 17 ! (TODO: not hard-wired)
 
     ! index starting from 0
     allocate(zwt_ats(0:this%filter_col_num-1))
@@ -935,9 +1031,17 @@ contains
     allocate(psi_ats(0:this%filter_col_num-1, 0:nz-1))
     allocate(soilp_ats(0:this%filter_col_num-1, 0:nz-1))
 
-    ! currently only checking the ATS data as it is, i.e. NO returning data for ELM
-    call this%ats_interface%getdata_hydro(zwt_ats, h2oliq_ats, h2oice_ats, psi_ats, soilp_ats)
+    allocate(soilinfl_flux_ats(0:this%filter_col_num-1))
+    allocate(evap_flux_ats(0:this%filter_col_num-1))
+    allocate(pfttran_flux_ats(0:this%filter_col_num-1, 0:nz-1, 0:npft-1))
+    allocate(net_sub_flux_ats(0:this%filter_col_num-1))
+    allocate(net_srf_flux_ats(0:this%filter_col_num-1))
 
+
+    ! currently only checking the ATS data as it is, i.e. NO returning data for ELM
+    call this%ats_interface%getdata_hydro(zwt_ats, soilp_ats, psi_ats, h2oliq_ats, h2oice_ats,    &
+                                          soilinfl_flux_ats, evap_flux_ats, pfttran_flux_ats, &
+                                          net_sub_flux_ats, net_srf_flux_ats)
     do fc = 1, this%filter_col_num
       c = this%filter_col(fc)
       e2l_zwt(c) = zwt_ats(fc-1)
@@ -949,11 +1053,18 @@ contains
       end do
     end do
 
+    ! (TODO) passing to 'e2l' flux variables
+
+
     deallocate(zwt_ats)
     deallocate(h2oliq_ats)
     deallocate(h2oice_ats)
     deallocate(psi_ats)
     deallocate(soilp_ats)
+
+
+
+
 
    end subroutine get_data_for_elm
 
