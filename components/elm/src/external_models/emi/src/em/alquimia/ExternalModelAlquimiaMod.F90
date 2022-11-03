@@ -43,12 +43,6 @@ module ExternalModelAlquimiaMod
   implicit none
 
   type, public, extends(em_base_type) :: em_alquimia_type
-    ! Initialization data needed
-    integer :: index_l2e_init_filter_soilc
-    integer :: index_l2e_init_filter_num_soilc
-    integer :: index_l2e_init_state_temperature_soil
-    integer :: index_l2e_init_state_h2osoi_liq
-    integer :: index_l2e_init_state_h2osoi_ice
 
     integer :: index_l2e_col_dz
     
@@ -57,6 +51,7 @@ module ExternalModelAlquimiaMod
     integer :: index_l2e_filter_soilc
     integer :: index_l2e_filter_num_soilc
     integer :: index_l2e_state_h2osoi_liqvol
+    integer :: index_l2e_state_h2osoi_icevol
     integer :: index_l2e_state_decomp_cpools
     integer :: index_l2e_state_decomp_npools
     integer :: index_l2e_state_temperature_soil
@@ -80,6 +75,7 @@ module ExternalModelAlquimiaMod
     integer :: index_e2l_state_DOC
     integer :: index_e2l_state_DON
     integer :: index_e2l_state_DIC
+    integer :: index_e2l_state_ch4_vr
 
     integer :: index_e2l_state_ph
     integer :: index_e2l_state_salinity
@@ -269,6 +265,10 @@ contains
     id                                   = L2E_STATE_SOIL_LIQ_VOL_COL
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_l2e_state_h2osoi_liqvol      = index
+
+    id                                   = L2E_STATE_SOIL_ICE_VOL_COL
+    call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_l2e_state_h2osoi_icevol      = index
     
     ! Carbon pools
     id                                             = L2E_STATE_CARBON_POOLS_VERTICALLY_RESOLVED
@@ -441,6 +441,10 @@ contains
     id                                             = E2L_FLUX_METHANE!_VERTICALLY_RESOLVED
     call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_e2l_flux_ch4              = index
+
+    id                                             = E2L_STATE_METHANE_VERTICALLY_RESOLVED
+    call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_e2l_state_ch4_vr              = index
     
     id                                             = E2L_STATE_NH4_VERTICALLY_RESOLVED
     call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
@@ -896,7 +900,7 @@ end subroutine EMAlquimia_Coldstart
     real(r8) , pointer, dimension(:,:,:)    :: soilcarbon_l2e,soilcarbon_e2l 
     real(r8) , pointer, dimension(:,:,:)    :: soilnitrogen_l2e,soilnitrogen_e2l 
     real(r8) , pointer, dimension(:,:,:)    :: decomp_k
-    real(r8) , pointer, dimension(:,:)    :: temperature, h2o_liqvol
+    real(r8) , pointer, dimension(:,:)    :: temperature, h2o_liqvol, h2o_icevol
     real(r8) , pointer, dimension(:)     :: hr_e2l,methaneflux_e2l ! 1D total surface emission
     real(r8) , pointer, dimension(:)     :: NO3runoff_e2l,DONrunoff_e2l ! 1D total column runoff (gN/m2/s)
     real(r8) , pointer, dimension(:)     :: DICrunoff_e2l,DOCrunoff_e2l ! 1D total column runoff (gN/m2/s)
@@ -914,10 +918,11 @@ end subroutine EMAlquimia_Coldstart
     integer  , pointer, dimension(:,:,:)   :: aux_ints_l2e, aux_ints_e2l
     real(r8) , pointer, dimension(:,:)    :: qflx_adv_l2e, qflx_lat_aqu_l2e
     real(r8) , pointer, dimension(:)      :: flood_salinity_l2e, h2osfc_l2e, wtd_l2e
-    real(r8) , pointer, dimension(:,:)    :: DOC_e2l, DON_e2l, DIC_e2l
+    real(r8) , pointer, dimension(:,:)    :: DOC_e2l, DON_e2l, DIC_e2l, methane_vr_e2l
     real(r8) , pointer, dimension(:,:)    :: pH_e2l, O2_e2l, salinity_e2l, sulfate_e2l, sulfide_e2l, Fe2_e2l, FeOxide_e2l, carbonate_e2l
     real(r8) , pointer, dimension(:)     :: actual_dt_e2l
     real(r8)                            :: CO2_before, molperL_to_molperm3
+    real(r8) , dimension(nlevdecomp)    :: liq_frac
     real(r8), parameter                 :: minval = 1.e-30_r8 ! Minimum value to pass to PFLOTRAN to avoid numerical errors with concentrations of 0
 
     ! Setting these to the values in PFLOTRAN clm_rspfuncs.F90
@@ -952,6 +957,7 @@ end subroutine EMAlquimia_Coldstart
     ! Abiotic factors
     call l2e_list%GetPointerToReal2D(this%index_l2e_state_temperature_soil , temperature  ) ! K
     call l2e_list%GetPointerToReal2D(this%index_l2e_state_h2osoi_liqvol, h2o_liqvol) ! m3/m3
+    call l2e_list%GetPointerToReal2D(this%index_l2e_state_h2osoi_icevol, h2o_icevol) ! m3/m3
     ! call l2e_list%GetPointerToReal2D(this%index_l2e_state_h2osoi_ice, h2o_ice) ! kg/m2
     
     ! Pool turnover rate constants calculated in ELM, incorporating T and moisture effects (1/s)
@@ -966,6 +972,7 @@ end subroutine EMAlquimia_Coldstart
     call e2l_list%GetPointerToReal1D(this%index_e2l_flux_hr , hr_e2l) ! (gC/m2/s)
 
     call e2l_list%GetPointerToReal1D(this%index_e2l_flux_ch4 , methaneflux_e2l) ! (gC/m2/s)
+    call e2l_list%GetPointerToReal2D(this%index_e2l_state_ch4_vr , methane_vr_e2l) ! (gC/m2/s)
     
     call e2l_list%GetPointerToReal2D(this%index_e2l_state_no3 , no3_e2l) ! gN/m3
     call e2l_list%GetPointerToReal2D(this%index_e2l_state_nh4 , nh4_e2l) ! gN/m3
@@ -1132,6 +1139,12 @@ end subroutine EMAlquimia_Coldstart
              if(this%plantNH4uptake_pool_number>0) total_immobile_l2e(c,j,this%plantNH4uptake_pool_number) = minval
              if(this%plantNH4uptake_pool_number>0) total_mobile_l2e(c,j,this%plantNH4uptake_pool_number) = minval
 
+             if(h2o_liqvol(c,j)+h2o_icevol(c,j)>0) then
+              liq_frac(j) = h2o_liqvol(c,j)/(h2o_liqvol(c,j)+h2o_icevol(c,j))
+             else
+              liq_frac(j) = 0.0_r8
+             endif
+
           enddo ! End of layer loop setting things up
 
               ! Step the chemistry solver, including advection/diffusion and timestep cutting capability for whole column
@@ -1202,7 +1215,8 @@ end subroutine EMAlquimia_Coldstart
                   aux_doubles_l2e,&
                   aux_ints_l2e,&
                   porosity_l2e,temperature,dz,&
-                  h2o_liqvol/porosity_l2e,    &    ! Water content as fraction of saturation
+                  (h2o_liqvol+h2o_icevol)/porosity_l2e,    &    ! Water content as fraction of saturation
+                  liq_frac,  &  ! Liquid fraction of soil water
                   -qflx_adv_l2e(:,0:nlevdecomp),&  ! Vertical water flux (mm/s)
                   qflx_lat_aqu_l2e/dt,         &      ! Horizontal water flux (depth-resolved)
                   lat_bc,                   &      ! Lateral flux concentration boundary condition
@@ -1305,8 +1319,14 @@ end subroutine EMAlquimia_Coldstart
               do k=1, this%chem_sizes%num_primary
                 DOC_e2l(c,j) = DOC_e2l(c,j) + total_mobile_e2l(c,j,k)*catomw*this%DOC_content(k)
                 DON_e2l(c,j) = DON_e2l(c,j) + total_mobile_e2l(c,j,k)*natomw*this%DON_content(k)
-                DIC_e2l(c,j) = DIC_e2l(c,j) + total_mobile_e2l(c,j,k)*catomw*this%DIC_content(k)
+                DIC_e2l(c,j) = DIC_e2l(c,j) + total_mobile_e2l(c,j,k)*catomw*this%DIC_content(k) 
               enddo
+
+              if(this%CH4_pool_number>0) then
+                methane_vr_e2l(c,j) = total_mobile_e2l(c,j,this%CH4_pool_number)
+              else
+                methane_vr_e2l(c,j) = 0.0_r8
+              endif
 
               carbonate_e2l(c,j) = 0.0_r8
               do k=1, this%chem_sizes%num_minerals
@@ -1520,7 +1540,7 @@ end subroutine EMAlquimia_Coldstart
 
     ! We will store mobile concentrations as  mol/m3 bulk on ELM side and mol/L on alquimia side
     ! This is so changes in layer water content across time steps are properly reflected in concentrations
-    molperL_to_molperm3 = 1000.0*this%chem_state%porosity*this%chem_properties%saturation
+    molperL_to_molperm3 = 1000.0_r8*this%chem_state%porosity*this%chem_properties%saturation
 
     ! c_f_pointer just points an array to the right data, so it needs to be actually copied
     call c_f_pointer(this%chem_state%total_mobile%data, alquimia_data, (/this%chem_sizes%num_primary/))
@@ -1771,6 +1791,7 @@ end subroutine EMAlquimia_Coldstart
          (trim(alq_poolname) == 'CH4(aq)') .or. &
          (trim(alq_poolname) == 'O2(aq)')  .or. &
          (trim(alq_poolname) == 'H2S(aq)')  .or. &
+         (trim(alq_poolname) == 'HS-(aq)')  .or. & ! Could cause pH issues
          (trim(alq_poolname) == 'N2(aq)')  .or. &
          (trim(alq_poolname) == 'N2O(aq)')  .or. &
          (trim(alq_poolname) == 'H2(aq)')  ) then
@@ -1798,7 +1819,7 @@ end subroutine EMAlquimia_Coldstart
       ! Not sure if there's a good way to pass C:N ratios from PFLOTRAN to here, but this is really clunky
       if(trim(alq_poolname) == 'DOM1') then
         this%DOC_content(ii) = 1.0_r8
-        this%DON_content(ii) = 1.0_r8/100_r8*12.0110_r8/14.0067_r8
+        this%DON_content(ii) = 1.0_r8/100.0_r8*12.0110_r8/14.0067_r8
       endif
       if(trim(alq_poolname) == 'DOM2') then
         this%DOC_content(ii) = 1.0_r8
@@ -1811,7 +1832,7 @@ end subroutine EMAlquimia_Coldstart
       if(trim(alq_poolname) == 'Acetate-') this%DOC_content(ii) = 2.0_r8
       if(this%DIC_content(ii)>0) write(iulog,'(a,1x,a,f5.2)'),'Found alquimia DIC pool: ',trim(alq_poolname),this%DIC_content(ii)
       if(this%DOC_content(ii)>0) write(iulog,'(a,1x,a,f5.2)'),'Found alquimia DOC pool: ',trim(alq_poolname),this%DOC_content(ii)
-      if(this%DON_content(ii)>0) write(iulog,'(a,1x,a,f7.4)'),'Found alquimia DON pool: ',trim(alq_poolname),this%DON_content(ii)
+      if(this%DON_content(ii)>0) write(iulog,'(a,1x,a,f7.8)'),'Found alquimia DON pool: ',trim(alq_poolname),this%DON_content(ii)
     enddo
 
 
@@ -1989,7 +2010,7 @@ end subroutine EMAlquimia_Coldstart
           cation_exchange_capacity,&
           aux_doubles,&
           aux_ints,&
-          porosity,temperature,volume,saturation,adv_flux,lat_flow,lat_bc,lat_flux,surf_bc,surf_flux)
+          porosity,temperature,volume,saturation,liq_frac,adv_flux,lat_flow,lat_bc,lat_flux,surf_bc,surf_flux)
     
   use c_f_interface_module, only : c_f_string_ptr
   use elm_varpar       , only : nlevdecomp
@@ -2014,7 +2035,7 @@ end subroutine EMAlquimia_Coldstart
   integer,intent(inout)   ,pointer     :: aux_ints(:,:,:)
   real(r8),intent(in),dimension(:,:)  :: porosity,temperature,volume,saturation,lat_flow
   real(r8),intent(in),dimension(:,:)   :: adv_flux
-  real(r8),intent(in),dimension(:)   :: lat_bc, surf_bc
+  real(r8),intent(in),dimension(:)   :: lat_bc, surf_bc, liq_frac
   real(r8),intent(inout)             :: surf_flux(:), lat_flux(:),free_mobile(:,:) ! Total (cumulative) surface flux in time step. Units of mol/time step
 
     real(r8)             :: water_density_tmp(1,nlevdecomp),&
@@ -2062,6 +2083,7 @@ end subroutine EMAlquimia_Coldstart
     if(this%is_dissolved_gas(k)) then
       ! For gases, diffusion rates are set using gas diffusive transport (Meslin et al., SSSAJ, 2010. doi:10.2136/sssaj2009.0474)
       ! Estimating gas diffusion coefficient of 0.2 cm2/s and dry soil diffusion coefficient of 30% of gas (Moldrup et al 2004, SSSAJ)
+      ! This needs to account for frozen water filling pores instead of air
       do j=1,nlevdecomp
         diffus(j) = 2.0e-5_r8*porosity(c,j)*0.3_r8*(1.0_r8 - sat(j))**2.5
       enddo
@@ -2081,6 +2103,7 @@ end subroutine EMAlquimia_Coldstart
     else
       dissolved_frac(0:nlevdecomp) = 0.1
     endif
+    ! dissolved_frac(1:nlevdecomp) = dissolved_frac(1:nlevdecomp)*liq_frac(1:nlevdecomp)
     
     do j=1,nlevdecomp
       if(isnan(total_mobile(c,j,k))) then
@@ -2089,7 +2112,7 @@ end subroutine EMAlquimia_Coldstart
       endif
       ! Assume diffusion through water according to Wright (1990)
       ! In that paper diffus_water = 0.000025 cm2/s
-      diffus(j) = diffus(j) + 2.5e-9_r8*0.005_r8*exp(10.0_r8*sat(j)*porosity(c,j))
+      diffus(j) = diffus(j) + 2.5e-9_r8*0.005_r8*exp(10.0_r8*sat(j)*liq_frac(j)*porosity(c,j))
 
       ! Source term is lateral flow. For inflow, use lateral boundary condition. For outflow, use local concentration
       ! lat_flux units are mm H2O/s = 1e-3 m3 h2o/m2/s
@@ -2275,7 +2298,7 @@ end subroutine EMAlquimia_Coldstart
           surface_site_density,&
           cation_exchange_capacity,&
           aux_doubles,&
-          aux_ints,porosity,temperature,volume,saturation,adv_flux,lat_flow,lat_bc,lat_flux,surf_bc,surf_flux)
+          aux_ints,porosity,temperature,volume,saturation,liq_frac,adv_flux,lat_flow,lat_bc,lat_flux,surf_bc,surf_flux)
 
         if(ncuts>max_cuts) max_cuts=ncuts
         ! write(iulog,*),'Converged =',this%chem_status%converged,"ncuts =",ncuts,'(Substep 1)'
@@ -2292,7 +2315,7 @@ end subroutine EMAlquimia_Coldstart
           surface_site_density,&
           cation_exchange_capacity,&
           aux_doubles,&
-          aux_ints,porosity,temperature,volume,saturation,adv_flux,lat_flow,lat_bc,lat_flux,surf_bc,surf_flux)
+          aux_ints,porosity,temperature,volume,saturation,liq_frac,adv_flux,lat_flow,lat_bc,lat_flux,surf_bc,surf_flux)
           if(ncuts2>max_cuts) max_cuts=ncuts2
         !   write(iulog,*),'Converged =',this%chem_status%converged,"ncuts =",ncuts2,'. Substep 2 +',ii
         enddo
@@ -2353,6 +2376,7 @@ end subroutine EMAlquimia_Coldstart
       else
         dissolved_frac(0:nlevdecomp) = 0.1
       endif
+      ! dissolved_frac(1:nlevdecomp) = dissolved_frac(1:nlevdecomp)*liq_frac(1:nlevdecomp)
       
       do j=1,nlevdecomp
         if(isnan(total_mobile(c,j,k))) then
@@ -2361,7 +2385,7 @@ end subroutine EMAlquimia_Coldstart
         endif
         ! Assume diffusion through water according to Wright (1990)
         ! In that paper diffus_water = 0.000025 cm2/s
-        diffus(j) = diffus(j) + 2.5e-9_r8*0.005_r8*exp(10.0_r8*sat(j)*porosity(c,j))
+        diffus(j) = diffus(j) + 2.5e-9_r8*0.005_r8*exp(10.0_r8*sat(j)*liq_frac(j)*porosity(c,j))
   
         ! Source term is lateral flow. For inflow, use lateral boundary condition. For outflow, use local concentration
         ! lat_flux units are mm H2O/s = 1e-3 m3 h2o/m2/s

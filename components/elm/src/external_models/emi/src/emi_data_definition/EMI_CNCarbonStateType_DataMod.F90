@@ -110,6 +110,19 @@ contains
        dim2_end_name  =  dimname_nlevdecomp_full
        data_found   =  .true.
 
+    case(E2L_STATE_METHANE_VERTICALLY_RESOLVED)
+       id_val         =  E2L_STATE_METHANE_VERTICALLY_RESOLVED
+       name_val       =  'CH4 vr'
+       long_name_val  =  'CH4 vr: EM to ELM'
+       units_val      =  '[gC/m2]'
+       is_real_type   =  .true.
+       ndim           =  2
+       dim1_beg_name  =  dimname_begc
+       dim1_end_name  =  dimname_endc
+       dim2_beg_name  =  dimname_one
+       dim2_end_name  =  dimname_nlevdecomp_full
+       data_found   =  .true.
+
     case(E2L_STATE_SOIL_CARBONATE)
        id_val         =  E2L_STATE_SOIL_CARBONATE
        name_val       =  'Soil carbonate'

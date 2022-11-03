@@ -67,6 +67,19 @@ contains
        dim2_end_name  =  dimname_nlevgrnd
        data_found   =  .true.
 
+    case(L2E_STATE_SOIL_ICE_VOL_COL)
+       id_val         =  L2E_STATE_SOIL_ICE_VOL_COL
+       name_val       =  'Soil ice water volume'
+       long_name_val  =  'Soil ice water volume: ELM to EM'
+       units_val      =  'm3/m3'
+       is_real_type   =  .true.
+       ndim           =  2
+       dim1_beg_name  =  dimname_begc
+       dim1_end_name  =  dimname_endc
+       dim2_beg_name  =  dimname_one
+       dim2_end_name  =  dimname_nlevgrnd
+       data_found   =  .true.
+
     case(L2E_STATE_H2OSFC_COL)
        id_val         =  L2E_STATE_H2OSFC_COL
        name_val       =  'Surface water'
