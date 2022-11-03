@@ -225,6 +225,7 @@ module ColumnDataType
     real(r8), pointer :: cropseedc_deficit    (:)    => null()    
     real(r8), pointer :: DOC_vr               (:,:)  => null() ! gC/m2
     real(r8), pointer :: DIC_vr               (:,:)  => null() ! gC/m2
+    real(r8), pointer :: CH4_vr               (:,:)  => null() ! gC/m2
     real(r8), pointer :: totDOC               (:)  => null() ! gC/m2
     real(r8), pointer :: totDIC               (:)  => null() ! gC/m2
     real(r8), pointer :: SIC_vr               (:,:) => null() ! Soil inorganic C (carbonates) gC/m3
@@ -2098,6 +2099,7 @@ contains
     allocate(this%totsomc              (begc:endc))     ; this%totsomc              (:)     = spval
     allocate(this%DOC_vr    (begc:endc,1:nlevdecomp_full))                   ; this%DOC_vr    (:,:)   = 0.0_r8
     allocate(this%DIC_vr    (begc:endc,1:nlevdecomp_full))                   ; this%DIC_vr    (:,:)   = 0.0_r8
+    allocate(this%CH4_vr    (begc:endc,1:nlevdecomp_full))                   ; this%CH4_vr    (:,:)   = 0.0_r8
     allocate(this%totDOC    (begc:endc))                   ; this%totDOC    (:)   = 0.0_r8
     allocate(this%totDIC    (begc:endc))                   ; this%totDIC    (:)   = 0.0_r8
     allocate(this%SIC_vr    (begc:endc,1:nlevdecomp_full)) ; this%SIC_vr    (:,:) = 0.0_r8
@@ -2232,6 +2234,11 @@ contains
          call hist_addfld2d (fname='DIC_vr', units='gC/m^3',  type2d='levdcmp', &
             avgflag='A', long_name='Soil dissolved inorganic carbon vr', &
                ptr_col=this%DIC_vr,default='inactive')
+
+         this%CH4_vr(begc:endc,:) = spval
+         call hist_addfld2d (fname='CH4_vr', units='gC/m^3',  type2d='levdcmp', &
+            avgflag='A', long_name='Soil dissolved methane vr', &
+               ptr_col=this%CH4_vr,default='inactive')
 
          this%SIC_vr(begc:endc,:) = spval
          call hist_addfld2d (fname='SIC_vr', units='gC/m^3',  type2d='levdcmp', &

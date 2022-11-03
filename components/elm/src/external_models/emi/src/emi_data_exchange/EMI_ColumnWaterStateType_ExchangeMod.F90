@@ -62,6 +62,7 @@ contains
 
     associate(& 
          h2osoi_liqvol => col_ws%h2osoi_liqvol , &
+         h2osoi_icevol => col_ws%h2osoi_icevol , &
          h2osfc        => col_ws%h2osfc        , &
          salinity      => col_ws%salinity        &
          )
@@ -89,6 +90,15 @@ contains
                 c = filter(fc)
                 do j = 1, nlevgrnd
                    cur_data%data_real_2d(c,j) = h2osoi_liqvol(c,j)
+                enddo
+             enddo
+             cur_data%is_set = .true.
+
+          case (L2E_STATE_SOIL_ICE_VOL_COL)
+             do fc = 1, num_filter
+                c = filter(fc)
+                do j = 1, nlevgrnd
+                   cur_data%data_real_2d(c,j) = h2osoi_icevol(c,j)
                 enddo
              enddo
              cur_data%is_set = .true.
