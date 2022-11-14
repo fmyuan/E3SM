@@ -740,7 +740,7 @@
     <NODENAME_REGEX>none</NODENAME_REGEX>
     <OS>LINUX</OS>
     <COMPILERS>gnu</COMPILERS>
-    <MPILIBS>mpich</MPILIBS>
+    <MPILIBS>openmpi,mpich,mpi-serial</MPILIBS>
     <CIME_OUTPUT_ROOT>$ENV{HOME}/e3sm_scratch</CIME_OUTPUT_ROOT>
     <DIN_LOC_ROOT>$ENV{HOME}/pt-e3sm-inputdata</DIN_LOC_ROOT>
     <DIN_LOC_ROOT_CLMFORC>$ENV{HOME}/pt-e3sm-inputdata</DIN_LOC_ROOT_CLMFORC>
@@ -761,8 +761,8 @@
       </arguments>
     </mpirun>
     <module_system type="none"/>
-    <RUNDIR>$ENV{HOME}/e3sm_scratch/$CASE/run</RUNDIR>
-    <EXEROOT>$ENV{HOME}/e3sm_scratch/$CASE/bld</EXEROOT>
+    <RUNDIR>$ENV{HOME}/e3sm_scratch/runs/$CASE/run</RUNDIR>
+    <EXEROOT>$ENV{HOME}/e3sm_scratch/runs/$CASE/bld</EXEROOT>
   </machine>
 
   <machine MACH="linux-generic">
