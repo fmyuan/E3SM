@@ -1112,15 +1112,6 @@ contains
 
        call t_stopf('ecosysdyn')
 
-       ! Dry Deposition of chemical tracers (Wesely (1998) parameterizaion)
-       call t_startf('depvel')
-       if(.not.use_fates)then
-         call depvel_compute(bounds_clump, &
-              atm2lnd_vars, canopystate_vars, frictionvel_vars, &
-              photosyns_vars, drydepvel_vars)
-       end if
-       call t_stopf('depvel')
-
        if (use_betr)then
           call ep_betr%CalcSmpL(bounds_clump, 1, nlevsoi, filter(nc)%num_soilc, filter(nc)%soilc, &
                col_es%t_soisno(bounds_clump%begc:bounds_clump%endc,1:nlevsoi), &

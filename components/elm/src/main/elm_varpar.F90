@@ -142,7 +142,7 @@ contains
     natpft_lb = 0
     natpft_ub = natpft_lb + natpft_size - 1
     cft_lb = natpft_ub + 1
-    cft_ub = cft_lb + cft_size - 1
+    cft_ub = max(cft_lb, cft_lb + cft_size - 1)
 
     max_patch_per_col= max(numpft+1, numcft, maxpatch_urb)
     mach_eps       = epsilon(1.0_r8)

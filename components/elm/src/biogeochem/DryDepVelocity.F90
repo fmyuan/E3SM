@@ -146,7 +146,8 @@ CONTAINS
     use pftvarcon      , only : nc3_nonarctic_grass, nc4_grass, nc3crop
     use pftvarcon      , only : nc3irrig, npcropmin, npcropmax
     !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
-    use pftvarcon        , only : nndllf_tree, ntree, nshrub, ngraminoid, nnonvascular
+    use pftvarcon      , only : nnonvascular, nndllf_tree, ntree, nshrub, ngraminoid
+    use pftvarcon      , only : nonvascular, woody, needleleaf, crop
     !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
     !
     ! !ARGUMENTS:
@@ -289,10 +290,15 @@ CONTAINS
             if (elmveg == nc3irrig                            ) wesveg = 2
             if (elmveg >= npcropmin .and. elmveg <= npcropmax ) wesveg = 2
             !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
-            if (elmveg > noveg .and. elmveg <= nndllf_tree    ) wesveg = 5
-            if (elmveg > nndllf_tree .and. elmveg <= ntree    ) wesveg = 4
-            if (elmveg > ntree .and. elmveg <= nshrub         ) wesveg = 11
-            if (elmveg > nshrub .and. elmveg <= nnonvascular  ) wesveg = 3 ! if regarding as 'grass'-alike; otherwise as 'nonveg' when put before 'tree'
+            ! the above is very error-prone
+            if (woody(elmveg)==1 .and. needleleaf(elmveg) ==0 ) wesveg = 5
+            if (woody(elmveg)==1 .and. needleleaf(elmveg) ==1 ) wesveg = 4
+            if (woody(elmveg)==2                              ) wesveg = 11
+            if (woody(elmveg)==0 .and. nonvascular(elmveg)==0 ) wesveg = 3
+            if (nonvascular(elmveg)==1                        ) wesveg = 3 ! moss is regarding as 'grass'-alike
+            if (nonvascular(elmveg)==2                        ) wesveg = 8 ! lichen is regarding as 'bare-ground'-alike
+            if (crop(elmveg)>0                                ) wesveg = 2
+            if (elmveg == noveg                               ) wesveg = 8 ! assign nonveg the last
             !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
 #ifndef _OPENACC
             if (wesveg == wveg_unset )then
