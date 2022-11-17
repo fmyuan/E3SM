@@ -62,7 +62,9 @@ contains
 
     associate(& 
          qflx_adv           => col_wf%qflx_adv           , &
-         qflx_lat_aqu_layer => col_wf%qflx_lat_aqu_layer   &
+         qflx_lat_aqu_layer => col_wf%qflx_lat_aqu_layer , &
+         qflx_drain         => col_wf%qflx_drain         , &
+         qflx_drain_vr      => col_wf%qflx_drain_vr        &
          )
 
     count = 0
@@ -97,6 +99,22 @@ contains
                 c = filter(fc)
                 do j = 1, nlevgrnd
                    cur_data%data_real_2d(c,j) = qflx_lat_aqu_layer(c,j)
+                enddo
+             enddo
+             cur_data%is_set = .true.
+
+          case (L2E_FLUX_SOIL_QFLX_DRAIN)
+             do fc = 1, num_filter
+                c = filter(fc)
+                cur_data%data_real_1d(c) = qflx_drain(c)
+             enddo
+             cur_data%is_set = .true.
+
+          case (L2E_FLUX_SOIL_QFLX_DRAIN_VR)
+             do fc = 1, num_filter
+                c = filter(fc)
+                do j = 1, nlevgrnd
+                   cur_data%data_real_2d(c,j) = qflx_drain_vr(c,j)
                 enddo
              enddo
              cur_data%is_set = .true.

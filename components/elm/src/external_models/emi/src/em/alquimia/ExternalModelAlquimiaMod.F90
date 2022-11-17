@@ -64,6 +64,7 @@ module ExternalModelAlquimiaMod
     integer :: index_l2e_state_wtd
     integer :: index_l2e_state_h2osfc
     integer :: index_l2e_state_flood_salinity
+    integer :: index_l2e_flux_qflx_drain
     
     ! Solve data returned to land model
     integer :: index_e2l_state_decomp_cpools
@@ -353,6 +354,10 @@ contains
     id                                   = L2E_FLUX_SOIL_QFLX_LAT_COL
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_l2e_flux_qflx_lat_aqu_layer      = index
+
+    id                                   = L2E_FLUX_SOIL_QFLX_DRAIN_VR
+    call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_l2e_flux_qflx_drain      = index
 
     id                                   = L2E_STATE_SALINITY_COL
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
@@ -916,7 +921,7 @@ end subroutine EMAlquimia_Coldstart
     real(r8) , pointer, dimension(:,:,:) :: cation_exchange_capacity_l2e , cation_exchange_capacity_e2l
     real(r8) , pointer, dimension(:,:,:) :: aux_doubles_l2e , aux_doubles_e2l
     integer  , pointer, dimension(:,:,:)   :: aux_ints_l2e, aux_ints_e2l
-    real(r8) , pointer, dimension(:,:)    :: qflx_adv_l2e, qflx_lat_aqu_l2e
+    real(r8) , pointer, dimension(:,:)    :: qflx_adv_l2e, qflx_lat_aqu_l2e, qflx_drain_l2e
     real(r8) , pointer, dimension(:)      :: flood_salinity_l2e, h2osfc_l2e, wtd_l2e
     real(r8) , pointer, dimension(:,:)    :: DOC_e2l, DON_e2l, DIC_e2l, methane_vr_e2l
     real(r8) , pointer, dimension(:,:)    :: pH_e2l, O2_e2l, salinity_e2l, sulfate_e2l, sulfide_e2l, Fe2_e2l, FeOxide_e2l, carbonate_e2l
@@ -1014,6 +1019,7 @@ end subroutine EMAlquimia_Coldstart
 
     call l2e_list%GetPointerToReal2D(this%index_l2e_flux_qflx_adv       , qflx_adv_l2e     )
     call l2e_list%GetPointerToReal2D(this%index_l2e_flux_qflx_lat_aqu_layer    , qflx_lat_aqu_l2e     ) ! ELM units are mm/m2 (integrated over time step)
+    call l2e_list%GetPointerToReal2D(this%index_l2e_flux_qflx_drain    , qflx_drain_l2e     ) 
 
     call l2e_list%GetPointerToReal1D(this%index_l2e_state_wtd       , wtd_l2e     )
     call l2e_list%GetPointerToReal1D(this%index_l2e_state_h2osfc    , h2osfc_l2e  )
@@ -1202,6 +1208,12 @@ end subroutine EMAlquimia_Coldstart
                   qflx_adv_l2e(c,j) = -10.0/dt
                 endif
               enddo
+
+              ! Add subsurface drainage flux to bottom layer of lateral flow
+              ! write(iulog,*),'QFLX_DRAIN',qflx_drain_l2e(c,1:nlevdecomp)*dt
+              qflx_lat_aqu_l2e(c,1:nlevdecomp) = qflx_lat_aqu_l2e(c,1:nlevdecomp) - qflx_drain_l2e(c,1:nlevdecomp)
+              ! Problem: in elm_driver, vertical water movement and lateral (tidal) flow are calculated, then EMI, then drainage. 
+              ! So including drainage here is inconsistent order of operations (actually applying drainage from previous time step)
 
               call run_column_onestep(this, c, dt,0,max_cuts,&
                   water_density_l2e,&
