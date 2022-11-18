@@ -983,6 +983,11 @@ contains
              f = 0._r8
            end if
         end if
+        ! (TODO) checking 'f' with regarding to unit.
+        ! Testing shows it's 1.0 when fire occurs.
+        ! This is NOT right if unit is 1/sec, and cause fire-c lost rate * dt over C state.
+        ! What need to check: fbac, farea_burned, baf_crops
+        f = f / dt
 
         ! apply this rate to the pft state variables to get flux rates
         ! biomass burning
@@ -1041,8 +1046,7 @@ contains
         m_livestemp_to_fire(p)           =  livestemp(p)          * f * cc_lstem(itype)
         m_livestemp_storage_to_fire(p)   =  livestemp_storage(p)  * f * cc_other_sc
         m_livestemp_xfer_to_fire(p)      =  livestemp_xfer(p)     * f * cc_other_sc
-        !m_deadstemp_to_fire(p)           =  deadstemp(p)          * m_veg * f * cc_dstem(itype)
-        m_deadstemp_to_fire(p)           =  deadstemp(p)          * f * cc_dstem(itype)
+        m_deadstemp_to_fire(p)           =  deadstemp(p)          * m_veg * f * cc_dstem(itype)
         m_deadstemp_storage_to_fire(p)   =  deadstemp_storage(p)  * f * cc_other_sc
         m_deadstemp_xfer_to_fire(p)      =  deadstemp_xfer(p)     * f * cc_other_sc
         m_frootp_to_fire(p)              =  frootp(p)             * f * 0._r8
@@ -1365,6 +1369,12 @@ contains
 
         baf_crop_sc = baf_crop(c)
         f = farea_burned(c)
+        ! (TODO) checking 'f' with regarding to unit.
+        ! Testing shows it's 1.0 when fire occurs.
+        ! This is NOT right if unit is 1/sec, and cause fire-c lost rate * dt over C state.
+        ! What need to check: fbac, farea_burned, baf_crops
+        baf_crop_sc = baf_crop_sc / dt
+        f = f / dt
 
         ! change CC for litter from 0.4_r8 to 0.5_r8 and CC for CWD from 0.2_r8
         ! to 0.25_r8 according to Li et al.(2014)
