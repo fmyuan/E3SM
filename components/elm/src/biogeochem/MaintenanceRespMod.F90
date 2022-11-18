@@ -239,7 +239,7 @@ contains
          else ! Graminoid rhizomes
             livecroot_mr(p) = livecrootn(p)*br_mr*tc
          end if
-         if (br_xr(ivt(p)) .gt. 1e-9_r8) then
+         if (br_xr(ivt(p)) .gt. 1e-9_r8 .and. totvegc(p)>0._r8) then
             !xr(p) = cpool(p) * br_xr(ivt(p)) * tc
             ! this is to limit the size of cpool
             xr(p) = cpool(p) * br_xr(ivt(p)) * exp((min(cpool(p) / totvegc(p),0.3335_r8) - 0.1_r8)/0.02_r8) * tc 
