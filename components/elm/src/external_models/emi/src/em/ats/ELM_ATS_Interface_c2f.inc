@@ -27,7 +27,7 @@
     end subroutine ats_delete_f
 
     ! the following is for ats-mesh passing into ELM.
-    subroutine ats_get_mesh_info_f(ats, ncols_local, ncols_global, lat, lon, elev, surf_area, nlevgrnd, depth) &
+    subroutine ats_get_mesh_info_f(ats, ncols_local, ncols_global, lat, lon, elev, surf_area, pft, nlevgrnd, depth) &
         bind(c, name="ats_get_mesh_info_c")
       use, intrinsic :: iso_c_binding
       import
@@ -39,6 +39,7 @@
       real(C_DOUBLE), dimension(*), intent(out) :: lon  ! longitude of each grid cell, units: decimal degree [col]
       real(C_DOUBLE), dimension(*), intent(out) :: elev ! elevation of each surface grid cell, units: m [col]
       real(C_DOUBLE), dimension(*), intent(out) :: surf_area ! surface area of each surface grid cell, units: m^2 [col]
+      integer(C_INT), dimension(*), intent(out) :: pft ! pft type of each grid cell [col]
 
       ! NOTE: these parameters are a check to confirm that ATS and ELM
       ! have the same mesh structure, and cannot be changed in either
@@ -127,7 +128,7 @@
       real(C_DOUBLE), dimension(*), intent(in) :: ss_soilevap        ! potential evaporation into the top of the column (positive = condensation)
                                                                      !   unit: m/s, [col]
       real(C_DOUBLE), dimension(*), intent(in) :: ss_vegtran         ! potential water source/sink of transpiration, (negative = water loss)
-                                                                     !   unit: m/s, [col, pft]
+                                                                     !   unit: m/s, [col]
     end subroutine ats_set_potential_sources_f
 
     subroutine ats_set_soil_hydrologic_properties_f(ats, eff_porosity) &
@@ -163,7 +164,7 @@
       type(C_PTR), value :: ats
       real(C_DOUBLE), dimension(*), intent(out) :: soil_infl   ! water source/sink into top soil - gross infiltration, unit: m/s, [col]
       real(C_DOUBLE), dimension(*), intent(out) :: evap        ! actual evaporation into top of col (positive = condensation), unit: m/s, [col]
-      real(C_DOUBLE), dimension(*), intent(out) :: vegtran     ! actual transpiration, (negative = water loss), unit: m/s, [col, nlevgrnd, pft]
+      real(C_DOUBLE), dimension(*), intent(out) :: vegtran     ! actual transpiration, (negative = water loss), unit: m/s, [col, nlevgrnd]
       real(C_DOUBLE), dimension(*), intent(out) :: net_subsurface_flux ! net flux of water across all column boundaries (positive = inward), unit: m/s, [col]
       real(C_DOUBLE), dimension(*), intent(out) :: net_runon   ! net flux of water across all surface boundaries (positive = inward), unit: m/s, [col]
     end subroutine ats_get_water_fluxes_f
