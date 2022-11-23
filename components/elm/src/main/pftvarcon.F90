@@ -19,6 +19,7 @@ module pftvarcon
   use elm_varpar  , only : maxpatch_pft, natpft_lb, natpft_ub, crop_prog
   use elm_varpar  , only : numpft, numcft, natpft_size, cft_size, max_patch_per_col, maxpatch_urb
   use elm_varctl  , only : create_crop_landunit
+  use elm_varsur  , only : wt_nat_patch, wt_cft, fert_cft
   !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
   !
   ! !PUBLIC TYPES:
@@ -1270,19 +1271,19 @@ contains
     end if
 
     !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
-    nndllf_tree          = ndllf_dcd_brl_tree   ! value for last type of needle-leaf tree
-    nshrub               = nbrdlf_dcd_brl_shrub ! value for last type of shrub
-    ngraminoid           = nc4_grass            ! value for last type of grass
+       nndllf_tree          = ndllf_dcd_brl_tree   ! value for last type of needle-leaf tree
+       nshrub               = nbrdlf_dcd_brl_shrub ! value for last type of shrub
+       ngraminoid           = nc4_grass            ! value for last type of grass
 
-    ! the following not available, but just in case called somewhere later
-    nnonvascular         = 0
-    nonvascular(0:mxpft) = 0
-    nfixer(0:mxpft)      = 0
-    needleleaf(0:mxpft)  = 0
-    needleleaf(noveg+1:nndllf_tree) = 1
-    woody(ntree+1:nshrub)= 2
+       ! the following not available, but just in case called somewhere later
+       nnonvascular         = -1
+       nonvascular(0:mxpft) = 0
+       nfixer(0:mxpft)      = 0
+       needleleaf(0:mxpft)  = 0
+       needleleaf(noveg+1:nndllf_tree) = 1
+       woody(ntree+1:nshrub)= 2                    ! default read-in from param file is either 0 or 1
 
-    if (masterproc) then
+      if (masterproc) then
           write(iulog,*)
           write(iulog,*) 'Using PFT physiological parameters from: ', paramfile
           write(iulog,*) '        -- index -- name                                    -- woody -- needleleaf -- nonvascaular -- crop -- nfixer --'
@@ -1290,7 +1291,7 @@ contains
               write(iulog,*) i, pftname(i), int(woody(i)), needleleaf(i), nonvascular(i), int(crop(i)), nfixer(i)
           end do
           write(iulog,*)
-    end if
+      end if
 
     ! 'mergetoclmpft' in the 'paramfile' is used as an indicator to user-defined parameter file
     else
@@ -1317,41 +1318,54 @@ contains
        end if
 
        ! the following assumed PFTs are arranged by blocks (NOT suggested to use):
-       !    not-vegetated (0), trees (needleleaf, broadleaf), shrubs(needleleaf, broadleaf), graminoids, non-vasculars, and crops
-       nndllf_tree          = 0 ! index for last type of needle-leaf tree
-       ntree                = 0 ! index for last type of tree
-       nshrub               = 0 ! index for last type of shrub
-       ngraminoid           = 0 ! index for last type of graminoid
-       nnonvascular         = 0 ! index for last type of non-vascular
-       npcropmin            = npft+1 ! first prognostic crop in list (always beyond by default, i.e. not available - used in filterMod.F90)
-       npcropmax            = npft+1 ! last prognostic crop in list
+       !    not-vegetated (0), non-vasculars, trees (needleleaf, broadleaf), shrubs(needleleaf, broadleaf), graminoids, and crops
+       noveg                = -1
+       nndllf_tree          = -1 ! index for last type of needle-leaf tree
+       ntree                = -1 ! index for last type of tree
+       nshrub               = -1 ! index for last type of shrub
+       ngraminoid           = -1 ! index for last type of graminoid
+       nnonvascular         = -1 ! index for last type of non-vascular
+       npcropmin            = -1 ! first prognostic crop index in list
+       npcropmax            = -1 ! last prognostic crop index in list
 
-       do i = 1, npft
+       do i = 0, npft-1
+          if ( trim(pftname(i)) == 'not_vegetated') then
+              noveg= i
+          !
           ! woody=1 for tree
-          if(woody(i)==1) then
+          elseif(woody(i)==1) then
               if (needleleaf(i)==1) nndllf_tree = i
               ntree  = i
-
+          !
           ! woody=2 for shrub
           elseif(woody(i)==2) then
               nshrub = i
-
+          !
           ! woody=0, crop=0
           elseif(woody(i)<1 .and. crop(i)<1) then
               if (nonvascular(i)<1) then
-                !nonvascular = 0
+                !nonvascular[i] = 0
                 ngraminoid = i
               else
-                !nonvascular = 1 for moss, 2 for lichen
+                !nonvascular[i] = 1 for moss, 2 for lichen
                 nnonvascular = i
               endif
-          !
+          ! crop
           elseif(crop(i)==1) then
               npcropmax = i
               if(npcropmin<=0) npcropmin = i
           endif
 
        end do
+       ! make sure non-generic crop indices always beyond natural-pft, even if not available - used in filterMod.F90)
+       if (npcropmin < 0 .or. npcropmax < 0) then
+          npcropmin = npft
+          npcropmax = npft
+       endif
+       ! checking if 'not vegetated' is in
+       if (noveg /= 0) then
+          call endrun(msg=' ERROR: not-vegetated is NOT included in userpft or as the first '//errMsg(__FILE__, __LINE__))
+       endif
 
        ! MUST re-do some constants which already set in 'elm_varpar.F90:elm_varpar_init()'
        numpft       = npft - 1                   ! actual # of patches (without bare)
@@ -1363,7 +1377,7 @@ contains
           crop_prog = .false.
        endif
 
-       if (create_crop_landunit) then
+       if (create_crop_landunit .or. crop_prog) then
           natpft_size = (numpft + 1) - numcft    ! note that numpft doesn't include bare ground -- thus we add 1
           cft_size    = numcft
        else
@@ -1373,11 +1387,58 @@ contains
        natpft_lb = 0
        natpft_ub = natpft_lb + natpft_size - 1
        cft_lb = natpft_ub + 1
-       cft_ub = max(cft_lb, cft_lb + cft_size - 1)            ! NOTE: if cft_size is ZERO, could be issue (but so far so good)
+       cft_ub = max(cft_lb, cft_lb + cft_size - 1)
 
        max_patch_per_col= max(numpft+1, numcft, maxpatch_urb)
 
-    end if  ! end if block: 'mergetoclmpft' is in Physiology Parameters
+       if (masterproc) then
+          write(iulog,*)
+          write(iulog,*) 'USER-DEFINED PFT lifeforms index, ranging from 0 to', npft-1
+          write(iulog,*) ' -- ending index --         -- group --           -- group pft(s) -- '
+          if (noveg==0) then
+             write(iulog,*) '             ', noveg,        'not vegetated     '
+          endif
+          if (nnonvascular>0) then
+             write(iulog,*) '             ', nnonvascular, 'non-vascular      '
+             do i = noveg+1, nnonvascular
+                write(iulog,*) '                               ', trim(pftname(i))
+             end do
+          end if
+          if (nndllf_tree>0) then
+             write(iulog,*) '             ', nndllf_tree,  'needle leaf tree  '
+             do i = max(noveg, nnonvascular)+1, nndllf_tree
+                write(iulog,*) '                               ', trim(pftname(i))
+             end do
+          endif
+          if (ntree>0) then
+             write(iulog,*) '             ', ntree,        'broad leaf tree   '
+             do i = max(max(noveg, nnonvascular),nndllf_tree)+1, ntree
+                write(iulog,*) '                               ', trim(pftname(i))
+             end do
+          endif
+          if (nshrub>0) then
+             write(iulog,*) '             ', nshrub,       'shrub             '
+             do i = max(max(noveg, nnonvascular),ntree)+1, nshrub
+                write(iulog,*) '                               ', trim(pftname(i))
+             end do
+          endif
+          if (ngraminoid>0) then
+             write(iulog,*) '             ', ngraminoid,   'graminoid         '
+             do i = max(max(max(noveg, nnonvascular),ntree),nshrub)+1, ngraminoid
+                write(iulog,*) '                               ', trim(pftname(i))
+             end do
+          endif
+          if (numcft>0) then
+             write(iulog,*) '             ', npcropmax,    'crop              '
+             do i = npcropmin, npcropmax
+                write(iulog,*) '                               ', trim(pftname(i))
+             end do
+          endif
+
+          write(iulog,*)
+       end if
+
+    end if  ! end if block: 'mergetoelmpft' is in Physiology Parameters
 
 
     call ncd_pio_closefile(ncid)
@@ -1446,7 +1507,7 @@ contains
                 call endrun(msg=' ERROR: perennial crop has wrong values'//errMsg(__FILE__, __LINE__))
              end if
           end if
-          if (      crop(i) == 1.0_r8 .and. (i >= nc3crop .and. i <= npcropmax) )then
+          if (      crop(i) == 1.0_r8 .and. (i >ngraminoid .and. i <= npcropmax) )then
              ! correct
           else if ( crop(i) == 0.0_r8 )then
              ! correct

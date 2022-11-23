@@ -238,12 +238,12 @@ contains
     call UrbanInput(begg, endg, mode='initialize')
 
     ! Allocate surface grid dynamic memory (just gridcell bounds dependent)
-
     allocate (wt_lunit     (begg:endg,1:max_topounits, max_lunit           )) 
     allocate (urban_valid  (begg:endg,1:max_topounits                      ))
-    allocate (wt_nat_patch (begg:endg,1:max_topounits, natpft_lb:natpft_ub ))
-    allocate (wt_cft       (begg:endg,1:max_topounits, cft_lb:cft_ub       ))
-    allocate (fert_cft     (begg:endg,1:max_topounits, cft_lb:cft_ub       ))
+    ! with user-defined PFT, a few relevant constants will be changed below
+    !allocate (wt_nat_patch (begg:endg,1:max_topounits, natpft_lb:natpft_ub ))
+    !allocate (wt_cft       (begg:endg,1:max_topounits, cft_lb:cft_ub       ))
+    !allocate (fert_cft     (begg:endg,1:max_topounits, cft_lb:cft_ub       ))
     if (create_glacier_mec_landunit) then
        allocate (wt_glc_mec  (begg:endg,1:max_topounits, maxpatch_glcmec))
        allocate (topo_glc_mec(begg:endg,1:max_topounits, maxpatch_glcmec))
@@ -262,6 +262,11 @@ contains
     ! Independent of model resolution, Needs to stay before surfrd_get_data
 
     call pftconrd()
+    ! with user-defined PFT, a few relevant constants are changed when calling pftconrd() above
+    allocate (wt_nat_patch (begg:endg,1:max_topounits, natpft_lb:natpft_ub ))
+    allocate (wt_cft       (begg:endg,1:max_topounits, cft_lb:cft_ub       ))
+    allocate (fert_cft     (begg:endg,1:max_topounits, cft_lb:cft_ub       ))
+
     call soilorder_conrd()
 
     ! Read in FATES parameter values early in the call sequence as well

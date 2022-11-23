@@ -127,8 +127,9 @@ contains
     use elm_varcon           , only: secspday
     use elm_varctl           , only: use_nofire, spinup_state, spinup_mortality_factor
     use dynSubgridControlMod , only: run_has_transient_landcover
-    use pftvarcon            , only: ngraminoid, nc3crop, ndllf_evr_tmp_tree
+    use pftvarcon            , only: nc3crop, ndllf_evr_tmp_tree
     use pftvarcon            , only: nbrdlf_evr_trp_tree, nbrdlf_dcd_trp_tree, nbrdlf_evr_shrub
+    use pftvarcon            , only : ntree, nshrub, ngraminoid
     !
     ! !ARGUMENTS:
     type(bounds_type)        , intent(in)    :: bounds
@@ -371,7 +372,7 @@ contains
               p = col_pp%pfti(c) + pi - 1
 
               ! For non-crop -- natural vegetation and bare-soil
-              if( veg_pp%itype(p)  <  nc3crop .and. cropf_col(c)  <  1.0_r8 )then
+              if( veg_pp%itype(p)  <=  ngraminoid .and. cropf_col(c)  <  1.0_r8 )then
                  if( .not. (btran2(p) .ne. btran2(p)))then !?shr_infnan_isnan(btran2(p))) then
                     if (btran2(p)  <=  1._r8 ) then
                        btran_col(c) = btran_col(c)+btran2(p)*veg_pp%wtcol(p)
@@ -665,6 +666,7 @@ contains
       !$acc routine seq
    use pftvarcon            , only: cc_leaf,cc_lstem,cc_dstem,cc_other,fm_leaf,fm_lstem,fm_other,fm_root,fm_lroot,fm_droot
    use pftvarcon            , only: nc3crop,lf_flab,lf_fcel,lf_flig,fr_flab,fr_fcel,fr_flig
+   use pftvarcon            , only: ntree, nshrub, ngraminoid
    use elm_varpar           , only: max_patch_per_col
    use elm_varctl           , only: spinup_state, spinup_mortality_factor
    use dynSubgridControlMod , only: get_flanduse_timeseries
@@ -968,7 +970,7 @@ contains
         c = veg_pp%column(p)
 
         itype = veg_pp%itype(p)
-        if( itype < nc3crop .and. cropf_col(c) < 1.0_r8)then
+        if( itype <= ngraminoid .and. cropf_col(c) < 1.0_r8)then
            ! For non-crop (bare-soil and natural vegetation)
            if (transient_landcover) then    !true when landuse data is used
               f = (fbac(c)-baf_crop(c))/(1.0_r8-cropf_col(c))
@@ -983,6 +985,11 @@ contains
              f = 0._r8
            end if
         end if
+        ! (TODO) checking 'f' with regarding to unit.
+        ! Testing shows it's 1.0 when fire occurs.
+        ! This is NOT right if unit is 1/sec, and cause fire-c lost rate * dt over C state.
+        ! What need to check: fbac, farea_burned, baf_crops
+        f = f / dt
 
         ! apply this rate to the pft state variables to get flux rates
         ! biomass burning
@@ -1041,8 +1048,7 @@ contains
         m_livestemp_to_fire(p)           =  livestemp(p)          * f * cc_lstem(itype)
         m_livestemp_storage_to_fire(p)   =  livestemp_storage(p)  * f * cc_other_sc
         m_livestemp_xfer_to_fire(p)      =  livestemp_xfer(p)     * f * cc_other_sc
-        !m_deadstemp_to_fire(p)           =  deadstemp(p)          * m_veg * f * cc_dstem(itype)
-        m_deadstemp_to_fire(p)           =  deadstemp(p)          * f * cc_dstem(itype)
+        m_deadstemp_to_fire(p)           =  deadstemp(p)          * m_veg * f * cc_dstem(itype)
         m_deadstemp_storage_to_fire(p)   =  deadstemp_storage(p)  * f * cc_other_sc
         m_deadstemp_xfer_to_fire(p)      =  deadstemp_xfer(p)     * f * cc_other_sc
         m_frootp_to_fire(p)              =  frootp(p)             * f * 0._r8
@@ -1365,6 +1371,12 @@ contains
 
         baf_crop_sc = baf_crop(c)
         f = farea_burned(c)
+        ! (TODO) checking 'f' with regarding to unit.
+        ! Testing shows it's 1.0 when fire occurs.
+        ! This is NOT right if unit is 1/sec, and cause fire-c lost rate * dt over C state.
+        ! What need to check: fbac, farea_burned, baf_crops
+        baf_crop_sc = baf_crop_sc / dt
+        f = f / dt
 
         ! change CC for litter from 0.4_r8 to 0.5_r8 and CC for CWD from 0.2_r8
         ! to 0.25_r8 according to Li et al.(2014)

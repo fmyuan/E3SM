@@ -40,6 +40,7 @@ contains
     use elm_varctl , only : iulog, use_c13, use_c14, use_fates
     use elm_varpar , only : nlevdecomp_full, crop_prog
     use pftvarcon  , only : nc3crop
+    use pftvarcon  , only : ngraminoid
     use tracer_varcon          , only : is_active_betr_bgc
     use CNDecompCascadeConType , only : decomp_cascade_con
     !
@@ -211,7 +212,7 @@ contains
                veg_ps%frootp_xfer(p) = 0._r8
             end if
 
-            if ( crop_prog .and. veg_pp%itype(p) >= nc3crop )then
+            if ( crop_prog .and. veg_pp%itype(p) > ngraminoid )then
                ! grain C and N
                if (abs(veg_cs%grainc(p)) < ccrit) then
                   pc = pc + veg_cs%grainc(p)
@@ -513,7 +514,7 @@ contains
                endif
             end if
 
-            if ( crop_prog .and. veg_pp%itype(p) >= nc3crop )then
+            if ( crop_prog .and. veg_pp%itype(p) > ngraminoid )then
                ! xsmrpool (C only)
                if (abs(veg_cs%xsmrpool(p)) < ccrit) then
                   pc = pc + veg_cs%xsmrpool(p)

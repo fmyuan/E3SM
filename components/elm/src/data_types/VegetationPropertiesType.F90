@@ -335,7 +335,8 @@ contains
 
     do m = 0,numpft
 
-       if (m <= ntree) then
+       !if (m <= ntree) then
+       if (woody(m) == 1) then
           this%tree(m) = 1
        else
           this%tree(m) = 0

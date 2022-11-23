@@ -45,7 +45,7 @@ contains
     use pftvarcon        , only : humhol_ht
 #endif
     !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
-    use pftvarcon        , only : ntree, nshrub
+    use pftvarcon        , only : ntree, nshrub, ngraminoid
     !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
     use clm_time_manager , only : get_rad_step_size
     use elm_varctl       , only : spinup_state, spinup_mortality_factor
@@ -161,7 +161,8 @@ contains
             ! alpha are set by PFT, and alpha is scaled to CLM time step by multiplying by
             ! dt and dividing by dtsmonth (seconds in average 30 day month)
             ! tsai_min scaled by 0.5 to match MODIS satellite derived values
-            if (ivt(p) == nc3crop .or. ivt(p) == nc3irrig) then ! generic crops
+            !if (ivt(p) == nc3crop .or. ivt(p) == nc3irrig) then ! generic crops
+            if (ivt(p) > ngraminoid .and. ivt(p) < npcropmin) then ! generic crops
 
                tsai_alpha = 1.0_r8-1.0_r8*dt/dtsmonth
                tsai_min = 0.1_r8

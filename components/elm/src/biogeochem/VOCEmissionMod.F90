@@ -19,6 +19,7 @@ module VOCEmissionMod
   !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
   use pftvarcon          , only : ntree, nshrub, ngraminoid, nnonvascular, npcropmin, npcropmax
   use pftvarcon          , only : needleleaf, evergreen
+  use elm_varpar         , only : numveg  ! this is fixed
   !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
   use shr_megan_mod      , only : shr_megan_megcomps_n, shr_megan_megcomp_t, shr_megan_linkedlist
   use shr_megan_mod      , only : shr_megan_mechcomps_n, shr_megan_mechcomps, shr_megan_mapped_emisfctrs
@@ -118,7 +119,7 @@ contains
     ! !LOCAL VARIABLES:
     integer            :: i, imeg
     integer            :: class_num
-    real(r8)           :: factors(numpft)
+    real(r8)           :: factors(numveg)
     real(r8)           :: molec_wght
     integer            :: begg, endg
     integer            :: begp, endp
@@ -132,7 +133,8 @@ contains
     
     meg_cmp => shr_megan_linkedlist
     do while(associated(meg_cmp))
-       allocate(meg_cmp%emis_factors(numpft))
+       !allocate(meg_cmp%emis_factors(numpft))
+       allocate(meg_cmp%emis_factors(numveg))  ! TODO: VOCEmission input is with a hard-wired num of pft (16)
        call megan_factors_get( trim(meg_cmp%name), factors, class_num, molec_wght )
        meg_cmp%emis_factors = factors
        meg_cmp%class_number = class_num
