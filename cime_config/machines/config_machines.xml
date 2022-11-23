@@ -741,7 +741,7 @@
     <NODENAME_REGEX>none</NODENAME_REGEX>
     <OS>LINUX</OS>
     <COMPILERS>gnu</COMPILERS>
-    <MPILIBS>mpich</MPILIBS>
+    <MPILIBS>mpich,openmpi,mpi-serial</MPILIBS>
     <CIME_OUTPUT_ROOT>$ENV{HOME}/e3sm_scratch</CIME_OUTPUT_ROOT>
     <DIN_LOC_ROOT>$ENV{HOME}/pt-e3sm-inputdata</DIN_LOC_ROOT>
     <DIN_LOC_ROOT_CLMFORC>$ENV{HOME}/pt-e3sm-inputdata</DIN_LOC_ROOT_CLMFORC>
@@ -755,11 +755,19 @@
     <SUPPORTED_BY>thorntonpe at ornl dot gov</SUPPORTED_BY>
     <MAX_TASKS_PER_NODE>4</MAX_TASKS_PER_NODE>
     <MAX_MPITASKS_PER_NODE>4</MAX_MPITASKS_PER_NODE>
-    <mpirun mpilib="default">
+    <mpirun mpilib="mpich">
       <executable>mpirun</executable>
       <arguments>
         <arg name="num_tasks"> -np {{ total_tasks }}</arg>
       </arguments>
+    </mpirun>
+    <mpirun mpilib="openmpi">                                                                                                  <executable>mpirun</executable>
+      <arguments>
+        <arg name="num_tasks"> -np {{ total_tasks }}</arg>
+      </arguments>      
+    </mpirun>
+    <mpirun mpilib="mpi-serial">
+      <executable></executable>
     </mpirun>
     <module_system type="none"/>
     <RUNDIR>$ENV{HOME}/e3sm_scratch/$CASE/run</RUNDIR>
