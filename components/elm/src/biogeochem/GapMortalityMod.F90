@@ -20,6 +20,7 @@ module GapMortalityMod
   use CropType            , only : crop_type
 
   use elm_varctl          , only : nu_com
+  use elm_varctl             , only : iulog
   use timeinfoMod , only : dayspyr_mod
   !
   implicit none
