@@ -1088,7 +1088,7 @@ end subroutine EMAlquimia_Coldstart
 
     endif
     
-     ! Run the reactions engine for a step. Alquimia works on one cell at a time
+     ! Run the reactions engine for a step
     do fc = 1, num_soilc
       c = filter_soilc(fc)
 
@@ -1104,12 +1104,16 @@ end subroutine EMAlquimia_Coldstart
                  total_immobile_l2e(c,j,this%carbon_pool_mapping(poolnum)) = max(soilcarbon_l2e(c,j,poolnum)/catomw,minval)
                ! Separate N pool only exists if floating CN ratio
                 !  write(iulog,*),poolnum,soilnitrogen_l2e(c,j,poolnum)
-               if(decomp_cascade_con%floating_cn_ratio_decomp_pools(poolnum) .and. this%nitrogen_pool_mapping(poolnum)>0) &
+               if(decomp_cascade_con%floating_cn_ratio_decomp_pools(poolnum) .and. this%nitrogen_pool_mapping(poolnum)>0) then
+                  ! if(soilnitrogen_l2e(c,j,poolnum)<0) write(iulog,*),'N pool less than zero going into alquimia: ',c,j,poolnum,soilnitrogen_l2e(c,j,poolnum)
                   total_immobile_l2e(c,j,this%nitrogen_pool_mapping(poolnum)) = max(soilnitrogen_l2e(c,j,poolnum)/natomw,minval/20)
+               endif
+               
              enddo
              
              CO2_before = total_immobile_l2e(c,j,this%CO2_pool_number)*catomw + &
                           total_mobile_l2e(c,j,this%CO2_pool_number)*catomw
+
 
              ! Copy dissolved nitrogen species. Units need to be converted from gN/m3 to M/L. Currently assuming saturated porosity
              
@@ -1152,6 +1156,12 @@ end subroutine EMAlquimia_Coldstart
              endif
 
           enddo ! End of layer loop setting things up
+          ! do poolnum=1,ndecomp_pools
+          !   write(iulog,*),'Soil N pools before',poolnum,soilnitrogen_l2e(c,:,poolnum)
+          ! enddo
+          ! write(iulog,*),'NO3 before',sum(no3_l2e(c,:)*dz(c,:))
+          ! write(iulog,*),'NH4 before',sum(nh4_l2e(c,:)*dz(c,:))
+          ! write(iulog,*),'NH4 before',nh4_l2e(c,:)*dz(c,:)
 
               ! Step the chemistry solver, including advection/diffusion and timestep cutting capability for whole column
               ! Need to set surface and lateral boundary condition concentrations
@@ -1214,6 +1224,7 @@ end subroutine EMAlquimia_Coldstart
               qflx_lat_aqu_l2e(c,1:nlevdecomp) = qflx_lat_aqu_l2e(c,1:nlevdecomp) - qflx_drain_l2e(c,1:nlevdecomp)
               ! Problem: in elm_driver, vertical water movement and lateral (tidal) flow are calculated, then EMI, then drainage. 
               ! So including drainage here is inconsistent order of operations (actually applying drainage from previous time step)
+
 
               call run_column_onestep(this, c, dt,0,max_cuts,&
                   water_density_l2e,&
@@ -1308,7 +1319,6 @@ end subroutine EMAlquimia_Coldstart
                    ! Calculate from CN ratio and C pool
                    soilnitrogen_e2l(c,j,poolnum) = soilcarbon_e2l(c,j,poolnum)/decomp_cascade_con%initial_cn_ratio(poolnum)
                 endif
-                
                 ! write(iulog,*),poolnum,soilnitrogen_e2l(c,j,poolnum)
               enddo
               ! Sum together mobile and immobile pools
@@ -1404,20 +1414,27 @@ end subroutine EMAlquimia_Coldstart
               ! if(this%Nmin_pool_number>0) Nmin_e2l(c,j) = alquimia_immobile_data(this%Nmin_pool_number)*natomw/dt
 
               ! PFLOTRAN may use an aqueous tracer to model plant N uptake if defining using Microbial reaction
-              if(this%plantNO3uptake_pool_number>0) plantNO3uptake_e2l(c,j) = (total_immobile_e2l(c,j,this%plantNO3uptake_pool_number)-minval)*natomw/dt + &
-                                                (total_mobile_e2l(c,j,this%plantNO3uptake_pool_number)-minval)*natomw/dt
-                if(this%plantNH4uptake_pool_number>0) plantNH4uptake_e2l(c,j) = (total_immobile_e2l(c,j,this%plantNH4uptake_pool_number)-minval)*natomw/dt + &
-                                                (total_mobile_e2l(c,j,this%plantNH4uptake_pool_number)-minval)*natomw/dt
+              ! Do we need to transfer N back to aqueous pools if uptake exceeds demand? Plant model assumes that will never happen
+              if(this%plantNO3uptake_pool_number>0) plantNO3uptake_e2l(c,j) = (total_immobile_e2l(c,j,this%plantNO3uptake_pool_number))*natomw/dt + &
+                                                (total_mobile_e2l(c,j,this%plantNO3uptake_pool_number))*natomw/dt
+              if(this%plantNH4uptake_pool_number>0) plantNH4uptake_e2l(c,j) = (total_immobile_e2l(c,j,this%plantNH4uptake_pool_number))*natomw/dt + &
+                                                (total_mobile_e2l(c,j,this%plantNH4uptake_pool_number))*natomw/dt
 
-
+              if( plantNdemand_l2e(c,j) == 0.0_r8) then
+                      no3_e2l(c,j) = no3_e2l(c,j) + plantNO3uptake_e2l(c,j)*dt
+                      nh4_e2l(c,j) = nh4_e2l(c,j) + plantNH4uptake_e2l(c,j)*dt
+                      plantNO3uptake_e2l(c,j) = 0.0_r8
+                      plantNH4uptake_e2l(c,j) = 0.0_r8
+              endif
+                                                  
 
               ! Todo: Add C check
               ! Note: Generates errors if not multiplied by layer volume (imbalance on the order of 1e-8 gN/m3)
               ! Note: Generates error after restart at precision of 1e-9. But doesn't set off N conservation errors in model when precision here is relaxed.
               ! if(abs(sum(soilnitrogen_l2e(c,j,:))+no3_l2e(c,j)+nh4_l2e(c,j)-&
-              !           (sum(soilnitrogen_e2l(c,j,:))+no3_e2l(c,j)+nh4_e2l(c,j)+plantNO3uptake_e2l(c,j)*dt+plantNH4uptake_e2l(c,j)*dt))*dz(c,j)>1e-5) then
+              !           (sum(soilnitrogen_e2l(c,j,:))+no3_e2l(c,j)+nh4_e2l(c,j)+plantNO3uptake_e2l(c,j)*dt+plantNH4uptake_e2l(c,j)*dt))*dz(c,j)>1e-8) then
               !   write(iulog,'(a,1x,i3,a,i5)'),'Nitrogen imbalance after alquimia solve step in layer',j,' Column ',c,__FILE__,__LINE__
-              !   call print_alquimia_state(this,c,j)
+              !   ! call print_alquimia_state(this)
                 
               !   write(iulog,'(a25,3e20.8)'),'Total N: ', sum(soilnitrogen_l2e(c,j,:))+no3_l2e(c,j)+nh4_l2e(c,j),&
               !                               sum(soilnitrogen_e2l(c,j,:))+no3_e2l(c,j)+nh4_e2l(c,j)+plantNH4uptake_e2l(c,j)*dt+plantNO3uptake_e2l(c,j)*dt,&
@@ -1426,14 +1443,17 @@ end subroutine EMAlquimia_Coldstart
               !   write(iulog,'(a25,3e20.8)'),'NO3: ',no3_l2e(c,j),no3_e2l(c,j),no3_e2l(c,j)-no3_l2e(c,j)
               !   write(iulog,'(a25,3e20.8)'),'NH4: ',nh4_l2e(c,j),nh4_e2l(c,j),nh4_e2l(c,j)-nh4_l2e(c,j)
               !   write(iulog,'(a25,3e20.8)'),'Plant NO3, NH4 uptake: ',plantNO3uptake_e2l(c,j)*dt,plantNH4uptake_e2l(c,j)*dt,plantNO3uptake_e2l(c,j)*dt+plantNH4uptake_e2l(c,j)*dt
-              !   call endrun(msg='N imbalance after alquimia solve')
+              !   ! call endrun(msg='N imbalance after alquimia solve')
               ! endif
         enddo
+        ! do poolnum=1,ndecomp_pools
+        ! write(iulog,*),'Soil N pools after',poolnum,soilnitrogen_e2l(c,:,poolnum)
+        ! enddo
+        ! write(iulog,*),'NO3 after',sum(no3_e2l(c,:)*dz(c,:)),NO3runoff_e2l(c)*dt
+        ! write(iulog,*),'NH4 after',sum(nh4_e2l(c,:)*dz(c,:))
+        ! write(iulog,*),'NH4 after',nh4_e2l(c,:)*dz(c,:)
      enddo
      
-
-     ! Alquimia here calls GetAuxiliaryOutput which copies data back to interface arrays. We should do that here for EMI arrays
-     ! Again, need to convert units back to ELM style, keeping track of what kind of species we are using so units are correct
 
 #else
   implicit none

@@ -615,7 +615,7 @@ contains
             gresp_storage_to_xfer(p)      = bgtr(p) * gresp_storage(p)
             livecrootc_storage_to_xfer(p) = bgtr(p) * livecrootc_storage(p) ! For graminoid rhizomes
             
-            if (woody(ivt(p)) == 1.0_r8) then
+            if (woody(ivt(p)) >= 1.0_r8) then
                 livestemc_storage_to_xfer(p)  = bgtr(p) * livestemc_storage(p)
                 deadstemc_storage_to_xfer(p)  = bgtr(p) * deadstemc_storage(p)
                 deadcrootc_storage_to_xfer(p) = bgtr(p) * deadcrootc_storage(p)
@@ -625,7 +625,7 @@ contains
             leafn_storage_to_xfer(p)  = bgtr(p) * leafn_storage(p)
             frootn_storage_to_xfer(p) = bgtr(p) * frootn_storage(p)
             livecrootn_storage_to_xfer(p) = bgtr(p) * livecrootn_storage(p)
-            if (woody(ivt(p)) == 1.0_r8) then
+            if (woody(ivt(p)) >= 1.0_r8) then
                  livestemn_storage_to_xfer(p)  = bgtr(p) * livestemn_storage(p)
                  deadstemn_storage_to_xfer(p)  = bgtr(p) * deadstemn_storage(p)
                  deadcrootn_storage_to_xfer(p) = bgtr(p) * deadcrootn_storage(p)
@@ -635,7 +635,7 @@ contains
             leafp_storage_to_xfer(p)  = bgtr(p) * leafp_storage(p)
             frootp_storage_to_xfer(p) = bgtr(p) * frootp_storage(p)
             livecrootp_storage_to_xfer(p) = bgtr(p) * livecrootp_storage(p)
-            if (woody(ivt(p)) == 1.0_r8) then
+            if (woody(ivt(p)) >= 1.0_r8) then
                 livestemp_storage_to_xfer(p)  = bgtr(p) * livestemp_storage(p)
                 deadstemp_storage_to_xfer(p)  = bgtr(p) * deadstemp_storage(p)
                 deadcrootp_storage_to_xfer(p) = bgtr(p) * deadcrootp_storage(p)
@@ -864,7 +864,7 @@ contains
                   livecrootc_xfer_to_livecrootc(p) = 0.0_r8 ! Graminoid rhizomes
                   livecrootn_xfer_to_livecrootn(p) = 0.0_r8
                   livecrootp_xfer_to_livecrootp(p) = 0.0_r8
-                  if (woody(ivt(p)) == 1.0_r8) then
+                  if (woody(ivt(p)) >= 1.0_r8) then
                      livestemc_xfer_to_livestemc(p)   = 0.0_r8
                      deadstemc_xfer_to_deadstemc(p)   = 0.0_r8
                      deadcrootc_xfer_to_deadcrootc(p) = 0.0_r8
@@ -885,7 +885,7 @@ contains
                   livecrootc_xfer(p) = 0.0_r8
                   livecrootn_xfer(p) = 0.0_r8
                   livecrootp_xfer(p) = 0.0_r8
-                  if (woody(ivt(p)) == 1.0_r8) then
+                  if (woody(ivt(p)) >= 1.0_r8) then
                      livestemc_xfer(p) = 0.0_r8
                      livestemn_xfer(p) = 0.0_r8
                      livestemp_xfer(p) = 0.0_r8
@@ -984,7 +984,7 @@ contains
                   leafc_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * leafc_storage(p)/dt
                   frootc_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * frootc_storage(p)/dt
                   livecrootc_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * livecrootc_storage(p)/dt
-                  if (woody(ivt(p)) == 1.0_r8) then
+                  if (woody(ivt(p)) >= 1.0_r8) then
                      livestemc_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * livestemc_storage(p)/dt
                      deadstemc_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * deadstemc_storage(p)/dt
                      deadcrootc_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * deadcrootc_storage(p)/dt
@@ -995,7 +995,7 @@ contains
                   leafn_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * leafn_storage(p)/dt
                   frootn_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * frootn_storage(p)/dt
                   livecrootn_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * livecrootn_storage(p)/dt
-                  if (woody(ivt(p)) == 1.0_r8) then
+                  if (woody(ivt(p)) >= 1.0_r8) then
                      livestemn_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * livestemn_storage(p)/dt
                      deadstemn_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * deadstemn_storage(p)/dt
                      deadcrootn_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * deadcrootn_storage(p)/dt
@@ -1005,7 +1005,7 @@ contains
                   leafp_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * leafp_storage(p)/dt
                   frootp_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * frootp_storage(p)/dt
                   livecrootp_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * livecrootp_storage(p)/dt
-                  if (woody(ivt(p)) == 1.0_r8) then
+                  if (woody(ivt(p)) >= 1.0_r8) then
                      livestemp_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * livestemp_storage(p)/dt
                      deadstemp_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * deadstemp_storage(p)/dt
                      deadcrootp_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * deadcrootp_storage(p)/dt
@@ -1289,7 +1289,7 @@ contains
                   livecrootc_xfer_to_livecrootc(p) = 0._r8
                   livecrootn_xfer_to_livecrootn(p) = 0._r8
                   livecrootp_xfer_to_livecrootp(p) = 0._r8
-                  if (woody(ivt(p)) == 1.0_r8) then
+                  if (woody(ivt(p)) >= 1.0_r8) then
                      livestemc_xfer_to_livestemc(p)   = 0._r8
                      deadstemc_xfer_to_deadstemc(p)   = 0._r8
                      deadcrootc_xfer_to_deadcrootc(p) = 0._r8
@@ -1310,7 +1310,7 @@ contains
                   livecrootc_xfer(p) = 0._r8
                   livecrootn_xfer(p) = 0._r8
                   livecrootp_xfer(p) = 0._r8
-                  if (woody(ivt(p)) == 1.0_r8) then
+                  if (woody(ivt(p)) >= 1.0_r8) then
                      livestemc_xfer(p) = 0._r8
                      livestemn_xfer(p) = 0._r8
                      livestemp_xfer(p) = 0._r8
@@ -1401,7 +1401,7 @@ contains
                   leafc_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * leafc_storage(p)/dt
                   frootc_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * frootc_storage(p)/dt
                   livecrootc_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * livecrootc_storage(p)/dt
-                  if (woody(ivt(p)) == 1.0_r8) then
+                  if (woody(ivt(p)) >= 1.0_r8) then
                      livestemc_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * livestemc_storage(p)/dt
                      deadstemc_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * deadstemc_storage(p)/dt
                      deadcrootc_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * deadcrootc_storage(p)/dt
@@ -1412,7 +1412,7 @@ contains
                   leafn_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * leafn_storage(p)/dt
                   frootn_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * frootn_storage(p)/dt
                   livecrootn_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * livecrootn_storage(p)/dt
-                  if (woody(ivt(p)) == 1.0_r8) then
+                  if (woody(ivt(p)) >= 1.0_r8) then
                      livestemn_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * livestemn_storage(p)/dt
                      deadstemn_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * deadstemn_storage(p)/dt
                      deadcrootn_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * deadcrootn_storage(p)/dt
@@ -1422,7 +1422,7 @@ contains
                   leafp_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * leafp_storage(p)/dt
                   frootp_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * frootp_storage(p)/dt
                   livecrootp_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * livecrootp_storage(p)/dt
-                  if (woody(ivt(p)) == 1.0_r8) then
+                  if (woody(ivt(p)) >= 1.0_r8) then
                      livestemp_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * livestemp_storage(p)/dt
                      deadstemp_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * deadstemp_storage(p)/dt
                      deadcrootp_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * deadcrootp_storage(p)/dt
@@ -1529,7 +1529,7 @@ contains
                leafc_storage_to_xfer(p)  = leafc_storage(p) * bgtr(p)
                frootc_storage_to_xfer(p) = frootc_storage(p) * bgtr(p)
                livecrootc_storage_to_xfer(p) = livecrootc_storage(p) * bgtr(p)
-               if (woody(ivt(p)) == 1.0_r8) then
+               if (woody(ivt(p)) >= 1.0_r8) then
                   livestemc_storage_to_xfer(p)  = livestemc_storage(p) * bgtr(p)
                   deadstemc_storage_to_xfer(p)  = deadstemc_storage(p) * bgtr(p)
                   deadcrootc_storage_to_xfer(p) = deadcrootc_storage(p) * bgtr(p)
@@ -1540,7 +1540,7 @@ contains
                leafn_storage_to_xfer(p)  = leafn_storage(p) * bgtr(p)
                frootn_storage_to_xfer(p) = frootn_storage(p) * bgtr(p)
                livecrootn_storage_to_xfer(p) = livecrootn_storage(p) * bgtr(p)
-               if (woody(ivt(p)) == 1.0_r8) then
+               if (woody(ivt(p)) >= 1.0_r8) then
                   livestemn_storage_to_xfer(p)  = livestemn_storage(p) * bgtr(p)
                   deadstemn_storage_to_xfer(p)  = deadstemn_storage(p) * bgtr(p)
                   deadcrootn_storage_to_xfer(p) = deadcrootn_storage(p) * bgtr(p)
@@ -1551,7 +1551,7 @@ contains
                leafp_storage_to_xfer(p)  = leafp_storage(p) * bgtr(p)
                frootp_storage_to_xfer(p) = frootp_storage(p) * bgtr(p)
                livecrootp_storage_to_xfer(p) = livecrootp_storage(p) * bgtr(p)
-               if (woody(ivt(p)) == 1.0_r8) then
+               if (woody(ivt(p)) >= 1.0_r8) then
                   livestemp_storage_to_xfer(p)  = livestemp_storage(p) * bgtr(p)
                   deadstemp_storage_to_xfer(p)  = deadstemp_storage(p) * bgtr(p)
                   deadcrootp_storage_to_xfer(p) = deadcrootp_storage(p) * bgtr(p)
@@ -2834,7 +2834,7 @@ contains
             livecrootc_xfer_to_livecrootc(p) = t1 * livecrootc_xfer(p)
             livecrootn_xfer_to_livecrootn(p) = t1 * livecrootn_xfer(p)
             livecrootp_xfer_to_livecrootp(p) = t1 * livecrootp_xfer(p)
-            if (woody(ivt(p)) == 1.0_r8) then
+            if (woody(ivt(p)) >= 1.0_r8) then
                livestemc_xfer_to_livestemc(p)   = t1 * livestemc_xfer(p)
                deadstemc_xfer_to_deadstemc(p)   = t1 * deadstemc_xfer(p)
                deadcrootc_xfer_to_deadcrootc(p) = t1 * deadcrootc_xfer(p)
@@ -2863,7 +2863,7 @@ contains
             livecrootc_xfer_to_livecrootc(p) = livecrootc_xfer(p) / dt
             livecrootn_xfer_to_livecrootn(p) = livecrootn_xfer(p) / dt
             livecrootp_xfer_to_livecrootp(p) = livecrootp_xfer(p) / dt
-            if (woody(ivt(p)) == 1.0_r8) then
+            if (woody(ivt(p)) >= 1.0_r8) then
                livestemc_xfer_to_livestemc(p)   = livestemc_xfer(p) / dt
                deadstemc_xfer_to_deadstemc(p)   = deadstemc_xfer(p) / dt
                deadcrootc_xfer_to_deadcrootc(p) = deadcrootc_xfer(p) / dt
