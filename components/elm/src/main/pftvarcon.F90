@@ -9,14 +9,17 @@ module pftvarcon
   use shr_kind_mod, only : r8 => shr_kind_r8
   use shr_log_mod , only : errMsg => shr_log_errMsg
   use abortutils  , only : endrun
-  use elm_varpar  , only : mxpft, numrad, ivis, inir, cft_lb, cft_ub
+  use elm_varpar  , only : mxpft, numrad, ivis, inir
   use elm_varpar  , only:  mxpft_nc
   use elm_varctl  , only : iulog, use_vertsoilc
   use elm_varpar  , only : nlevdecomp_full, nsoilorder
   use elm_varctl  , only : nu_com
   !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
-  use elm_varpar  , only : maxpatch_pft, natpft_lb, natpft_ub, crop_prog
-  use elm_varpar  , only : numpft, numcft, natpft_size, cft_size, max_patch_per_col, maxpatch_urb
+  use elm_varpar  , only : crop_prog
+  use elm_varpar  , only : natpft_size, natpft_lb, natpft_ub
+  use elm_varpar  , only : cft_size, cft_lb, cft_ub
+  use elm_varpar  , only : surfpft_size, surfpft_lb, surfpft_ub
+  use elm_varpar  , only : numpft, numcft, maxpatch_pft, max_patch_per_col, maxpatch_urb
   use elm_varctl  , only : create_crop_landunit
   !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
   !
@@ -1166,18 +1169,27 @@ contains
        call ncd_io('needleleaf', needleleaf(0:npft-1), 'read', ncid, readvar=readv)
        if ( .not. readv ) needleleaf(0:mxpft) = 0
 
-       ! the following assumed PFTs are arranged by blocks (NOT suggested to use):
-       !    not-vegetated (0), trees (needleleaf, broadleaf), shrubs(needleleaf, broadleaf), graminoids, non-vasculars, and crops
-       nndllf_tree          = 0 ! index for last type of needle-leaf tree
-       ntree                = 0 ! index for last type of tree
-       nshrub               = 0 ! index for last type of shrub
-       ngraminoid           = 0 ! index for last type of graminoid
-       nnonvascular         = 0 ! index for last type of non-vascular
-       npcropmin            = 0 ! first prognostic crop
-       npcropmax            = mxpft ! last prognostic crop in list
+       ! the following assumed PFTs are arranged by blocks (NOT suggested to use in the future?):
+       !    not-vegetated (0), non-vasculars, trees (needleleaf, broadleaf), shrubs(needleleaf, broadleaf), graminoids, and crops(annuals, perennials)
+       noveg                = -1
+       nndllf_tree          = -1 ! index for last type of needle-leaf tree
+       ntree                = -1 ! index for last type of tree
+       nshrub               = -1 ! index for last type of shrub
+       ngraminoid           = -1 ! index for last type of graminoid
+       nnonvascular         = -1 ! index for last type of non-vascular
+       npcropmin            = -1 ! first prognostic crop
+       npcropmax            = -1 ! last prognostic crop in list
+       numcft               = 0
+       nppercropmin         = -1 ! first perennial prognostic crop
+       nppercropmax         = -1 ! last perennial prognostic crop in list
 
-       do i = 1, mxpft
-          if(woody(i)==1) then
+
+       do i = 0, npft-1
+          if ( trim(pftname(i)) == 'not_vegetated') then
+              noveg = i
+          !
+          ! woody=1 for tree
+          elseif(woody(i)==1) then
               if (needleleaf(i)==1) nndllf_tree = i
               ntree  = i
 
@@ -1196,24 +1208,40 @@ contains
               endif
           !
           elseif(crop(i)==1) then
+              numcft = numcft + 1
               npcropmax = i
               if(npcropmin<=0) npcropmin = i
+
+              ! if crop is masked as 'evergreen' as well, it shall be called perennial crop
+              if(evergreen(i)==1) then
+                 nppercropmax = i
+                 if(nppercropmin<=0) nppercropmin = i
+              endif
           endif
 
        end do
 
+       ! make sure non-generic crop indices always beyond natural-pft, even if not available - used in filterMod.F90)
+       if (npcropmin < 0 .and. npcropmax < 0) then
+          npcropmin = npft
+          npcropmax = npft
+       endif
+       ! checking if 'not vegetated' is in
+       if (noveg /= 0) then
+          call endrun(msg=' ERROR: not-vegetated is NOT included in userpft or as the first '//errMsg(__FILE__, __LINE__))
+       endif
+
 
        ! MUST re-do some constants which already set in 'elm_varpar.F90:elm_varpar_init()'
        numpft       = npft - 1                   ! actual # of patches (without bare)
-       if (npcropmin < npft) then
-          numcft    = npcropmax - npcropmin + 1  ! actual # of crops
-          crop_prog = .true.                     ! If prognostic crops is turned on
+       mxpft_nc     = numpft                     ! user-defined is what max.
+       if (numcft>0) then
+          crop_prog = .true.                     ! prognostic crops is turned on
        else
-          numcft    = 0
           crop_prog = .false.
        endif
 
-       if (create_crop_landunit) then
+       if (create_crop_landunit .or. crop_prog) then
           natpft_size = (numpft + 1) - numcft    ! note that numpft doesn't include bare ground -- thus we add 1
           cft_size    = numcft
        else
@@ -1224,8 +1252,58 @@ contains
        natpft_ub = natpft_lb + natpft_size - 1
        cft_lb = natpft_ub + 1
        cft_ub = max(cft_lb, cft_lb + cft_size - 1)            ! NOTE: if cft_size is ZERO, could be issue (but so far so good)
-
+       surfpft_lb  = natpft_lb
+       surfpft_ub  = natpft_ub
+       surfpft_size = natpft_size
        max_patch_per_col= max(numpft+1, numcft, maxpatch_urb)
+
+       ! informations
+       if (masterproc) then
+          write(iulog,*)
+          write(iulog,*) 'USER-DEFINED PFT lifeforms index, ranging from 0 to', npft-1
+          write(iulog,*) ' -- ending index --         -- group --           -- group pft(s) -- '
+          if (noveg==0) then
+             write(iulog,*) '             ', noveg,        'not vegetated     '
+          endif
+          if (nnonvascular>0) then
+             write(iulog,*) '             ', nnonvascular, 'non-vascular      '
+             do i = noveg+1, nnonvascular
+                write(iulog,*) '                               ', trim(pftname(i))
+             end do
+          end if
+          if (nndllf_tree>0) then
+             write(iulog,*) '             ', nndllf_tree,  'needle leaf tree  '
+             do i = max(noveg, nnonvascular)+1, nndllf_tree
+                write(iulog,*) '                               ', trim(pftname(i))
+             end do
+          endif
+          if (ntree>0) then
+             write(iulog,*) '             ', ntree,        'broad leaf tree   '
+             do i = max(max(noveg, nnonvascular),nndllf_tree)+1, ntree
+                write(iulog,*) '                               ', trim(pftname(i))
+             end do
+          endif
+          if (nshrub>0) then
+             write(iulog,*) '             ', nshrub,       'shrub             '
+             do i = max(max(noveg, nnonvascular),ntree)+1, nshrub
+                write(iulog,*) '                               ', trim(pftname(i))
+             end do
+          endif
+          if (ngraminoid>0) then
+             write(iulog,*) '             ', ngraminoid,   'graminoid         '
+             do i = max(max(max(noveg, nnonvascular),ntree),nshrub)+1, ngraminoid
+                write(iulog,*) '                               ', trim(pftname(i))
+             end do
+          endif
+          if (numcft>0) then
+             write(iulog,*) '             ', npcropmax,    'crop              '
+             do i = npcropmin, npcropmax
+                write(iulog,*) '                               ', trim(pftname(i))
+             end do
+          endif
+
+          write(iulog,*)
+       end if
 
     end if  ! end if block: 'mergetoelmpft' is in Physiology Parameters
 
@@ -1238,7 +1316,7 @@ contains
 
     if( .not. use_fates ) then
        if( .not. use_crop) then
-          if ( npcropmax /= mxpft_nc )then
+          if ( npcropmax /= mxpft_nc .and. crop_prog)then
              call endrun(msg=' ERROR: npcropmax is NOT the last value'//errMsg(__FILE__, __LINE__))
           end if
        else
@@ -1341,7 +1419,7 @@ contains
     ! NOTE(wjs, 2015-10-04) Currently, mergetoelmpft is only used for crop types.
     ! However, we handle it more generally here (treating ALL pft types), in case its use
     ! is ever extended to work with non-crop types as well.
-    do m = 1, mxpft
+    do m = 1, min(mxpft, numpft)
        merge_type                        = mergetoelmpft(m)
        is_pft_known_to_model(merge_type) = .true.
     end do
