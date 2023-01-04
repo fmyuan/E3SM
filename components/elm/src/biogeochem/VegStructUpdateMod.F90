@@ -231,8 +231,17 @@ contains
 
                ! grasses
 
+               if(nonvascular(ivt(p)) == 1) then
+               ! moss: ranging from 0.02 - 0.1 m
+                 htop(p) = max(0.02_r8, min(0.10_r8, tlai(p) * 0.10_r8)) ! (TODO: requires further literature study on this)
+               elseif(nonvascular(ivt(p)) == 2) then
+               ! lichen: ususally composited onto/into surface (rock, bare soil, or even plant trunk/branch).
+               !         here only considering on bare/rock surface ones, i.e. distinguishable as fraction of land as one type of coverage.
+                 htop(p) = 0.01_r8
+               else
                ! height for grasses depends only on LAI
-               htop(p) = max(0.25_r8, tlai(p) * 0.25_r8)
+                 htop(p) = max(0.25_r8, tlai(p) * 0.25_r8)
+               endif
 
                htop(p) = min(htop(p),(forc_hgt_u_patch(p)/(displar(ivt(p))+z0mr(ivt(p))))-3._r8)
 
