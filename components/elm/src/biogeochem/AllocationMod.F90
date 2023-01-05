@@ -361,6 +361,7 @@ contains
     real(r8):: cnl,cnfr,cnlw,cndw                                    !C:N ratios for leaf, fine root, and wood
 
     real(r8):: curmr, curmr_ratio                                    !xsmrpool temporary variables
+    real(r8):: tmp_xsmrpool
     real(r8):: nuptake_prof(bounds%begc:bounds%endc, 1:nlevdecomp)
 
     real(r8) f5                                                      !grain allocation parameter
@@ -571,26 +572,40 @@ contains
          availc(p) = max(availc(p),0.0_r8)
 
          ! test for an xsmrpool deficit
-         if (xsmrpool(p) < 0.0_r8) then
+         ! xsmrpool deficit shall include current mr requirement from xsmrpool (F.M. Yuan)
+         tmp_xsmrpool = xsmrpool(p) - mr*(1.0_r8-curmr_ratio)*dt
+         !if (xsmrpool(p) < 0.0_r8) then
+         if (tmp_xsmrpool < 0.0_r8) then
             ! Running a deficit in the xsmrpool, so the first priority is to let
             ! some availc from this timestep accumulate in xsmrpool.
             ! Determine rate of recovery for xsmrpool deficit
 
-            xsmrpool_recover(p) = -xsmrpool(p)/(dayscrecover*secspday)
-            if (cpool(p) < 10.0_r8 * xsmrpool_recover(p)*dt) then 
-               !Take xsmr recovery from existing cpool, if cpool too small then
-               !use availc
+            !xsmrpool_recover(p) = -xsmrpool(p)/(dayscrecover*secspday)
+            xsmrpool_recover(p) = -tmp_xsmrpool/(dayscrecover*secspday)
+            !if (cpool(p) < 10.0_r8 * xsmrpool_recover(p)*dt) then
+               ! Take xsmr recovery from existing cpool if cpool big enough,
+               ! otherwise use availc
+               ! NOTE (fmyuan@2022-12-22): this 'if...' actually didn't fix too much of long-period negative xsmrpool
+               !                           So comment out.
                if (xsmrpool_recover(p) < availc(p)) then
                  ! available carbon reduced by amount for xsmrpool recovery
                   availc(p) = availc(p) - xsmrpool_recover(p)
                else
                   ! all of the available carbon goes to xsmrpool recovery
-                  xsmrpool_recover(p) = availc(p)
+                  !xsmrpool_recover(p) = availc(p)
+                  ! first all of the available carbon goes to xsmrpool recovery,
+                  ! then if still needed, half of cpool is assumed available for xsmrpool recovery
+                  ! but not over total required
+                  xsmrpool_recover(p) = min(xsmrpool_recover(p), &
+                    (availc(p)+cpool(p)/dt))
                   availc(p) = 0.0_r8
                end if
  
-            end if 
+            !end if
             cpool_to_xsmrpool(p) = xsmrpool_recover(p)
+         else
+            xsmrpool_recover(p) = 0.0_r8
+            cpool_to_xsmrpool(p)= 0.0_r8
          end if
 
          f1 = froot_leaf(ivt(p))
