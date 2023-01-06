@@ -1208,7 +1208,7 @@ end subroutine EMAlquimia_Coldstart
 
               endif
 
-              if (c .ne. 2) then ! skip chemistry for the tidal channel column
+              ! if (c .ne. 2) then ! skip chemistry for the tidal channel column
 #endif
               ! Limit velocity of vertical water flux to 1 cm/hour for now (for purposes of advection)
               do j = 0, nlevdecomp 
@@ -1253,9 +1253,9 @@ end subroutine EMAlquimia_Coldstart
               ! write(iulog,*), 'surf_flux (mol/m2) = ',surf_flux
               ! write(iulog,*), 'bc',this%bc
 
-#ifdef MARSH
-            endif
-#endif
+! #ifdef MARSH
+!             endif
+! #endif
 
               ! Save back to ELM
               water_density_e2l                 = water_density_l2e
