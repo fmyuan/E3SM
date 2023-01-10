@@ -926,7 +926,7 @@ end subroutine EMAlquimia_Coldstart
     real(r8) , pointer, dimension(:,:)    :: DOC_e2l, DON_e2l, DIC_e2l, methane_vr_e2l
     real(r8) , pointer, dimension(:,:)    :: pH_e2l, O2_e2l, salinity_e2l, sulfate_e2l, sulfide_e2l, Fe2_e2l, FeOxide_e2l, carbonate_e2l
     real(r8) , pointer, dimension(:)     :: actual_dt_e2l
-    real(r8)                            :: CO2_before, molperL_to_molperm3
+    real(r8)                            :: CO2_before, molperL_to_molperm3,DON_before,excess_NO3_uptake,excess_NH4_uptake
     real(r8) , dimension(nlevdecomp)    :: liq_frac
     real(r8), parameter                 :: minval = 1.e-30_r8 ! Minimum value to pass to PFLOTRAN to avoid numerical errors with concentrations of 0
 
@@ -1092,6 +1092,7 @@ end subroutine EMAlquimia_Coldstart
     do fc = 1, num_soilc
       c = filter_soilc(fc)
 
+        DON_before=0.0
          do j = 1, nlevdecomp  
 
              ! Set soil carbon and nitrogen from land model
@@ -1105,7 +1106,7 @@ end subroutine EMAlquimia_Coldstart
                ! Separate N pool only exists if floating CN ratio
                 !  write(iulog,*),poolnum,soilnitrogen_l2e(c,j,poolnum)
                if(decomp_cascade_con%floating_cn_ratio_decomp_pools(poolnum) .and. this%nitrogen_pool_mapping(poolnum)>0) then
-                  ! if(soilnitrogen_l2e(c,j,poolnum)<0) write(iulog,*),'N pool less than zero going into alquimia: ',c,j,poolnum,soilnitrogen_l2e(c,j,poolnum)
+                  if(soilnitrogen_l2e(c,j,poolnum)<0) write(iulog,*),'N pool less than zero going into alquimia: ',c,j,poolnum,soilnitrogen_l2e(c,j,poolnum)
                   total_immobile_l2e(c,j,this%nitrogen_pool_mapping(poolnum)) = max(soilnitrogen_l2e(c,j,poolnum)/natomw,minval/20)
                endif
                
@@ -1155,13 +1156,18 @@ end subroutine EMAlquimia_Coldstart
               liq_frac(j) = 0.0_r8
              endif
 
+            !  do k=1, this%chem_sizes%num_primary
+            !   DON_before = DON_before + total_mobile_l2e(c,j,k)*natomw*this%DON_content(k)*dz(c,j)
+            !  enddo
+
           enddo ! End of layer loop setting things up
           ! do poolnum=1,ndecomp_pools
-          !   write(iulog,*),'Soil N pools before',poolnum,soilnitrogen_l2e(c,:,poolnum)
+          !   write(iulog,*),'Soil N pools before',poolnum,sum(soilnitrogen_l2e(c,:,poolnum)*dz(c,:))
           ! enddo
+
           ! write(iulog,*),'NO3 before',sum(no3_l2e(c,:)*dz(c,:))
           ! write(iulog,*),'NH4 before',sum(nh4_l2e(c,:)*dz(c,:))
-          ! write(iulog,*),'NH4 before',nh4_l2e(c,:)*dz(c,:)
+          ! write(iulog,*),'DON before',DON_before
 
               ! Step the chemistry solver, including advection/diffusion and timestep cutting capability for whole column
               ! Need to set surface and lateral boundary condition concentrations
@@ -1426,6 +1432,23 @@ end subroutine EMAlquimia_Coldstart
                       plantNO3uptake_e2l(c,j) = 0.0_r8
                       plantNH4uptake_e2l(c,j) = 0.0_r8
               endif
+
+              if(plantNO3uptake_e2l(c,j)+plantNH4uptake_e2l(c,j) > plantNdemand_l2e(c,j)) then
+                ! write(iulog,*) 'Alquimia: Plant N uptake > plant N demand in layer ',j
+                ! write(iulog,*),' NO3 uptake = ',plantNO3uptake_e2l(c,j)
+                ! write(iulog,*),' NH4 uptake = ',plantNH4uptake_e2l(c,j)
+                ! write(iulog,*),' Total uptake = ',plantNO3uptake_e2l(c,j)+plantNH4uptake_e2l(c,j)
+                ! write(iulog,*),' N demand = ',plantNdemand_l2e(c,j)
+                
+                excess_NO3_uptake = plantNO3uptake_e2l(c,j)*(1-plantNdemand_l2e(c,j)/(plantNO3uptake_e2l(c,j)+plantNH4uptake_e2l(c,j)))
+                excess_NH4_uptake = plantNH4uptake_e2l(c,j)*(1-plantNdemand_l2e(c,j)/(plantNO3uptake_e2l(c,j)+plantNH4uptake_e2l(c,j)))
+                NO3_e2l(c,j) = NO3_e2l(c,j) + excess_NO3_uptake*dt
+                NH4_e2l(c,j) = NH4_e2l(c,j) + excess_NH4_uptake*dt
+                ! write(iulog,*),'Excess NO3 uptake = ',excess_NO3_uptake,'Excess NH4 uptake = ',excess_NH4_uptake
+                plantNO3uptake_e2l(c,j) = plantNO3uptake_e2l(c,j) - excess_NO3_uptake
+                plantNH4uptake_e2l(c,j) = plantNH4uptake_e2l(c,j) - excess_NH4_uptake
+                ! write(iulog,*),'Corrected uptake: ',plantNO3uptake_e2l(c,j),plantNH4uptake_e2l(c,j),plantNO3uptake_e2l(c,j)+plantNH4uptake_e2l(c,j)
+              endif
                                                   
 
               ! Todo: Add C check
@@ -1447,11 +1470,11 @@ end subroutine EMAlquimia_Coldstart
               ! endif
         enddo
         ! do poolnum=1,ndecomp_pools
-        ! write(iulog,*),'Soil N pools after',poolnum,soilnitrogen_e2l(c,:,poolnum)
+        ! write(iulog,*),'Soil N pools after',poolnum,sum(soilnitrogen_e2l(c,:,poolnum)*dz(c,:))
         ! enddo
-        ! write(iulog,*),'NO3 after',sum(no3_e2l(c,:)*dz(c,:)),NO3runoff_e2l(c)*dt
+        ! write(iulog,*),'NO3 after',sum(no3_e2l(c,:)*dz(c,:))! ,NO3runoff_e2l(c)*dt
         ! write(iulog,*),'NH4 after',sum(nh4_e2l(c,:)*dz(c,:))
-        ! write(iulog,*),'NH4 after',nh4_e2l(c,:)*dz(c,:)
+        ! write(iulog,*),'DON after',sum(DON_e2l(c,:)*dz(c,:))
      enddo
      
 
