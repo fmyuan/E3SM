@@ -1058,12 +1058,16 @@ contains
     if ( .not. readv ) gcbr_q(:) = 0._r8
        
     call ncd_io('mergetoelmpft', mergetoelmpft(0:npft-1), 'read', ncid, readvar=readv)
+    ! in case parameter file is in old name
+    if ( .not. readv ) call ncd_io('mergetoclmpft', mergetoelmpft(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) then
+
        do i = 0, mxpft
           mergetoelmpft(i) = i
        end do
+
     !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
-    ! 'mergetoelmpft' in the 'paramfile' is used as an indicator to user-defined parameter file
+    ! 'mergetoelmpft' or 'mergetoclmpft' in the 'paramfile' is used as an indicator to user-defined parameter file
     !end if
 
     !call ncd_pio_closefile(ncid)
@@ -1170,8 +1174,9 @@ contains
           write(iulog,*)
     end if
 
-    ! 'mergetoelmpft' in the 'paramfile' is used as an indicator to user-defined parameter file
+    ! 'mergetoelmpft' or 'mergetoclmpft' in the 'paramfile' is used as an indicator to user-defined parameter file
     else
+
        ! if 'nfixer' flag is defined for each PFT
        call ncd_io('nfixer', nfixer(0:npft-1), 'read', ncid, readvar=readv)
        if ( .not. readv ) nfixer(0:mxpft) = 0
@@ -1320,7 +1325,7 @@ contains
           write(iulog,*)
        end if
 
-    end if  ! end if block: 'mergetoelmpft' is in Physiology Parameters
+    end if  ! end if block: 'mergetoelmpft'/'mergetoclmpft' is in Physiology Parameters
 
 
     call ncd_pio_closefile(ncid)
