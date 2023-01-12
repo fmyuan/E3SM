@@ -2184,12 +2184,14 @@ contains
             end if
 
             ! If switched on, use pH factor for production based on spatial pH data defined in surface data.
-            if (.not. lake .and. usephfact .and. pH(c) >  pHmin .and.pH(c) <  pHmax) then
-               pH_fact_ch4 = 10._r8**(-0.2235_r8*pH(c)*pH(c) + 2.7727_r8*pH(c) - 8.6_r8)
-               ! fitted function using data from Dunfield et al. 1993
-               ! Strictly less than one, with optimum at 6.5
-               ! From Lei Meng
-               f_ch4_adj = f_ch4_adj * pH_fact_ch4
+            if ( (.not. lake) .and. usephfact) then
+               if( (pH(c) > pHmin) .and. (pH(c) <  pHmax)) then
+                  pH_fact_ch4 = 10._r8**(-0.2235_r8*pH(c)*pH(c) + 2.7727_r8*pH(c) - 8.6_r8)
+                  ! fitted function using data from Dunfield et al. 1993
+                  ! Strictly less than one, with optimum at 6.5
+                  ! From Lei Meng
+                  f_ch4_adj = f_ch4_adj * pH_fact_ch4
+               end if
             else
                ! if no data, then no pH effects
             end if
@@ -2425,6 +2427,7 @@ contains
       !$acc routine seq
     use elm_varcon       , only : rpi
     use pftvarcon        , only : nc3_arctic_grass, crop, nc3_nonarctic_grass, nc4_grass, noveg
+    use pftvarcon        , only : woody, nonvascular
     use CH4varcon        , only : transpirationloss, usefrootc, use_aereoxid_prog
     !
     ! !ARGUMENTS:
@@ -2561,8 +2564,8 @@ contains
                   is_vegetated = .false.
                end if
 
-               if (veg_pp%itype(p) == nc3_arctic_grass .or. crop(veg_pp%itype(p)) == 1 .or. &
-                    veg_pp%itype(p) == nc3_nonarctic_grass .or. veg_pp%itype(p) == nc4_grass) then
+               if ( crop(veg_pp%itype(p)) == 1 .or. &
+                    (woody(veg_pp%itype(p)) == 0 .and. nonvascular(veg_pp%itype(p)) == 0) ) then
                   poros_tiller = 0.3_r8  ! Colmer 2003
                else
                   poros_tiller = 0.3_r8 * CH4ParamsInst%nongrassporosratio
