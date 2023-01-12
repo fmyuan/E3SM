@@ -361,6 +361,7 @@ contains
     real(r8):: cnl,cnfr,cnlw,cndw                                    !C:N ratios for leaf, fine root, and wood
 
     real(r8):: curmr, curmr_ratio                                    !xsmrpool temporary variables
+    real(r8):: tmp_xsmrpool
     real(r8):: nuptake_prof(bounds%begc:bounds%endc, 1:nlevdecomp)
 
     real(r8) f5                                                      !grain allocation parameter
@@ -465,6 +466,8 @@ contains
          cpool_to_xsmrpool            => veg_cf%cpool_to_xsmrpool               , & ! Output: [real(r8) (:)   ]
 
          retransn                     => veg_ns%retransn                     , & ! Input:  [real(r8) (:)   ]  (gN/m2) plant pool of retranslocated N
+         cpool                        => veg_cs%cpool                          , & ! Input:  [real(r8) (:)   ]  (gN/m2) plant N pool storage
+         npool                        => veg_ns%npool                          , & ! Input:  [real(r8) (:)   ]  (gN/m2) plant N pool storage
 
          plant_ndemand                => veg_nf%plant_ndemand                 , & ! Output: [real(r8) (:)   ]  N flux required to support initial GPP (gN/m2/s)
          avail_retransn               => veg_nf%avail_retransn                , & ! Output: [real(r8) (:)   ]  N flux available from retranslocation pool (gN/m2/s)
@@ -569,21 +572,40 @@ contains
          availc(p) = max(availc(p),0.0_r8)
 
          ! test for an xsmrpool deficit
-         if (xsmrpool(p) < 0.0_r8) then
+         ! xsmrpool deficit shall include current mr requirement from xsmrpool (F.M. Yuan)
+         tmp_xsmrpool = xsmrpool(p) - mr*(1.0_r8-curmr_ratio)*dt
+         !if (xsmrpool(p) < 0.0_r8) then
+         if (tmp_xsmrpool < 0.0_r8) then
             ! Running a deficit in the xsmrpool, so the first priority is to let
             ! some availc from this timestep accumulate in xsmrpool.
             ! Determine rate of recovery for xsmrpool deficit
 
-            xsmrpool_recover(p) = -xsmrpool(p)/(dayscrecover*secspday)
-            if (xsmrpool_recover(p) < availc(p)) then
-               ! available carbon reduced by amount for xsmrpool recovery
-               availc(p) = availc(p) - xsmrpool_recover(p)
-            else
-               ! all of the available carbon goes to xsmrpool recovery
-               xsmrpool_recover(p) = availc(p)
-               availc(p) = 0.0_r8
-            end if
+            !xsmrpool_recover(p) = -xsmrpool(p)/(dayscrecover*secspday)
+            xsmrpool_recover(p) = -tmp_xsmrpool/(dayscrecover*secspday)
+            !if (cpool(p) < 10.0_r8 * xsmrpool_recover(p)*dt) then
+               ! Take xsmr recovery from existing cpool if cpool big enough,
+               ! otherwise use availc
+               ! NOTE (fmyuan@2022-12-22): this 'if...' actually didn't fix too much of long-period negative xsmrpool
+               !                           So comment out.
+               if (xsmrpool_recover(p) < availc(p)) then
+                 ! available carbon reduced by amount for xsmrpool recovery
+                  availc(p) = availc(p) - xsmrpool_recover(p)
+               else
+                  ! all of the available carbon goes to xsmrpool recovery
+                  !xsmrpool_recover(p) = availc(p)
+                  ! first all of the available carbon goes to xsmrpool recovery,
+                  ! then if still needed, half of cpool is assumed available for xsmrpool recovery
+                  ! but not over total required
+                  xsmrpool_recover(p) = min(xsmrpool_recover(p), &
+                    (availc(p)+cpool(p)/dt))
+                  availc(p) = 0.0_r8
+               end if
+ 
+            !end if
             cpool_to_xsmrpool(p) = xsmrpool_recover(p)
+         else
+            xsmrpool_recover(p) = 0.0_r8
+            cpool_to_xsmrpool(p)= 0.0_r8
          end if
 
          f1 = froot_leaf(ivt(p))
@@ -839,6 +861,12 @@ contains
          end if
          plant_pdemand(p) = plant_pdemand(p) - retransp_to_ppool(p)
 
+         ! positive cpools BUT negative npools for carbon-only (unknown reason, TODO checking, fmyuan)
+         if (carbon_only .or. carbonphosphorus_only) then
+            if (cpool(p)>0._r8 .and. npool(p)<0._r8) then
+               plant_ndemand(p) = plant_ndemand(p) - npool(p)/dt
+            end if
+         end if
 
       end do ! end pft loop
 
@@ -1329,7 +1357,16 @@ contains
            
            if (carbon_only .or. carbonphosphorus_only) then
               
-              if ( fpi_no3_vr(j) + fpi_nh4_vr(j) < 1._r8 ) then
+              if (use_elm_interface) then  ! for BFB purpose, have to set this condition. Can be general.
+                 fpi_vr(c,j) = 1._r8
+                 fpi_nh4_vr(j) = 1._r8  ! assuming all in NH4-N form
+                 fpi_no3_vr(j) = 0._r8
+                 supplement_to_sminn_vr(c,j) = potential_immob_vr(c,j)
+                 actual_immob_nh4_vr(c,j) = potential_immob_vr(c,j)
+                 actual_immob_no3_vr(c,j) = 0._r8
+
+              ! the following would likely consume soil mineral N, even though 'carbon only'
+              elseif ( fpi_no3_vr(j) + fpi_nh4_vr(j) < 1._r8 ) then
                  fpi_vr(c,j) = 1._r8
                  fpi_nh4_vr(j) = 1.0_r8 - fpi_no3_vr(j)
                  supplement_to_sminn_vr(c,j) = (potential_immob_vr(c,j) - actual_immob_no3_vr(c,j)) - actual_immob_nh4_vr(c,j)
@@ -1338,7 +1375,14 @@ contains
               end if
 
               if (nu_com .eq. 'RD') then
-                 if ( smin_no3_to_plant_vr(c,j) + smin_nh4_to_plant_vr(c,j) < col_plant_ndemand_vr(c,j)) then
+                 if (use_elm_interface) then  ! for BFB purpose, have to set this condition. Can be general.
+                    supplement_to_sminn_vr(c,j) = supplement_to_sminn_vr(c,j) + &
+                         col_plant_ndemand_vr(c,j)
+                    smin_no3_to_plant_vr(c,j) = 0._r8
+                    smin_nh4_to_plant_vr(c,j) = col_plant_ndemand_vr(c,j)*nuptake_prof(c,j)
+
+                 ! the following would likely consume soil mineral N, even though 'carbon only'
+                 elseif ( smin_no3_to_plant_vr(c,j) + smin_nh4_to_plant_vr(c,j) < col_plant_ndemand_vr(c,j)) then
                     supplement_to_sminn_vr(c,j) = supplement_to_sminn_vr(c,j) + &
                          col_plant_ndemand_vr(c,j) - (smin_no3_to_plant_vr(c,j) + smin_nh4_to_plant_vr(c,j))
                     ! update to new values that satisfy demand
@@ -3604,8 +3648,16 @@ contains
     do j = 1, nlevdecomp
 
        sum_pdemand = col_plant_pdemand_vr(j) + potential_immob_p_vr(j)
+       
+       if(carbon_only .or. carbonnitrogen_only    ) then  ! do NO-P option first to avoid negative soil solution P
 
-       if (sum_pdemand*dt < solutionp_vr(j)) then
+          fpi_p_vr(j) = 1.0_r8
+          actual_immob_p_vr(j) = potential_immob_p_vr(j)
+          sminp_to_plant_vr(j) =  col_plant_pdemand_vr(j)
+          !supplement_to_sminp_vr(j) = sum_pdemand - (solutionp_vr(j)/dt)  ! this will likely exhaust soil solution P
+          supplement_to_sminp_vr(j) = sum_pdemand
+
+       elseif (sum_pdemand*dt < solutionp_vr(j)) then
 
           ! P availability is not limiting immobilization or plant
           ! uptake, and both can proceed at their potential rates
@@ -3613,12 +3665,6 @@ contains
           actual_immob_p_vr(j) = potential_immob_p_vr(j)
           sminp_to_plant_vr(j) = col_plant_pdemand_vr(j)
 
-       elseif(carbon_only .or. carbonnitrogen_only    ) then
-
-          fpi_p_vr(j) = 1.0_r8
-          actual_immob_p_vr(j) = potential_immob_p_vr(j)
-          sminp_to_plant_vr(j) =  col_plant_pdemand_vr(j)
-          supplement_to_sminp_vr(j) = sum_pdemand - (solutionp_vr(j)/dt)
           
        else
           ! P availability can not satisfy the sum of immobilization and
