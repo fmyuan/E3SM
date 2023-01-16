@@ -2427,6 +2427,7 @@ contains
       !$acc routine seq
     use elm_varcon       , only : rpi
     use pftvarcon        , only : nc3_arctic_grass, crop, nc3_nonarctic_grass, nc4_grass, noveg
+    use pftvarcon        , only : woody, nonvascular
     use CH4varcon        , only : transpirationloss, usefrootc, use_aereoxid_prog
     !
     ! !ARGUMENTS:
@@ -2563,8 +2564,8 @@ contains
                   is_vegetated = .false.
                end if
 
-               if (veg_pp%itype(p) == nc3_arctic_grass .or. crop(veg_pp%itype(p)) == 1 .or. &
-                    veg_pp%itype(p) == nc3_nonarctic_grass .or. veg_pp%itype(p) == nc4_grass) then
+               if ( crop(veg_pp%itype(p)) == 1 .or. &
+                    (woody(veg_pp%itype(p)) == 0 .and. nonvascular(veg_pp%itype(p)) == 0) ) then
                   poros_tiller = 0.3_r8  ! Colmer 2003
                else
                   poros_tiller = 0.3_r8 * CH4ParamsInst%nongrassporosratio

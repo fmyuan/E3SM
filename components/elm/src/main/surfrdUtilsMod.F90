@@ -123,7 +123,7 @@ contains
     ! !USES:
     use elm_varsur      , only : wt_lunit, wt_nat_patch, fert_cft
     use elm_varpar      , only : cft_size, surfpft_size
-    use pftvarcon       , only : nc3crop
+    use pftvarcon       , only : nc3crop, ngraminoid
     use landunit_varcon , only : istsoil, istcrop
     use topounit_varcon , only : max_topounits
     ! !ARGUMENTS:
@@ -136,7 +136,7 @@ contains
     integer :: g, t    ! index
 !-----------------------------------------------------------------------
     SHR_ASSERT_ALL((ubound(wt_cft      ) == (/endg,max_topounits, cftsize          /)), errMsg(__FILE__, __LINE__))
-    SHR_ASSERT_ALL((ubound(wt_nat_patch) == (/endg,max_topounits, nc3crop+cftsize-1/)), errMsg(__FILE__, __LINE__))
+    SHR_ASSERT_ALL((ubound(wt_nat_patch) == (/endg,max_topounits, ngraminoid+cftsize/)), errMsg(__FILE__, __LINE__))
 
     do g = begg, endg
       do t = 1, max_topounits
@@ -144,12 +144,12 @@ contains
           ! Move CFT over to PFT and do weighted average of the crop and soil parts
           wt_nat_patch(g,t,:)        = wt_nat_patch(g,t,:) * wt_lunit(g,t,istsoil)
           wt_cft(g,t,:)              = wt_cft(g,t,:) * wt_lunit(g,t,istcrop)
-          wt_nat_patch(g,t,nc3crop:) = wt_cft(g,t,:)                                 ! Add crop CFT's to end of natural veg PFT's
-          wt_lunit(g,t,istsoil)      = (wt_lunit(g,t,istsoil) + wt_lunit(g,t,istcrop)) ! Add crop landunit to soil landunit
+          wt_nat_patch(g,t,ngraminoid+1:) = wt_cft(g,t,:)                               ! Add crop CFT's to end of natural veg PFT's
+          wt_lunit(g,t,istsoil)      = (wt_lunit(g,t,istsoil) + wt_lunit(g,t,istcrop))  ! Add crop landunit to soil landunit
           wt_nat_patch(g,t,:)        =  wt_nat_patch(g,t,:) / wt_lunit(g,t,istsoil)
-          wt_lunit(g,t,istcrop)      = 0.0_r8                                      ! Zero out crop CFT's
+          wt_lunit(g,t,istcrop)      = 0.0_r8                                           ! Zero out crop CFT's
        else
-          wt_nat_patch(g,t,nc3crop:) = 0.0_r8                                      ! Make sure generic crops are zeroed out
+          wt_nat_patch(g,t,ngraminoid+1:) = 0.0_r8                                      ! Make sure generic crops are zeroed out
        end if
      end do
     end do
@@ -257,7 +257,7 @@ contains
     ! !USES:
     use elm_varctl , only : irrigate
     use elm_varpar , only : cft_lb, cft_ub, cft_size
-    use pftvarcon  , only : nc3crop, nc3irrig, npcropmax, mergetoelmpft
+    use pftvarcon  , only : nc3crop, nc3irrig, npcropmax, mergetoelmpft, npcropmin
     use topounit_varcon      , only : max_topounits   ! TKT
     use GridcellType   , only : grc_pp                ! TKT
     !
@@ -314,9 +314,9 @@ contains
           do t = grc_pp%topi(g), grc_pp%topf(g)    ! TKT
              t2 = t - grc_pp%topi(g) + 1
           
-             wt_cft(g,t2, nc3crop:npcropmax-1:2) = &
-               wt_cft(g,t2, nc3crop:npcropmax-1:2) + wt_cft(g,t2, nc3irrig:npcropmax:2)     ! TKT
-             wt_cft(g,t2, nc3irrig:npcropmax:2)  = 0._r8   
+             wt_cft(g,t2, npcropmin:npcropmax-1:2) = &
+               wt_cft(g,t2, npcropmin:npcropmax-1:2) + wt_cft(g,t2, npcropmin+1:npcropmax:2)     ! TKT
+             wt_cft(g,t2, npcropmin+1:npcropmax:2)  = 0._r8   
           end do                                                                            ! TKT
        end do
 
@@ -337,7 +337,7 @@ contains
        !ntpu(g) = grc_pp%ntopounits(g)
        do t = grc_pp%topi(g), grc_pp%topf(g)    ! TKT
           t2 = t - grc_pp%topi(g) + 1
-          do m = 1, npcropmax
+          do m = npcropmin, npcropmax
              if (m /= mergetoelmpft(m)) then
                 wt_cft_to                   = wt_cft(g,t2, mergetoelmpft(m))
                 wt_cft_from                 = wt_cft(g,t2, m)
