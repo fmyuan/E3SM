@@ -297,8 +297,6 @@ module pftvarcon
   real(r8), allocatable :: bbbopt(:)           !Ball-Berry stomatal conductance intercept
   real(r8), allocatable :: mbbopt(:)           !Ball-Berry stomatal conductance slope
   real(r8), allocatable :: nstor(:)            !Nitrogen storage pool timescale 
-  real(r8), allocatable :: crit_gdd1(:)        !Critical GDD intercept
-  real(r8), allocatable :: crit_gdd2(:)        !Critical GDD slope with MAT
   real(r8), allocatable :: br_xr(:)            !Base rate for excess respiration
   real(r8)              :: tc_stress           !Critial temperature for moisture stress
   real(r8), allocatable :: vcmax_np1(:)        !vcmax~np relationship coefficient
@@ -653,8 +651,6 @@ contains
     allocate( mbbopt             (0:mxpft) )
     allocate( nstor              (0:mxpft) )
     allocate( br_xr              (0:mxpft) )
-    allocate( crit_gdd1          (0:mxpft) )
-    allocate( crit_gdd2          (0:mxpft) )
     ! Ground cover for soil erosion
     allocate( gcpsi              (0:mxpft) )
     allocate( pftcc              (0:mxpft) )
@@ -1169,10 +1165,6 @@ contains
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
     call ncd_io('br_xr', br_xr(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if (.not. readv) br_xr(:) = 0._r8
-    call ncd_io('crit_gdd1', crit_gdd1, 'read', ncid, readvar=readv, posNOTonfile=.true.)
-    if (.not. readv) crit_gdd1(:) = 4.8_r8
-    call ncd_io('crit_gdd2', crit_gdd2, 'read', ncid, readvar=readv, posNOTonfile=.true.)
-    if (.not. readv) crit_gdd2(:) = 0.13_r8
     call ncd_io('tc_stress', tc_stress, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
     call ncd_io('gcpsi',gcpsi(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
@@ -1180,13 +1172,17 @@ contains
     call ncd_io('pftcc',pftcc(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) pftcc(:) = 1._r8
        
-    call ncd_io('mergetoclmpft', mergetoelmpft(0:npft-1), 'read', ncid, readvar=readv)
+    call ncd_io('mergetoelmpft', mergetoelmpft(0:npft-1), 'read', ncid, readvar=readv)
+    ! in case parameter file is in old name
+    if ( .not. readv ) call ncd_io('mergetoclmpft', mergetoelmpft(0:npft-1), 'read', ncid, readvar=readv)
     if ( .not. readv ) then
+
        do i = 0, mxpft
           mergetoelmpft(i) = i
        end do
+
     !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
-    ! 'mergetoclmpft' in the 'paramfile' is used as an indicator to user-defined parameter file
+    ! 'mergetoelmpft' or 'mergetoclmpft' in the 'paramfile' is used as an indicator to user-defined parameter file
     !end if
 
     !call ncd_pio_closefile(ncid)
@@ -1293,8 +1289,9 @@ contains
           write(iulog,*)
       end if
 
-    ! 'mergetoclmpft' in the 'paramfile' is used as an indicator to user-defined parameter file
+    ! 'mergetoelmpft' or 'mergetoclmpft' in the 'paramfile' is used as an indicator to user-defined parameter file
     else
+
        ! if 'nfixer' flag is defined for each PFT
        call ncd_io('nfixer', nfixer(0:npft-1), 'read', ncid, readvar=readv)
        if ( .not. readv ) nfixer(0:npft-1) = 0
@@ -1438,7 +1435,7 @@ contains
           write(iulog,*)
        end if
 
-    end if  ! end if block: 'mergetoelmpft' is in Physiology Parameters
+    end if  ! end if block: 'mergetoelmpft'/'mergetoclmpft' is in Physiology Parameters
 
 
     call ncd_pio_closefile(ncid)
