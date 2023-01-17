@@ -656,6 +656,7 @@ contains
     real(r8)  , pointer                  :: surf_area(:)
     real(r8)  , pointer                  :: col_zi(:,:)
     real(r8)  , pointer                  :: col_dz(:,:)
+    integer(C_INT), pointer              :: pft(:)
 
     !-----------------------------------------------------------------------
 
@@ -665,11 +666,11 @@ contains
     allocate(surf_area(1:this%filter_col_num))         !
 
     allocate(col_zi(1:this%filter_col_num, 1:15))      ! col. cell bottom, assuming top-face of 1st cell is the surf (0.0m)
-
+    allocate(pft(1:this%filter_col_num))
 
     ! in progress ...
     call this%ats_interface%getmesh(ncols_local, ncols_global, ncells_per_col,  &
-       surf_yi, surf_xi, surf_zi, surf_area, col_zi)
+       surf_yi, surf_xi, surf_zi, surf_area, pft, col_zi)
 
     deallocate(surf_xi)
     deallocate(surf_yi)
@@ -677,6 +678,7 @@ contains
     deallocate(surf_area)
     deallocate(col_zi)
     deallocate(col_dz)
+    deallocate(pft)
 
   end subroutine get_mesh
 

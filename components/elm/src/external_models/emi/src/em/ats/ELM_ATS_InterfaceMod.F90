@@ -99,7 +99,7 @@ contains
    !------------------------------------------------------------------------
 
   subroutine ats_getmesh(this, ncols_local, ncols_global, ncells_per_col, &
-       lat, lon, elev, surf_area, depth)
+       lat, lon, elev, surf_area, pft, depth)
     implicit none
     class(elm_ats_interface_type) :: this
     integer(C_INT) :: ncols_local
@@ -110,13 +110,13 @@ contains
     real(r8), pointer :: lon(:)
     real(r8), pointer :: elev(:)
     real(r8), pointer :: surf_area(:)
-
+    integer(C_INT), pointer :: pft(:)
     real(r8), pointer :: depth(:,:)
 
     ! ---------------------------------------------------------------------
 
     call ats_get_mesh_info_f(this%ptr, ncols_local, ncols_global, &
-         lat, lon, elev, surf_area, ncells_per_col, depth)
+         lat, lon, elev, surf_area, pft, ncells_per_col, depth)
 
     !
   end subroutine ats_getmesh
