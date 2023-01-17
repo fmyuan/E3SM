@@ -379,7 +379,6 @@ contains
          ivt                          => veg_pp%itype                                             , & ! Input:  [integer  (:) ]  pft vegetation type
 
          woody                        => veg_vp%woody                                      , & ! Input:  [real(r8) (:)   ]  binary flag for woody lifeform (1=woody, 0=not woody)
-         nonvascular                  => veg_vp%nonvascular                                , & ! Input:  [real(r8) (:)   ]  binary flag for woody lifeform (2=lichen, 1=moss, 0=nonvascular)
          froot_leaf                   => veg_vp%froot_leaf                                 , & ! Input:  [real(r8) (:)   ]  allocation parameter: new fine root C per new leaf C (gC/gC)
          croot_stem                   => veg_vp%croot_stem                                 , & ! Input:  [real(r8) (:)   ]  allocation parameter: new coarse root C per new stem C (gC/gC)
          stem_leaf                    => veg_vp%stem_leaf                                  , & ! Input:  [real(r8) (:)   ]  allocation parameter: new stem c per new leaf C (gC/gC)
@@ -600,17 +599,6 @@ contains
          end if
 
          f1 = froot_leaf(ivt(p))
-         ! force moss/lichen root/leaf ratio changing when getting high leaf area,
-         ! if N/P nutrient constrains NOT in place.
-         ! NOTE: this is a temporary solution
-         !if ( cnallocate_carbon_only() .or. cnallocate_carbonphosphorus_only() .or. cnallocate_carbonnitrogen_only() ) then
-           if ( ((nonvascular(ivt(p))==1.0_r8 .and. (laisun(p)+laisun(p))>0.50_r8)) .or. &
-                ((nonvascular(ivt(p))==2.0_r8 .and. (laisun(p)+laisun(p))>0.25_r8)) .or. &
-                ((nonvascular(ivt(p))==0.0_r8 .and. (laisun(p)+laisun(p))>2.00_r8)) ) then
-            f1 = f1*100.0_r8
-           endif
-         !endif
-
          f2 = croot_stem(ivt(p))
 
          ! modified wood allocation to be 2.2 at npp=800 gC/m2/yr, 0.2 at npp=0,
@@ -1857,8 +1845,7 @@ contains
 
     associate(                                                                                 &
          ivt                          => veg_pp%itype                                           , & ! Input:  [integer  (:) ]  pft vegetation type
-         woody                        => veg_vp%woody                                    , & ! Input:  [real(r8) (:)   ]  binary flag for woody lifeform (2=shrubby, 1=tree, 0=not woody)
-         nonvascular                  => veg_vp%nonvascular                              , & ! Input:  [real(r8) (:)   ]  binary flag for woody lifeform (2=lichen, 1=moss, 0=nonvascular)
+         woody                        => veg_vp%woody                                    , & ! Input:  [real(r8) (:)   ]  binary flag for woody lifeform (1=woody, 0=not woody)
          froot_leaf                   => veg_vp%froot_leaf                               , & ! Input:  [real(r8) (:)   ]  allocation parameter: new fine root C per new leaf C (gC/gC)
          croot_stem                   => veg_vp%croot_stem                               , & ! Input:  [real(r8) (:)   ]  allocation parameter: new coarse root C per new stem C (gC/gC)
          stem_leaf                    => veg_vp%stem_leaf                                , & ! Input:  [real(r8) (:)   ]  allocation parameter: new stem c per new leaf C (gC/gC)
@@ -2057,16 +2044,6 @@ contains
          if ( nu_com .eq. 'RD') then
              ! set some local allocation variables
              f1 = froot_leaf(ivt(p))
-             ! force moss/lichen root/leaf ratio changing when getting high leaf area,
-             ! if N/P nutrient constrains NOT in place.
-             ! NOTE: this is a temporary solution
-             !if ( cnallocate_carbon_only() .or. cnallocate_carbonphosphorus_only() .or. cnallocate_carbonnitrogen_only() ) then
-                if ( ((nonvascular(ivt(p))==1.0_r8 .and. (laisun(p)+laisun(p))>0.50_r8)) .or. &
-                     ((nonvascular(ivt(p))==2.0_r8 .and. (laisun(p)+laisun(p))>0.25_r8)) .or. &
-                     ((nonvascular(ivt(p))==0.0_r8 .and. (laisun(p)+laisun(p))>2.00_r8)) ) then
-                   f1 = f1*100.0_r8
-                endif
-             !endif
              f2 = croot_stem(ivt(p))
 
              ! modified wood allocation to be 2.2 at npp=800 gC/m2/yr, 0.2 at npp=0,

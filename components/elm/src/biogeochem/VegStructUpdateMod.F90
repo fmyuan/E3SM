@@ -149,10 +149,6 @@ contains
             ! Eq 3 from Thornton and Zimmerman, 2007, J Clim, 20, 3902-3923.
             if (dsladlai(ivt(p)) > 0._r8) then
                tlai(p) = (slatop(ivt(p))*(exp(leafc(p)*dsladlai(ivt(p))) - 1._r8))/dsladlai(ivt(p))
-            elseif (tlai(p) > 3._r8) then
-               ! if high LAI, always assuming non-zero 'dsladlai'(0.005) (fmyuan, 2022-12-20)
-               ! when LAI>3 shading usually would be very much so it's possible sla would be changing significantly
-               tlai(p) = (slatop(ivt(p))*(exp(leafc(p)*0.005_r8) - 1._r8))/0.005_r8
             else
                tlai(p) = slatop(ivt(p)) * leafc(p)
             end if
