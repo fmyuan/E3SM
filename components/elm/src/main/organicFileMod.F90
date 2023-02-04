@@ -52,7 +52,11 @@ contains
     use spmdMod     , only : masterproc
     use domainMod   , only : ldomain
     use elm_varcon  , only : grlnd, namet
+#ifdef LDOMAIN_SUB
+    use ncdio_nf90Mod
+#else
     use ncdio_pio
+#endif
 !
 ! !ARGUMENTS:
     implicit none

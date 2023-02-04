@@ -5,15 +5,21 @@ module topounit_varcon
   ! Module containing topounit indices and associated variables and routines.
   !
   ! !USES:
-!#include "shr_assert.h"
+  ! #include "shr_assert.h"
+
+#ifdef LDOMAIN_SUB
+  use ncdio_nf90Mod   , only : file_desc_t, var_desc_t, ncd_pio_openfile, ncd_pio_closefile
+  use ncdio_nf90Mod   , only : ncd_io, check_var, ncd_inqfdims, check_dim, ncd_inqdid, ncd_inqdlen
+#else
   use ncdio_pio       , only : file_desc_t, var_desc_t, ncd_pio_openfile, ncd_pio_closefile
   use ncdio_pio       , only : ncd_io, check_var, ncd_inqfdims, check_dim, ncd_inqdid, ncd_inqdlen
-  use elm_varctl      , only: fsurdat, iulog
+  use pio
+#endif
+  use elm_varctl      , only : iulog
   use shr_kind_mod    , only : r8 => shr_kind_r8
   use shr_log_mod     , only : errMsg => shr_log_errMsg
   !use abortutils      , only : endrun
   use elm_varcon      , only : grlnd
-  use pio
   use spmdMod
   !
   !
@@ -47,10 +53,10 @@ module topounit_varcon
     !
     ! !USES:
     use fileutils   , only : getfil    
-    use domainMod , only : domain_type
+    use domainMod   , only : domain_type
     !
     ! !ARGUMENTS:
-    integer          ,intent(in)    :: begg, endg
+    integer          ,intent(in) :: begg, endg
     character(len=*), intent(in) :: lfsurdat    ! surface dataset filename
     type(domain_type),intent(in) :: ldomain     ! land domain
     
