@@ -25,7 +25,11 @@ module initVerticalMod
   use LandunitType   , only : lun_pp                
   use ColumnType     , only : col_pp                
   use SnowHydrologyMod, only : InitSnowLayers
+#ifdef LDOMAIN_SUB
+  use ncdio_nf90Mod
+#else
   use ncdio_pio
+#endif
   use topounit_varcon  , only : max_topounits
   use GridcellType     , only : grc_pp
   !

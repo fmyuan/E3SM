@@ -15,13 +15,17 @@ module surfrdMod
   use elm_varctl      , only : iulog, scmlat, scmlon, single_column, firrig_data
   use elm_varctl      , only : create_glacier_mec_landunit
   use surfrdUtilsMod  , only : check_sums_equal_1_2d, check_sums_equal_1_3d
+#ifdef LDOMAIN_SUB
+  use ncdio_nf90Mod   , only : file_desc_t, var_desc_t, ncd_pio_openfile, ncd_pio_closefile
+  use ncdio_nf90Mod   , only : ncd_io, check_var, ncd_inqfdims, check_dim, ncd_inqdid, ncd_inqdlen
+#else
   use ncdio_pio       , only : file_desc_t, var_desc_t, ncd_pio_openfile, ncd_pio_closefile
   use ncdio_pio       , only : ncd_io, check_var, ncd_inqfdims, check_dim, ncd_inqdid, ncd_inqdlen
   use pio
-  use spmdMod       
-  use topounit_varcon , only : max_topounits, has_topounit  
-  use netcdf
-  
+#endif
+  use spmdMod
+  use topounit_varcon , only : max_topounits, has_topounit
+
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -71,12 +75,11 @@ contains
     integer :: n,i,j               ! index 
     integer :: ier                 ! error status
     type(file_desc_t)  :: ncid     ! netcdf id
-    integer :: nfid
     type(var_desc_t)   :: vardesc  ! variable descriptor
     character(len=256) :: varname  ! variable name
     character(len=256) :: locfn    ! local file name
     logical :: readvar             ! read variable in or not
-    integer , allocatable :: idata2d(:,:)
+    integer , pointer :: idata2d(:,:)
     character(len=32) :: subname = 'surfrd_get_globmask' ! subroutine name
     !-----------------------------------------------------------------------
 
@@ -95,45 +98,6 @@ contains
     call getfil( filename, locfn, 0 )
 
 
-#ifdef LDOMAIN_SUB
-    ier = nf90_open(trim(locfn), NF90_NOWRITE, nfid)
-
-    ier = nf90_inq_dimid(nfid, "ni", dimid)
-    ier = nf90_inquire_dimension(nfid, dimid, len = ni)
-    ier = nf90_inq_dimid(nfid, "nj", dimid)
-    ier = nf90_inquire_dimension(nfid, dimid, len = nj)
-    ns = ni*nj
-    if (ni>1 .and. nj>1) isgrid2d = .true.
-    if (masterproc) then
-       write(iulog,*)'lat/lon grid flag (isgrid2d) is ',isgrid2d
-    end if
-
-    allocate(mask(ns))
-    mask(:) = 1
-
-    ier = nf90_inq_varid(nfid, 'LANDMASK', varid)
-    if (ier /= 0) ier = nf90_inq_varid(nfid, 'mask', varid)
-    if (isgrid2d) then
-       allocate(idata2d(ni,nj))
-       idata2d(:,:) = 1
-       ier = nf90_get_var(nfid, varid, idata2d)
-       if (ier == 0) then
-          do j = 1,nj
-          do i = 1,ni
-             n = (j-1)*ni + i
-             mask(n) = idata2d(i,j)
-          enddo
-          enddo
-       end if
-       deallocate(idata2d)
-    else
-       ier = nf90_get_var(nfid, varid, mask)
-    end if
-    if (ier /= 0) call endrun( msg=' ERROR: landmask not on fatmlndfrc file'//errMsg(__FILE__, __LINE__))
-
-    ier = nf90_close(nfid)
-
-#else
     call ncd_pio_openfile (ncid, trim(locfn), 0)
 
     ! Determine dimensions and if grid file is 2d or 1d
@@ -148,7 +112,7 @@ contains
 
     if (isgrid2d) then
        allocate(idata2d(ni,nj))
-       idata2d(:,:) = 1	
+       idata2d(:,:) = 1
        call ncd_io(ncid=ncid, varname='LANDMASK', data=idata2d, flag='read', readvar=readvar)
        if (.not. readvar) then
           call ncd_io(ncid=ncid, varname='mask', data=idata2d, flag='read', readvar=readvar)
@@ -156,7 +120,7 @@ contains
        if (readvar) then
           do j = 1,nj
           do i = 1,ni
-             n = (j-1)*ni + i	
+             n = (j-1)*ni + i
              mask(n) = idata2d(i,j)
           enddo
           enddo
@@ -172,7 +136,6 @@ contains
 
     call ncd_pio_closefile(ncid)
 
-#endif
 
   end subroutine surfrd_get_globmask
 
@@ -190,6 +153,7 @@ contains
     use domainMod , only : domain_type, domain_init, domain_clean, lon1d, lat1d
     use fileutils , only : getfil
     use elm_varctl, only : use_pflotran
+    !
     !
     ! !ARGUMENTS:
     integer          ,intent(in)    :: begg, endg 
@@ -210,8 +174,8 @@ contains
     logical :: readvar                      ! true => variable is on input file 
     logical :: isgrid2d                     ! true => file is 2d lat/lon
     logical :: istype_domain                ! true => input file is of type domain
-    real(r8), allocatable :: rdata2d(:,:)   ! temporary
-    real(r8), allocatable :: rdata3d(:,:,:) ! temporary  ! pflotran
+    real(r8), pointer :: rdata2d(:,:)       ! temporary
+    real(r8), pointer :: rdata3d(:,:,:)     ! temporary  ! pflotran
     character(len=16) :: vname              ! temporary
     character(len=256):: locfn              ! local file name
     integer :: n                            ! indices
@@ -232,6 +196,7 @@ contains
     end if
 
     call getfil( filename, locfn, 0 )
+
     call ncd_pio_openfile (ncid, trim(locfn), 0)
 
     ! Determine dimensions
@@ -251,6 +216,7 @@ contains
     call domain_init(ldomain, isgrid2d=isgrid2d, ni=ni, nj=nj, nbeg=begg, nend=endg)
 
     ! Determine type of file - old style grid file or new style domain file
+
     call check_var(ncid=ncid, varname='LONGXY', vardesc=vardesc, readvar=readvar) 
     if (readvar) istype_domain = .false.
 
@@ -262,9 +228,9 @@ contains
     if (istype_domain) then
        call ncd_io(ncid=ncid, varname= 'area', flag='read', data=ldomain%area, &
             dim1name=grlnd, readvar=readvar)
+       if (.not. readvar) call endrun( msg=' ERROR: area NOT on file'//errMsg(__FILE__, __LINE__))
        ! convert from radians**2 to km**2
        ldomain%area = ldomain%area * (re**2)
-       if (.not. readvar) call endrun( msg=' ERROR: area NOT on file'//errMsg(__FILE__, __LINE__))
        
        call ncd_io(ncid=ncid, varname= 'xc', flag='read', data=ldomain%lonc, &
             dim1name=grlnd, readvar=readvar)
@@ -605,6 +571,7 @@ contains
     use elm_varsur  , only : wt_lunit, topo_glc_mec
     use GridcellType, only : grc_pp
     use topounit_varcon, only : max_topounits, has_topounit
+
     !
     ! !ARGUMENTS:
     integer,          intent(in) :: begg, endg      
@@ -612,6 +579,7 @@ contains
     character(len=*), intent(in) :: lfsurdat    ! surface dataset filename
     !
     ! !LOCAL VARIABLES:
+    type(file_desc_t) :: ncid                 ! netcdf id
     type(var_desc_t)  :: vardesc              ! pio variable descriptor
     type(domain_type) :: surfdata_domain      ! local domain associated with surface dataset
     character(len=256):: locfn                ! local file name
@@ -620,7 +588,6 @@ contains
     character(len=16) :: lon_var, lat_var     ! names of lat/lon on dataset
     logical           :: readvar              ! true => variable is on dataset
     real(r8)          :: rmaxlon,rmaxlat      ! local min/max vars
-    type(file_desc_t) :: ncid                 ! netcdf id
     logical           :: istype_domain        ! true => input file is of type domain
     logical           :: isgrid2d             ! true => intut grid is 2d 
     character(len=32) :: subname = 'surfrd_get_data'    ! subroutine name
@@ -952,6 +919,7 @@ contains
     use elm_varsur      , only : fert_cft, wt_nat_patch
     use elm_varpar      , only : cft_size, cft_lb, natpft_lb
     use topounit_varcon,  only : max_topounits
+
     ! !ARGUMENTS:
     implicit none
     type(file_desc_t), intent(inout) :: ncid         ! netcdf id
@@ -1010,6 +978,7 @@ contains
     use elm_varpar      , only : cft_lb, cft_ub
     use elm_varctl      , only : create_crop_landunit
     use topounit_varcon,  only : max_topounits
+
     ! !ARGUMENTS:
     implicit none
     integer, intent(in) :: begg, endg
@@ -1044,6 +1013,7 @@ contains
     end if
     call ncd_io(ncid=ncid, varname='CONST_FERTNITRO_CFT', flag='read', data=fert_cft, &
             dim1name=grlnd, readvar=readvar)
+
     if (readvar) then
        call endrun( msg= ' ERROR: unexpectedly found CONST_FERTNITRO_CFT on dataset when cft_size=0'// &
                ' (if the surface dataset has a separate crop landunit, then the code'// &
@@ -1224,6 +1194,8 @@ contains
     ! !DESCRIPTION:
     ! Read grid connectivity information.
     ! NO DOMAIN DECOMPOSITION  HAS BEEN SET YET
+
+    ! note: 2023-02-23 when reading locally (#ifdef LDOMAIN_SUB), NOT yet verified
     !
     ! !USES:
     use fileutils , only : getfil
@@ -1245,6 +1217,7 @@ contains
     integer                      :: i                                ! index
     integer                      :: ier                              ! error status
     integer                      :: nCells                           ! global number of cell-to-cell connections
+    integer                      :: maxEdges_loc                     ! max number of edges/neighbors
     integer                      :: nEdges                           ! global number of edges
     integer                      :: ibeg_c, iend_c                   ! beginning/ending index of data
     integer                      :: ibeg_e, iend_e                   ! beginning/ending index of data
@@ -1254,9 +1227,9 @@ contains
     character(len=256)           :: locfn                            ! local file name
     logical                      :: readvar                          ! read variable in or not
     logical                      :: readdim                          ! read dimension present or not
-    integer , allocatable        :: idata2d(:,:)                     ! temporary data
-    integer , allocatable        :: idata1d(:)                       ! temporary data
-    real(r8), allocatable        :: rdata1d(:)                       ! temporary data
+    integer , pointer            :: idata2d(:,:)                     ! temporary data
+    integer , pointer            :: idata1d(:)                       ! temporary data
+    real(r8), pointer            :: rdata1d(:)                       ! temporary data
     character(len=32)            :: subname = 'surfrd_get_grid_conn' ! subroutine name
 
     !-----------------------------------------------------------------------
@@ -1279,24 +1252,40 @@ contains
        call endrun( msg=' ERROR: Dimension nCells missing in '//filename// &
             errMsg(__FILE__, __LINE__))
     end if
+#ifdef LDOMAIN_SUB
+    call ncd_inqdlen(ncid, dimid, nCells_loc)
+#else
     ier = pio_inq_dimlen(ncid, dimid, nCells)
-
+#endif
     call ncd_inqdid(ncid,'maxEdges',dimid,readdim)
 
     if ( .not.readdim ) then
        call endrun( msg=' ERROR: Dimension maxEdges missing in '//filename// &
             errMsg(__FILE__, __LINE__))
     end if
+#ifdef LDOMAIN_SUB
+    call ncd_inqdlen(ncid, dimid, maxEdges_loc)
+#else
     ier = pio_inq_dimlen(ncid, dimid, maxEdges)
+#endif
 
     call ncd_inqdid(ncid,'nEdges',dimid,readdim)
     if ( .not.readdim ) then
        call endrun( msg=' ERROR: Dimension nEdges missing in '//filename// &
             errMsg(__FILE__, __LINE__))
     end if
+#ifdef LDOMAIN_SUB
+    call ncd_inqdlen(ncid, dimid, nEdges_loc)
+#else
     ier = pio_inq_dimlen(ncid, dimid, nEdges)
+#endif
 
     ! Determine the size of local array that needs to be saved.
+#ifdef LDOMAIN_SUB
+    call mpi_allreduce(nCells_loc,nCells,1,MPI_INTEGER,MPI_SUM,mpicom,ier)
+    call mpi_allreduce(nEdges_loc,nEdges,1,MPI_INTEGER,MPI_SUM,mpicom,ier)
+    call mpi_allreduce(maxEdges_loc,maxEdges,1,MPI_INTEGER,MPI_MAX,mpicom,ier)
+#else
     nCells_loc = nCells/npes
     remainder  = nCells - nCells_loc*npes
     if (iam < remainder) nCells_loc = nCells_loc + 1
@@ -1304,6 +1293,7 @@ contains
     nEdges_loc = nEdges/npes
     remainder  = nEdges - nEdges_loc*npes
     if (iam < remainder) nEdges_loc = nEdges_loc + 1
+#endif
 
     ! Determine the beginning and ending index of the data to
     ! be saved
@@ -1395,33 +1385,31 @@ contains
     ! Read topounit surface properties data
     !
     ! !USES:
-    use ncdio_pio       , only : file_desc_t, var_desc_t, ncd_pio_openfile, ncd_pio_closefile
-    use ncdio_pio       , only : ncd_io, check_var, ncd_inqfdims, check_dim, ncd_inqdid, ncd_inqdlen
-    use elm_varctl      , only: fsurdat
+    use elm_varctl      , only : fsurdat
     use fileutils       , only : getfil   
 	use GridcellType    , only : grc_pp
     use elm_varsur      , only : wt_tunit, elv_tunit, slp_tunit, asp_tunit,num_tunit_per_grd
-    use topounit_varcon ,  only : max_topounits, has_topounit
+    use topounit_varcon , only : max_topounits, has_topounit
     
     !
     ! !ARGUMENTS:
-    integer          , intent(in)    :: begg, endg 
-    character(len=*), intent(in) :: lfsurdat    ! surface dataset filename
+    integer          , intent(in) :: begg, endg
+    character(len=*) , intent(in) :: lfsurdat    ! surface dataset filename
 
     !
     ! !LOCAL VARIABLES:
-    type(var_desc_t)  :: vardesc
     integer  :: n,t                ! indices
     character(len=256):: locfn                ! local file name
   
-    logical  :: readvar
+    logical :: readvar
     integer :: dimid
     type(file_desc_t)     :: ncid         ! netcdf id
+    type(var_desc_t)      :: vardesc
    
     real(r8),pointer :: maxTopoElv(:)            ! Maximum topounit elevation
     integer ,pointer :: numTopoPerGrid(:)        ! Number of topounits per grid
     real(r8),pointer :: TopounitFracArea(:,:)    ! Topounit fractional area
-    real(r8) ,pointer :: TopounitElv(:,:)         ! Topounit elevation
+    real(r8),pointer :: TopounitElv(:,:)         ! Topounit elevation
     real(r8),pointer :: TopounitSlope(:,:)       ! Topounit slope 
     integer ,pointer :: TopounitAspect(:,:)      ! Topounit aspect
     integer ,pointer :: num_topo_per_grid(:)      ! Topounit aspect
