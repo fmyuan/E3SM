@@ -230,8 +230,8 @@ contains
             atm2lnd_vars%metsource = 4
           else if (index(metdata_type,'cpl') .gt. 0) then 
             atm2lnd_vars%metsource = 5
-          else if (index(metdata_type,'gswp3_w5e5') .gt. 0) then
-            atm2lnd_vars%metsource = 6
+          else if (index(metdata_type,'gswp3_w5e5') .gt. 0) then !added by W. Huang [02/23/2023]
+            atm2lnd_vars%metsource = 6 !added by W. Huang [02/23/2023]
           else
             call endrun( sub//' ERROR: Invalid met data source for cpl_bypass' )
           end if
@@ -303,8 +303,8 @@ contains
             atm2lnd_vars%startyear_met      = 566 !76
             atm2lnd_vars%endyear_met_spinup = 590 !100
             atm2lnd_vars%endyear_met_trans  = 590 !100
-          else if (atm2lnd_vars%metsource == 6) then
-            atm2lnd_vars%endyear_met_trans  = 2019
+          else if (atm2lnd_vars%metsource == 6) then !added by W. Huang [02/23/2023]
+            atm2lnd_vars%endyear_met_trans  = 2019 !added by W. Huang [02/23/2023]
           end if
 
           if (use_livneh) then 
@@ -411,9 +411,9 @@ contains
                     !changed the year by W. Huang on 2022-5-31
                     metdata_fname = 'GSWP3_' // trim(metvars(v)) //'_1901-2014_z' // zst(2:3) // '.nc'
                 end if
-            else if (atm2lnd_vars%metsource == 6) then
-                metdata_fname = 'gswp_w5e5_' // trim(metvars(v)) // '_1901-2019_z'// zst(2:3) // '.nc'
-                
+            else if (atm2lnd_vars%metsource == 6) then !added by W. Huang [02/23/2023]
+                metdata_fname = 'gswp_w5e5_' // trim(metvars(v)) // '_1901-2019_z'// zst(2:3) // '.nc' 
+                !added by W. Huang [02/23/2023]
             else if (atm2lnd_vars%metsource == 5) then 
                     !metdata_fname = 'WCYCL1850S.ne30_' // trim(metvars(v)) // '_0076-0100_z' // zst(2:3) // '.nc'
                     metdata_fname = 'CBGC1850S.ne30_' // trim(metvars(v)) // '_0566-0590_z' // zst(2:3) // '.nc'
