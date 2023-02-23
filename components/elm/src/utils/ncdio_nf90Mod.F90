@@ -1513,10 +1513,12 @@ end subroutine ncd_io_0d_double
     character(len=32)                :: dimname    ! temporary
     integer                          :: varid      ! varid
     integer                          :: ndims      ! ndims for var
-    integer                          :: i, dlen    ! dim sizes
-    integer                          :: dids(1)    ! dim ids
-    integer                          :: start(1)   ! netcdf start index
-    integer                          :: count(1)   ! netcdf count index
+    integer                          :: i, dlen(4) ! (up to 4) dim index/sizes
+    integer                          :: dids(4)    ! dim ids
+    integer                          :: start(4)   ! netcdf start index
+    integer                          :: count(4)   ! netcdf count index
+    integer, pointer                 :: itemp(:,:,:,:)
+    integer, pointer                 :: itemp1d(:)
     integer                          :: status     ! error code  
     logical                          :: varpresent ! if true, variable is on tape
     character(len=*),parameter       :: subname='ncd_io_1d_int' ! subroutine name
@@ -1539,14 +1541,12 @@ end subroutine ncd_io_0d_double
     call ncd_inqvid(ncid, varname, varid, readvar=varpresent)
     if (varpresent) then
        status = nf90_inquire_variable(ncid, varid, ndims = ndims)
-       if (ndims /= 1) then
-          write(iulog,*) trim(subname),' ERROR: ndims must be 1'
-          call shr_sys_abort(errMsg(__FILE__, __LINE__))
-       end if
-       call ncd_inqvdids(ncid, varname, dids, status)
+       call ncd_inqvdids(ncid, varname, dids(1:ndims), status)
+
+       dlen(:)=1
        do i = 1, ndims
           call ncd_inqdname(ncid,dids(i),dimname)
-          call ncd_inqvdlen_byName(ncid,trim(varname),i,dlen,status)
+          call ncd_inqvdlen_byName(ncid,trim(varname),i,dlen(i),status)
 
           if ('time' == trim(dimname) .and. present(nt)) then
              !this will override starts/counts if input as well
@@ -1554,12 +1554,45 @@ end subroutine ncd_io_0d_double
              start(i) = nt
              count(i) = 1
           elseif (.not. present(counts)) then
-             count(i) = dlen
+             count(i) = dlen(i)
           end if
+
        end do
 
        if (flag == 'read') then
-          status= nf90_get_var(ncid, varid, data, start=start, count=count)
+          if (ndims == 1) then
+             status= nf90_get_var(ncid, varid, data, start=start, count=count)
+          else if (ndims == 2) then
+             ! it implies read 2D data and then flatten (column-first)
+             ! so be aware of start/count if as input
+             allocate( itemp(dlen(1),dlen(2),1,1) )
+             allocate( itemp1d(dlen(1)*dlen(2)) )
+             status= nf90_get_var(ncid, varid, itemp)
+             itemp1d = reshape(itemp, shape(itemp1d))
+             data = itemp1d(start(1):start(1)+count(1)-1)  !
+             deallocate(itemp,itemp1d)
+          else if (ndims == 3) then
+             ! it implies read 2D data and then flatten (column-first)
+             ! so be aware of start/count if as input
+             allocate( itemp(dlen(1),dlen(2),dlen(3),1) )
+             allocate( itemp1d(dlen(1)*dlen(2)*dlen(3)) )
+             status= nf90_get_var(ncid, varid, itemp)
+             itemp1d = reshape(itemp, shape(itemp1d))
+             data = itemp1d(start(1):start(1)+count(1)-1)  !
+             deallocate(itemp,itemp1d)
+          else if (ndims == 4) then
+             ! it implies read 4D data and then flatten (column-first)
+             ! so be aware of start/count if as input
+             allocate( itemp(dlen(1),dlen(2),dlen(3),dlen(4)) )
+             allocate( itemp1d(dlen(1)*dlen(2)*dlen(3)*dlen(4)) )
+             status= nf90_get_var(ncid, varid, itemp)
+             itemp1d = reshape(itemp, shape(itemp1d))
+             data = itemp1d(start(1):start(1)+count(1)-1)  !
+             deallocate(itemp,itemp1d)
+          else
+             write(iulog,*) trim(subname),' ERROR: ndims over 4 NOT supported yet'
+             call shr_sys_abort(errMsg(__FILE__, __LINE__))
+          end if
 
           if (present(readvar)) then
             readvar = varpresent
@@ -1614,10 +1647,12 @@ end subroutine ncd_io_0d_double
     character(len=32)                :: dimname    ! temporary
     integer                          :: varid      ! varid
     integer                          :: ndims      ! ndims for var
-    integer                          :: i, dlen    ! dim size
-    integer                          :: dids(1)    ! dim ids
-    integer                          :: start(1)   ! netcdf start index
-    integer                          :: count(1)   ! netcdf count index
+    integer                          :: i, dlen(4) ! (up to 4) dim index/size
+    integer                          :: dids(4)    ! dim ids
+    integer                          :: start(4)   ! netcdf start index
+    integer                          :: count(4)   ! netcdf count index
+    real(r8)         , pointer       :: rtemp(:,:,:,:)
+    real(r8)         , pointer       :: rtemp1d(:)
     integer                          :: status     ! error code
     logical                          :: varpresent ! if true, variable is on tape
     character(len=*),parameter       :: subname='ncd_io_1d_double' ! subroutine name
@@ -1641,24 +1676,18 @@ end subroutine ncd_io_0d_double
     if (present(counts)) then
       count(1)=counts(1)
     else
-      count(1)=1
+      count(1)=1   ! it will be over-ride below
     endif
 
     !
+    dlen(:)=1
     call ncd_inqvid(ncid, varname, varid, readvar=varpresent)
     if (varpresent) then
        status = nf90_inquire_variable(ncid, varid, ndims = ndims)
-       if (ndims /= 1) then
-          if (present(dim1name)) then
-          else
-            write(iulog,*) trim(subname),' ERROR: ndims must be 1 for ' // trim(varname)
-            call shr_sys_abort(errMsg(__FILE__, __LINE__))
-          end if
-       end if
-       call ncd_inqvdids(ncid, varname, dids, status)
+       call ncd_inqvdids(ncid, varname, dids(1:ndims), status)
        do i = 1, ndims
           call ncd_inqdname(ncid,dids(i),dimname)
-          call ncd_inqvdlen_byName(ncid,trim(varname),i,dlen,status)
+          call ncd_inqvdlen_byName(ncid,trim(varname),i,dlen(i),status)
 
           if ('time' == trim(dimname) .and. present(nt)) then
              !this will override starts/counts if input as well
@@ -1666,12 +1695,44 @@ end subroutine ncd_io_0d_double
              start(i) = nt
              count(i) = 1
           elseif (.not. present(counts)) then
-             count(i) = dlen
+             count(i) = dlen(i)
           end if
        end do
 
        if (flag == 'read') then
-          status= nf90_get_var(ncid, varid, data, start=start, count=count)
+          if (ndims == 1) then
+             status= nf90_get_var(ncid, varid, data, start=start, count=count)
+          else if (ndims == 2) then
+             ! it implies read 2D data and then flatten (column-first)
+             ! so be aware of start/count if as input
+             allocate(rtemp(dlen(1),dlen(2),1,1) )
+             allocate(rtemp1d(dlen(1)*dlen(2)) )
+             status= nf90_get_var(ncid, varid, rtemp)
+             rtemp1d = reshape(rtemp, shape(rtemp1d))
+             data = rtemp1d(start(1):start(1)+count(1)-1)
+             deallocate(rtemp,rtemp1d)
+          else if (ndims == 3) then
+             ! it implies read 3D data and then flatten
+             ! so be aware of start/count if as input
+             allocate(rtemp(dlen(1),dlen(2),dlen(3),1) )
+             allocate(rtemp1d(dlen(1)*dlen(2)*dlen(3)) )
+             status= nf90_get_var(ncid, varid, rtemp)
+             rtemp1d = reshape(rtemp, shape(rtemp1d))
+             data = rtemp1d(start(1):start(1)+count(1)-1)
+             deallocate(rtemp,rtemp1d)
+          else if (ndims == 4) then
+             ! it implies read 4D data and then flatten
+             ! so be aware of start/count if as input
+             allocate(rtemp(dlen(1),dlen(2),dlen(3),dlen(4)) )
+             allocate(rtemp1d(dlen(1)*dlen(2)*dlen(3)*dlen(4)) )
+             status= nf90_get_var(ncid, varid, rtemp)
+             rtemp1d = reshape(rtemp, shape(rtemp1d))
+             data = rtemp1d(start(1):start(1)+count(1)-1)
+             deallocate(rtemp,rtemp1d)
+          else
+             write(iulog,*) trim(subname),' ERROR: ndims over 4 NOT supported yet'
+             call shr_sys_abort(errMsg(__FILE__, __LINE__))
+          end if
 
           if ( present(cnvrtnan2fill) )then
              do i = 1, size(data)
