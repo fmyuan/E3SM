@@ -912,7 +912,8 @@ contains
        status = nf90_put_att(ncid,varid,'flag_values',flag_values)
        if ( .not. present(flag_meanings)) then
           write(iulog,*) 'Error in defining variable = ', trim(varname)
-          call shr_sys_abort(" ERROR:: flag_values set -- but not flag_meanings"//errMsg(__FILE__, __LINE__))
+          call shr_sys_abort(" ERROR:: flag_values set -- but not flag_meanings " &
+             // errMsg(__FILE__, __LINE__) )
        end if
     end if
     if (present(flag_meanings)) then
@@ -1798,16 +1799,16 @@ end subroutine ncd_io_0d_double
     !
     ! !LOCAL VARIABLES:
     integer , pointer :: temp(:,:)
-    integer           :: ndim1,ndim2
     character(len=32) :: dimname    ! temporary      
     integer           :: status     ! error status
     integer           :: ndims      ! ndims total for var
     integer           :: varid      ! varid
     integer           :: n,i,j      ! indices
-    integer           :: dlen       ! dim sizes
+    integer           :: dlen(2)    ! dim sizes
     integer           :: dids(2)    ! dim ids
     integer           :: start(2)   ! netcdf start index
     integer           :: count(2)   ! netcdf count index
+    integer           :: data_ndims !
     logical           :: varpresent ! if true, variable is on tape
     integer           :: lb1,lb2
     integer           :: ub1,ub2
@@ -1842,14 +1843,11 @@ end subroutine ncd_io_0d_double
     call ncd_inqvid(ncid, varname, varid, readvar=varpresent)
     if (varpresent) then
        status = nf90_inquire_variable(ncid, varid, ndims = ndims)
-       if (ndims /= 2) then
-          write(iulog,*) trim(subname),' ERROR: ndims must be 2'
-          call shr_sys_abort(errMsg(__FILE__, __LINE__))
-       end if
        call ncd_inqvdids(ncid, varname, dids, status)
+       dlen(:) = 1
        do i = 1, ndims
           call ncd_inqdname(ncid,dids(i),dimname)
-          call ncd_inqvdlen_byName(ncid,trim(varname),i,dlen,status)
+          call ncd_inqvdlen_byName(ncid,trim(varname),i,dlen(i),status)
 
           if ('time' == trim(dimname) .and. present(nt)) then
              !this will override starts/counts if input as well
@@ -1857,9 +1855,22 @@ end subroutine ncd_io_0d_double
              start(i) = nt
              count(i) = 1
           elseif (.not. present(counts)) then
-             count(i) = dlen
+             count(i) = dlen(i)
           end if
        end do
+
+       ! data dimension/size checking
+       if (ndims /= 2) then
+          data_ndims = size(shape(data))-size(findloc(shape(data),1))
+          if ( any(shape(data)==1) .and. ndims == data_ndims) then
+             ! singleton of array 'data', in nc it may be ignored.
+             ! And, netcdff-4 can handle it (but not vice verse)
+             !if (masterproc) write(iulog,*) trim(subname),' INFO: singlton ndims ignored in nc file '
+          else
+             write(iulog,*) trim(subname),' ERROR: ndims must be 2'
+             call shr_sys_abort(errMsg(__FILE__, __LINE__))
+          end if
+       end if
 
        if (flag == 'read') then
           if (present(switchdim)) then
@@ -1938,16 +1949,16 @@ end subroutine ncd_io_0d_double
     !
     ! !LOCAL VARIABLES:
     real(r8), pointer :: temp(:,:)
-    integer           :: ndim1,ndim2       
     character(len=32) :: dimname    ! temporary      
     integer           :: status     ! error status
     integer           :: ndims      ! ndims total for var
     integer           :: varid      ! varid
     integer           :: n,i,j      ! indices
-    integer           :: dlen       ! dim size
+    integer           :: dlen (2)   ! dim size
     integer           :: dids(2)    ! dim ids
     integer           :: start(2)   ! netcdf start index
     integer           :: count(2)   ! netcdf count index
+    integer           :: data_ndims !
     logical           :: varpresent ! if true, variable is on tape
     integer           :: lb1,lb2
     integer           :: ub1,ub2
@@ -1989,14 +2000,11 @@ end subroutine ncd_io_0d_double
     call ncd_inqvid(ncid, varname, varid, readvar=varpresent)
     if (varpresent) then
        status = nf90_inquire_variable(ncid, varid, ndims = ndims)
-       if (ndims /= 2) then
-          write(iulog,*) trim(subname),' ERROR: ndims must be 2'
-          call shr_sys_abort(errMsg(__FILE__, __LINE__))
-       end if
        call ncd_inqvdids(ncid, varname, dids, status)
+       dlen(:) = 1
        do i = 1, ndims
           call ncd_inqdname(ncid,dids(i),dimname)
-          call ncd_inqvdlen_byName(ncid,trim(varname),i,dlen,status)
+          call ncd_inqvdlen_byName(ncid,trim(varname),i,dlen(i),status)
 
           if ('time' == trim(dimname) .and. present(nt)) then
              !this will override starts/counts if input as well
@@ -2004,9 +2012,22 @@ end subroutine ncd_io_0d_double
              start(i) = nt
              count(i) = 1
           elseif (.not. present(counts)) then
-             count(i) = dlen
+             count(i) = dlen(i)
           end if
        end do
+
+       ! data dimension/size checking
+       if (ndims /= 2) then
+          data_ndims = size(shape(data))-size(findloc(shape(data),1))
+          if ( any(shape(data)==1) .and. ndims == data_ndims) then
+             ! singleton of array 'data', in nc it may be ignored.
+             ! And, netcdff-4 can handle it (but not vice verse)
+             !if (masterproc) write(iulog,*) trim(subname),' INFO: singlton ndims ignored in nc file '
+          else
+             write(iulog,*) trim(subname),' ERROR: ndims must be 2'
+             call shr_sys_abort(errMsg(__FILE__, __LINE__))
+          end if
+       end if
 
        if (flag == 'read') then
           if (present(switchdim)) then
@@ -2102,15 +2123,15 @@ end subroutine ncd_io_0d_double
     integer, optional, intent(in)            :: counts(3)       ! counts
     !
     ! !LOCAL VARIABLES:
-    integer           :: ndim1,ndim2
     character(len=32) :: dimname    ! temporary
     integer           :: status     ! error status
     integer           :: ndims      ! ndims total for var
     integer           :: varid      ! varid
-    integer           :: i, dlen    ! dim size
+    integer           :: i, dlen(3) ! dim size
     integer           :: dids(3)    ! dim ids
     integer           :: start(3)   ! netcdf start index
     integer           :: count(3)   ! netcdf count index
+    integer           :: data_ndims !
     logical           :: varpresent ! if true, variable is on tape
     character(len=*),parameter :: subname='ncd_io_3d_int' ! subroutine name
     !-----------------------------------------------------------------------
@@ -2132,14 +2153,11 @@ end subroutine ncd_io_0d_double
     call ncd_inqvid(ncid, varname, varid, readvar=varpresent)
     if (varpresent) then
        status = nf90_inquire_variable(ncid, varid, ndims = ndims)
-       if (ndims /= 3) then
-          write(iulog,*) trim(subname),' ERROR: ndims must be 3'
-          call shr_sys_abort(errMsg(__FILE__, __LINE__))
-       end if
        call ncd_inqvdids(ncid, varname, dids, status)
+       dlen(:)=1
        do i = 1, ndims
           call ncd_inqdname(ncid,dids(i),dimname)
-          call ncd_inqvdlen_byName(ncid,trim(varname),i,dlen,status)
+          call ncd_inqvdlen_byName(ncid,trim(varname),i,dlen(i),status)
 
           if ('time' == trim(dimname) .and. present(nt)) then
              !this will override starts/counts if input as well
@@ -2147,9 +2165,21 @@ end subroutine ncd_io_0d_double
              start(i) = nt
              count(i) = 1
           elseif (.not. present(counts)) then
-             count(i) = dlen
+             count(i) = dlen(i)
           end if
        end do
+       ! data dimension/size checking
+       if (ndims /= 3) then
+          data_ndims = size(shape(data))-size(findloc(shape(data),1))
+          if ( any(shape(data)==1) .and. ndims == data_ndims) then
+             ! singleton of array 'data', in nc it may be ignored.
+             ! And, netcdff-4 can handle it (but not vice verse)
+             !if (masterproc) write(iulog,*) trim(subname),' INFO: singlton ndims ignored in nc file '
+          else
+             write(iulog,*) trim(subname),' ERROR: ndims must be 3'
+             call shr_sys_abort(errMsg(__FILE__, __LINE__))
+          end if
+       end if
 
        if (flag == 'read') then
           status= nf90_get_var(ncid, varid, data, start=start, count=count)
@@ -2203,16 +2233,19 @@ end subroutine ncd_io_0d_double
     integer, optional, intent(in)            :: counts(3)     ! counts
     !
     ! !LOCAL VARIABLES:
-    integer           :: ndim1,ndim2
     character(len=32) :: dimname    ! temporary
     integer           :: status     ! error status
     integer           :: ndims      ! ndims total for var
     integer           :: varid      ! varid
     integer           :: n,i,j      ! indices
-    integer           :: dlen       ! dim size
+    integer           :: dlen(3)    ! dim size
     integer           :: dids(3)    ! dim ids
     integer           :: start(3)   ! netcdf start index
     integer           :: count(3)   ! netcdf count index
+    integer           :: data_ndims
+    real(r8), pointer :: rtemp(:,:,:,:)
+    real(r8), pointer :: rtemp3d(:,:,:)
+
     logical           :: varpresent ! if true, variable is on tape
     character(len=*),parameter :: subname='ncd_io_3d_double' ! subroutine name
     !-----------------------------------------------------------------------
@@ -2234,14 +2267,11 @@ end subroutine ncd_io_0d_double
     call ncd_inqvid(ncid, varname, varid, readvar=varpresent)
     if (varpresent) then
        status = nf90_inquire_variable(ncid, varid, ndims = ndims)
-       if (ndims /= 3) then
-          write(iulog,*) trim(subname),' ERROR: ndims must be 3'
-          call shr_sys_abort(errMsg(__FILE__, __LINE__))
-       end if
        call ncd_inqvdids(ncid, varname, dids, status)
+       dlen(:) = 1
        do i = 1, ndims
           call ncd_inqdname(ncid,dids(i),dimname)
-          call ncd_inqvdlen_byName(ncid,trim(varname),i,dlen,status)
+          call ncd_inqvdlen_byName(ncid,trim(varname),i,dlen(i),status)
 
           if ('time' == trim(dimname) .and. present(nt)) then
              !this will override starts/counts if input as well
@@ -2249,9 +2279,22 @@ end subroutine ncd_io_0d_double
              start(i) = nt
              count(i) = 1
           elseif (.not. present(counts)) then
-             count(i) = dlen
+             count(i) = dlen(i)
           end if
        end do
+
+       ! data dimension/size checking
+       if (ndims /= 3) then
+          data_ndims = size(shape(data))-size(findloc(shape(data),1))
+          if ( any(shape(data)==1) .and. ndims == data_ndims) then
+             ! singleton of array 'data', in nc it may be ignored.
+             ! And, netcdff-4 can handle it (but not vice verse)
+             !if (masterproc) write(iulog,*) trim(subname),' INFO: singlton ndims ignored in nc file '
+          else
+             write(iulog,*) trim(subname),' ERROR: ndims must be 3'
+             call shr_sys_abort(errMsg(__FILE__, __LINE__))
+          end if
+       end if
 
        if (flag == 'read') then
           status= nf90_get_var(ncid, varid, data, start=start, count=count)
@@ -2306,15 +2349,15 @@ end subroutine ncd_io_0d_double
     integer, optional, intent(in)            :: counts(4)       ! counts
     !
     ! !LOCAL VARIABLES:
-    integer           :: ndim1,ndim2
     character(len=32) :: dimname    ! temporary
     integer           :: status     ! error status
     integer           :: ndims      ! ndims total for var
     integer           :: varid      ! varid
-    integer           :: i, dlen    ! dim size
+    integer           :: i, dlen(4) ! dim size
     integer           :: dids(4)    ! dim ids
     integer           :: start(4)   ! netcdf start index
     integer           :: count(4)   ! netcdf count index
+    integer           :: data_ndims !
     logical           :: varpresent ! if true, variable is on tape
     character(len=*),parameter :: subname='ncd_io_4d_int' ! subroutine name
     !-----------------------------------------------------------------------
@@ -2336,14 +2379,11 @@ end subroutine ncd_io_0d_double
     call ncd_inqvid(ncid, varname, varid, readvar=varpresent)
     if (varpresent) then
        status = nf90_inquire_variable(ncid, varid, ndims = ndims)
-       if (ndims /= 4) then
-          write(iulog,*) trim(subname),' ERROR: ndims must be 4'
-          call shr_sys_abort(errMsg(__FILE__, __LINE__))
-       end if
        call ncd_inqvdids(ncid, varname, dids, status)
+       dlen(:) = 1
        do i = 1, ndims
           call ncd_inqdname(ncid,dids(i),dimname)
-          call ncd_inqvdlen_byName(ncid,trim(varname),i,dlen,status)
+          call ncd_inqvdlen_byName(ncid,trim(varname),i,dlen(i),status)
 
           if ('time' == trim(dimname) .and. present(nt)) then
              !this will override starts/counts if input as well
@@ -2351,9 +2391,22 @@ end subroutine ncd_io_0d_double
              start(i) = nt
              count(i) = 1
           elseif (.not. present(counts)) then
-             count(i) = dlen
+             count(i) = dlen(i)
           end if
        end do
+
+       ! data dimension/size checking
+       if (ndims /= 4) then
+          data_ndims = size(shape(data))-size(findloc(shape(data),1))
+          if ( any(shape(data)==1) .and. ndims == data_ndims) then
+             ! singleton of array 'data', in nc it may be ignored.
+             ! And, netcdff-4 can handle it (but not vice verse)
+             !if (masterproc) write(iulog,*) trim(subname),' INFO: singlton ndims ignored in nc file '
+          else
+             write(iulog,*) trim(subname),' ERROR: ndims must be 4'
+             call shr_sys_abort(errMsg(__FILE__, __LINE__))
+          end if
+       end if
 
        if (flag == 'read') then
           status= nf90_get_var(ncid, varid, data, start=start, count=count)
@@ -2408,16 +2461,16 @@ end subroutine ncd_io_0d_double
     integer, optional, intent(in)            :: counts(4)       ! counts
     !
     ! !LOCAL VARIABLES:
-    integer           :: ndim1,ndim2
     character(len=32) :: dimname    ! temporary
     integer           :: status     ! error status
     integer           :: ndims      ! ndims total for var
     integer           :: varid      ! varid
     integer           :: n,i,j      ! indices
-    integer           :: dlen       ! dim size
+    integer           :: dlen (4)   ! dim size
     integer           :: dids(4)    ! dim ids
     integer           :: start(4)   ! netcdf start index
     integer           :: count(4)   ! netcdf count index
+    integer           :: data_ndims !
     logical           :: varpresent ! if true, variable is on tape
     character(len=*),parameter :: subname='ncd_io_4d_double' ! subroutine name
     !-----------------------------------------------------------------------
@@ -2439,14 +2492,11 @@ end subroutine ncd_io_0d_double
     call ncd_inqvid(ncid, varname, varid, readvar=varpresent)
     if (varpresent) then
        status = nf90_inquire_variable(ncid, varid, ndims = ndims)
-       if (ndims /= 4) then
-          write(iulog,*) trim(subname),' ERROR: ndims must be 4'
-          call shr_sys_abort(errMsg(__FILE__, __LINE__))
-       end if
        call ncd_inqvdids(ncid, varname, dids, status)
+       dlen(:) = 1
        do i = 1, ndims
           call ncd_inqdname(ncid,dids(i),dimname)
-          call ncd_inqvdlen_byName(ncid,trim(varname),i,dlen,status)
+          call ncd_inqvdlen_byName(ncid,trim(varname),i,dlen(i),status)
 
           if ('time' == trim(dimname) .and. present(nt)) then
              !this will override starts/counts if input as well
@@ -2454,9 +2504,22 @@ end subroutine ncd_io_0d_double
              start(i) = nt
              count(i) = 1
           elseif (.not. present(counts)) then
-             count(i) = dlen
+             count(i) = dlen(i)
           end if
        end do
+
+       ! data dimension/size checking
+       if (ndims /= 4) then
+          data_ndims = size(shape(data))-size(findloc(shape(data),1))
+          if ( any(shape(data)==1) .and. ndims == data_ndims) then
+             ! singleton of array 'data', in nc it may be ignored.
+             ! And, netcdff-4 can handle it (but not vice verse)
+             !if (masterproc) write(iulog,*) trim(subname),' INFO: singlton ndims ignored in nc file '
+          else
+             write(iulog,*) trim(subname),' ERROR: ndims must be 4'
+             call shr_sys_abort(errMsg(__FILE__, __LINE__))
+          end if
+       end if
 
        if (flag == 'read') then
           status= nf90_get_var(ncid, varid, data, start=start, count=count)
