@@ -15,7 +15,7 @@ module ncdio_nf90Mod
   use shr_sys_mod    , only : shr_sys_abort
   use elm_varcon     , only : spval,ispval
   use elm_varcon     , only : grlnd, nameg, namet, namel, namec, namep, nameCohort
-  use elm_varctl     , only : iulog
+  use elm_varctl     , only : single_column, iulog
   use spmdMod        , only : masterproc, iam
   use netcdf
   !
@@ -49,6 +49,16 @@ module ncdio_nf90Mod
   public :: ncd_inqvdlen       ! inquire variable dimension size
   public :: ncd_inqvdname      ! inquire variable dimension name
   public :: ncd_io             ! write local data
+
+  ! types needed for ncdio interface calls, equivalent to pio for convenience
+  type, public :: file_desc_t
+    integer(i4) :: fh
+  end type file_desc_t
+
+  type, public :: var_desc_t
+     integer(i4) :: varID
+     integer(i4) :: ncid
+  end type var_desc_t
 
   integer,parameter,public :: ncd_int       = nf90_int
   integer,parameter,public :: ncd_log       =-nf90_int
@@ -135,13 +145,13 @@ contains
   !-----------------------------------------------------------------------
 
   !-----------------------------------------------------------------------
-  subroutine ncd_nf90_openfile(fileid, fname, mode)
+  subroutine ncd_nf90_openfile(ncid, fname, mode)
     !
     ! !DESCRIPTION:
     ! Open a NetCDF fortran file
     !
     ! !ARGUMENTS:
-    integer            , intent(inout) :: fileid ! Output file handle
+    type(file_desc_t)  , intent(inout) :: ncid   ! Output file handle
     character(len=*)   , intent(in)    :: fname  ! Input filename to open
     integer            , intent(in)    :: mode   ! file mode: nf90_nowrite, nf90_write
     !
@@ -149,7 +159,7 @@ contains
     integer :: status
     !-----------------------------------------------------------------------
 
-    status = nf90_open(trim(fname), mode, fileid)
+    status = nf90_open(trim(fname), mode, ncid%fh)
 
     if(status /= nf90_NOERR) then
        call shr_sys_abort('ncd_nf90_openfile ERROR: Failed to open file -' &
@@ -162,20 +172,20 @@ contains
   end subroutine ncd_nf90_openfile
 
   !-----------------------------------------------------------------------
-  subroutine ncd_nf90_closefile(fileid)
+  subroutine ncd_nf90_closefile(ncid)
     !
     ! !DESCRIPTION:
     ! Close a NetCDF fortran file
     !
     ! !ARGUMENTS:
-    integer, intent(inout) :: fileid   ! file handle to close
+    type(file_desc_t)  , intent(inout) :: ncid   ! Output file handle
 
     ! ! Local variables
     integer :: status
 
     !-----------------------------------------------------------------------
 
-    status = nf90_close(fileid)
+    status = nf90_close(ncid%fh)
     if (status /= nf90_NOERR) then
        call shr_sys_abort('ncd_nf90_closefile Failed!' &
           // trim(nf90_strerror(status)) )
@@ -184,29 +194,29 @@ contains
   end subroutine ncd_nf90_closefile
 
   !-----------------------------------------------------------------------
-  subroutine ncd_nf90_createfile(fileid, fname)
+  subroutine ncd_nf90_createfile(ncid, fname)
     !
     ! !DESCRIPTION:
-    ! Create a new NetCDF file with PIO
+    ! Create a new NetCDF file with netcdf-fortran
     !
     ! !USES:
     !
     ! !ARGUMENTS:
-    integer          , intent(inout)  :: fileid  ! file descriptor
+    type(file_desc_t),  intent(inout) :: ncid    ! Output file handle
     character(len=*) ,  intent(in)    :: fname   ! File name to create
     !
     ! !LOCAL VARIABLES:
     integer :: status
     !-----------------------------------------------------------------------
 
-    status = nf90_create(trim(fname), nf90_CLOBBER, fileid)
+    status = nf90_create(trim(fname), nf90_CLOBBER, ncid%fh)
 
     if(status /= nf90_NOERR) then
        call shr_sys_abort( ' ncd_nf90_createfile Failed to open file to write: ' &
          //trim(fname) )
     else
        if (masterproc) &
-          write(iulog,*) 'Opened file ', trim(fname),  ' to write', fileid
+          write(iulog,*) 'Opened file ', trim(fname),  ' to write', ncid%fh
     end if
 
   end subroutine ncd_nf90_createfile
@@ -219,9 +229,9 @@ contains
     ! Check if variable is on netcdf file
     !
     ! !ARGUMENTS:
-    integer            , intent(inout)   :: ncid      ! file descriptor
+    type(file_desc_t)  , intent(inout)   :: ncid      ! file descriptor
     character(len=*)   , intent(in)      :: varname   ! Varible name to check
-    character(len=*)   , intent(out)     :: vardesc   ! Varible description
+    type(var_desc_t)   , intent(out)     :: vardesc   ! Varible description
     logical            , intent(out)     :: readvar   ! If variable exists or not
     logical, optional  , intent(in)      :: print_err ! If should print about error
     !
@@ -240,13 +250,14 @@ contains
     end if
     readvar = .true.
 
-    status = nf90_inq_varid (ncid, varname, varid)
+    status = nf90_inq_varid (ncid%fh, varname, varid)
     if (status /= nf90_NOERR) then
        readvar = .false.
        if (masterproc .and. log_err) &
             write(iulog,*) subname//': variable ',trim(varname),' is not on dataset'
     end if
-    vardesc = 'not-checked'  !
+    vardesc%varid = varid
+    vardesc%ncid = ncid%fh
 
   end subroutine check_var
 
@@ -259,7 +270,7 @@ contains
     ! !USES:
     !
     ! !ARGUMENTS:
-    integer           ,intent(inout) :: ncid      ! netcdf file id
+    type(file_desc_t) ,intent(inout) :: ncid      ! netcdf file id
     integer           ,intent(in)    :: varid     ! netcdf var id, or, nf90_global
     character(len=*)  ,intent(in)    :: attrib    ! netcdf attrib
     logical           ,intent(out)   :: att_found ! true if the attribute was found
@@ -271,7 +282,7 @@ contains
     !-----------------------------------------------------------------------
 
     att_found = .true.
-    status = nf90_inquire_attribute(ncid, varid, trim(attrib))
+    status = nf90_inquire_attribute(ncid%fh, varid, trim(attrib))
     if (status /= nf90_NOERR) then
        att_found = .false.
     end if
@@ -285,7 +296,7 @@ contains
     ! Validity check on dimension
     !
     ! !ARGUMENTS:
-    integer          , intent(in) :: ncid      ! PIO file handle
+    type(file_desc_t), intent(in) :: ncid      ! PIO file handle
     character(len=*) , intent(in) :: dimname   ! Dimension name
     integer          , intent(in) :: value     ! Expected dimension size
     !
@@ -295,13 +306,13 @@ contains
     character(len=*),parameter :: subname='check_dim' ! subroutine name
     !-----------------------------------------------------------------------
 
-    status = nf90_inq_dimid (ncid, trim(dimname), dimid)
+    status = nf90_inq_dimid (ncid%fh, trim(dimname), dimid)
     if (status /= nf90_NOERR) then
        write(iulog,*) subname//' ERROR: to inquire dimension ', trim(dimname)
        call shr_sys_abort(errMsg(__FILE__, __LINE__))
     end if
 
-    status = nf90_inquire_dimension (ncid, dimid, len=dimlen)
+    status = nf90_inquire_dimension (ncid%fh, dimid, len=dimlen)
     if (dimlen /= value) then
        write(iulog,*) subname//' ERROR: mismatch of input dimension ',dimlen, &
             ' with expected value ',value,' for dimension ',trim(dimname)
@@ -319,7 +330,7 @@ contains
     ! inquire on a dimension id
     !
     ! !ARGUMENTS:
-    integer          ,intent(inout):: ncid      ! netcdf file id
+    type(file_desc_t), intent(inout):: ncid      ! netcdf file id
     character(len=*) , intent(in)  :: name      ! dimension name
     integer          , intent(out) :: dimid     ! dimension id
     logical,optional , intent(out) :: dimexist  ! if this dimension exists or not
@@ -328,7 +339,7 @@ contains
     integer :: status
     !-----------------------------------------------------------------------
 
-    status = nf90_inq_dimid(ncid,name,dimid)
+    status = nf90_inq_dimid(ncid%fh,name,dimid)
     if ( present(dimexist) )then
        if ( status == nf90_NOERR)then
           dimexist = .true.
@@ -346,7 +357,7 @@ contains
     ! dimension length inquire, by id or name
     !
     ! !ARGUMENTS:
-    integer           , intent(inout) :: ncid       ! netcdf file id
+    type(file_desc_t) , intent(inout) :: ncid       ! netcdf file id
     integer           , intent(inout) :: dimid      ! dimension id
     integer           , intent(out)   :: dlen       ! dimension len
     character(len=*), optional, intent(in) :: name  ! dimension name
@@ -362,7 +373,7 @@ contains
        call ncd_inqdid(ncid,name,dimid, dimexist)
     end if
     if (dimexist) then
-       status = nf90_inquire_dimension(ncid,dimid,len=dlen)
+       status = nf90_inquire_dimension(ncid%fh,dimid,len=dlen)
         if (status /= nf90_NOERR) then
            call shr_sys_abort('ncd_nf90_inquire_dimension ERROR')
         end if
@@ -379,7 +390,7 @@ contains
     ! inquire dim name by id
     !
     ! !ARGUMENTS:
-    integer           , intent(in) :: ncid      ! netcdf file id
+    type(file_desc_t) , intent(in) :: ncid      ! netcdf file id
     integer           , intent(in) :: dimid     ! dimension id
     character(len=*)  , intent(out):: dname     ! dimension name
     !
@@ -387,7 +398,7 @@ contains
     integer :: status
     !-----------------------------------------------------------------------
 
-    status = nf90_inquire_dimension(ncid,dimid,name=dname)
+    status = nf90_inquire_dimension(ncid%fh,dimid,name=dname)
     if (status /= nf90_NOERR) then
        call shr_sys_abort('ncd_nf90_inquire_dimension ERROR' &
        // trim(nf90_strerror(status)))
@@ -401,7 +412,7 @@ contains
     ! for earth grids: ni/nj, lon/lat, lsmlon/lsmlat, gridcell (unstructured)
     !
     ! !ARGUMENTS:
-    integer           , intent(inout):: ncid
+    type(file_desc_t) , intent(inout):: ncid
     logical           , intent(out)  :: isgrid2d
     integer           , intent(out)  :: ni
     integer           , intent(out)  :: nj
@@ -413,63 +424,68 @@ contains
     character(len=32) :: subname = 'ncd_inqfdims' ! subroutine name
     !-----------------------------------------------------------------------
 
+    if (single_column) then
+       ni = 1
+       nj = 1
+       ns = 1
+       isgrid2d = .true.
+       RETURN
+    end if
+
     ni = 0
     nj = 0
     isgrid2d = .true.
 
-    status = nf90_inq_dimid (ncid, 'lon', dimid)
+    status = nf90_inq_dimid (ncid%fh, 'lon', dimid)
     if (status == nf90_NOERR) then
-       status = nf90_inquire_dimension(ncid, dimid, len=ni)
-       status = nf90_inq_dimid (ncid, 'lat', dimid)
+       status = nf90_inquire_dimension(ncid%fh, dimid, len=ni)
+       status = nf90_inq_dimid (ncid%fh, 'lat', dimid)
        if (status == nf90_NOERR) then
-          status = nf90_inquire_dimension(ncid, dimid, len=nj)
+          status = nf90_inquire_dimension(ncid%fh, dimid, len=nj)
        else
           nj = 1
-          isgrid2d = .false.
        endif
     !
     else
-       status = nf90_inq_dimid (ncid, 'lsmlon', dimid)
+       status = nf90_inq_dimid (ncid%fh, 'lsmlon', dimid)
        if (status == nf90_NOERR) then
-          status = nf90_inquire_dimension(ncid, dimid, len=ni)
-          status = nf90_inq_dimid (ncid, 'lsmlat', dimid)
+          status = nf90_inquire_dimension(ncid%fh, dimid, len=ni)
+          status = nf90_inq_dimid (ncid%fh, 'lsmlat', dimid)
           if (status == nf90_NOERR) then
-            status = nf90_inquire_dimension(ncid, dimid, len=nj)
+            status = nf90_inquire_dimension(ncid%fh, dimid, len=nj)
           else
             nj = 1
-            isgrid2d = .false.
           endif
        !
        else
-          status = nf90_inq_dimid (ncid, 'ni', dimid)
+          status = nf90_inq_dimid (ncid%fh, 'ni', dimid)
           if (status == nf90_NOERR) then
-             status = nf90_inquire_dimension(ncid, dimid, len=ni)
-             status = nf90_inq_dimid (ncid, 'nj', dimid)
+             status = nf90_inquire_dimension(ncid%fh, dimid, len=ni)
+             status = nf90_inq_dimid (ncid%fh, 'nj', dimid)
              if (status == nf90_NOERR) then
-               status = nf90_inquire_dimension(ncid, dimid, len=nj)
+               status = nf90_inquire_dimension(ncid%fh, dimid, len=nj)
              else
                nj = 1
-               isgrid2d = .false.
              endif
           !
           else
-             status = nf90_inq_dimid (ncid, 'gridcell', dimid)
+             status = nf90_inq_dimid (ncid%fh, 'gridcell', dimid)
              if (status == nf90_NOERR) then
-                status = nf90_inquire_dimension(ncid, dimid, len=ni)
+                status = nf90_inquire_dimension(ncid%fh, dimid, len=ni)
                 if (status == nf90_NOERR) nj = 1
-                isgrid2d = .false.
-
              end if
           end if
 
        endif
     end if
    
+
     if (ni == 0 .or. nj == 0) then
        write(iulog,*) trim(subname),' ERROR: ni,nj = ',ni,nj,' cannot be zero '
        call shr_sys_abort(errMsg(__FILE__, __LINE__))
+    else if (nj == 1 ) then
+       isgrid2d = .false.
     end if
-
 
     ns = ni*nj
 
@@ -484,7 +500,7 @@ contains
     ! Inquire on a variable ID by name
     !
     ! !ARGUMENTS:
-    integer           , intent(inout) :: ncid      ! netcdf file id
+    type(file_desc_t) , intent(inout) :: ncid      ! netcdf file id
     character(len=*)  , intent(in)    :: name      ! variable name
     integer           , intent(out)   :: varid     ! variable id
     logical, optional , intent(out)   :: readvar   ! does variable exist
@@ -497,7 +513,7 @@ contains
     varid = -1
     if (present(readvar)) then
        readvar = .false.
-       status = nf90_inq_varid(ncid,name, varid)
+       status = nf90_inq_varid(ncid%fh,name, varid)
        if (status /= nf90_NOERR) then
           if (masterproc) write(iulog,*) subname//': variable ',trim(name),' is not on dataset'
           readvar = .false.
@@ -506,7 +522,7 @@ contains
        end if
 
     else
-       status = nf90_inq_varid(ncid,name,varid)
+       status = nf90_inq_varid(ncid%fh,name,varid)
 
        if (status /= nf90_NOERR) then
          call shr_sys_abort('ncd_inqvdims ERROR ' &
@@ -523,7 +539,7 @@ contains
     ! inquire variable dimension numbers by variable name
     !
     ! !ARGUMENTS:
-    integer           , intent(in)   :: ncid      ! netcdf file id
+    type(file_desc_t) , intent(in)   :: ncid      ! netcdf file id
     integer           , intent(out)  :: ndims     ! variable ndims
     character(len=*)  , intent(inout):: varname   ! variable name
     !
@@ -534,13 +550,13 @@ contains
     !-----------------------------------------------------------------------
 
     ndims = -1
-    status = nf90_inq_varid(ncid,trim(varname),varid)
+    status = nf90_inq_varid(ncid%fh,trim(varname),varid)
     if (status /= nf90_NOERR) then
        call shr_sys_abort('ncd_inqvdims ERROR - varid for ' // trim(varname) &
        // trim(nf90_strerror(status)))
     end if
 
-    status = nf90_inquire_variable(ncid, varid, ndims = ndims)
+    status = nf90_inquire_variable(ncid%fh, varid, ndims = ndims)
     if (status /= nf90_NOERR) then
        call shr_sys_abort('ncd_inqvdims ERROR - ndims for ' // trim(varname) &
        // trim(nf90_strerror(status)))
@@ -555,7 +571,7 @@ contains
     ! inquire variable name by its id
     !
     ! !ARGUMENTS:
-    integer           , intent(in)   :: ncid      ! netcdf file id
+    type(file_desc_t) , intent(in)   :: ncid      ! netcdf file id
     integer           , intent(in)   :: varid     ! variable id
     character(len=*)  , intent(out)  :: vname     ! variable vname
     !
@@ -565,7 +581,7 @@ contains
     !-----------------------------------------------------------------------
 
     vname = ''
-    status = nf90_inquire_variable(ncid, varid, name = vname)
+    status = nf90_inquire_variable(ncid%fh, varid, name = vname)
     if (status /= nf90_NOERR) then
        call shr_sys_abort('ncd_inqvname ERROR' //trim(vname) &
        // trim(nf90_strerror(status)))
@@ -582,7 +598,7 @@ contains
     ! inquire variable' all dimension ids by name
     !
     ! !ARGUMENTS:
-    integer          ,intent(in)   :: ncid      ! netcdf file id
+    type(file_desc_t),intent(in)   :: ncid      ! netcdf file id
     character(len=*) ,intent(in)   :: varname   ! variable descriptor
     integer          ,intent(out)  :: dids(:)   ! variable dids
     integer          ,intent(out)  :: error_code
@@ -594,9 +610,9 @@ contains
     !-----------------------------------------------------------------------
 
     dids(:) = -1
-    status = nf90_inq_varid(ncid, trim(varname), varid)
+    status = nf90_inq_varid(ncid%fh, trim(varname), varid)
     if (status == nf90_NOERR) then
-       status = nf90_inquire_variable(ncid, varid, dimids = dids)
+       status = nf90_inquire_variable(ncid%fh, varid, dimids = dids)
         if (status /= nf90_NOERR) then
           if (masterproc) write(iulog,*) subname// &
            ' ncd_inqvdids ERROR' //trim(varname) &
@@ -623,7 +639,7 @@ contains
     ! 11: variable not found
     !
     ! !ARGUMENTS:
-    integer,intent(inout) :: ncid      ! netcdf file id
+    type(file_desc_t) ,intent(inout) :: ncid      ! netcdf file id
     character(len=*)  ,intent(in)    :: varname   ! variable name
     integer           ,intent(in)    :: dimnum    ! dimension number to query
     integer           ,intent(out)   :: dlen      ! length of the dimension
@@ -642,14 +658,14 @@ contains
     dlen = dlen_invalid
     err_code = error_variable_not_found
 
-    status = nf90_inq_varid (ncid, varname, varid)
+    status = nf90_inq_varid (ncid%fh, varname, varid)
     if (status == nf90_NOERR) then
-       status = nf90_inquire_variable(ncid, varid, ndims = vdnums)
+       status = nf90_inquire_variable(ncid%fh, varid, ndims = vdnums)
        if(status == nf90_NOERR) then
          allocate(vdids(vdnums))
-         status = nf90_inquire_variable(ncid, varid, dimids = vdids)
+         status = nf90_inquire_variable(ncid%fh, varid, dimids = vdids)
          if (status == nf90_NOERR) then
-           err_code = nf90_inquire_dimension(ncid,vdids(dimnum),len=dlen)
+           err_code = nf90_inquire_dimension(ncid%fh,vdids(dimnum),len=dlen)
          endif
          deallocate(vdids)
        end if
@@ -674,7 +690,7 @@ contains
     ! 11: variable not found
     !
     ! !ARGUMENTS:
-    integer           ,intent(inout) :: ncid      ! netcdf file id
+    type(file_desc_t) ,intent(inout) :: ncid      ! netcdf file id
     character(len=*)  ,intent(in)    :: varname   ! variable name
     integer           ,intent(in)    :: dimnum    ! dimension number to query
     character(len=*)  ,intent(out)   :: dname     ! name of the dimension
@@ -693,14 +709,14 @@ contains
     dname = dname_invalid
     err_code = error_variable_not_found
 
-    status = nf90_inq_varid (ncid, varname, varid)
+    status = nf90_inq_varid (ncid%fh, varname, varid)
     if (status == nf90_NOERR) then
-       status = nf90_inquire_variable(ncid, varid, ndims = vdnums)
+       status = nf90_inquire_variable(ncid%fh, varid, ndims = vdnums)
        if(status == nf90_NOERR) then
          allocate(vdids(vdnums))
-         status = nf90_inquire_variable(ncid, varid, dimids = vdids)
+         status = nf90_inquire_variable(ncid%fh, varid, dimids = vdids)
          if (status == nf90_NOERR) then
-           err_code = nf90_inquire_dimension(ncid, vdids(dimnum), name=dname)
+           err_code = nf90_inquire_dimension(ncid%fh, vdids(dimnum), name=dname)
          endif
          deallocate(vdids)
        end if
@@ -717,7 +733,7 @@ contains
     ! put integer attributes
     !
     ! !ARGUMENTS:
-    integer           ,intent(inout) :: ncid      ! netcdf file id
+    type(file_desc_t) ,intent(inout) :: ncid      ! netcdf file id
     integer           ,intent(in)    :: varid     ! netcdf var id
     character(len=*)  ,intent(in)    :: attrib    ! netcdf attrib
     integer           ,intent(in)    :: value     ! netcdf attrib value
@@ -727,7 +743,7 @@ contains
     character(len=*),parameter :: subname='ncd_putatt_int' ! subroutine name
     !-----------------------------------------------------------------------
 
-    status = nf90_put_att(ncid,varid,trim(attrib),value)
+    status = nf90_put_att(ncid%fh,varid,trim(attrib),value)
 
   end subroutine ncd_putatt_int
 
@@ -738,7 +754,7 @@ contains
     ! put character attributes
     !
     ! !ARGUMENTS:
-    integer,intent(inout) :: ncid      ! netcdf file id
+    type(file_desc_t) ,intent(inout) :: ncid      ! netcdf file id
     integer           ,intent(in)    :: varid     ! netcdf var id
     character(len=*)  ,intent(in)    :: attrib    ! netcdf attrib
     character(len=*)  ,intent(in)    :: value     ! netcdf attrib value
@@ -748,7 +764,7 @@ contains
     character(len=*),parameter :: subname='ncd_putatt_char' ! subroutine name
     !-----------------------------------------------------------------------
 
-    status = nf90_put_att(ncid,varid,trim(attrib),value)
+    status = nf90_put_att(ncid%fh,varid,trim(attrib),value)
 
   end subroutine ncd_putatt_char
 
@@ -759,7 +775,7 @@ contains
     ! put real attributes
     !
     ! !ARGUMENTS:
-    integer,intent(inout) :: ncid      ! netcdf file id
+    type(file_desc_t) ,intent(inout) :: ncid      ! netcdf file id
     integer           ,intent(in)    :: varid     ! netcdf var id
     character(len=*)  ,intent(in)    :: attrib    ! netcdf attrib
     real(r8)          ,intent(in)    :: value     ! netcdf attrib value
@@ -774,9 +790,9 @@ contains
     value4 = value
 
     if (xtype == nf90_double) then
-       status = nf90_put_att(ncid,varid,trim(attrib),value)
+       status = nf90_put_att(ncid%fh,varid,trim(attrib),value)
     else
-       status = nf90_put_att(ncid,varid,trim(attrib),value4)
+       status = nf90_put_att(ncid%fh,varid,trim(attrib),value4)
     endif
 
   end subroutine ncd_putatt_real
@@ -790,7 +806,7 @@ contains
     ! !USES:
     !
     ! !ARGUMENTS:
-    integer,intent(inout) :: ncid      ! netcdf file id
+    type(file_desc_t) ,intent(inout) :: ncid      ! netcdf file id
     integer           ,intent(in)    :: varid     ! netcdf var id
     character(len=*)  ,intent(in)    :: attrib    ! netcdf attrib
     character(len=*)  ,intent(out)   :: value     ! netcdf attrib value
@@ -801,7 +817,7 @@ contains
     character(len=*), parameter :: subname = 'ncd_getatt_char'
     !-----------------------------------------------------------------------
     
-    status = nf90_get_att(ncid,varid,trim(attrib),value)
+    status = nf90_get_att(ncid%fh,varid,trim(attrib),value)
 
   end subroutine ncd_getatt_char
 
@@ -814,7 +830,7 @@ contains
     ! define dimension
     !
     ! !ARGUMENTS:
-    integer, intent(in) :: ncid      ! netcdf file id
+    type(file_desc_t) , intent(in) :: ncid      ! netcdf file id
     character(len=*)  , intent(in) :: dname     ! netcdf dimension name
     integer           , intent(in) :: dlen      ! netcdf dimension length
     integer           , intent(out):: dimid     ! netcdf dimension id
@@ -824,7 +840,7 @@ contains
     character(len=*),parameter :: subname='ncd_defdim' ! subroutine name
     !-----------------------------------------------------------------------
 
-    status = nf90_def_dim(ncid,trim(dname),dlen,dimid)
+    status = nf90_def_dim(ncid%fh,trim(dname),dlen,dimid)
 
   end subroutine ncd_defdim
 
@@ -838,7 +854,7 @@ contains
     !  Define a netcdf variable, by known dimension length and ids
     !
     ! !ARGUMENTS:
-    integer            , intent(inout) :: ncid                  ! netcdf file id
+    type(file_desc_t)  , intent(inout) :: ncid                  ! netcdf file id
     character(len=*)   , intent(in)  :: varname                 ! variable name
     integer            , intent(in)  :: xtype                   ! external type
     integer            , intent(in)  :: ndims                   ! number of dims
@@ -888,14 +904,14 @@ contains
     end if
 
     if (ndims >  0) then 
-       status = nf90_inquire_dimension(ncid,ldimid(ndims),name=dimname)
+       status = nf90_inquire_dimension(ncid%fh,ldimid(ndims),name=dimname)
     end if
 
     ! Define variable
     if (present(dimid)) then
-       status = nf90_def_var(ncid,trim(varname),lxtype,dimid(1:ndims),varid)
+       status = nf90_def_var(ncid%fh,trim(varname),lxtype,dimid(1:ndims),varid)
     else
-       status = nf90_def_var(ncid,trim(varname),lxtype,dimid0        ,varid)
+       status = nf90_def_var(ncid%fh,trim(varname),lxtype,dimid0        ,varid)
     endif
     !
     ! Add attributes
@@ -909,7 +925,7 @@ contains
        end if
     end if
     if (present(flag_values)) then
-       status = nf90_put_att(ncid,varid,'flag_values',flag_values)
+       status = nf90_put_att(ncid%fh,varid,'flag_values',flag_values)
        if ( .not. present(flag_meanings)) then
           write(iulog,*) 'Error in defining variable = ', trim(varname)
           call shr_sys_abort(" ERROR:: flag_values set -- but not flag_meanings " &
@@ -933,7 +949,7 @@ contains
           end if
           if ( n > 1 ) str = trim(str)//" "//flag_meanings(n)
        end do
-       status = nf90_put_att(ncid,varid,'flag_meanings', trim(str) )
+       status = nf90_put_att(ncid%fh,varid,'flag_meanings', trim(str) )
     end if
     if (present(comment)) then
        call ncd_putatt(ncid, varid, 'comment', trim(comment))
@@ -958,12 +974,12 @@ contains
        call ncd_putatt(ncid, varid, 'missing_value', imissing_value)
     end if
     if (present(nvalid_range)) then
-       status = nf90_put_att(ncid,varid,'valid_range', nvalid_range )
+       status = nf90_put_att(ncid%fh,varid,'valid_range', nvalid_range )
     end if
     if ( xtype == ncd_log )then
-       status = nf90_put_att(ncid,varid,'flag_values',     (/0, 1/) )
-       status = nf90_put_att(ncid,varid,'flag_meanings',  "FALSE TRUE" )
-       status = nf90_put_att(ncid,varid,'valid_range',    (/0, 1/) )
+       status = nf90_put_att(ncid%fh,varid,'flag_values',     (/0, 1/) )
+       status = nf90_put_att(ncid%fh,varid,'flag_meanings',  "FALSE TRUE" )
+       status = nf90_put_att(ncid%fh,varid,'valid_range',    (/0, 1/) )
     end if
 
   end subroutine ncd_defvar_bynf
@@ -979,7 +995,7 @@ contains
     !  Define a netcdf variable, by flexible dimension names (up to 5)
     !
     ! !ARGUMENTS:
-    integer            , intent(inout) :: ncid                 ! netcdf file id
+    type(file_desc_t)  , intent(inout) :: ncid                 ! netcdf file id
     character(len=*)   , intent(in)  :: varname                 ! variable name
     integer            , intent(in)  :: xtype                   ! external type
     character(len=*)   , intent(in), optional :: dim1name       ! dimension name
@@ -1055,14 +1071,14 @@ contains
     ! !DESCRIPTION:
     !
     ! !ARGUMENTS:
-    integer,intent(inout) :: ncid      ! netcdf file id
+    type(file_desc_t), intent(inout) :: ncid      ! netcdf file id
     !
     ! !LOCAL VARIABLES:
     integer :: status   ! error status
     character(len=*),parameter :: subname='ncd_enddef' ! subroutine name
     !-----------------------------------------------------------------------
 
-    status = nf90_enddef(ncid)
+    status = nf90_enddef(ncid%fh)
     if (status /= nf90_NOERR) then
        call shr_sys_abort('ncd_enddef ERROR' &
        // trim(nf90_strerror(status)))
@@ -1078,7 +1094,7 @@ contains
     ! netcdf I/O of character array with start indices input
     !
     ! !ARGUMENTS:
-    integer          , intent(inout) :: ncid             ! netcdf file id
+    type(file_desc_t), intent(inout) :: ncid             ! netcdf file id
     character(len=*) , intent(in)    :: flag             ! 'read' or 'write'
     character(len=*) , intent(in)    :: varname          ! local variable name
     character(len=*) , intent(inout) :: data             ! raw data for this index
@@ -1094,13 +1110,13 @@ contains
     call ncd_inqvid(ncid, trim(varname), varid, readvar)
     if (readvar) then
        if (flag == 'read') then
-          status = nf90_get_var(ncid, varid, data, start=start)
+          status = nf90_get_var(ncid%fh, varid, data, start=start)
           if (status /= nf90_NOERR) then
              call shr_sys_abort('ncd_io read FAILED ' //trim(varname) &
                // trim(nf90_strerror(status)))
           end if
        elseif (flag == 'write') then
-          status = nf90_put_var(ncid, varid, data, start=start)
+          status = nf90_put_var(ncid%fh, varid, data, start=start)
           if (status /= nf90_NOERR) then
              call shr_sys_abort('ncd_io writeFAILED  ' //trim(varname) &
                // trim(nf90_strerror(status)))
@@ -1119,7 +1135,7 @@ contains
     ! netcdf I/O of logical variable
     !
     ! !ARGUMENTS:
-    integer            , intent(inout) :: ncid      ! netcdf file id
+    type(file_desc_t)  , intent(inout) :: ncid      ! netcdf file id
     character(len=*)   , intent(in)    :: flag      ! 'read' or 'write'
     character(len=*)   , intent(in)    :: varname   ! variable name
     logical            , intent(inout) :: data      ! raw data
@@ -1142,7 +1158,7 @@ contains
 
        call ncd_inqvid(ncid, varname, varid, readvar=varpresent)
        if (varpresent) then
-          status = nf90_get_var(ncid, varid, idata)
+          status = nf90_get_var(ncid%fh, varid, idata)
           if ( idata == 0 )then
              data = .false.
           else if ( idata == 1 )then
@@ -1163,7 +1179,7 @@ contains
        else
           idata1d(1) = 0
        end if
-       status = nf90_put_var(ncid, varid, idata1d, start=start, count=count)
+       status = nf90_put_var(ncid%fh, varid, idata1d, start=start, count=count)
        deallocate(idata1d)
 
     endif   ! flag
@@ -1178,7 +1194,7 @@ contains
     ! netcdf I/O of logical variable
     !
     ! !ARGUMENTS:
-    integer            , intent(inout) :: ncid      ! netcdf file id
+    type(file_desc_t)  , intent(inout) :: ncid      ! netcdf file id
     character(len=*)   , intent(in)    :: flag      ! 'read' or 'write'
     character(len=*)   , intent(in)    :: varname   ! variable name
     logical            , intent(inout) :: data(:)   ! raw data
@@ -1202,7 +1218,7 @@ contains
 
        call ncd_inqvid(ncid, varname, varid, readvar=varpresent)
        if (varpresent) then
-          status = nf90_get_var(ncid, varid, idata)
+          status = nf90_get_var(ncid%fh, varid, idata)
           data(:)=.False.
           data   = (idata == 1)
        endif
@@ -1220,7 +1236,7 @@ contains
           idata1d = 0
        end where
        call ncd_inqvid(ncid, varname, varid)
-       status = nf90_put_var(ncid, varid, idata1d, start=start, count=count)
+       status = nf90_put_var(ncid%fh, varid, idata1d, start=start, count=count)
        deallocate( idata1d )
 
     endif   ! flag
@@ -1235,7 +1251,7 @@ contains
     ! netcdf I/O of text variable of 1 char
     !
     ! !ARGUMENTS:
-    integer         ,           intent(inout) :: ncid         ! netcdf file id
+    type(file_desc_t),          intent(inout) :: ncid         ! netcdf file id
     character(len=*),           intent(in)    :: flag         ! 'read' or 'write'
     character(len=*),           intent(in)    :: varname      ! variable name
     character(len=*),           intent(inout) :: data         ! raw data
@@ -1257,7 +1273,7 @@ contains
        call ncd_inqvid(ncid, varname, varid, readvar=varpresent)
        if (varpresent) then
           data   = ' '
-          status = nf90_get_var(ncid, varid, data, start=start, count=count)
+          status = nf90_get_var(ncid%fh, varid, data, start=start, count=count)
        end if
        if (present(readvar)) readvar = varpresent
 
@@ -1265,7 +1281,7 @@ contains
 
        call ncd_inqvid(ncid, varname, varid)
 
-       status = nf90_put_var(ncid, varid, data, start=start, count=count)
+       status = nf90_put_var(ncid%fh, varid, data, start=start, count=count)
 
     endif
     !
@@ -1284,7 +1300,7 @@ contains
     ! netcdf I/O of text (char *)  variable of 1d
     !
     ! !ARGUMENTS:
-    integer         ,         intent(inout)   :: ncid         ! netcdf file id
+    type(file_desc_t),          intent(inout)   :: ncid         ! netcdf file id
     character(len=*),           intent(in)    :: flag         ! 'read' or 'write'
     character(len=*),           intent(in)    :: varname      ! variable name
     character(len=*),           intent(inout) :: data(:)      ! raw data
@@ -1313,7 +1329,7 @@ contains
     if (present(counts)) count(2) = counts(1)
 
     call ncd_inqvid(ncid, varname, varid, readvar=varpresent)
-    status = nf90_inquire_variable(ncid, varid, ndims = ndims)
+    status = nf90_inquire_variable(ncid%fh, varid, ndims = ndims)
     call ncd_inqvdids(ncid, varname, dids, status)
     call ncd_inqdname(ncid,dids(ndims),dimname)
     if ('time' == trim(dimname) .and. present(nt)) then
@@ -1323,13 +1339,13 @@ contains
 
     if (flag == 'read') then
        if (varpresent) then
-          status = nf90_get_var(ncid, varid, data, start=start, count=count)
+          status = nf90_get_var(ncid%fh, varid, data, start=start, count=count)
        end if
        if (present(readvar)) readvar = varpresent
 
     elseif (flag == 'write') then
 
-       status = nf90_put_var(ncid, varid, data, start=start, count=count)
+       status = nf90_put_var(ncid%fh, varid, data, start=start, count=count)
        if (status /= nf90_NOERR) then
           call shr_sys_abort('ncd_io read/write ERROR' //trim(varname) &
             // trim(nf90_strerror(status)))
@@ -1351,7 +1367,7 @@ contains
     ! netcdf I/O of text variable
     !
     ! !ARGUMENTS:
-    integer         ,         intent(inout)   :: ncid         ! netcdf file id
+    type(file_desc_t),          intent(inout)   :: ncid         ! netcdf file id
     character(len=*),           intent(in)    :: flag         ! 'read' or 'write'
     character(len=*),           intent(in)    :: varname      ! variable name
     character(len=*),           intent(inout) :: data(:,:)    ! raw data
@@ -1382,7 +1398,7 @@ contains
     if (present(counts)) count(2:3) = counts(1:2)
 
     call ncd_inqvid(ncid, varname, varid, readvar=varpresent)
-    status = nf90_inquire_variable(ncid, varid, ndims = ndims)
+    status = nf90_inquire_variable(ncid%fh, varid, ndims = ndims)
     call ncd_inqvdids(ncid, varname, dids, status)
     call ncd_inqdname(ncid,dids(ndims),dimname)
     if ('time' == trim(dimname) .and. present(nt)) then
@@ -1392,12 +1408,12 @@ contains
 
     if (flag == 'read') then
        if (varpresent) then
-          status = nf90_get_var(ncid, varid, data, start=start, count=count)
+          status = nf90_get_var(ncid%fh, varid, data, start=start, count=count)
        end if
        if (present(readvar)) readvar = varpresent
 
     elseif (flag == 'write') then
-       status = nf90_put_var(ncid, varid, data, start=start, count=count)
+       status = nf90_put_var(ncid%fh, varid, data, start=start, count=count)
        if (status /= nf90_NOERR) then
           call shr_sys_abort('ncd_io read/write ERROR' //trim(varname) &
            // trim(nf90_strerror(status)))
@@ -1419,7 +1435,7 @@ contains
     ! netcdf I/O of global variable
     !
     ! !ARGUMENTS:
-    integer         ,           intent(inout) :: ncid         ! netcdf file id
+    type(file_desc_t),          intent(inout) :: ncid         ! netcdf file id
     character(len=*),           intent(in)    :: flag         ! 'read' or 'write'
     character(len=*),           intent(in)    :: varname      ! variable name
     integer(i4)     ,           intent(inout) :: data         ! raw data
@@ -1437,7 +1453,7 @@ contains
 
        call ncd_inqvid(ncid, trim(varname), varid, readvar=varpresent)
        if (varpresent) then
-          status = nf90_get_var(ncid, varid, data)
+          status = nf90_get_var(ncid%fh, varid, data)
        end if
        if (present(readvar)) readvar = varpresent
 
@@ -1445,7 +1461,7 @@ contains
 
        call ncd_inqvid  (ncid, trim(varname), varid)
 
-       status = nf90_put_var(ncid, varid, data)
+       status = nf90_put_var(ncid%fh, varid, data)
 
     endif
 
@@ -1458,7 +1474,7 @@ contains
     ! netcdf I/O of global variable
     !
     ! !ARGUMENTS:
-    integer         ,           intent(inout) :: ncid         ! netcdf file id
+    type(file_desc_t),          intent(inout) :: ncid         ! netcdf file id
     character(len=*),           intent(in)    :: flag         ! 'read' or 'write'
     character(len=*),           intent(in)    :: varname      ! variable name
     real(r8)        ,           intent(inout) :: data         ! raw data
@@ -1476,7 +1492,7 @@ contains
 
        call ncd_inqvid(ncid, trim(varname), varid, readvar=varpresent)
        if (varpresent) then
-          status = nf90_get_var(ncid, varid, data)
+          status = nf90_get_var(ncid%fh, varid, data)
        end if
        if (present(readvar)) readvar = varpresent
 
@@ -1484,7 +1500,7 @@ contains
 
        call ncd_inqvid  (ncid, trim(varname), varid)
 
-       status = nf90_put_var(ncid, varid, data)
+       status = nf90_put_var(ncid%fh, varid, data)
 
     endif
 
@@ -1499,7 +1515,7 @@ end subroutine ncd_io_0d_double
     ! netcdf I/O for 1d 
     !
     ! !ARGUMENTS:
-    integer          , intent(inout)         :: ncid          ! netcdf file id
+    type(file_desc_t), intent(inout)         :: ncid          ! netcdf file id
     character(len=*) , intent(in)            :: flag          ! 'read' or 'write'
     character(len=*) , intent(in)            :: varname       ! variable name
     integer(i4)      , pointer               :: data(:)       ! local decomposition data
@@ -1541,7 +1557,7 @@ end subroutine ncd_io_0d_double
     !
     call ncd_inqvid(ncid, varname, varid, readvar=varpresent)
     if (varpresent) then
-       status = nf90_inquire_variable(ncid, varid, ndims = ndims)
+       status = nf90_inquire_variable(ncid%fh, varid, ndims = ndims)
        call ncd_inqvdids(ncid, varname, dids(1:ndims), status)
 
        dlen(:)=1
@@ -1562,13 +1578,13 @@ end subroutine ncd_io_0d_double
 
        if (flag == 'read') then
           if (ndims == 1) then
-             status= nf90_get_var(ncid, varid, data, start=start, count=count)
+             status= nf90_get_var(ncid%fh, varid, data, start=start, count=count)
           else if (ndims == 2) then
              ! it implies read 2D data and then flatten (column-first)
              ! so be aware of start/count if as input
              allocate( itemp(dlen(1),dlen(2),1,1) )
              allocate( itemp1d(dlen(1)*dlen(2)) )
-             status= nf90_get_var(ncid, varid, itemp)
+             status= nf90_get_var(ncid%fh, varid, itemp)
              itemp1d = reshape(itemp, shape(itemp1d))
              data = itemp1d(start(1):start(1)+count(1)-1)  !
              deallocate(itemp,itemp1d)
@@ -1577,7 +1593,7 @@ end subroutine ncd_io_0d_double
              ! so be aware of start/count if as input
              allocate( itemp(dlen(1),dlen(2),dlen(3),1) )
              allocate( itemp1d(dlen(1)*dlen(2)*dlen(3)) )
-             status= nf90_get_var(ncid, varid, itemp)
+             status= nf90_get_var(ncid%fh, varid, itemp)
              itemp1d = reshape(itemp, shape(itemp1d))
              data = itemp1d(start(1):start(1)+count(1)-1)  !
              deallocate(itemp,itemp1d)
@@ -1586,7 +1602,7 @@ end subroutine ncd_io_0d_double
              ! so be aware of start/count if as input
              allocate( itemp(dlen(1),dlen(2),dlen(3),dlen(4)) )
              allocate( itemp1d(dlen(1)*dlen(2)*dlen(3)*dlen(4)) )
-             status= nf90_get_var(ncid, varid, itemp)
+             status= nf90_get_var(ncid%fh, varid, itemp)
              itemp1d = reshape(itemp, shape(itemp1d))
              data = itemp1d(start(1):start(1)+count(1)-1)  !
              deallocate(itemp,itemp1d)
@@ -1603,22 +1619,26 @@ end subroutine ncd_io_0d_double
           end if
 
        elseif (flag == 'write') then
-           status= nf90_put_var(ncid, varid, data, start=start, count=count)
+           status= nf90_put_var(ncid%fh, varid, data, start=start, count=count)
 
            if (status /= nf90_NOERR) then
               call shr_sys_abort('ncd_io read/write ERROR' //trim(varname) &
                  // trim(nf90_strerror(status)))
           end if
 
-       else if (masterproc) then
-           write(iulog,*) subname//' ERROR: unsupported flag ',trim(flag)
-           call shr_sys_abort(errMsg(__FILE__, __LINE__))
+       else
+          if (masterproc) write(iulog,*) subname//' ERROR: unsupported flag ',trim(flag)
+          call shr_sys_abort(errMsg(__FILE__, __LINE__))
        endif
 
        !
     !
-    elseif (masterproc .and. .not.present(readvar)) then
-       write(iulog,*) subname//' ERROR: non-existed variable in file id',trim(varname), ncid
+    elseif (present(readvar)) then
+       readvar = .false.
+
+    else
+       if (masterproc) &
+         write(iulog,*) subname//' ERROR: non-existed variable in file id',trim(varname), ncid%fh
        call shr_sys_abort(errMsg(__FILE__, __LINE__))
 
     endif
@@ -1633,7 +1653,7 @@ end subroutine ncd_io_0d_double
     ! netcdf I/O for 1d real
     !
     ! !ARGUMENTS:
-    integer, intent(inout)                   :: ncid          ! netcdf file id
+    type(file_desc_t), intent(inout)         :: ncid          ! netcdf file id
     character(len=*) , intent(in)            :: flag          ! 'read' or 'write'
     character(len=*) , intent(in)            :: varname       ! variable name
     real(r8)         , pointer               :: data(:)       ! local decomposition data
@@ -1684,7 +1704,7 @@ end subroutine ncd_io_0d_double
     dlen(:)=1
     call ncd_inqvid(ncid, varname, varid, readvar=varpresent)
     if (varpresent) then
-       status = nf90_inquire_variable(ncid, varid, ndims = ndims)
+       status = nf90_inquire_variable(ncid%fh, varid, ndims = ndims)
        call ncd_inqvdids(ncid, varname, dids(1:ndims), status)
        do i = 1, ndims
           call ncd_inqdname(ncid,dids(i),dimname)
@@ -1702,13 +1722,13 @@ end subroutine ncd_io_0d_double
 
        if (flag == 'read') then
           if (ndims == 1) then
-             status= nf90_get_var(ncid, varid, data, start=start, count=count)
+             status= nf90_get_var(ncid%fh, varid, data, start=start, count=count)
           else if (ndims == 2) then
              ! it implies read 2D data and then flatten (column-first)
              ! so be aware of start/count if as input
              allocate(rtemp(dlen(1),dlen(2),1,1) )
              allocate(rtemp1d(dlen(1)*dlen(2)) )
-             status= nf90_get_var(ncid, varid, rtemp)
+             status= nf90_get_var(ncid%fh, varid, rtemp)
              rtemp1d = reshape(rtemp, shape(rtemp1d))
              data = rtemp1d(start(1):start(1)+count(1)-1)
              deallocate(rtemp,rtemp1d)
@@ -1717,7 +1737,7 @@ end subroutine ncd_io_0d_double
              ! so be aware of start/count if as input
              allocate(rtemp(dlen(1),dlen(2),dlen(3),1) )
              allocate(rtemp1d(dlen(1)*dlen(2)*dlen(3)) )
-             status= nf90_get_var(ncid, varid, rtemp)
+             status= nf90_get_var(ncid%fh, varid, rtemp)
              rtemp1d = reshape(rtemp, shape(rtemp1d))
              data = rtemp1d(start(1):start(1)+count(1)-1)
              deallocate(rtemp,rtemp1d)
@@ -1726,7 +1746,7 @@ end subroutine ncd_io_0d_double
              ! so be aware of start/count if as input
              allocate(rtemp(dlen(1),dlen(2),dlen(3),dlen(4)) )
              allocate(rtemp1d(dlen(1)*dlen(2)*dlen(3)*dlen(4)) )
-             status= nf90_get_var(ncid, varid, rtemp)
+             status= nf90_get_var(ncid%fh, varid, rtemp)
              rtemp1d = reshape(rtemp, shape(rtemp1d))
              data = rtemp1d(start(1):start(1)+count(1)-1)
              deallocate(rtemp,rtemp1d)
@@ -1754,21 +1774,25 @@ end subroutine ncd_io_0d_double
                 if ( isnan(data(i)) ) data(i) = spval
              end do
           end if
-          status= nf90_put_var(ncid, varid, data, start=start, count=count)
+          status= nf90_put_var(ncid%fh, varid, data, start=start, count=count)
           if (status /= nf90_NOERR) then
              call shr_sys_abort('ncd_io writeFAILED ' //trim(varname) &
                 // trim(nf90_strerror(status)))
           end if
 
-       else if (masterproc) then
-          write(iulog,*) subname//' ERROR: unsupported flag ',trim(flag)
+       else
+          if (masterproc) write(iulog,*) subname//' ERROR: unsupported flag ',trim(flag)
           call shr_sys_abort(errMsg(__FILE__, __LINE__))
        endif
 
        !
     !
-    elseif (masterproc .and. .not.present(readvar)) then
-       write(iulog,*) subname//' ERROR: non-existed variable in file id',trim(varname), ncid
+    elseif (present(readvar)) then
+       readvar = .false.
+
+    else
+       if (masterproc) &
+         write(iulog,*) subname//' ERROR: non-existed variable in file id',trim(varname), ncid%fh
        call shr_sys_abort(errMsg(__FILE__, __LINE__))
 
     endif
@@ -1784,7 +1808,7 @@ end subroutine ncd_io_0d_double
     ! Netcdf i/o of 2d integer (single)
     !
     ! !ARGUMENTS:
-    integer          , intent(inout)         :: ncid          ! netcdf file id
+    type(file_desc_t), intent(inout)         :: ncid          ! netcdf file id
     character(len=*) , intent(in)            :: flag          ! 'read' or 'write'
     character(len=*) , intent(in)            :: varname       ! variable name
     integer(i4)      , pointer               :: data(:,:)     ! local decomposition input data
@@ -1842,7 +1866,7 @@ end subroutine ncd_io_0d_double
     !
     call ncd_inqvid(ncid, varname, varid, readvar=varpresent)
     if (varpresent) then
-       status = nf90_inquire_variable(ncid, varid, ndims = ndims)
+       status = nf90_inquire_variable(ncid%fh, varid, ndims = ndims)
        call ncd_inqvdids(ncid, varname, dids, status)
        dlen(:) = 1
        do i = 1, ndims
@@ -1874,14 +1898,14 @@ end subroutine ncd_io_0d_double
 
        if (flag == 'read') then
           if (present(switchdim)) then
-             status= nf90_get_var(ncid, varid, temp, start=start, count=count)
+             status= nf90_get_var(ncid%fh, varid, temp, start=start, count=count)
              do j = lb2,ub2
                 do i = lb1,ub1
                    data(i,j) = temp(j,i)
                 end do
              end do
           else
-             status= nf90_get_var(ncid, varid, data, start=start, count=count)
+             status= nf90_get_var(ncid%fh, varid, data, start=start, count=count)
           end if
           !
           if (present(readvar)) then
@@ -1898,23 +1922,26 @@ end subroutine ncd_io_0d_double
                    temp(j,i) = data(i,j)
                 end do
              end do
-             status= nf90_put_var(ncid, varid, temp, start=start, count=count)
+             status= nf90_put_var(ncid%fh, varid, temp, start=start, count=count)
           else
-             status= nf90_put_var(ncid, varid, data, start=start, count=count)
+             status= nf90_put_var(ncid%fh, varid, data, start=start, count=count)
           end if
           if (status /= nf90_NOERR) then
              call shr_sys_abort('ncd_io writeFAILED  ' //trim(varname) &
                 // ' with error - ' //trim(nf90_strerror(status)))
           end if
 
-       else if (masterproc) then
-           write(iulog,*) subname//' ERROR: unsupported flag ',trim(flag)
+       else
+           if (masterproc) write(iulog,*) subname//' ERROR: unsupported flag ',trim(flag)
            call shr_sys_abort(errMsg(__FILE__, __LINE__))
        endif
-
     !
-    elseif (masterproc .and. .not.present(readvar)) then
-       write(iulog,*) subname//' ERROR: non-existed variable in file id',trim(varname), ncid
+    elseif (present(readvar)) then
+       readvar = .false.
+
+    else
+       if (masterproc) &
+         write(iulog,*) subname//' ERROR: non-existed variable in file id',trim(varname), ncid%fh
        call shr_sys_abort(errMsg(__FILE__, __LINE__))
 
     endif
@@ -1934,7 +1961,7 @@ end subroutine ncd_io_0d_double
     ! Netcdf i/o of 2d real
     !
     ! !ARGUMENTS:
-    integer, intent(inout)                   :: ncid            ! netcdf file id
+    type(file_desc_t), intent(inout)         :: ncid            ! netcdf file id
     character(len=*) , intent(in)            :: flag            ! 'read' or 'write'
     character(len=*) , intent(in)            :: varname         ! variable name
     real(r8)         , pointer               :: data(:,:)       ! local decomposition input data
@@ -1999,7 +2026,7 @@ end subroutine ncd_io_0d_double
     !
     call ncd_inqvid(ncid, varname, varid, readvar=varpresent)
     if (varpresent) then
-       status = nf90_inquire_variable(ncid, varid, ndims = ndims)
+       status = nf90_inquire_variable(ncid%fh, varid, ndims = ndims)
        call ncd_inqvdids(ncid, varname, dids, status)
        dlen(:) = 1
        do i = 1, ndims
@@ -2031,14 +2058,14 @@ end subroutine ncd_io_0d_double
 
        if (flag == 'read') then
           if (present(switchdim)) then
-             status= nf90_get_var(ncid, varid, temp, start=start, count=count)
+             status= nf90_get_var(ncid%fh, varid, temp, start=start, count=count)
              do j = lb2,ub2
                 do i = lb1,ub1
                    data(i,j) = temp(j,i)
                 end do
              end do
           else
-             status= nf90_get_var(ncid, varid, data, start=start, count=count)
+             status= nf90_get_var(ncid%fh, varid, data, start=start, count=count)
           end if
           !
           if ( present(cnvrtnan2fill) )then
@@ -2075,24 +2102,27 @@ end subroutine ncd_io_0d_double
                    temp(j,i) = data(i,j)
                 end do
              end do
-             status= nf90_put_var(ncid, varid, temp, start=start, count=count)
+             status= nf90_put_var(ncid%fh, varid, temp, start=start, count=count)
           else
-             status= nf90_put_var(ncid, varid, data, start=start, count=count)
+             status= nf90_put_var(ncid%fh, varid, data, start=start, count=count)
           end if
           if (status /= nf90_NOERR) then
              call shr_sys_abort('ncd_io writeFAILED  ' //trim(varname) &
                 // ' with error - ' //trim(nf90_strerror(status)))
           end if
 
-       else if (masterproc) then
-           write(iulog,*) subname//' ERROR: unsupported flag ',trim(flag)
+       else
+           if (masterproc) write(iulog,*) subname//' ERROR: unsupported flag ',trim(flag)
            call shr_sys_abort(errMsg(__FILE__, __LINE__))
        endif
-
        !
     !
-    elseif (masterproc .and. .not.present(readvar)) then
-       write(iulog,*) subname//' ERROR: non-existed variable in file id',trim(varname), ncid
+    elseif (present(readvar)) then
+       readvar = .false.
+
+    else
+       if (masterproc) &
+         write(iulog,*) subname//' ERROR: non-existed variable in file id',trim(varname), ncid%fh
        call shr_sys_abort(errMsg(__FILE__, __LINE__))
 
     endif
@@ -2112,7 +2142,7 @@ end subroutine ncd_io_0d_double
     ! Netcdf i/o of 3d integer (single)
     !
     ! !ARGUMENTS:
-    integer          , intent(inout)         :: ncid            ! netcdf file id
+    type(file_desc_t), intent(inout)         :: ncid            ! netcdf file id
     character(len=*) , intent(in)            :: flag            ! 'read' or 'write'
     character(len=*) , intent(in)            :: varname         ! variable name
     integer(i4)      , pointer               :: data(:,:,:)     ! local decomposition input data
@@ -2152,7 +2182,7 @@ end subroutine ncd_io_0d_double
     !
     call ncd_inqvid(ncid, varname, varid, readvar=varpresent)
     if (varpresent) then
-       status = nf90_inquire_variable(ncid, varid, ndims = ndims)
+       status = nf90_inquire_variable(ncid%fh, varid, ndims = ndims)
        call ncd_inqvdids(ncid, varname, dids, status)
        dlen(:)=1
        do i = 1, ndims
@@ -2182,7 +2212,7 @@ end subroutine ncd_io_0d_double
        end if
 
        if (flag == 'read') then
-          status= nf90_get_var(ncid, varid, data, start=start, count=count)
+          status= nf90_get_var(ncid%fh, varid, data, start=start, count=count)
           !
           if (present(readvar)) then
             readvar = varpresent
@@ -2192,21 +2222,25 @@ end subroutine ncd_io_0d_double
           end if
        !
        elseif (flag == 'write') then
-          status= nf90_put_var(ncid, varid, data, start=start, count=count)
+          status= nf90_put_var(ncid%fh, varid, data, start=start, count=count)
           if (status /= nf90_NOERR) then
              call shr_sys_abort('ncd_io writeFAILED  ' //trim(varname) &
                 // ' with error - ' //trim(nf90_strerror(status)))
           end if
 
-       else if (masterproc) then
-           write(iulog,*) subname//' ERROR: unsupported flag ',trim(flag)
+       else
+           if (masterproc) write(iulog,*) subname//' ERROR: unsupported flag ',trim(flag)
            call shr_sys_abort(errMsg(__FILE__, __LINE__))
        endif
 
        !
     !
-    elseif (masterproc .and. .not.present(readvar)) then
-       write(iulog,*) subname//' ERROR: non-existed variable in file id',trim(varname), ncid
+    elseif (present(readvar)) then
+       readvar = .false.
+
+    else
+       if (masterproc) &
+         write(iulog,*) subname//' ERROR: non-existed variable in file id',trim(varname), ncid%fh
        call shr_sys_abort(errMsg(__FILE__, __LINE__))
 
     endif
@@ -2222,7 +2256,7 @@ end subroutine ncd_io_0d_double
     ! Netcdf i/o of 3d real data
     !
     ! !ARGUMENTS:
-    integer          , intent(inout)         :: ncid          ! netcdf file id
+    type(file_desc_t), intent(inout)         :: ncid          ! netcdf file id
     character(len=*) , intent(in)            :: flag          ! 'read' or 'write'
     character(len=*) , intent(in)            :: varname       ! variable name
     real(r8)         , pointer               :: data(:,:,:)   ! local decomposition input data
@@ -2266,7 +2300,7 @@ end subroutine ncd_io_0d_double
     !
     call ncd_inqvid(ncid, varname, varid, readvar=varpresent)
     if (varpresent) then
-       status = nf90_inquire_variable(ncid, varid, ndims = ndims)
+       status = nf90_inquire_variable(ncid%fh, varid, ndims = ndims)
        call ncd_inqvdids(ncid, varname, dids, status)
        dlen(:) = 1
        do i = 1, ndims
@@ -2297,7 +2331,7 @@ end subroutine ncd_io_0d_double
        end if
 
        if (flag == 'read') then
-          status= nf90_get_var(ncid, varid, data, start=start, count=count)
+          status= nf90_get_var(ncid%fh, varid, data, start=start, count=count)
           !
           if (present(readvar)) then
             readvar = varpresent
@@ -2307,21 +2341,24 @@ end subroutine ncd_io_0d_double
           end if
        !
        elseif (flag == 'write') then
-          status= nf90_put_var(ncid, varid, data, start=start, count=count)
+          status= nf90_put_var(ncid%fh, varid, data, start=start, count=count)
           if (status /= nf90_NOERR) then
              call shr_sys_abort('ncd_io writeFAILED  ' //trim(varname) &
                 // ' with error - ' //trim(nf90_strerror(status)))
           end if
 
-       else if (masterproc) then
-           write(iulog,*) subname//' ERROR: unsupported flag ',trim(flag)
-           call shr_sys_abort(errMsg(__FILE__, __LINE__))
+       else
+          if (masterproc) write(iulog,*) subname//' ERROR: unsupported flag ',trim(flag)
+          call shr_sys_abort(errMsg(__FILE__, __LINE__))
        endif
-
        !
     !
-    elseif (masterproc .and. .not.present(readvar)) then
-       write(iulog,*) subname//' ERROR: non-existed variable in file id',trim(varname), ncid
+    elseif (present(readvar)) then
+       readvar = .false.
+
+    else
+       if (masterproc) &
+         write(iulog,*) subname//' ERROR: non-existed variable in file id',trim(varname), ncid%fh
        call shr_sys_abort(errMsg(__FILE__, __LINE__))
 
     endif
@@ -2338,7 +2375,7 @@ end subroutine ncd_io_0d_double
     ! Netcdf i/o of 4d integer (single)
     !
     ! !ARGUMENTS:
-    integer          , intent(inout)         :: ncid          ! netcdf file id
+    type(file_desc_t), intent(inout)         :: ncid          ! netcdf file id
     character(len=*) , intent(in)            :: flag          ! 'read' or 'write'
     character(len=*) , intent(in)            :: varname       ! variable name
     integer(i4)      , pointer               :: data(:,:,:,:) ! local decomposition input data
@@ -2378,7 +2415,7 @@ end subroutine ncd_io_0d_double
     !
     call ncd_inqvid(ncid, varname, varid, readvar=varpresent)
     if (varpresent) then
-       status = nf90_inquire_variable(ncid, varid, ndims = ndims)
+       status = nf90_inquire_variable(ncid%fh, varid, ndims = ndims)
        call ncd_inqvdids(ncid, varname, dids, status)
        dlen(:) = 1
        do i = 1, ndims
@@ -2409,7 +2446,7 @@ end subroutine ncd_io_0d_double
        end if
 
        if (flag == 'read') then
-          status= nf90_get_var(ncid, varid, data, start=start, count=count)
+          status= nf90_get_var(ncid%fh, varid, data, start=start, count=count)
           !
           if (present(readvar)) then
             readvar = varpresent
@@ -2420,21 +2457,25 @@ end subroutine ncd_io_0d_double
 
        !
        elseif (flag == 'write') then
-          status= nf90_put_var(ncid, varid, data, start=start, count=count)
+          status= nf90_put_var(ncid%fh, varid, data, start=start, count=count)
           if (status /= nf90_NOERR) then
              call shr_sys_abort('ncd_io writeFAILED  ' //trim(varname) &
                 // ' with error - ' //trim(nf90_strerror(status)))
           end if
 
-       else if (masterproc) then
-           write(iulog,*) subname//' ERROR: unsupported flag ',trim(flag)
+       else
+           if (masterproc) write(iulog,*) subname//' ERROR: unsupported flag ',trim(flag)
            call shr_sys_abort(errMsg(__FILE__, __LINE__))
        endif
 
        !
     !
-    elseif (masterproc .and. .not.present(readvar)) then
-       write(iulog,*) subname//' ERROR: non-existed variable in file id',trim(varname), ncid
+    elseif (present(readvar)) then
+       readvar = .false.
+
+    else
+       if (masterproc) &
+         write(iulog,*) subname//' ERROR: non-existed variable in file id',trim(varname), ncid%fh
        call shr_sys_abort(errMsg(__FILE__, __LINE__))
 
     endif
@@ -2450,7 +2491,7 @@ end subroutine ncd_io_0d_double
     ! Netcdf i/o of 4d real data
     !
     ! !ARGUMENTS:
-    integer          , intent(inout)         :: ncid          ! netcdf file id
+    type(file_desc_t), intent(inout)         :: ncid          ! netcdf file id
     character(len=*) , intent(in)            :: flag          ! 'read' or 'write'
     character(len=*) , intent(in)            :: varname       ! variable name
     real(r8)         , pointer               :: data(:,:,:,:) ! local decomposition input data
@@ -2491,7 +2532,7 @@ end subroutine ncd_io_0d_double
     !
     call ncd_inqvid(ncid, varname, varid, readvar=varpresent)
     if (varpresent) then
-       status = nf90_inquire_variable(ncid, varid, ndims = ndims)
+       status = nf90_inquire_variable(ncid%fh, varid, ndims = ndims)
        call ncd_inqvdids(ncid, varname, dids, status)
        dlen(:) = 1
        do i = 1, ndims
@@ -2522,7 +2563,7 @@ end subroutine ncd_io_0d_double
        end if
 
        if (flag == 'read') then
-          status= nf90_get_var(ncid, varid, data, start=start, count=count)
+          status= nf90_get_var(ncid%fh, varid, data, start=start, count=count)
           !
           if (present(readvar)) then
             readvar = varpresent
@@ -2532,21 +2573,25 @@ end subroutine ncd_io_0d_double
           end if
        !
        elseif (flag == 'write') then
-          status= nf90_put_var(ncid, varid, data, start=start, count=count)
+          status= nf90_put_var(ncid%fh, varid, data, start=start, count=count)
           if (status /= nf90_NOERR) then
              call shr_sys_abort('ncd_io writeFAILED  ' //trim(varname) &
                 // ' with error - ' //trim(nf90_strerror(status)))
           end if
 
-       else if (masterproc) then
-           write(iulog,*) subname//' ERROR: unsupported flag ',trim(flag)
+       else
+           if (masterproc) write(iulog,*) subname//' ERROR: unsupported flag ',trim(flag)
            call shr_sys_abort(errMsg(__FILE__, __LINE__))
        endif
 
        !
     !
-    elseif (masterproc .and. .not.present(readvar)) then
-       write(iulog,*) subname//' ERROR: non-existed variable in file id',trim(varname), ncid
+    elseif (present(readvar)) then
+       readvar = .false.
+
+    else
+       if (masterproc) &
+         write(iulog,*) subname//' ERROR: non-existed variable in file id',trim(varname), ncid%fh
        call shr_sys_abort(errMsg(__FILE__, __LINE__))
 
     endif
