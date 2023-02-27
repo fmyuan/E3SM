@@ -305,7 +305,11 @@ contains
     ! Initialize cold start conditions for module variables
     !
     ! !USES
+#ifdef LDOMAIN_SUB
+    use ncdio_nf90Mod
+#else
     use ncdio_pio
+#endif
     use elm_varctl, only : fsurdat
     !
     ! !ARGUMENTS:

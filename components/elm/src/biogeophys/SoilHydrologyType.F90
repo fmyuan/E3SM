@@ -238,7 +238,11 @@ contains
     use column_varcon   , only : icol_road_imperv, icol_roof, icol_sunwall
     use fileutils       , only : getfil
     use organicFileMod  , only : organicrd
+#ifdef LDOMAIN_SUB
+    use ncdio_nf90Mod   , only : file_desc_t, ncd_io, ncd_pio_openfile, ncd_pio_closefile
+#else
     use ncdio_pio       , only : file_desc_t, ncd_io, ncd_pio_openfile, ncd_pio_closefile
+#endif
     !
     ! !ARGUMENTS:
     class(soilhydrology_type) :: this

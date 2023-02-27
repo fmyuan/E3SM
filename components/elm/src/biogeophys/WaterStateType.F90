@@ -363,7 +363,7 @@ contains
     use column_varcon   , only : icol_road_imperv, icol_roof, icol_sunwall
     use elm_varcon      , only : denice, denh2o, spval, sb, bdsno 
     use elm_varcon      , only : h2osno_max, zlnd, tfrz, spval, pc
-    use elm_varctl      , only : fsurdat, iulog
+    use elm_varctl      , only : iulog
     use spmdMod         , only : masterproc
     use abortutils      , only : endrun
     use fileutils       , only : getfil

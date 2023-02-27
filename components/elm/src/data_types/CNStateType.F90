@@ -706,7 +706,11 @@ contains
     use spmdMod    , only : masterproc
     use fileutils  , only : getfil
     use elm_varctl , only : nsrest, nsrStartup
+#ifdef LDOMAIN_SUB
+    use ncdio_nf90Mod
+#else
     use ncdio_pio
+#endif
     !
     ! !ARGUMENTS:
     class(cnstate_type) :: this

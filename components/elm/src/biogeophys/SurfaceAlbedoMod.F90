@@ -14,7 +14,7 @@ module SurfaceAlbedoMod
   use landunit_varcon   , only : istsoil, istcrop, istdlak
   use elm_varcon        , only : grlnd, namep, namet
   use elm_varpar        , only : numrad, nlevcan, nlevsno, nlevcan
-  use elm_varctl        , only : fsurdat, iulog, subgridflag, use_snicar_frc, use_fates, use_snicar_ad
+  use elm_varctl        , only : iulog, subgridflag, use_snicar_frc, use_fates, use_snicar_ad
   use VegetationPropertiesType    , only : veg_vp
   use SnowSnicarMod     , only : sno_nbr_aer, SNICAR_RT, SNICAR_AD_RT, DO_SNO_AER, DO_SNO_OC
   use AerosolType       , only : aerosol_type
@@ -30,7 +30,7 @@ module SurfaceAlbedoMod
 
   use SurfaceAlbedoType , only : lake_melt_icealb, alblak, alblakwi
   use SurfaceAlbedoType , only : albice, albsat, albdry, isoicol
-  use elm_instMod , only : alm_fates
+  use elm_instMod       , only : alm_fates
   use topounit_varcon   , only : max_topounits  
   use TopounitType      , only : top_pp
   !
@@ -302,8 +302,8 @@ contains
 
        call SoilAlbedo(bounds, &
             num_nourbanc, filter_nourbanc, &
-         coszen_col(bounds%begc:bounds%endc), &
-         albsnd(bounds%begc:bounds%endc, :), &
+            coszen_col(bounds%begc:bounds%endc), &
+            albsnd(bounds%begc:bounds%endc, :), &
             albsni(bounds%begc:bounds%endc, :), &
             lakestate_vars, surfalb_vars)
 

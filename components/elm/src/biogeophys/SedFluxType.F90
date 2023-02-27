@@ -154,7 +154,11 @@ contains
     use elm_varcon     , only : grlnd
     use elm_varctl     , only : fsurdat
     use fileutils      , only : getfil
+#ifdef LDOMAIN_SUB
+    use ncdio_nf90Mod  , only : file_desc_t, ncd_io, ncd_pio_openfile, ncd_pio_closefile
+#else
     use ncdio_pio      , only : file_desc_t, ncd_io, ncd_pio_openfile, ncd_pio_closefile
+#endif
     !
     ! !ARGUMENTS:
     class(sedflux_type)         :: this

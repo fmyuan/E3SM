@@ -678,7 +678,11 @@ contains
     use CH4varcon       , only : allowlakeprod, usephfact, fin_use_fsat
     use spmdMod         , only : masterproc
     use fileutils       , only : getfil
+#ifdef LDOMAIN_SUB
+    use ncdio_nf90Mod
+#else
     use ncdio_pio
+#endif
     !
     ! !ARGUMENTS:
     class(ch4_type) :: this
