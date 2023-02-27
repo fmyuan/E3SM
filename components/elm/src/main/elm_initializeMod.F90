@@ -75,7 +75,7 @@ contains
     use surfrdMod                 , only: surfrd_get_grid_conn, surfrd_topounit_data
     use elm_varctl                , only: lateral_connectivity, domain_decomp_type
     use decompInitMod             , only: decompInit_lnd_using_gp, decompInit_ghosts
-    use decompInitMod             , only: decompInit_lnd_loc
+    use decompInitMod             , only: decompInit_lnd_loc, decompInit_clumps_loc
     use domainLateralMod          , only: ldomain_lateral, domainlateral_init
     use SoilTemperatureMod        , only: init_soil_temperature
     use ExternalModelInterfaceMod , only: EMI_Determine_Active_EMs
@@ -374,7 +374,15 @@ contains
     ! ------------------------------------------------------------------------
     ! Determine decomposition of subgrid scale topounits, landunits, topounits, columns, patches
     ! ------------------------------------------------------------------------
-
+#ifdef LDOMAIN_SUB
+    if (create_glacier_mec_landunit) then
+       call decompInit_clumps_loc(ldomain%glcmask)
+       call decompInit_ghosts(ldomain%glcmask)
+    else
+       call decompInit_clumps_loc()
+       call decompInit_ghosts()
+    endif
+#else
     if (create_glacier_mec_landunit) then
        call decompInit_clumps(ldomain%glcmask)
        call decompInit_ghosts(ldomain%glcmask)
@@ -382,6 +390,7 @@ contains
        call decompInit_clumps()
        call decompInit_ghosts()
     endif
+#endif
 
     ! *** Get ALL processor bounds - for gridcells, landunit, columns and patches ***
 
