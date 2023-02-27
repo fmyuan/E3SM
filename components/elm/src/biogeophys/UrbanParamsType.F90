@@ -392,8 +392,13 @@ module UrbanParamsType
     use fileutils       , only : getavu, relavu, getfil, opnfil
     use spmdMod         , only : masterproc
     use domainMod       , only : ldomain
+#ifdef LDOMAIN_SUB
+    use ncdio_nf90Mod   , only : file_desc_t, ncd_defvar, ncd_io, ncd_inqvdlen, ncd_inqfdims
+    use ncdio_nf90Mod   , only : ncd_pio_openfile, ncd_pio_closefile, ncd_inqdid, ncd_inqdlen
+#else
     use ncdio_pio       , only : file_desc_t, ncd_defvar, ncd_io, ncd_inqvdlen, ncd_inqfdims
     use ncdio_pio       , only : ncd_pio_openfile, ncd_pio_closefile, ncd_inqdid, ncd_inqdlen
+#endif
     !
     ! !ARGUMENTS:
     implicit none

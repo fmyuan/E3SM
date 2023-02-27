@@ -128,7 +128,11 @@ contains
     use shr_log_mod, only : errMsg => shr_log_errMsg
     use fileutils  , only : getfil
     use abortutils , only : endrun
+#ifdef LDOMAIN_SUB
+    use ncdio_nf90Mod,only: file_desc_t, ncd_defvar, ncd_io, ncd_pio_openfile, ncd_pio_closefile
+#else
     use ncdio_pio  , only : file_desc_t, ncd_defvar, ncd_io, ncd_pio_openfile, ncd_pio_closefile
+#endif
     use spmdMod    , only : masterproc
     use topounit_varcon, only : max_topounits
     use GridcellType , only : grc_pp

@@ -7,8 +7,13 @@ module SoilStateType
   use decompMod       , only : bounds_type
   use abortutils      , only : endrun
   use spmdMod         , only : mpicom, MPI_INTEGER, masterproc
+#ifdef LDOMAIN_SUB
+  use ncdio_nf90Mod   , only : file_desc_t, ncd_defvar, ncd_io, ncd_double, ncd_int, ncd_inqvdlen
+  use ncdio_nf90Mod   , only : ncd_pio_openfile, ncd_inqfdims, ncd_pio_closefile, ncd_inqdid, ncd_inqdlen
+#else
   use ncdio_pio       , only : file_desc_t, ncd_defvar, ncd_io, ncd_double, ncd_int, ncd_inqvdlen
   use ncdio_pio       , only : ncd_pio_openfile, ncd_inqfdims, ncd_pio_closefile, ncd_inqdid, ncd_inqdlen
+#endif
   use elm_varpar      , only : more_vertlayers, numpft, numrad
   use elm_varpar      , only : nlevsoi, nlevgrnd, nlevlak, nlevsoifl, nlayer, nlayert, nlevurb, nlevsno
   use landunit_varcon , only : istice, istdlak, istwet, istsoil, istcrop, istice_mec

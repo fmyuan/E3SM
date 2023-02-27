@@ -164,8 +164,13 @@ contains
       use elm_varpar , only : nlevlak
       use elm_varcon , only : tkwat
       use fileutils  , only : getfil
+#ifdef LDOMAIN_SUB
+      use ncdio_nf90Mod,only: file_desc_t, ncd_defvar, ncd_io, ncd_double, ncd_int, ncd_inqvdlen
+      use ncdio_nf90Mod,only: ncd_pio_openfile, ncd_inqfdims, ncd_pio_closefile, ncd_inqdid, ncd_inqdlen
+#else
       use ncdio_pio  , only : file_desc_t, ncd_defvar, ncd_io, ncd_double, ncd_int, ncd_inqvdlen
       use ncdio_pio  , only : ncd_pio_openfile, ncd_inqfdims, ncd_pio_closefile, ncd_inqdid, ncd_inqdlen
+#endif
       !
       ! !ARGUMENTS:
       class(lakestate_type) :: this

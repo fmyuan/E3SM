@@ -22,7 +22,7 @@ module SatellitePhenologyMod
   use decompMod       , only : gsmap_lnd_gdc2glo
   use domainMod       , only : ldomain
   use fileutils       , only : getavu, relavu
-  use VegetationType       , only : veg_pp
+  use VegetationType  , only : veg_pp
   use CanopyStateType , only : canopystate_type
   use WaterstateType  , only : waterstate_type
   use ColumnDataType  , only : col_ws
@@ -30,7 +30,11 @@ module SatellitePhenologyMod
   use spmdMod         , only : masterproc
   use spmdMod         , only : mpicom, comp_id
   use mct_mod
+#ifdef LDOMAIN_SUB
+  use ncdio_nf90Mod
+#else
   use ncdio_pio   
+#endif
   use topounit_varcon , only : max_topounits
   use GridcellType    , only : grc_pp
   !
@@ -577,7 +581,6 @@ contains
     use spmdMod          , only : masterproc, mpicom, MPI_REAL8, MPI_INTEGER
     use shr_scam_mod     , only : shr_scam_getCloseLatLon
     use clm_time_manager , only : get_nstep
-    use netcdf
     !
     ! !ARGUMENTS:
     type(bounds_type) , intent(in) :: bounds
@@ -627,7 +630,7 @@ contains
     call ncd_pio_openfile (ncid, trim(locfn), 0)
 
     if (single_column) then
-       call shr_scam_getCloseLatLon (ncid, scmlat, scmlon, closelat, closelon,&
+       call shr_scam_getCloseLatLon (locfn, scmlat, scmlon, closelat, closelon, &
             closelatidx, closelonidx)
     endif
 
