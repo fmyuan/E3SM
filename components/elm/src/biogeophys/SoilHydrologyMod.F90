@@ -382,9 +382,8 @@ contains
      integer  :: yr, mon, day, tod               !
      integer  :: days, seconds               !
      integer  :: ii
-     real(r8) :: h2osfc_tide
+   !   real(r8) :: h2osfc_tide
      real(r8) :: h2osfc_before
-     real(r8) :: salt_content(bounds%begc:bounds%endc, 1:nlevgrnd)     !salt mass in marsh column
      !-----------------------------------------------------------------------
 
      associate(                                                    &
@@ -406,7 +405,7 @@ contains
           h2orof               =>    col_ws%h2orof               , & ! Output:  [real(r8) (:)   ]  floodplain inudntion volume (mm)
           frac_h2orof          =>    col_ws%frac_h2orof          , & ! Output:  [real(r8) (:)   ]  floodplain inudntion fraction (-)
           salinity             =>    col_ws%salinity            , & ! Input:  [real(r8) (:,:)   ] salinity concentration (ppt)
-          salt_content         =>    col_ws%salt_content        , & ! Input:  [real(r8) (:,:) ] mass of salt in soil later (g)
+          h2osfc_tide          =>    col_ws%h2osfc_tide         , & ! Output: [real(r8) (:) ] Tide height above surface (mm)
 
           qflx_ev_soil         =>    col_wf%qflx_ev_soil         , & ! Input:  [real(r8) (:)   ]  evaporation flux from soil (W/m**2) [+ to atm]
           qflx_evap_soi        =>    col_wf%qflx_evap_soi        , & ! Input:  [real(r8) (:)   ]  ground surface evaporation rate (mm H2O/s) [+]
@@ -727,24 +726,24 @@ contains
 
 #ifdef MARSH
                call get_curr_time(days, seconds)
-               h2osfc_tide = 0.0_r8
+               h2osfc_tide(c) = 0.0_r8
                if(tide_file .ne. ' ') then
 #ifdef CPL_BYPASS
                   ! If external forcing tide file is specified then use that via coupler bypass
                   ! Indexing assumes that tide forcing is a time series of hourly values
                   ! write(iulog,*) h2osfc_tide
-                  h2osfc_tide = (atm2lnd_vars%tide_height(1,1+mod(int((days*secspday+seconds)/3600),atm2lnd_vars%tide_forcing_len)))*1000 !convert m to mm
+                  h2osfc_tide(c) = (atm2lnd_vars%tide_height(1,1+mod(int((days*secspday+seconds)/3600),atm2lnd_vars%tide_forcing_len)))*1000 !convert m to mm
                   col_ws%salinity(c) = atm2lnd_vars%tide_salinity(1,1+mod(int((days*secspday+seconds)/3600),atm2lnd_vars%tide_forcing_len))
                   salinity(c) = col_ws%salinity(c)
                   ! write(iulog,*) h2osfc_tide
 #endif
                else
                   do ii=1,num_tide_comps
-                     h2osfc_tide =    h2osfc_tide    +  tide_coeff_amp(ii) * sin(2.0_r8*SHR_CONST_PI*(1/tide_coeff_period(ii)*(days*secspday+seconds) + tide_coeff_phase(ii)))
+                     h2osfc_tide(c) =    h2osfc_tide(c)    +  tide_coeff_amp(ii) * sin(2.0_r8*SHR_CONST_PI*(1/tide_coeff_period(ii)*(days*secspday+seconds) + tide_coeff_phase(ii)))
                   enddo
                endif
 
-                h2osfc_tide = max(h2osfc_tide + tide_baseline, 0.0)
+                h2osfc_tide(c) = h2osfc_tide(c) + tide_baseline - humhol_ht*1000._r8
 
                !compute lateral subsurface flux
                if (jwt(c) .lt. nlevbed) then
@@ -768,7 +767,7 @@ contains
                zwt_hu = zwt(c)
                zwt_hu = zwt_hu - h2osfc(c)/1000._r8
 
-               zwt_ho = -h2osfc_tide/1000._r8 ! Tidal channel assumed to be saturated at bottom
+               zwt_ho = -(h2osfc_tide(c)+humhol_ht)/1000._r8 ! Tidal channel assumed to be saturated at bottom
                ka_hu = max(ka_hu, 1e-5_r8)
 
                !DMR 12/4/2015
@@ -778,21 +777,19 @@ contains
                   !water table
                   qflx_lat_aqu(c) = 0._r8
                else
-                  qflx_lat_aqu(c) =  2._r8*ka_hu * (zwt_hu-zwt_ho- &
-                     humhol_ht) / humhol_dist
+                  qflx_lat_aqu(c) =  2._r8*ka_hu * (h2osfc_tide(c)/1000._r8 - (h2osfc(c)/1000._r8 - zwt(c))) / humhol_dist
                endif
              
                 ! If flooded water surface of one column is higher than the other, add faster flow since aquifer transfer (ka parameters) is slow
-                if(h2osfc_tide>0 .and. h2osfc_tide>(h2osfc(c)+humhol_ht*1000.0)) then
+                if(h2osfc_tide(c)>0 .and. h2osfc_tide(c)>h2osfc(c)) then
                   ! qflx_lat_aqu(2) = qflx_lat_aqu(2) - min((h2osfc(2)-(h2osfc(1)+humhol_ht*1000.0))*sfcflow_ratescale,h2osfc(2)*0.5/dtime)
-                  qflx_lat_aqu(c) = qflx_lat_aqu(c) + min((h2osfc_tide-(h2osfc(c)+humhol_ht*1000.0))*sfcflow_ratescale,h2osfc_tide*0.75/dtime)
-                elseif(h2osfc(c)>0 .and. (h2osfc(c)+humhol_ht*1000.0) > h2osfc_tide) then
+                  qflx_lat_aqu(c) = qflx_lat_aqu(c) + min((h2osfc_tide(c)-h2osfc(c))*sfcflow_ratescale,h2osfc_tide(c)*0.5/dtime)
+                elseif(h2osfc(c)>0 .and. h2osfc(c) > h2osfc_tide(c)) then
                   ! qflx_lat_aqu(2) = qflx_lat_aqu(2) + min((h2osfc(1)-(h2osfc(2)-humhol_ht*1000.0))*sfcflow_ratescale,h2osfc(1)*0.5/dtime)
-                  qflx_lat_aqu(c) = qflx_lat_aqu(c) - min((h2osfc(c)-(h2osfc_tide-humhol_ht*1000.0))*sfcflow_ratescale,h2osfc(c)*0.75/dtime)
+                  qflx_lat_aqu(c) = qflx_lat_aqu(c) - min((h2osfc(c)-h2osfc_tide(c))*sfcflow_ratescale,h2osfc(c)*0.5/dtime)
                 endif
-               !  write(iulog,*), 'qflx_lat_aqu(1) after', qflx_lat_aqu(1)
-               !  write(iulog,*), 'qflx_lat_aqu(2) after', qflx_lat_aqu(2)                 
-               !  write(iulog,*), 'h2osfc(c) after', h2osfc(1), h2osfc(2) 
+               !  write(iulog,*), 'qflx_lat_aqu(c) after', qflx_lat_aqu(c)               
+               !  write(iulog,*), 'h2osfc(c) after', h2osfc(c) 
 #endif
 
 
@@ -1452,7 +1449,6 @@ contains
           qflx_lat_aqu       =>    col_wf%qflx_lat_aqu         , & ! Output: [real(r8) (:,:) ] total lateral flow
           qflx_lat_aqu_layer =>    col_wf%qflx_lat_aqu_layer   , & ! Output: [real(r8) (:,:) ] lateral flow for each layer
           salinity             =>    col_ws%salinity           , & ! Input:  [real(r8) (:,:)   ] salinity concentration (ppt)
-          salt_content         =>    col_ws%salt_content       , & ! Input:  [real(r8) (:,:) ] mass of salt in soil later (g)
           qflx_adv           =>     col_wf%qflx_adv            , & ! Input:  [real(r8) (:,:) ] vertical water flux between layers (mm/s)
 #endif
           h2osoi_ice         =>    col_ws%h2osoi_ice         & ! Output: [real(r8) (:,:) ] ice lens (kg/m2)   
@@ -1691,8 +1687,11 @@ contains
                         - exp(-3._r8))/(1.0_r8-exp(-3._r8))
                    imped=(1._r8 - fracice_rsub(c))
                    rsub_top_max = 5.5e-3_r8
-#if (defined HUM_HOL || defined MARSH)                   
+#if (defined HUM_HOL)                   
                    rsub_top_max = min(5.5e-3_r8, rsub_top_globalmax)
+#endif
+#if (defined MARSH)                   
+                   rsub_top_max = rsub_top_globalmax
 #endif
                 end if
              else
