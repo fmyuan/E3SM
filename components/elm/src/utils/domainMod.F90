@@ -325,6 +325,8 @@ end subroutine domain_check
 ! !LOCAL VARIABLES:
     logical :: isgrid2d
     integer :: ier
+    integer :: pid
+    integer, pointer :: ns_rbuf(:), ns_displ(:)
 !
 !------------------------------------------------------------------------------
   if (.not. domain_loc%set) then
@@ -338,57 +340,72 @@ end subroutine domain_check
   ! %set, decomped,ni,nj,ns,nbeg,nend, already known by now
 
   !
-  call mpi_gather(domain_loc%lonc, size(domain_loc%lonc), MPI_REAL8, &
-                  domain_global%lonc, size(domain_loc%lonc), MPI_REAL8, 0, mpicom, ier)
-  call mpi_bcast(domain_global%lonc, size(domain_global%lonc), MPI_REAL8, 0, mpicom, ier)
+  allocate(ns_displ(0:npes-1), ns_rbuf(0:npes-1))
+  ! note: dimensions in following may be having error for 'nj' (TODO checking)
+  !       it's assumed that global 'nj' is the max. of local 'nj'
+  !       while 'ni' is appendable
+  call mpi_gather(domain_loc%ni*domain_global%nj, 1, MPI_INTEGER, &
+                  ns_rbuf, 1, MPI_INTEGER, 0, mpicom, ier)
+  call mpi_bcast(ns_rbuf, size(ns_rbuf), MPI_INTEGER, 0, mpicom, ier)
+  ns_displ(0) = 0
+  do pid = 1,npes-1
+     ns_displ(pid) = ns_displ(pid-1) + ns_rbuf(pid-1)
+  enddo
 
-  call mpi_gather(domain_loc%latc, size(domain_loc%latc), MPI_REAL8, &
-                  domain_global%latc, size(domain_loc%latc), MPI_REAL8, 0, mpicom, ier)
-  call mpi_bcast(domain_global%latc, size(domain_global%latc), MPI_REAL8, 0, mpicom, ier)
+  !
+  call mpi_gatherv(domain_loc%lonc, domain_loc%ns, MPI_REAL8, &
+                  domain_global%lonc, ns_rbuf, ns_displ, MPI_REAL8, 0, mpicom, ier)
+  call mpi_bcast(domain_global%lonc, domain_global%ns, MPI_REAL8, 0, mpicom, ier)
 
-  call mpi_gather(domain_loc%mask, size(domain_loc%mask), MPI_INTEGER, &
-                  domain_global%mask, size(domain_loc%mask), MPI_INTEGER, 0, mpicom, ier)
-  call mpi_bcast(domain_global%mask, size(domain_global%mask), MPI_INTEGER, 0, mpicom, ier)
+  call mpi_gatherv(domain_loc%latc, domain_loc%ns, MPI_REAL8, &
+                  domain_global%latc, ns_rbuf, ns_displ, MPI_REAL8, 0, mpicom, ier)
+  call mpi_bcast(domain_global%latc, domain_global%ns, MPI_REAL8, 0, mpicom, ier)
 
-  call mpi_gather(domain_loc%frac, size(domain_loc%frac), MPI_REAL8, &
-                  domain_global%frac, size(domain_loc%frac), MPI_REAL8, 0, mpicom, ier)
-  call mpi_bcast(domain_global%frac, size(domain_global%frac), MPI_REAL8, 0, mpicom, ier)
+  call mpi_gatherv(domain_loc%mask, domain_loc%ns, MPI_INTEGER, &
+                  domain_global%mask, ns_rbuf, ns_displ, MPI_INTEGER, 0, mpicom, ier)
+  call mpi_bcast(domain_global%mask, domain_global%ns, MPI_INTEGER, 0, mpicom, ier)
 
-  call mpi_gather(domain_loc%topo, size(domain_loc%topo), MPI_REAL8, &
-                  domain_global%topo, size(domain_loc%topo), MPI_REAL8, 0, mpicom, ier)
-  call mpi_bcast(domain_global%topo, size(domain_global%topo), MPI_REAL8, 0, mpicom, ier)
+  call mpi_gatherv(domain_loc%frac, domain_loc%ns, MPI_REAL8, &
+                  domain_global%frac, ns_rbuf, ns_displ, MPI_REAL8, 0, mpicom, ier)
+  call mpi_bcast(domain_global%frac, domain_global%ns, MPI_REAL8, 0, mpicom, ier)
 
-  call mpi_gather(domain_loc%frac, size(domain_loc%frac), MPI_REAL8, &
-                  domain_global%frac, size(domain_loc%frac), MPI_REAL8, 0, mpicom, ier)
-  call mpi_bcast(domain_global%frac, size(domain_global%frac), MPI_REAL8, 0, mpicom, ier)
+  call mpi_gatherv(domain_loc%topo, domain_loc%ns, MPI_REAL8, &
+                  domain_global%topo, ns_rbuf, ns_displ, MPI_REAL8, 0, mpicom, ier)
+  call mpi_bcast(domain_global%topo, domain_global%ns, MPI_REAL8, 0, mpicom, ier)
+
+  call mpi_gatherv(domain_loc%frac, domain_loc%ns, MPI_REAL8, &
+                  domain_global%frac, ns_rbuf, ns_displ, MPI_REAL8, 0, mpicom, ier)
+  call mpi_bcast(domain_global%frac, domain_global%ns, MPI_REAL8, 0, mpicom, ier)
 
   call mpi_gather(domain_loc%num_tunits_per_grd, 1, MPI_INTEGER, &
                   domain_global%num_tunits_per_grd, 1, MPI_INTEGER, 0, mpicom, ier)
   call mpi_bcast(domain_global%num_tunits_per_grd, 1, MPI_INTEGER, 0, mpicom, ier)
 
-  call mpi_gather(domain_loc%firrig, size(domain_loc%firrig), MPI_REAL8, &
-                  domain_global%firrig, size(domain_loc%firrig), MPI_REAL8, 0, mpicom, ier)
-  call mpi_bcast(domain_global%firrig, size(domain_global%firrig), MPI_REAL8, 0, mpicom, ier)
+  call mpi_gatherv(domain_loc%firrig, domain_loc%ns, MPI_REAL8, &
+                  domain_global%firrig, ns_rbuf, ns_displ, MPI_REAL8, 0, mpicom, ier)
+  call mpi_bcast(domain_global%firrig, domain_global%ns, MPI_REAL8, 0, mpicom, ier)
 
-  call mpi_gather(domain_loc%f_surf, size(domain_loc%f_surf), MPI_REAL8, &
-                  domain_global%f_surf, size(domain_loc%f_surf), MPI_REAL8, 0, mpicom, ier)
-  call mpi_bcast(domain_global%f_surf, size(domain_global%f_surf), MPI_REAL8, 0, mpicom, ier)
+  call mpi_gatherv(domain_loc%f_surf, domain_loc%ns, MPI_REAL8, &
+                  domain_global%f_surf, ns_rbuf, ns_displ, MPI_REAL8, 0, mpicom, ier)
+  call mpi_bcast(domain_global%f_surf, domain_global%ns, MPI_REAL8, 0, mpicom, ier)
 
-  call mpi_gather(domain_loc%f_grd, size(domain_loc%f_grd), MPI_REAL8, &
-                  domain_global%f_grd, size(domain_loc%f_grd), MPI_REAL8, 0, mpicom, ier)
-  call mpi_bcast(domain_global%f_grd, size(domain_global%f_grd), MPI_REAL8, 0, mpicom, ier)
+  call mpi_gatherv(domain_loc%f_grd, domain_loc%ns, MPI_REAL8, &
+                  domain_global%f_grd, ns_rbuf, ns_displ, MPI_REAL8, 0, mpicom, ier)
+  call mpi_bcast(domain_global%f_grd, domain_global%ns, MPI_REAL8, 0, mpicom, ier)
 
-  call mpi_gather(domain_loc%area, size(domain_loc%area), MPI_REAL8, &
-                  domain_global%area, size(domain_loc%area), MPI_REAL8, 0, mpicom, ier)
-  call mpi_bcast(domain_global%area, size(domain_global%area), MPI_REAL8, 0, mpicom, ier)
+  call mpi_gatherv(domain_loc%area, domain_loc%ns, MPI_REAL8, &
+                  domain_global%area, ns_rbuf, ns_displ, MPI_REAL8, 0, mpicom, ier)
+  call mpi_bcast(domain_global%area, domain_global%ns, MPI_REAL8, 0, mpicom, ier)
 
-  call mpi_gather(domain_loc%pftm, size(domain_loc%pftm), MPI_INTEGER, &
-                  domain_global%pftm, size(domain_loc%pftm), MPI_INTEGER, 0, mpicom, ier)
-  call mpi_bcast(domain_global%pftm, size(domain_global%pftm), MPI_INTEGER, 0, mpicom, ier)
+  call mpi_gatherv(domain_loc%pftm, domain_loc%ns, MPI_INTEGER, &
+                  domain_global%pftm, ns_rbuf, ns_displ, MPI_INTEGER, 0, mpicom, ier)
+  call mpi_bcast(domain_global%pftm, domain_global%ns, MPI_INTEGER, 0, mpicom, ier)
 
-  call mpi_gather(domain_loc%glcmask, size(domain_loc%glcmask), MPI_INTEGER, &
-                  domain_global%glcmask, size(domain_loc%glcmask), MPI_INTEGER, 0, mpicom, ier)
-  call mpi_bcast(domain_global%glcmask, size(domain_global%glcmask), MPI_INTEGER, 0, mpicom, ier)
+  call mpi_gatherv(domain_loc%glcmask, domain_loc%ns, MPI_INTEGER, &
+                  domain_global%glcmask, ns_rbuf, ns_displ, MPI_INTEGER, 0, mpicom, ier)
+  call mpi_bcast(domain_global%glcmask, domain_global%ns, MPI_INTEGER, 0, mpicom, ier)
+
+  deallocate(ns_rbuf, ns_displ)
 
 end subroutine domain_loc2global
 
