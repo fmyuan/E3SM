@@ -2192,6 +2192,7 @@ contains
     ! !USES:
     use subgridMod, only : subgrid_get_gcellinfo
     use spmdMod
+    use domainMod,  only : ldomain_loc
     !
     ! !ARGUMENTS:
     implicit none
@@ -2260,10 +2261,10 @@ contains
        if(max_topounits > 1) then
           if (present(glcmask)) then
              call subgrid_get_gcellinfo (ln, ntunits=itunits, nlunits=ilunits, ncols=icols, npfts=ipfts, &
-                 ncohorts=icohorts, glcmask=glcmask(ln), num_tunits_per_grd= ldomain%num_tunits_per_grd(ln))
+                 ncohorts=icohorts, glcmask=glcmask(ln), num_tunits_per_grd= ldomain_loc%num_tunits_per_grd(ln))
           else
              call subgrid_get_gcellinfo (ln, ntunits=itunits, nlunits=ilunits, ncols=icols, npfts=ipfts, &
-                 ncohorts=icohorts, num_tunits_per_grd= ldomain%num_tunits_per_grd(ln) )
+                 ncohorts=icohorts, num_tunits_per_grd= ldomain_loc%num_tunits_per_grd(ln) )
           endif
        else
           if (present(glcmask)) then

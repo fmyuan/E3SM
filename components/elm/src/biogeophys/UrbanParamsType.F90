@@ -391,7 +391,7 @@ module UrbanParamsType
     use landunit_varcon , only : numurbl
     use fileutils       , only : getavu, relavu, getfil, opnfil
     use spmdMod         , only : masterproc
-    use domainMod       , only : ldomain
+    use domainMod       , only : ldomain, ldomain_loc
 #ifdef LDOMAIN_SUB
     use ncdio_nf90Mod   , only : file_desc_t, ncd_defvar, ncd_io, ncd_inqvdlen, ncd_inqfdims
     use ncdio_nf90Mod   , only : ncd_pio_openfile, ncd_pio_closefile, ncd_inqdid, ncd_inqdlen
@@ -484,6 +484,24 @@ module UrbanParamsType
        endif
 
        call ncd_inqfdims (ncid, isgrid2d, ni, nj, ns)
+#ifdef LDOMAIN_SUB
+       if (.not. has_topounit) then
+          if (ldomain_loc%ns /= ns .or. ldomain_loc%ni /= ni .or. ldomain_loc%nj /= nj) then
+             write(iulog,*)trim(subname), 'ldomain and input file do not match dims '
+             write(iulog,*)trim(subname), 'ldomain_loc%ni,ni,= ',ldomain_loc%ni,ni
+             write(iulog,*)trim(subname), 'ldomain_loc%nj,nj,= ',ldomain_loc%nj,nj
+             write(iulog,*)trim(subname), 'ldomain_loc%ns,ns,= ',ldomain_loc%ns,ns
+             call endrun(msg=errmsg(__FILE__, __LINE__))
+          end if
+       else
+          !write(iulog,*)trim(subname), 'ldomain%ns,ns,= ',ldomain%ns,ns
+          if (ldomain_loc%ns /= ns) then
+             write(iulog,*)trim(subname), 'ldomain and input file do not match dims '
+             write(iulog,*)trim(subname), 'ldomain_loc%ns,ns,= ',ldomain_loc%ns,ns
+             call endrun(msg=errmsg(__FILE__, __LINE__))
+          end if
+       end if
+#else
        if (.not. has_topounit) then
           if (ldomain%ns /= ns .or. ldomain%ni /= ni .or. ldomain%nj /= nj) then
              write(iulog,*)trim(subname), 'ldomain and input file do not match dims '
@@ -500,6 +518,7 @@ module UrbanParamsType
              call endrun(msg=errmsg(__FILE__, __LINE__))
           end if
        end if
+#endif
        
        call ncd_inqdid(ncid, 'nlevurb', dimid)
        call ncd_inqdlen(ncid, dimid, nlevurb_i)

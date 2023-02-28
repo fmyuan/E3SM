@@ -85,6 +85,7 @@ contains
     use ELMFatesInterfaceMod      , only: ELMFatesGlobals
     use topounit_varcon           , only: max_topounits, has_topounit, topounit_varcon_init
     use elm_varctl                , only: metdata_bypass, ldomain_subed, metdata_subed, subnum_str, fname_len, ni_sum, nj_sum
+    use domainMod                 , only: ldomain_loc, domain_loc2global
     use spmdMod
     !
     ! !LOCAL VARIABLES:
@@ -290,11 +291,21 @@ contains
        write(iulog,*) 'Attempting to read ldomain from ',trim(fatmlndfrc)
        call shr_sys_flush(iulog)
     endif
+
+#ifdef LDOMAIN_SUB
+    if (create_glacier_mec_landunit) then
+       call surfrd_get_grid(begg, endg, ldomain_loc, fatmlndfrc, fglcmask)
+    else
+       call surfrd_get_grid(begg, endg, ldomain_loc, fatmlndfrc)
+    endif
+    call domain_loc2global(ldomain_loc, ldomain, ni_sum, nj_sum)
+#else
     if (create_glacier_mec_landunit) then
        call surfrd_get_grid(begg, endg, ldomain, fatmlndfrc, fglcmask)
     else
        call surfrd_get_grid(begg, endg, ldomain, fatmlndfrc)
     endif
+#endif
     if (masterproc) then
        call domain_check(ldomain)
     endif

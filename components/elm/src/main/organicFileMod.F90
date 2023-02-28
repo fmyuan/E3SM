@@ -50,7 +50,7 @@ contains
     use elm_varctl  , only : fsurdat, single_column
     use fileutils   , only : getfil
     use spmdMod     , only : masterproc
-    use domainMod   , only : ldomain
+    use domainMod   , only : ldomain, ldomain_loc
     use elm_varcon  , only : grlnd, namet
 #ifdef LDOMAIN_SUB
     use ncdio_nf90Mod
@@ -96,6 +96,17 @@ contains
        call ncd_pio_openfile (ncid, locfn, 0)
 
        call ncd_inqfdims (ncid, isgrid2d, ni, nj, ns)
+#ifdef LDOMAIN_SUB
+       if (.not. has_topounit) then
+          if (ldomain_loc%ns /= ns .or. ldomain_loc%ni /= ni .or. ldomain_loc%nj /= nj) then
+             write(iulog,*)trim(subname), 'ldomain and input file do not match dims '
+             write(iulog,*)trim(subname), 'ldomain_loc%ni,ni,= ',ldomain_loc%ni,ni
+             write(iulog,*)trim(subname), 'ldomain_loc%nj,nj,= ',ldomain_loc%nj,nj
+             write(iulog,*)trim(subname), 'ldomain_loc%ns,ns,= ',ldomain_loc%ns,ns
+             call endrun()
+          end if
+       end if
+#else
        if (.not. has_topounit) then
           if (ldomain%ns /= ns .or. ldomain%ni /= ni .or. ldomain%nj /= nj) then
              write(iulog,*)trim(subname), 'ldomain and input file do not match dims '
@@ -105,6 +116,7 @@ contains
              call endrun()
           end if
        end if
+#endif
        
        call ncd_io(ncid=ncid, varname='ORGANIC', flag='read', data=organic, &
             dim1name=grlnd, readvar=readvar)
