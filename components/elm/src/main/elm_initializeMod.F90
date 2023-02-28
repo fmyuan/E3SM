@@ -40,6 +40,7 @@ module elm_initializeMod
   use WaterBudgetMod         , only : WaterBudget_Reset
   use elm_varctl             , only : do_budgets
   !
+
   implicit none
   save
   !
@@ -112,8 +113,9 @@ contains
     !
     integer           :: pid
     integer ,pointer  :: amask_loc(:)            ! local land mask
-    integer ,pointer  :: lni_offset(:), lnj_offset(:)
-    integer ,pointer  :: lni_all(:), lnj_all(:)
+    integer ,pointer  :: ni_offset(:), nj_offset(:)
+    integer ,pointer  :: ni_all(:), nj_all(:)
+    integer ,pointer  :: ns_displ(:), ns_rbuf(:)
     character(len=4)  :: numstr
     character(len=32) :: subname = 'initialize1' ! subroutine name
 
@@ -187,24 +189,35 @@ contains
        call mpi_allreduce(ni,ni_sum,1,MPI_INTEGER,MPI_SUM,mpicom,ier)
        call mpi_allreduce(nj,nj_sum,1,MPI_INTEGER,MPI_MAX,mpicom,ier)  ! (TODO: need further checking here)
 
-       allocate(lni_all(0:npes-1))
+       allocate(ni_all(0:npes-1))
        call mpi_gather(ni, 1, MPI_INTEGER, &
-                       lni_all, 1, MPI_INTEGER, 0, mpicom, ier)
-       call mpi_bcast(lni_all, npes, MPI_INTEGER, 0, mpicom, ier)
+                       ni_all, 1, MPI_INTEGER, 0, mpicom, ier)
+       call mpi_bcast(ni_all, npes, MPI_INTEGER, 0, mpicom, ier)
 
-       allocate(lnj_all(0:npes-1))
+       allocate(nj_all(0:npes-1))
        call mpi_gather(nj, 1, MPI_INTEGER, &
-                       lnj_all, 1, MPI_INTEGER, 0, mpicom, ier)
-       call mpi_bcast(lnj_all, npes, MPI_INTEGER, 0, mpicom, ier)
+                       nj_all, 1, MPI_INTEGER, 0, mpicom, ier)
+       call mpi_bcast(nj_all, npes, MPI_INTEGER, 0, mpicom, ier)
 
+       ! variable-length 'amask_loc' gathering & bcasting
+       if (associated(amask)) deallocate(amask)
+       allocate(ns_displ(0:npes-1), ns_rbuf(0:npes-1))
+       ! note: dimensions in following may be having error for 'nj' (TODO checking)
+       !       it's assumed that global 'nj_sum' is the max. of local 'nj'
+       !       while 'ni_sum' is appendable of local 'ni'
+       call mpi_gather(ni*nj_sum, 1, MPI_INTEGER, &
+                       ns_rbuf, 1, MPI_INTEGER, 0, mpicom, ier)
+       call mpi_bcast(ns_rbuf, size(ns_rbuf), MPI_INTEGER, 0, mpicom, ier)
+       ns_displ(0) = 0
+       do pid = 1,npes-1
+          ns_displ(pid) = ns_displ(pid-1) + ns_rbuf(pid-1)
+       enddo
        allocate(amask(ni_sum*nj_sum))
-       amask(:)=0
-       call mpi_gather(amask_loc, ni*nj, MPI_INTEGER, &
-                       amask, ni*nj, MPI_INTEGER, 0, mpicom, ier)
+       amask(:) = 0
+       call mpi_gatherv(amask_loc, ni*nj, MPI_INTEGER, &
+                       amask, ns_rbuf, ns_displ, MPI_INTEGER, 0, mpicom, ier)
        call mpi_bcast(amask, ni_sum*nj_sum, MPI_INTEGER, 0, mpicom, ier)
-
-       call mpi_barrier(mpicom, ier)
-
+       deallocate(ns_displ, ns_rbuf)
     end if
 
 #endif
@@ -238,20 +251,21 @@ contains
 #ifdef LDOMAIN_SUB
     if (ldomain_subed) then
         ! offset for each process
-        allocate(lni_offset(0:npes-1))
-        allocate(lnj_offset(0:npes-1))
-        lni_offset(0) = 0
-        lnj_offset(0) = 0
+        allocate(ni_offset(0:npes-1))
+        allocate(nj_offset(0:npes-1))
+        ni_offset(0) = 0
+        nj_offset(0) = 0
         do pid = 1,npes-1
-           lni_offset(pid) = lni_offset(pid-1) + lni_all(pid-1)  ! sub-domains appendable by 'ni' only
-           lnj_offset(pid) = nj_sum                              ! 'nj' not appendable
+           ni_offset(pid) = ni_offset(pid-1) + ni_all(pid-1)  ! sub-domains appendable by 'ni' only
+           nj_offset(pid) = nj_sum                              ! 'nj' not appendable
         enddo
-        call decompInit_lnd_loc(ni, nj, amask_loc, lni_offset(iam), lnj_offset(iam))
+        call decompInit_lnd_loc(ni, nj, amask_loc, ni_offset(iam), nj_offset(iam))
         deallocate(amask_loc)
-        deallocate(lni_offset)
-        deallocate(lnj_offset)
-        deallocate(lni_all)
-        deallocate(lnj_all)
+        deallocate(ni_offset)
+        deallocate(nj_offset)
+        deallocate(ni_all)
+        deallocate(nj_all)
+
     else
         call decompInit_lnd(ni, nj, amask)
     end if
@@ -299,6 +313,7 @@ contains
        call surfrd_get_grid(begg, endg, ldomain_loc, fatmlndfrc)
     endif
     call domain_loc2global(ldomain_loc, ldomain, ni_sum, nj_sum)
+
 #else
     if (create_glacier_mec_landunit) then
        call surfrd_get_grid(begg, endg, ldomain, fatmlndfrc, fglcmask)
