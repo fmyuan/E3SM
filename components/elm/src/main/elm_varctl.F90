@@ -459,20 +459,20 @@ module elm_varctl
   !----------------------------------------------------------
   ! ATS external model
   !----------------------------------------------------------
-  logical, public :: use_ats       = .false.
+  logical, public :: use_ats        = .false.
+  logical, public :: use_ats_mesh   = .false.
   ! the following switches will allow flexibility of coupling ELM with ATS (which in fact runs in 4 modes incrementally)
-  logical, public :: ats_hmode      = .false.        ! switch for 'H' mode, subsurface hydrological coupling ONLY (will be updated in interface)
+  logical, public :: ats_hmode      = .false.        ! switch for 'H' mode, surface & subsurface hydrological coupling ONLY (will be updated in interface)
                                                      !     note that when in 'H' mode, EMI_ats will be called in 'HydrologyNoDrainage::SoilWater()'
                                                      !               while in the following 3 modes, EMI_ats will be called in 'elm_drv()'
   logical, public :: ats_thmode     = .false.        ! switch for 'T+H' mode, subsurface thermal-hydrological coupling (will be updated in interface)
   logical, public :: ats_thcmode    = .false.        ! switch for 'T+H+C' mode, subsurface thermal-hydrological-biogeochemical coupling (will be updated in interface)
-  logical, public :: ats_gmode      = .false.        ! switch for 'G' mode, ground/surface T+H coupling (will be updated in interface)
   logical, public :: ats_chkout     = .false.        ! switch for ATS write out checkpoint file
   !$acc declare copyin(use_ats       )
+  !$acc declare copyin(use_ats_mesh  )
   !$acc declare copyin(ats_hmode     )
   !$acc declare copyin(ats_thmode    )
   !$acc declare copyin(ats_thcmode   )
-  !$acc declare copyin(ats_gmode     )
 
   !----------------------------------------------------------
   ! Alquimia external model
@@ -515,6 +515,12 @@ module elm_varctl
    character(len=fname_len), public :: metdata_biases = ' '    ! met biases files for CPL_BYPASS mode
    character(len=fname_len), public :: co2_file       = ' '    ! co2 file for CPL_BYPASS mode
    character(len=fname_len), public :: aero_file      = ' '    ! aerosol deposition file for CPL_BYPASS mode
+  !$acc declare copyin(metdata_type   )
+  !$acc declare copyin(metdata_bypass )
+  !$acc declare copyin(metdata_biases )
+  !$acc declare copyin(co2_file       )
+  !$acc declare copyin(aero_file      )
+
 
   !$acc declare create(use_fates)
 

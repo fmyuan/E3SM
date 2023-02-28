@@ -70,7 +70,7 @@ contains
     use column_varcon        , only : icol_roof, icol_road_imperv, icol_road_perv, icol_sunwall
     use column_varcon        , only : icol_shadewall
     use elm_varctl           , only : use_cn, use_betr, use_fates, use_pflotran, pf_hmode
-    use elm_varctl           , only : use_ats, ats_hmode, ats_gmode
+    use elm_varctl           , only : use_ats, ats_hmode
     use elm_varpar           , only : nlevgrnd, nlevsno, nlevsoi, nlevurb
     use SnowHydrologyMod     , only : SnowCompaction, CombineSnowLayers, DivideSnowLayers, DivideExtraSnowLayers, SnowCapping
     use SnowHydrologyMod     , only : SnowWater, BuildSnowFilter 
@@ -199,7 +199,7 @@ contains
 
       !------------------------------------------------------------------------------------
       if ( (use_pflotran .and. pf_hmode) .or. &
-           (use_ats .and. ats_gmode)) then        ! if ATS surface module coupled
+           (use_ats .and. ats_hmode)) then        ! if ATS surface module coupled
         call Infiltration(bounds, num_hydrononsoic, filter_hydrononsoic, &
              num_urbanc, filter_urbanc, &
              energyflux_vars, soilhydrology_vars, soilstate_vars, dtime)
@@ -336,7 +336,7 @@ contains
 
       !------------------------------------------------------------------------------------
       if ( (use_pflotran .and. pf_hmode) .or. &
-           (use_ats .and. ats_gmode)) then        ! if ATS surface module coupled
+           (use_ats .and. ats_hmode)) then        ! if ATS surface module coupled
 
         call WaterTable(bounds, num_hydrononsoic, filter_hydrononsoic, &
            num_urbanc, filter_urbanc, &

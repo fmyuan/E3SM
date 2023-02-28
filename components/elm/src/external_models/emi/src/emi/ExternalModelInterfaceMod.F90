@@ -108,7 +108,7 @@ contains
     use elm_varctl, only : use_petsc_thermal_model
     use elm_varctl, only : use_em_stub
     use elm_varctl, only : use_alquimia
-    use elm_varctl, only : use_ats
+    use elm_varctl, only : use_ats, use_ats_mesh
     !
     implicit none
     !
@@ -168,6 +168,7 @@ contains
        num_em            = num_em + 1
        index_em_ats      = num_em
 #ifdef USE_ATS_LIB
+       if(.not.use_ats_mesh) &
        allocate(em_ats)
 #endif
     endif
@@ -865,6 +866,7 @@ contains
     case default
        call endrun('Unknown External Model')
     end select
+
   end subroutine EMI_Init_EM
 
   !-----------------------------------------------------------------------

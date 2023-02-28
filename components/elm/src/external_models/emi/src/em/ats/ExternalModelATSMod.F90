@@ -12,8 +12,8 @@ module ExternalModelATSMod
   use decompMod                    , only : bounds_type
   use elm_varpar                   , only : nlevgrnd
   ! a few ats coupling options
-  use elm_varctl                   , only : use_ats
-  use elm_varctl                   , only : ats_hmode, ats_thmode, ats_thcmode, ats_gmode
+  use elm_varctl                   , only : use_ats, use_ats_mesh
+  use elm_varctl                   , only : ats_hmode, ats_thmode, ats_thcmode
   use elm_varctl                   , only : ats_chkout
 
   ! a few constants
@@ -594,18 +594,25 @@ contains
        this%filter_pft(fc) = pft_beg(c) + pft_type(c)
     end do
 
-    ! create an ATS driver object (via mpicom)
-    call EM_ATS_create(this%ats_interface)
-
     if (use_ats) then
-      ! pass mesh data to ATS prior to ATS setup (as long as ATS driver object ready)
-      call set_mesh(this, l2e_init_list, bounds_clump)
+
+      ! create an ATS driver object (via mpicom)
+      ! if not use_ats_mesh (or, elm will pass its mesh info to ats)
+      if (.not.use_ats_mesh) then
+        call EM_ATS_create(this%ats_interface)
+
+        ! pass mesh data to ATS prior to ATS setup (as long as ATS driver object ready)
+        call set_mesh(this, l2e_init_list, bounds_clump)
+      end if
 
       ! ats setup
       call this%ats_interface%setup()
 
-      ! pass material properties to ATS
-      call set_material_properties(this, l2e_init_list, bounds_clump)
+      ! if use_ats_mesh, ATS material properties will be passed into ELM as well (TODO)
+      if (.not.use_ats_mesh) then
+        ! pass material properties to ATS
+        call set_material_properties(this, l2e_init_list, bounds_clump)
+      end if
 
     end if
 

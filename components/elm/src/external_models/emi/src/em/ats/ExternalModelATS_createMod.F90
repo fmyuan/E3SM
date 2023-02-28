@@ -11,7 +11,7 @@ module ExternalModelATS_createMod
   use spmdMod                      , only : masterproc, mpicom
   use decompMod                    , only : bounds_type
   ! a few ats coupling options
-  use elm_varctl                   , only : use_ats
+  use elm_varctl                   , only : use_ats, use_ats_mesh
 
   !
   use ExternalModelATS_readnlMod   , only : ats_inputdir, ats_inputfile
@@ -61,8 +61,7 @@ contains
     !
 
 
-    if (use_ats) then
-
+    if (use_ats_mesh) then
       ! pass mesh from ATS to ELM locally
       call get_mesh_local(elmats_interface)  ! in progress .......
 

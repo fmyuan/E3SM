@@ -11,7 +11,7 @@ module ExternalModelATS_readnlMod
   use spmdMod                      , only : masterproc, mpicom
   use elm_varctl                   , only : iulog
   use elm_varctl                   , only : use_ats
-  use elm_varctl                   , only : ats_hmode, ats_thmode, ats_thcmode, ats_gmode
+  use elm_varctl                   , only : ats_hmode, ats_thmode, ats_thcmode, use_ats_mesh
   !
   implicit none
   !
@@ -46,7 +46,7 @@ contains
     character(len=32) :: subname = 'elm_ats_readnl'  ! subroutine name
   !
   !-----------------------------------------------------------------------
-    namelist / elm_ats_inparm / ats_inputdir, ats_inputfile
+    namelist / elm_ats_inparm / ats_inputdir, ats_inputfile, use_ats_mesh
 
     ! ----------------------------------------------------------------------
     ! Read namelist from standard namelist file.
@@ -70,18 +70,19 @@ contains
        write(iulog, '(/, A)') " elm-ats namelist:"
        write(iulog, '(A, " : ", A,/)') "   ats_inputdir", trim(ats_inputdir)
        write(iulog, '(A, " : ", A,/)') "   ats_inputfile ", trim(ats_inputfile)
+       write(iulog, '(A, " : ", A,/)') "   use ats mesh ? ", use_ats_mesh
     end if
 
     ! Broadcast namelist variables read in
     call shr_mpi_bcast(ats_inputdir, mpicom)
     call shr_mpi_bcast(ats_inputfile, mpicom)
+    call shr_mpi_bcast(use_ats_mesh, mpicom)
 
     ! by default, ats subsurface hydrology is on, if use_ats = .true.
     if (use_ats) ats_hmode = .true.
     call shr_mpi_bcast(ats_hmode, mpicom)
-    call shr_mpi_bcast(ats_thmode, mpicom)
-    call shr_mpi_bcast(ats_thcmode, mpicom)
-    call shr_mpi_bcast(ats_gmode, mpicom)
+    call shr_mpi_bcast(ats_thmode, mpicom)   ! (TODO)
+    call shr_mpi_bcast(ats_thcmode, mpicom)  ! (TODO)
 
   end subroutine elm_ats_readnl
 

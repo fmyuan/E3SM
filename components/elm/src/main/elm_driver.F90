@@ -167,7 +167,7 @@ module elm_driver
   use elm_interface_pflotranMod   , only : elm_pf_finalize
   ! (3) ats
   use elm_varctl                  , only : use_ats
-  use elm_varctl                  , only : ats_hmode, ats_thmode, ats_thcmode, ats_gmode
+  use elm_varctl                  , only : ats_hmode, ats_thmode, ats_thcmode
   use elm_varctl                  , only : ats_chkout
 
   !----------------------------------------------------------------------------
