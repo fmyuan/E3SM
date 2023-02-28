@@ -82,7 +82,8 @@ module ExternalModelInterfaceMod
   class(em_stub_type)                , pointer :: em_stub(:)
   class(em_alquimia_type)            , pointer :: em_alquimia(:)
 #ifdef USE_ATS_LIB
-  class(em_ats_type)                 , pointer :: em_ats(:)
+  ! for ats, don't instance for each individual clump (or mpi rank)
+  class(em_ats_type)                 , pointer, public :: em_ats
 #endif
 
   public :: EMI_Determine_Active_EMs
@@ -167,7 +168,7 @@ contains
        num_em            = num_em + 1
        index_em_ats      = num_em
 #ifdef USE_ATS_LIB
-       allocate(em_ats(nclumps))
+       allocate(em_ats)
 #endif
     endif
 
@@ -655,14 +656,14 @@ contains
 
           ! Fill the data list:
           !  - Data need during the initialization
-          call em_ats(clump_rank)%Populate_L2E_Init_List(l2e_init_list(clump_rank))
+          call em_ats%Populate_L2E_Init_List(l2e_init_list(clump_rank))
 #ifdef ATS_READY
           ! DON'T INITIALIZE ELM by ATS's states
-          call em_ats(clump_rank)%Populate_E2L_Init_List(e2l_init_list(clump_rank))
+          call em_ats%Populate_E2L_Init_List(e2l_init_list(clump_rank))
 #endif
           !  - Data need during timestepping
-          call em_ats(clump_rank)%Populate_L2E_List(l2e_driver_list(iem))
-          call em_ats(clump_rank)%Populate_E2L_List(e2l_driver_list(iem))
+          call em_ats%Populate_L2E_List(l2e_driver_list(iem))
+          call em_ats%Populate_E2L_List(e2l_driver_list(iem))
        enddo
 
        !$OMP PARALLEL DO PRIVATE (clump_rank, iem, bounds_clump)
@@ -712,7 +713,7 @@ contains
           call EMID_Verify_All_Data_Is_Set(l2e_init_list(clump_rank), em_stage)
 
           ! Initialize the external model
-          call em_ats(clump_rank)%Init(l2e_init_list(clump_rank), e2l_init_list(clump_rank), &
+          call em_ats%Init(l2e_init_list(clump_rank), e2l_init_list(clump_rank), &
                iam, bounds_clump)
 
           ! Build a column level filter on which ATS is active.
@@ -1403,7 +1404,7 @@ contains
     !-------------------------------------------------------------------------------
     case (EM_ID_ATS)
 #ifdef USE_ATS_LIB
-       call em_ats(clump_rank)%Solve(em_stage, dtime, nstep, clump_rank, &
+       call em_ats%Solve(em_stage, dtime, nstep, clump_rank, &
             l2e_driver_list(iem), e2l_driver_list(iem), bounds_clump)
 #else
        call endrun('ATS is on but code was not compiled with -DUSE_ATS_LIB')
