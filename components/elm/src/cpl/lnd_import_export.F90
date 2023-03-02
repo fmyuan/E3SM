@@ -1693,6 +1693,7 @@ contains
     thiscalday = get_curr_calday()
     nstep = get_nstep()
 
+
     !
     call t_startf("lnd_import")
 
@@ -2114,7 +2115,6 @@ contains
           call t_stopf("cplbypass_metdata_tindexing")
 #endif
 
-
         ! met-data have already been loaded after first time-step
         else
 
@@ -2231,6 +2231,7 @@ contains
         thiscosz = max(cos(szenith(ldomain%lonc(g),ldomain%latc(g),0,int(thiscalday),thishr,thismin,0)* &
                         3.14159265358979/180.0d0), 0.001d0)
         avgcosz = 0d0
+
         if (atm2lnd_vars%npf(4) - 1._r8 .gt. 1e-3) then
           swrad_period_len   = get_step_size()*nint(atm2lnd_vars%npf(4))
           swrad_period_start = ((tod-get_step_size()/2)/swrad_period_len) * swrad_period_len
@@ -2308,7 +2309,6 @@ contains
             call t_startf("cplbypass_metdata_unpack_tinterp")
         endif
 #endif
-
        !
        !------------------------------------Fire data -------------------------------------------------------
        !
@@ -2428,6 +2428,7 @@ contains
                                               atm2lnd_vars%ndep2(atm2lnd_vars%ndepind(g,1),atm2lnd_vars%ndepind(g,2),1)*wt2(1)) / (365._r8 * 86400._r8)
         end if model_filter
 
+
         !------------------------------------Aerosol forcing--------------------------------------------------
 
         !Use ndep grid indices since they're on the same grid
@@ -2538,6 +2539,7 @@ contains
 
         end do
 
+
         !---------------------------------- CO2 -------------------------------------------------------------------
 
         if (co2_type_idx /= 0) then
@@ -2590,6 +2592,7 @@ contains
           call endrun( sub//' ERROR: Invalid co2_type_idx, must be 0 or not (constant or diagnostic) for CPL_BYPASS' )
        end if
        !
+
 
 !-------------------------------------------------------------------------------------------------------------------------------
 #else
@@ -2964,7 +2967,7 @@ double precision function szenith(xcoor, ycoor, ltm, jday, hr, min, offset)
   use shr_kind_mod , only: r8 => shr_kind_r8, cl=>shr_kind_cl
   implicit none
   !inputs
-  real(r8) xcoor, ycoor, offset_min
+  real(r8) xcoor, ycoor, offset_min, xtemp
   integer jday, hr, min, ltm, offset
   !working variables
   real(r8) d2r, r2d, lsn, latrad, decrad, decdeg, ha
@@ -2995,11 +2998,15 @@ double precision function szenith(xcoor, ycoor, ltm, jday, hr, min, offset)
   end if
     
   if (jday < 1) jday = 1
-  if (xcoor > 180d0) xcoor = xcoor-360d0
+  if (xcoor > 180d0) then
+     xtemp = xcoor-360d0
+  else
+     xtemp = xcoor
+  endif
 
   d2r     = pi/180d0
   r2d     = 1/d2r
-  lsn     = 12.0d0+((ltm-xcoor)/15.0d0)
+  lsn     = 12.0d0+((ltm-xtemp)/15.0d0)
   latrad  = ycoor*d2r
   decrad  = 23.45*d2r*sin(d2r*360d0*(284d0+jday)/365d0)
   decdeg  = decrad*r2d
