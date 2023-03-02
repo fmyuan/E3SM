@@ -1605,7 +1605,7 @@ contains
     integer :: sdate_addt, sy_addt, sm_addt, sd_addt
     integer :: sdate_addco2, sy_addco2, sm_addco2, sd_addco2
     character(len=200) metsource_str, thisline
-    character(len=*), parameter :: sub = 'lnd_import_mct'
+    character(len=*), parameter :: sub = 'lnd_import'
 
     integer :: av, v, n, nummetdims, g3, gtoget, ztoget, line, mystart, tod_start, thistimelen
     character(len=20) aerovars(14), metvars(14)
@@ -1629,8 +1629,9 @@ contains
     !
     character(len=4)  :: numstr
     character(len=256):: locfn
-    real(r8) :: temp_t(2)
+    real(r8)          :: temp_t(2)
 
+    !---------------------------------------------------------------------------
     data caldaym / 1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335, 366 /
 
     ! Constants to compute vapor pressure
@@ -1768,14 +1769,12 @@ contains
 #endif
 
             if (metdata_subed) then
-               write(numstr, '(I4)') 1000+ztoget
-               locfn = trim(metdata_bypass) // '/sub' // numstr(2:4) // '/' // trim(metdata_fname)
+               locfn = trim(metdata_bypass) // '/' // subnum_str // '/' // trim(metdata_fname)
             else
                locfn = trim(metdata_bypass) // '/' // trim(metdata_fname)
                ! note here data will be read in by all cores so that it's not good for large datasets
                !
             endif
-
             !get file
             ierr = nf90_open(trim(locfn), NF90_NOWRITE, met_ncids(v))
             if (ierr .ne. 0) call endrun(msg=' ERROR: Failed to open cpl_bypass input meteorology file ' // &
@@ -1811,7 +1810,7 @@ contains
             if (metdata_subed) then
                 ! subed metdata for individual mpi rank
                 starti(1) = 1
-                starti(2) = bounds%begg
+                starti(2) = 1
                 counti(1) = atm2lnd_vars%timelen_spinup(v)
                 counti(2) = bounds%endg-bounds%begg+1
                 if (.not. const_climate_hist .and. (yr .ge. 1850)) counti(1) = atm2lnd_vars%timelen(v)
@@ -2057,6 +2056,7 @@ contains
     do g = bounds%begg,bounds%endg
         i = 1 + (g - bounds%begg)
 
+
        ! Determine flooding input, sign convention is positive downward and
        ! hierarchy is atm/glc/lnd/rof/ice/ocn.  so water sent from rof to land is negative,
        ! change the sign to indicate addition of water to system.
@@ -2113,6 +2113,7 @@ contains
 #ifdef TPROF
           call t_stopf("cplbypass_metdata_tindexing")
 #endif
+
 
         ! met-data have already been loaded after first time-step
         else
@@ -2179,6 +2180,7 @@ contains
                                                       atm2lnd_vars%add_offsets(1))*wt1(1) + (atm2lnd_vars%atm_input(1,g,1,tindex(1,2))* &
                                                       atm2lnd_vars%scale_factors(1)+atm2lnd_vars%add_offsets(1))*wt2(1)) * &
                                                       atm2lnd_vars%var_mult(1,g,mon) + atm2lnd_vars%var_offset(1,g,mon), 323._r8)
+
         atm2lnd_vars%forc_th_not_downscaled_grc(g) = min(((atm2lnd_vars%atm_input(1,g,1,tindex(1,1))*atm2lnd_vars%scale_factors(1)+ &
                                                       atm2lnd_vars%add_offsets(1))*wt1(1) + (atm2lnd_vars%atm_input(1,g,1,tindex(1,2))* &
                                                       atm2lnd_vars%scale_factors(1)+atm2lnd_vars%add_offsets(1))*wt2(1)) * &
@@ -2375,9 +2377,13 @@ contains
                   call mpi_send(atm2lnd_vars%lnfm_all(lnfmind(1),lnfmind(2),:), 2920, &
                             MPI_REAL8, np, 300000+np, mpicom, ier)
                 end if
+
+
               end do
             else
-              if (i == 1)  call mpi_send(thisng,  1, MPI_INTEGER, 0, 100000+iam, mpicom, ier)
+              if (i == 1)  then
+                call mpi_send(thisng,  1, MPI_INTEGER, 0, 100000+iam, mpicom, ier)
+              end if
               call mpi_send(lnfmind, 2, MPI_INTEGER, 0, 200000+iam, mpicom, ier)
               call mpi_recv(atm2lnd_vars%lnfm(g,:), 2920, MPI_REAL8, 0, 300000+iam, mpicom, status, ier)
             end if
@@ -2796,7 +2802,6 @@ contains
        end if
 
     end do ! do loop of %begg, %endg
-
     !
     !
 #ifdef CPL_BYPASS

@@ -177,6 +177,8 @@ contains
        !       But, if ldomain_subed = .true., then metdata_subed = .true.
        write(numstr, '(I4)') 1001+iam
        subnum_str = 'sub' // numstr(2:4)
+    else
+       subnum_str = '.'
     end if
 !
     if (ldomain_subed) then
