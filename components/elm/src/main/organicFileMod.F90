@@ -49,7 +49,7 @@ contains
 ! !USES:
     use elm_varctl  , only : fsurdat, single_column
     use fileutils   , only : getfil
-    use spmdMod     , only : masterproc
+    use spmdMod     , only : masterproc, iam
     use domainMod   , only : ldomain, ldomain_loc
     use elm_varcon  , only : grlnd, namet
 #ifdef LDOMAIN_SUB
@@ -121,11 +121,13 @@ contains
        call ncd_io(ncid=ncid, varname='ORGANIC', flag='read', data=organic, &
             dim1name=grlnd, readvar=readvar)
        if (.not. readvar) call endrun('organicrd: errror reading ORGANIC')
-
        if ( masterproc )then
           write(iulog,*) 'Successfully read organic matter data'
           write(iulog,*)
        end if
+
+       call ncd_pio_closefile (ncid)
+
     endif
 
   end subroutine organicrd
