@@ -1618,7 +1618,6 @@ contains
     real(r8) :: thisdist, mindist, thislon
     real(r8) :: tbot, tempndep(1,1,158), thiscalday, wt1(14), wt2(14), thisdoy
     real(r8) :: var_month_mean(12)
-    integer  :: lnfmind(2)
     integer  :: var_month_count(12)
     integer :: xtoget, ytoget, thisx, thisy, calday_start
     integer :: sdate_addt, sy_addt, sm_addt, sd_addt
@@ -1641,10 +1640,6 @@ contains
     character(len=CL)  :: stream_fldFileName_ndep    ! nitrogen deposition stream filename
     logical :: use_sitedata, has_zonefile, use_daymet
     !
-    real(r8) :: msize,msize0, msize1     ! memory size (high water)
-    real(r8) :: mrss ,mrss0 , mrss1      ! resident size (current memory use)
-    character(*), parameter :: FormatR = '(A,": =============== ", A31,F12.3,1x,  " ===============")'
-    double precision :: t0, t1
     !
     character(len=4)  :: numstr
     character(len=256):: locfn
@@ -1671,21 +1666,21 @@ contains
     esati(t) = 100._r8*(b0+t*(b1+t*(b2+t*(b3+t*(b4+t*(b5+t*b6))))))
     !---------------------------------------------------------------------------
 
-    namelist /light_streams/         &
+    namelist /light_streams/        &
         stream_year_first_lightng,  &
         stream_year_last_lightng,   &
         model_year_align_lightng,   &
         lightngmapalgo,             &
         stream_fldFileName_lightng
 
-    namelist /popd_streams/          &
+    namelist /popd_streams/         &
         stream_year_first_popdens,  &
         stream_year_last_popdens,   &
         model_year_align_popdens,   &
         popdensmapalgo,             &
         stream_fldFileName_popdens
 
-    namelist /ndepdyn_nml/        &
+    namelist /ndepdyn_nml/       &
         stream_year_first_ndep,  &
         stream_year_last_ndep,   &
         model_year_align_ndep,   &
@@ -1895,6 +1890,7 @@ contains
 
           !
           ! Read light_streams namelist to get filename
+          allocate(atm2lnd_vars%lnfm_all(192,94,2920))
           if (masterproc) then
               nu_nml = getavu()
               open( nu_nml, file=trim(NLFilename), status='old', iostat=nml_error )
@@ -1920,6 +1916,7 @@ contains
           end if
           call mpi_bcast (smapt62_lon, 192, MPI_REAL8, 0, mpicom, ier)
           call mpi_bcast (smapt62_lat, 94, MPI_REAL8, 0, mpicom, ier)
+          call mpi_bcast (atm2lnd_vars%lnfm_all, 192*94*2920, MPI_REAL8, 0, mpicom, ier)
 
           !---------------------------------------------------------------------------------------------!
           ! nitrogen deposition inputs
@@ -2263,7 +2260,6 @@ contains
         end if
         atm2lnd_vars%forc_hgt_grc(g) = 30.0_R8 !(atm2lnd_vars%atm_input(8,g,1,tindex(1))*wt1 + &
                                              !atm2lnd_vars%atm_input(8,g,1,tindex(2))*wt2)    ! zgcmxy  Atm state, default=30m
-
        !
        !------------------------------------Fire data -------------------------------------------------------
        !
@@ -2313,35 +2309,14 @@ contains
                             (smapt62_lon(thisx) - ldomain%lonc(g))**2)**0.5
                 if (thisdist .lt. mindist) then
                   mindist = thisdist
-                  lnfmind(1) = thisx
-                  lnfmind(2) = thisy
+                  atm2lnd_vars%lnfmind(g,1) = thisx
+                  atm2lnd_vars%lnfmind(g,2) = thisy
                 end if
               end do
             end do
 
-            ! the following algorithm is very different from other datasets and why?
-            if (masterproc) then
-              atm2lnd_vars%lnfm(g,:) = atm2lnd_vars%lnfm_all(lnfmind(1),lnfmind(2),:)
-              do np = 1,npes-1
-                if (i == 1) then
-                  call mpi_recv(thisng,  1, MPI_INTEGER, np, 100000+np, mpicom, status, ier)
-                  ng_all(np) = thisng
-                end if
-                if (i <= ng_all(np)) then
-                  call mpi_recv(lnfmind, 2, MPI_INTEGER, np, 200000+np, mpicom, status, ier)
-                  call mpi_send(atm2lnd_vars%lnfm_all(lnfmind(1),lnfmind(2),:), 2920, &
-                            MPI_REAL8, np, 300000+np, mpicom, ier)
-                end if
+            atm2lnd_vars%lnfm(g,:) = atm2lnd_vars%lnfm_all(atm2lnd_vars%lnfmind(g,1),atm2lnd_vars%lnfmind(g,2),:)
 
-
-              end do
-            else
-              if (i == 1)  then
-                call mpi_send(thisng,  1, MPI_INTEGER, 0, 100000+iam, mpicom, ier)
-              end if
-              call mpi_send(lnfmind, 2, MPI_INTEGER, 0, 200000+iam, mpicom, ier)
-              call mpi_recv(atm2lnd_vars%lnfm(g,:), 2920, MPI_REAL8, 0, 300000+iam, mpicom, status, ier)
-            end if
           end if
 
           !Lightning data is 3-hourly.  Does not currently interpolate.
@@ -2766,6 +2741,10 @@ contains
     call t_stopf("lnd_import")
 
   end subroutine lnd_import
+
+  !===============================================================================
+
+
 
 #endif
 ! #endif #ifndef LDOMAIN_SUB

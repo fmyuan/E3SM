@@ -56,6 +56,7 @@ module atm2lndType
       real(r8), pointer :: npf                            (:)  => null()  !number of model timesteps per forcing timestep
       real(r8), pointer :: co2_input                   (:,:,:) => null()  !annual CO2 input data
       real(r8), pointer :: c13o2_input                 (:,:,:) => null()  !annual C13O2 input data
+      integer, pointer :: lnfmind                        (:,:) => null()  !annual lightning data
       integer, pointer :: ndepind                        (:,:) => null()  !annual nitrogen deposition data
       integer, pointer :: hdmind                         (:,:) => null()  !popluation density
       real(r8), pointer :: forc_hdm                      (:)   => null() 
@@ -212,6 +213,7 @@ contains
     allocate(this%var_mult                (14,begg:endg,12))        ; this%var_mult                  (:,:,:)   = ival
     allocate(this%co2_input                      (1,1,3000))        ; this%co2_input                 (:,:,:)   = ival    
     allocate(this%c13o2_input                    (1,1,3000))        ; this%c13o2_input               (:,:,:)   = ival
+    allocate(this%lnfmind                     (begg:endg,2))        ; this%lnfmind                     (:,:)   = ival_int
     allocate(this%ndepind                     (begg:endg,2))        ; this%ndepind                     (:,:)   = ival_int
     allocate(this%hdmind                      (begg:endg,2))        ; this%hdmind                      (:,:)   = ival_int
     allocate(this%forc_hdm                      (begg:endg))        ; this%forc_hdm                      (:)   = ival
