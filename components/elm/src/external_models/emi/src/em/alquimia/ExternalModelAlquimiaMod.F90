@@ -1193,7 +1193,7 @@ end subroutine EMAlquimia_Coldstart
           ! Need to save lateral flow for C balance
               surf_flux(:) = 0.0_r8 ! Positive means into soil
               lat_flux(:)  = 0.0_r8
-              lat_bc(:) = 0.0_r8 ! this%bc(:) ! Currently setting to initial condition. Should update so it tracks saline/fresh
+              lat_bc(:) = 0.0_r8 ! this%bc(:) ! Currently setting to initial condition.
               surf_bc(:) = this%bc(:) ! Currently setting to initial condition. Should update so it tracks atmospheric O2, CO2, CH4 concentrations
               ! Assume surface water has no dissolved N. At some point should track N content of surface water though
               if(this%NO3_pool_number>0) surf_bc(this%NO3_pool_number) = 0.0_r8
@@ -2198,7 +2198,8 @@ end subroutine EMAlquimia_Coldstart
     integer            ::   aux_ints_tmp(1,nlevdecomp,this%chem_sizes%num_aux_integers)
     real(r8) :: diffus(nlevdecomp), sat(nlevdecomp), dissolved_frac(0:nlevdecomp)
     real(r8) :: transport_change_rate(nlevdecomp,this%chem_sizes%num_primary),source_term(nlevdecomp,this%chem_sizes%num_primary)
-    real(r8) :: surf_adv_step(this%chem_sizes%num_primary),surf_equil_step(this%chem_sizes%num_primary), lat_flux_step(this%chem_sizes%num_primary)
+    real(r8) :: surf_adv_step(this%chem_sizes%num_primary),surf_equil_step(this%chem_sizes%num_primary), surf_equil_step2(this%chem_sizes%num_primary), &
+                lat_flux_step(this%chem_sizes%num_primary)
     ! real(r8) :: bot_adv_step(this%chem_sizes%num_primary)
   
   real(r8) :: actual_dt,porosity_tmp
@@ -2219,6 +2220,7 @@ end subroutine EMAlquimia_Coldstart
   do k=1,this%chem_sizes%num_primary
     diffus(:) = 0.0_r8
     surf_equil_step(k) = 0.0_r8
+    surf_equil_step2(k) = 0.0_r8
     lat_flux_step(k) = 0.0_r8
     surf_adv_step(k) = 0.0_r8
     ! Set diffusion coefficient depending on saturation and whether species is aqueous gas or not
@@ -2246,14 +2248,22 @@ end subroutine EMAlquimia_Coldstart
       ! Possible issue in low-moisture conditions: Total layer stock of O2 might be really low because not that much fits in the small amount of water
       ! In reality water should be in equilibrium with soil pore air space
       ! If we don't multiply by sat here, I guess we shove all the layer gas into the water...
+      if(sat(1)<= 0.9) then
       surf_equil_step(k) = ( surf_bc(k)*porosity(c,1)*max(sat(1),1.0) - total_mobile(c,1,k) )*dzsoi_decomp(1)
       ! write(iulog,*),'Dissolved gas',k,'BC',surf_bc(k)*porosity(c,1)*sat(1),'Surf conc',total_mobile(c,1,k),'(mol m-3 equivalent)','porosity',porosity(c,1),'saturation',sat(1),'flux',surf_equil_step(k)
       ! if(k==this%CH4_pool_number) write(iulog,*),'Methane ','BC',surf_bc(k)*porosity(c,1),'Surf conc',total_mobile(c,1,k),'(mol m-3 equivalent)','porosity',porosity(c,1),'saturation',sat(1),'flux',surf_equil_step(k)/dzsoi_decomp(1)
       total_mobile(c,1,k) = surf_bc(k)*porosity(c,1)*max(sat(1),1.0)
+      endif
+
+      ! Try equilibrating top two layers if unsaturated
+      if(sat(1)<=0.9 .and. sat(2)<=0.75) then
+        surf_equil_step2(k) = ( surf_bc(k)*porosity(c,2)*max(sat(2),1.0) - total_mobile(c,2,k) )*dzsoi_decomp(2)
+        total_mobile(c,2,k) = surf_bc(k)*porosity(c,2)*max(sat(2),1.0)
+      endif
       ! Eventually replace this with calculation using actual saturation/ebullition concentration
       dissolved_frac(0:nlevdecomp) = 0.0
     elseif (lat_bc(k) > 0.0_r8) then
-      dissolved_frac(0:nlevdecomp) = 0.9
+      dissolved_frac(0:nlevdecomp) = 1.0
     else
       dissolved_frac(0:nlevdecomp) = 0.1
     endif
@@ -2366,7 +2376,7 @@ end subroutine EMAlquimia_Coldstart
     ! In top layer, cut time step if gas species being absorbed very fast because it should be close to equilibrium
     if(j==1) then
       do k=1,this%chem_sizes%num_primary
-        if(this%is_dissolved_gas(k) .and. (surf_bc(k) > 0.0) .and. &
+        if(this%is_dissolved_gas(k) .and. (surf_bc(k) > 0.0) .and. (sat(1)<=0.9) .and. &
             ((surf_bc(k)*porosity(c,1)*max(sat(1),0.3) - total_mobile(c,1,k) )/(surf_bc(k)*porosity(c,1)*max(sat(1),0.3)) > 0.25)) then
               this%chem_status%converged = .FALSE.
               if(num_cuts>6) write(iulog,'(a,f5.2,x,a,x,i4,x,a)'),'Cutting time step to dt = ',actual_dt,' because species',k,'reduced too fast in layer 1'
@@ -2450,6 +2460,7 @@ end subroutine EMAlquimia_Coldstart
         total_mobile(c,1:nlevdecomp,k) = total_mobile(c,1:nlevdecomp,k) &
                         - transport_change_rate(1:nlevdecomp,k)*actual_dt/2
         total_mobile(c,1,k) = total_mobile(c,1,k) - surf_equil_step(k)/dzsoi_decomp(1)
+        total_mobile(c,2,k) = total_mobile(c,2,k) - surf_equil_step2(k)/dzsoi_decomp(2)
       enddo
         ! write(iulog,'(a,f8.1,a,i3,a,i3)'),'Cutting time step to',actual_dt/2,' s, layer',j,', column',c
         ! Need to run the step two times because we have cut the timestep in half
@@ -2503,7 +2514,7 @@ end subroutine EMAlquimia_Coldstart
     aux_doubles(c,:,:) = aux_doubles_tmp(1,:,:)
     aux_ints(c,:,:) = aux_ints_tmp(1,:,:)
 
-    surf_flux = surf_flux + surf_adv_step + surf_equil_step
+    surf_flux = surf_flux + surf_adv_step + surf_equil_step + surf_equil_step2
     lat_flux  = lat_flux  + lat_flux_step
       
     ! Second half of transport (Strang splitting)
@@ -2514,6 +2525,7 @@ end subroutine EMAlquimia_Coldstart
       ! Need to set boundary condition concentrations for adv flux (top layer infiltration) and lateral flux (source)
       diffus(:) = 0.0_r8
       surf_equil_step(k) = 0.0_r8
+      surf_equil_step2(k) = 0.0_r8
       lat_flux_step(k) = 0.0_r8
       surf_adv_step(k) = 0.0_r8
   
@@ -2533,14 +2545,23 @@ end subroutine EMAlquimia_Coldstart
   
         ! Equilibrate top layer of dissolved gases w.r.t. upper BC. BC is in mol/m3 H2O units and total_mobile is in mol/m3 units
         ! write(iulog,*),'Dissolved gas',k,'BC',surf_bc(k)*porosity(c,1)*sat(1),'Surf conc',total_mobile(c,1,k),'(mol m-3 equivalent)','porosity',porosity(c,1),'saturation',sat(1)
-        surf_equil_step(k) = ( surf_bc(k)*porosity(c,1)*max(sat(1),1.0) - total_mobile(c,1,k) )*dzsoi_decomp(1)
-        ! if(k==this%CH4_pool_number) write(iulog,*),'Methane ','BC',surf_bc(k)*porosity(c,1),'Surf conc',total_mobile(c,1,k),'(mol m-3 equivalent)',' porosity',porosity(c,1),'saturation',sat(1),'flux',surf_equil_step(k)/dzsoi_decomp(1)
-        total_mobile(c,1,k) = surf_bc(k)*porosity(c,1)*max(sat(1),1.0)
-      
+        if(sat(1)<= 0.9) then
+          surf_equil_step(k) = ( surf_bc(k)*porosity(c,1)*max(sat(1),1.0) - total_mobile(c,1,k) )*dzsoi_decomp(1)
+          ! write(iulog,*),'Dissolved gas',k,'BC',surf_bc(k)*porosity(c,1)*sat(1),'Surf conc',total_mobile(c,1,k),'(mol m-3 equivalent)','porosity',porosity(c,1),'saturation',sat(1),'flux',surf_equil_step(k)
+          ! if(k==this%CH4_pool_number) write(iulog,*),'Methane ','BC',surf_bc(k)*porosity(c,1),'Surf conc',total_mobile(c,1,k),'(mol m-3 equivalent)','porosity',porosity(c,1),'saturation',sat(1),'flux',surf_equil_step(k)/dzsoi_decomp(1)
+          total_mobile(c,1,k) = surf_bc(k)*porosity(c,1)*max(sat(1),1.0)
+        endif
+    
+        ! Try equilibrating top two layers if unsaturated
+        if(sat(1)<=0.9 .and. sat(2)<=0.75) then
+          surf_equil_step2(k)= ( surf_bc(k)*porosity(c,2)*max(sat(2),1.0) - total_mobile(c,2,k) )*dzsoi_decomp(2)
+          total_mobile(c,2,k) = surf_bc(k)*porosity(c,2)*max(sat(2),1.0)
+        endif
+
         ! Eventually replace this with calculation using actual saturation/ebullition concentration
         dissolved_frac(0:nlevdecomp) = 0.0
       elseif (lat_bc(k) > 0.0_r8) then
-        dissolved_frac(0:nlevdecomp) = 0.9
+        dissolved_frac(0:nlevdecomp) = 1.0
       else
         dissolved_frac(0:nlevdecomp) = 0.1
       endif
@@ -2615,7 +2636,7 @@ end subroutine EMAlquimia_Coldstart
     enddo
   
   
-    surf_flux = surf_flux + surf_equil_step + surf_adv_step
+    surf_flux = surf_flux + surf_equil_step + surf_equil_step2 + surf_adv_step
     lat_flux  = lat_flux  + lat_flux_step
   endif ! if converged
 
