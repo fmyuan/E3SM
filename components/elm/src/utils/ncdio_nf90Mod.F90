@@ -15,10 +15,11 @@ module ncdio_nf90Mod
   use shr_sys_mod    , only : shr_sys_abort
   use elm_varcon     , only : spval,ispval
   use elm_varcon     , only : grlnd, nameg, namet, namel, namec, namep, nameCohort
-  use elm_varctl     , only : single_column, iulog
+  use elm_varctl     , only : single_column, iulog, ldomain_subed
   use spmdMod        , only : masterproc, iam
   use netcdf
-  !
+  use decompMod       , only : get_proc_bounds
+   !
   ! !PUBLIC TYPES:
   implicit none
   private
@@ -1536,6 +1537,8 @@ end subroutine ncd_io_0d_double
     integer                          :: count(4)   ! netcdf count index
     integer, pointer                 :: itemp(:,:,:,:)
     integer, pointer                 :: itemp1d(:)
+    integer                          :: begg, endg ! when slicing data i/o
+    logical                          :: sliced     ! if true, data i/o in sliced starts/counts
     integer                          :: status     ! error code  
     logical                          :: varpresent ! if true, variable is on tape
     character(len=*),parameter       :: subname='ncd_io_1d_int' ! subroutine name
@@ -1554,6 +1557,23 @@ end subroutine ncd_io_0d_double
       count(1)=1
     endif
 
+    if (present(dim1name) .and. .not.ldomain_subed) then
+      if (trim(dim1name)==grlnd .or. trim(dim1name)==nameg) then
+         call get_proc_bounds(begg, endg)
+         start(1) = begg
+         count(1) = endg - begg + 1
+         sliced = .true.
+      else if (trim(dim1name)==namet) then
+         ! todo
+      else if (trim(dim1name)==namel) then
+         ! todo
+      else if (trim(dim1name)==namec) then
+         ! todo
+      else if (trim(dim1name)==namep) then
+         ! todo
+      endif
+    endif
+    !
     !
     call ncd_inqvid(ncid, varname, varid, readvar=varpresent)
     if (varpresent) then
@@ -1570,7 +1590,7 @@ end subroutine ncd_io_0d_double
              ! i.e. only read/write 1 timestep-sliced data
              start(i) = nt
              count(i) = 1
-          elseif (.not. present(counts)) then
+          elseif (.not.(sliced .and. i==1)) then
              count(i) = dlen(i)
           end if
 
@@ -1676,11 +1696,14 @@ end subroutine ncd_io_0d_double
     real(r8)         , pointer       :: rtemp1d(:)
     integer                          :: status     ! error code
     logical                          :: varpresent ! if true, variable is on tape
+    integer                          :: begg, endg ! when slicing data i/o
+    logical                          :: sliced     ! if true, data i/o in sliced starts/counts
     character(len=*),parameter       :: subname='ncd_io_1d_double' ! subroutine name
     !-----------------------------------------------------------------------
 
     start(:) = 0
     count(:) = 0
+    sliced = .false.
 
     if ( present(cnvrtnan2fill) )then
        if (.not. cnvrtnan2fill) then
@@ -1691,15 +1714,33 @@ end subroutine ncd_io_0d_double
 
     if (present(starts)) then
       start(1)=starts(1)
+      sliced = .true.
     else
       start(1)=1
     endif
     if (present(counts)) then
       count(1)=counts(1)
+      sliced = .true.
     else
       count(1)=1   ! it will be over-ride below
     endif
 
+    if (present(dim1name) .and. .not.ldomain_subed) then
+      if (trim(dim1name)==grlnd .or. trim(dim1name)==nameg) then
+         call get_proc_bounds(begg, endg)
+         start(1) = begg
+         count(1) = endg - begg + 1
+         sliced = .true.
+      else if (trim(dim1name)==namet) then
+         ! todo
+      else if (trim(dim1name)==namel) then
+         ! todo
+      else if (trim(dim1name)==namec) then
+         ! todo
+      else if (trim(dim1name)==namep) then
+         ! todo
+      endif
+    endif
     !
     dlen(:)=1
     call ncd_inqvid(ncid, varname, varid, readvar=varpresent)
@@ -1715,7 +1756,7 @@ end subroutine ncd_io_0d_double
              ! i.e. only read/write 1 timestep-sliced data
              start(i) = nt
              count(i) = 1
-          elseif (.not. present(counts)) then
+          elseif (.not.(sliced .and. i==1)) then
              count(i) = dlen(i)
           end if
        end do
@@ -1832,6 +1873,8 @@ end subroutine ncd_io_0d_double
     integer           :: dids(2)    ! dim ids
     integer           :: start(2)   ! netcdf start index
     integer           :: count(2)   ! netcdf count index
+    integer           :: begg, endg ! when slicing data i/o
+    logical           :: sliced     ! if true, data i/o in sliced starts/counts
     integer           :: data_ndims !
     logical           :: varpresent ! if true, variable is on tape
     integer           :: lb1,lb2
@@ -1852,6 +1895,23 @@ end subroutine ncd_io_0d_double
       count(1:2)=1
     endif
 
+    if (present(dim1name) .and. .not.ldomain_subed) then
+      if (trim(dim1name)==grlnd .or. trim(dim1name)==nameg) then
+         call get_proc_bounds(begg, endg)
+         start(1) = begg
+         count(1) = endg - begg + 1
+         sliced = .true.
+      else if (trim(dim1name)==namet) then
+         ! todo
+      else if (trim(dim1name)==namel) then
+         ! todo
+      else if (trim(dim1name)==namec) then
+         ! todo
+      else if (trim(dim1name)==namep) then
+         ! todo
+      endif
+    endif
+    !
     lb1 = lbound(data, dim=1)
     ub1 = ubound(data, dim=1)
     lb2 = lbound(data, dim=2)
@@ -1878,7 +1938,7 @@ end subroutine ncd_io_0d_double
              ! i.e. only read/write 1 timestep-sliced data
              start(i) = nt
              count(i) = 1
-          elseif (.not. present(counts)) then
+          elseif (.not.(sliced .and. i==1)) then
              count(i) = dlen(i)
           end if
        end do
@@ -1985,6 +2045,8 @@ end subroutine ncd_io_0d_double
     integer           :: dids(2)    ! dim ids
     integer           :: start(2)   ! netcdf start index
     integer           :: count(2)   ! netcdf count index
+    integer           :: begg, endg ! when slicing data i/o
+    logical           :: sliced     ! if true, data i/o in sliced starts/counts
     integer           :: data_ndims !
     logical           :: varpresent ! if true, variable is on tape
     integer           :: lb1,lb2
@@ -2004,6 +2066,24 @@ end subroutine ncd_io_0d_double
     else
       count(1:2)=1
     endif
+
+    if (present(dim1name) .and. .not.ldomain_subed) then
+      if (trim(dim1name)==grlnd .or. trim(dim1name)==nameg) then
+         call get_proc_bounds(begg, endg)
+         start(1) = begg
+         count(1) = endg - begg + 1
+         sliced = .true.
+      else if (trim(dim1name)==namet) then
+         ! todo
+      else if (trim(dim1name)==namel) then
+         ! todo
+      else if (trim(dim1name)==namec) then
+         ! todo
+      else if (trim(dim1name)==namep) then
+         ! todo
+      endif
+    endif
+    !
 
     if ( present(cnvrtnan2fill) )then
        if (.not. cnvrtnan2fill) then
@@ -2038,7 +2118,7 @@ end subroutine ncd_io_0d_double
              ! i.e. only read/write 1 timestep-sliced data
              start(i) = nt
              count(i) = 1
-          elseif (.not. present(counts)) then
+          elseif (.not.(sliced .and. i==1)) then
              count(i) = dlen(i)
           end if
        end do
@@ -2161,6 +2241,8 @@ end subroutine ncd_io_0d_double
     integer           :: dids(3)    ! dim ids
     integer           :: start(3)   ! netcdf start index
     integer           :: count(3)   ! netcdf count index
+    integer           :: begg, endg ! when slicing data i/o
+    logical           :: sliced     ! if true, data i/o in sliced starts/counts
     integer           :: data_ndims !
     logical           :: varpresent ! if true, variable is on tape
     character(len=*),parameter :: subname='ncd_io_3d_int' ! subroutine name
@@ -2179,6 +2261,23 @@ end subroutine ncd_io_0d_double
       count(1:3)=1
     endif
 
+    if (present(dim1name) .and. .not.ldomain_subed) then
+      if (trim(dim1name)==grlnd .or. trim(dim1name)==nameg) then
+         call get_proc_bounds(begg, endg)
+         start(1) = begg
+         count(1) = endg - begg + 1
+         sliced = .true.
+      else if (trim(dim1name)==namet) then
+         ! todo
+      else if (trim(dim1name)==namel) then
+         ! todo
+      else if (trim(dim1name)==namec) then
+         ! todo
+      else if (trim(dim1name)==namep) then
+         ! todo
+      endif
+    endif
+    !
     !
     call ncd_inqvid(ncid, varname, varid, readvar=varpresent)
     if (varpresent) then
@@ -2194,7 +2293,7 @@ end subroutine ncd_io_0d_double
              ! i.e. only read/write 1 timestep-sliced data
              start(i) = nt
              count(i) = 1
-          elseif (.not. present(counts)) then
+          elseif (.not.(sliced .and. i==1)) then
              count(i) = dlen(i)
           end if
        end do
@@ -2276,6 +2375,8 @@ end subroutine ncd_io_0d_double
     integer           :: dids(3)    ! dim ids
     integer           :: start(3)   ! netcdf start index
     integer           :: count(3)   ! netcdf count index
+    integer           :: begg, endg ! when slicing data i/o
+    logical           :: sliced     ! if true, data i/o in sliced starts/counts
     integer           :: data_ndims
     real(r8), pointer :: rtemp(:,:,:,:)
     real(r8), pointer :: rtemp3d(:,:,:)
@@ -2297,6 +2398,23 @@ end subroutine ncd_io_0d_double
       count(1:3)=1
     endif
 
+    if (present(dim1name) .and. .not.ldomain_subed) then
+      if (trim(dim1name)==grlnd .or. trim(dim1name)==nameg) then
+         call get_proc_bounds(begg, endg)
+         start(1) = begg
+         count(1) = endg - begg + 1
+         sliced = .true.
+      else if (trim(dim1name)==namet) then
+         ! todo
+      else if (trim(dim1name)==namel) then
+         ! todo
+      else if (trim(dim1name)==namec) then
+         ! todo
+      else if (trim(dim1name)==namep) then
+         ! todo
+      endif
+    endif
+    !
     !
     call ncd_inqvid(ncid, varname, varid, readvar=varpresent)
     if (varpresent) then
@@ -2312,7 +2430,7 @@ end subroutine ncd_io_0d_double
              ! i.e. only read/write 1 timestep-sliced data
              start(i) = nt
              count(i) = 1
-          elseif (.not. present(counts)) then
+          elseif (.not.(sliced .and. i==1)) then
              count(i) = dlen(i)
           end if
        end do
@@ -2394,6 +2512,8 @@ end subroutine ncd_io_0d_double
     integer           :: dids(4)    ! dim ids
     integer           :: start(4)   ! netcdf start index
     integer           :: count(4)   ! netcdf count index
+    integer           :: begg, endg ! when slicing data i/o
+    logical           :: sliced     ! if true, data i/o in sliced starts/counts
     integer           :: data_ndims !
     logical           :: varpresent ! if true, variable is on tape
     character(len=*),parameter :: subname='ncd_io_4d_int' ! subroutine name
@@ -2412,6 +2532,23 @@ end subroutine ncd_io_0d_double
       count(1:4)=1
     endif
 
+    if (present(dim1name) .and. .not.ldomain_subed) then
+      if (trim(dim1name)==grlnd .or. trim(dim1name)==nameg) then
+         call get_proc_bounds(begg, endg)
+         start(1) = begg
+         count(1) = endg - begg + 1
+         sliced = .true.
+      else if (trim(dim1name)==namet) then
+         ! todo
+      else if (trim(dim1name)==namel) then
+         ! todo
+      else if (trim(dim1name)==namec) then
+         ! todo
+      else if (trim(dim1name)==namep) then
+         ! todo
+      endif
+    endif
+    !
     !
     call ncd_inqvid(ncid, varname, varid, readvar=varpresent)
     if (varpresent) then
@@ -2427,7 +2564,7 @@ end subroutine ncd_io_0d_double
              ! i.e. only read/write 1 timestep-sliced data
              start(i) = nt
              count(i) = 1
-          elseif (.not. present(counts)) then
+          elseif (.not.(sliced .and. i==1)) then
              count(i) = dlen(i)
           end if
        end do
@@ -2511,6 +2648,8 @@ end subroutine ncd_io_0d_double
     integer           :: dids(4)    ! dim ids
     integer           :: start(4)   ! netcdf start index
     integer           :: count(4)   ! netcdf count index
+    integer           :: begg, endg ! when slicing data i/o
+    logical           :: sliced     ! if true, data i/o in sliced starts/counts
     integer           :: data_ndims !
     logical           :: varpresent ! if true, variable is on tape
     character(len=*),parameter :: subname='ncd_io_4d_double' ! subroutine name
@@ -2528,7 +2667,24 @@ end subroutine ncd_io_0d_double
     else
       count(1:4)=1
     endif
-
+    ! geo-dimension slicing
+    if (present(dim1name) .and. .not.ldomain_subed) then
+      if (trim(dim1name)==grlnd .or. trim(dim1name)==nameg) then
+         call get_proc_bounds(begg, endg)
+         start(1) = begg
+         count(1) = endg - begg + 1
+         sliced = .true.
+      else if (trim(dim1name)==namet) then
+         ! todo
+      else if (trim(dim1name)==namel) then
+         ! todo
+      else if (trim(dim1name)==namec) then
+         ! todo
+      else if (trim(dim1name)==namep) then
+         ! todo
+      endif
+    endif
+    !
     !
     call ncd_inqvid(ncid, varname, varid, readvar=varpresent)
     if (varpresent) then
@@ -2544,7 +2700,7 @@ end subroutine ncd_io_0d_double
              ! i.e. only read/write 1 timestep-sliced data
              start(i) = nt
              count(i) = 1
-          elseif (.not. present(counts)) then
+          elseif (.not.(sliced .and. i==1)) then
              count(i) = dlen(i)
           end if
        end do
