@@ -2336,6 +2336,7 @@ contains
     use elm_varcon      , only : zsoi, zlak, secspday
     use domainMod       , only : ldomain, lon1d, lat1d
     use domainMod       , only : ldomain_loc
+    use elm_varctl      , only : ldomain_subed
     use clm_time_manager, only : get_nstep, get_curr_date, get_curr_time
     use clm_time_manager, only : get_ref_date, get_calendar, NO_LEAP_C, GREGORIAN_C
     use FatesInterfaceTypesMod, only : fates_hdim_levsclass
@@ -2733,25 +2734,25 @@ contains
           call ncd_io(varname='lon', data=lon1d, ncid=nfid(t), flag='write')
           call ncd_io(varname='lat', data=lat1d, ncid=nfid(t), flag='write')
        else
-#ifdef LDOMAIN_SUB
-          call ncd_io(varname='lon', data=ldomain_loc%lonc, dim1name=grlnd, ncid=nfid(t), flag='write')
-          call ncd_io(varname='lat', data=ldomain_loc%latc, dim1name=grlnd, ncid=nfid(t), flag='write')
-#else
-          call ncd_io(varname='lon', data=ldomain%lonc, dim1name=grlnd, ncid=nfid(t), flag='write')
-          call ncd_io(varname='lat', data=ldomain%latc, dim1name=grlnd, ncid=nfid(t), flag='write')
-#endif
+          if (ldomain_subed) then
+            call ncd_io(varname='lon', data=ldomain_loc%lonc, dim1name=grlnd, ncid=nfid(t), flag='write')
+            call ncd_io(varname='lat', data=ldomain_loc%latc, dim1name=grlnd, ncid=nfid(t), flag='write')
+          else
+            call ncd_io(varname='lon', data=ldomain%lonc, dim1name=grlnd, ncid=nfid(t), flag='write')
+            call ncd_io(varname='lat', data=ldomain%latc, dim1name=grlnd, ncid=nfid(t), flag='write')
+          endif
        end if
-#ifdef LDOMAIN_SUB
+
+     if (ldomain_subed) then
        call ncd_io(varname='topo'    , data=ldomain_loc%topo, dim1name=grlnd, ncid=nfid(t), flag='write')
        call ncd_io(varname='area'    , data=ldomain_loc%area, dim1name=grlnd, ncid=nfid(t), flag='write')
        call ncd_io(varname='landfrac', data=ldomain_loc%frac, dim1name=grlnd, ncid=nfid(t), flag='write')
        call ncd_io(varname='landmask', data=ldomain_loc%mask, dim1name=grlnd, ncid=nfid(t), flag='write')
        call ncd_io(varname='pftmask' , data=ldomain_loc%pftm, dim1name=grlnd, ncid=nfid(t), flag='write')
-       call ncd_io(varname='pftmask' , data=ldomain_loc%pftm, dim1name=grlnd, ncid=nfid(t), flag='write')
        if(max_topounits > 1) then
           call ncd_io(varname='topoPerGrid' , data=ldomain%num_tunits_per_grd, dim1name=grlnd, ncid=nfid(t), flag='write')
        end if
-#else
+     else
        call ncd_io(varname='topo'    , data=ldomain%topo, dim1name=grlnd, ncid=nfid(t), flag='write')
        call ncd_io(varname='area'    , data=ldomain%area, dim1name=grlnd, ncid=nfid(t), flag='write')
        call ncd_io(varname='landfrac', data=ldomain%frac, dim1name=grlnd, ncid=nfid(t), flag='write')
@@ -2761,7 +2762,7 @@ contains
        if(max_topounits > 1) then
           call ncd_io(varname='topoPerGrid' , data=ldomain%num_tunits_per_grd, dim1name=grlnd, ncid=nfid(t), flag='write')
        end if
-#endif
+     endif
     end if  ! (define/write mode
 
   end subroutine htape_timeconst

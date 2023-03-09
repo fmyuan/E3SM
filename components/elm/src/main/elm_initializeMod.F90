@@ -77,6 +77,7 @@ contains
     use elm_varctl                , only: lateral_connectivity, domain_decomp_type
     use decompInitMod             , only: decompInit_lnd_using_gp, decompInit_ghosts
     use decompInitMod             , only: decompInit_lnd_loc, decompInit_clumps_loc
+    use decompInitMod             , only: decompInit_lnd_block
     use domainLateralMod          , only: ldomain_lateral, domainlateral_init
     use SoilTemperatureMod        , only: init_soil_temperature
     use ExternalModelInterfaceMod , only: EMI_Determine_Active_EMs
@@ -220,6 +221,7 @@ contains
                        amask, ns_rbuf, ns_displ, MPI_INTEGER, 0, mpicom, ier)
        call mpi_bcast(amask, ni_sum*nj_sum, MPI_INTEGER, 0, mpicom, ier)
        deallocate(ns_displ, ns_rbuf)
+       !
     end if
 
 #endif
@@ -252,9 +254,9 @@ contains
 
 #ifdef LDOMAIN_SUB
     if (ldomain_subed) then
-        ! offset for each process
-        allocate(ni_offset(0:npes-1))
-        allocate(nj_offset(0:npes-1))
+      ! offset for each process
+      allocate(ni_offset(0:npes-1))
+      allocate(nj_offset(0:npes-1))
         ni_offset(0) = 0
         nj_offset(0) = 0
         do pid = 1,npes-1
@@ -267,13 +269,17 @@ contains
         deallocate(nj_offset)
         deallocate(ni_all)
         deallocate(nj_all)
-
+    !
     else
-        call decompInit_lnd(ni, nj, amask)
-    end if
-    deallocate(amask)
+        ! decompose by grid-id of blocks (for individual mpi rank)
+        ! 'an(iam)' is optional (TODO), and if not user-input, it will decompose by default order
+        ! call decompInit_lnd_block(ni, nj, amask, an(iam)) ! TODO
+        call decompInit_lnd_block(ni, nj, amask)
 
+    endif
+    deallocate(amask)
 #else
+
     select case (trim(domain_decomp_type))
     case ("round_robin")
        call decompInit_lnd(ni, nj, amask)
@@ -284,6 +290,7 @@ contains
        call endrun(msg='ERROR elm_initializeMod: '//&
             'Unsupported domain_decomp_type = ' // trim(domain_decomp_type))
     end select
+
 #endif
 
     if (lateral_connectivity) then
@@ -308,21 +315,24 @@ contains
        call shr_sys_flush(iulog)
     endif
 
-#ifdef LDOMAIN_SUB
-    if (create_glacier_mec_landunit) then
+   if (ldomain_subed) then
+      if (create_glacier_mec_landunit) then
        call surfrd_get_grid(begg, endg, ldomain_loc, fatmlndfrc, fglcmask)
-    else
+      else
        call surfrd_get_grid(begg, endg, ldomain_loc, fatmlndfrc)
-    endif
-    call domain_loc2global(ldomain_loc, ldomain, ni_sum, nj_sum)
+      endif
+      call domain_loc2global(ldomain_loc, ldomain, ni_sum, nj_sum)
 
-#else
+   else ! if (.not. ldomain_subed)
+
     if (create_glacier_mec_landunit) then
        call surfrd_get_grid(begg, endg, ldomain, fatmlndfrc, fglcmask)
     else
        call surfrd_get_grid(begg, endg, ldomain, fatmlndfrc)
     endif
-#endif
+
+   endif ! if (ldomain_subed)
+
     if (masterproc) then
        call domain_check(ldomain)
     endif
@@ -387,7 +397,12 @@ contains
     end if
 
     ! Read surface dataset and set up subgrid weight arrays
+   if (ldomain_subed) then
+       call surfrd_get_data(begg, endg, ldomain_loc, fsurdat)
+       call domain_loc2global(ldomain_loc, ldomain, ni_sum, nj_sum) ! this is needed for bcasting ldomain%pftm
+   else
     call surfrd_get_data(begg, endg, ldomain, fsurdat)
+   end if
 
     ! ------------------------------------------------------------------------
     ! Ask Fates to evaluate its own dimensioning needs.
@@ -402,15 +417,18 @@ contains
     ! ------------------------------------------------------------------------
     ! Determine decomposition of subgrid scale topounits, landunits, topounits, columns, patches
     ! ------------------------------------------------------------------------
+
 #ifdef LDOMAIN_SUB
     if (create_glacier_mec_landunit) then
-       call decompInit_clumps_loc(ldomain%glcmask)
-       call decompInit_ghosts(ldomain%glcmask)
+        call decompInit_clumps_loc(ldomain%glcmask)
+           call decompInit_ghosts(ldomain%glcmask)
     else
-       call decompInit_clumps_loc()
-       call decompInit_ghosts()
+        call decompInit_clumps_loc()
+        call decompInit_ghosts()
     endif
+
 #else
+
     if (create_glacier_mec_landunit) then
        call decompInit_clumps(ldomain%glcmask)
        call decompInit_ghosts(ldomain%glcmask)
@@ -418,6 +436,7 @@ contains
        call decompInit_clumps()
        call decompInit_ghosts()
     endif
+
 #endif
 
     ! *** Get ALL processor bounds - for gridcells, landunit, columns and patches ***

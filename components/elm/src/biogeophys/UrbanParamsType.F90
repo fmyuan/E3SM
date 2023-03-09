@@ -392,6 +392,7 @@ module UrbanParamsType
     use fileutils       , only : getavu, relavu, getfil, opnfil
     use spmdMod         , only : masterproc
     use domainMod       , only : ldomain, ldomain_loc
+    use elm_varctl      , only : ldomain_subed
 #ifdef LDOMAIN_SUB
     use ncdio_nf90Mod   , only : file_desc_t, ncd_defvar, ncd_io, ncd_inqvdlen, ncd_inqfdims
     use ncdio_nf90Mod   , only : ncd_pio_openfile, ncd_pio_closefile, ncd_inqdid, ncd_inqdlen
@@ -484,8 +485,8 @@ module UrbanParamsType
        endif
 
        call ncd_inqfdims (ncid, isgrid2d, ni, nj, ns)
-#ifdef LDOMAIN_SUB
-       if (.not. has_topounit) then
+       if(ldomain_subed) then
+         if (.not. has_topounit) then
           if (ldomain_loc%ns /= ns .or. ldomain_loc%ni /= ni .or. ldomain_loc%nj /= nj) then
              write(iulog,*)trim(subname), 'ldomain and input file do not match dims '
              write(iulog,*)trim(subname), 'ldomain_loc%ni,ni,= ',ldomain_loc%ni,ni
@@ -493,16 +494,17 @@ module UrbanParamsType
              write(iulog,*)trim(subname), 'ldomain_loc%ns,ns,= ',ldomain_loc%ns,ns
              call endrun(msg=errmsg(__FILE__, __LINE__))
           end if
-       else
+         else
           !write(iulog,*)trim(subname), 'ldomain%ns,ns,= ',ldomain%ns,ns
           if (ldomain_loc%ns /= ns) then
              write(iulog,*)trim(subname), 'ldomain and input file do not match dims '
              write(iulog,*)trim(subname), 'ldomain_loc%ns,ns,= ',ldomain_loc%ns,ns
              call endrun(msg=errmsg(__FILE__, __LINE__))
           end if
-       end if
-#else
-       if (.not. has_topounit) then
+         end if
+
+       else
+         if (.not. has_topounit) then
           if (ldomain%ns /= ns .or. ldomain%ni /= ni .or. ldomain%nj /= nj) then
              write(iulog,*)trim(subname), 'ldomain and input file do not match dims '
              write(iulog,*)trim(subname), 'ldomain%ni,ni,= ',ldomain%ni,ni
@@ -510,15 +512,15 @@ module UrbanParamsType
              write(iulog,*)trim(subname), 'ldomain%ns,ns,= ',ldomain%ns,ns
              call endrun(msg=errmsg(__FILE__, __LINE__))
           end if
-       else
+         else
           !write(iulog,*)trim(subname), 'ldomain%ns,ns,= ',ldomain%ns,ns
           if (ldomain%ns /= ns) then
              write(iulog,*)trim(subname), 'ldomain and input file do not match dims '
              write(iulog,*)trim(subname), 'ldomain%ns,ns,= ',ldomain%ns,ns
              call endrun(msg=errmsg(__FILE__, __LINE__))
           end if
-       end if
-#endif
+         end if
+       endif
        
        call ncd_inqdid(ncid, 'nlevurb', dimid)
        call ncd_inqdlen(ncid, dimid, nlevurb_i)
