@@ -1644,6 +1644,7 @@ contains
     character(len=4)  :: numstr
     character(len=256):: locfn
     real(r8)          :: temp_t(2)
+    integer*2, pointer:: itemp(:,:)
 
     !---------------------------------------------------------------------------
     data caldaym / 1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335, 366 /
@@ -1758,8 +1759,7 @@ contains
                    !daymet v4 with GSWP3 v2 for NA
                     metdata_fname = 'GSWP3_daymet4_' // trim(metvars(v)) // '_1980-2014_z' // zst(2:3) // '.nc'
                     if (metdata_subed) then
-                        write(numstr, '(I4)') 1000+ztoget
-                        metdata_fname = 'GSWP3_daymet4_' // trim(metvars(v)) // '_1980-2014_z' // numstr(2:4) // '.nc'
+                        metdata_fname = 'GSWP3_daymet4_' // trim(metvars(v)) // '_1980-2014_z001.nc'
                     endif
                 else
                     call endrun( sub//' ERROR: cpl_bypass met data type here only support "GSWP3_daymet4"' )
@@ -1806,43 +1806,29 @@ contains
             if (ierr .ne. 0) atm2lnd_vars%add_offsets(v) = 0.0d0
 
             !get the met data
+            starti(1) = 1
             if (metdata_subed) then
-                ! subed metdata for individual mpi rank
-                starti(1) = 1
-                starti(2) = 1
-                counti(1) = atm2lnd_vars%timelen_spinup(v)
-                counti(2) = bounds%endg-bounds%begg+1
-                if (.not. const_climate_hist .and. (yr .ge. 1850)) counti(1) = atm2lnd_vars%timelen(v)
-
-                if (v == 1)  then
-                  allocate(atm2lnd_vars%atm_input       (met_nvars,bounds%begg:bounds%endg,1,1:counti(1)))
-                end if
-                ierr = nf90_get_var(met_ncids(v), varid, atm2lnd_vars%atm_input(v,bounds%begg:bounds%endg,1,1:counti(1)), starti(1:2), counti(1:2))
-                ierr = nf90_close(met_ncids(v))
-
+                starti(2) = 1 ! subed metdata for individual mpi rank, grid starting from 1
             else
-                if (v == 1)  then
-                  allocate(atm2lnd_vars%atm_input       (met_nvars,1:atm2lnd_vars%atm_ngrid,1,1:atm2lnd_vars%timelen_spinup(v)))
-                end if
-                ! read in by masterproc and later on cast to all procs
-                if (masterproc) then
-                  starti(1) = 1
-                  starti(2) = 1
-                  counti(1) = atm2lnd_vars%timelen_spinup(v)
-                  counti(2) = atm2lnd_vars%atm_ngrid
-                  if (.not. const_climate_hist .and. (yr .ge. 1850)) counti(1) = atm2lnd_vars%timelen(v)
+                starti(2) = bounds%begg
+            endif
+            counti(1) = atm2lnd_vars%timelen_spinup(v)
+            if (.not. const_climate_hist .and. (yr .ge. 1850)) counti(1) = atm2lnd_vars%timelen(v)
+            counti(2) = bounds%endg - bounds%begg + 1
 
-                  ierr = nf90_get_var(met_ncids(v), varid, atm2lnd_vars%atm_input(v,1:atm2lnd_vars%atm_ngrid,1,1:counti(1)), starti(1:2), counti(1:2))
-                  ierr = nf90_close(met_ncids(v))
-                end if
-                !
+            if (v == 1)  then
+                allocate(atm2lnd_vars%atm_input       (met_nvars,bounds%begg:bounds%endg,1,1:counti(1)))
+                allocate(itemp(counti(1),counti(2)))
             end if
 
+            ierr = nf90_get_var(met_ncids(v), varid, itemp, starti(1:2), counti(1:2))
+            atm2lnd_vars%atm_input(v,bounds%begg:bounds%endg,1,1:counti(1)) = reshape(transpose(itemp), &
+                    shape(atm2lnd_vars%atm_input(met_nvars,bounds%begg:bounds%endg,1,1:counti(1))))
+            ierr = nf90_close(met_ncids(v))
+            !
+            if (v==met_nvars) deallocate(itemp)
+
           end do    !end met variable loop
-          ! needed to cast data for non-subbed data
-          if (.not.metdata_subed) then
-              call mpi_bcast (atm2lnd_vars%atm_input, size(atm2lnd_vars%atm_input), MPI_INTEGER2, 0, mpicom, ier)
-          end if
 
           !---------------------------------------------------------------------------------------------!
           ! fire inputs
