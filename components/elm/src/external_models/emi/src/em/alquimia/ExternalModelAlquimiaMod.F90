@@ -64,6 +64,7 @@ module ExternalModelAlquimiaMod
     integer :: index_l2e_flux_qflx_lat_aqu_layer
     integer :: index_l2e_state_wtd
     integer :: index_l2e_state_h2osfc
+    integer :: index_l2e_state_tide_height
     integer :: index_l2e_state_flood_salinity
     integer :: index_l2e_flux_qflx_drain
     
@@ -159,6 +160,7 @@ module ExternalModelAlquimiaMod
     integer                              :: Hplus_pool_number,sulfate_pool_number,O2_pool_number,chloride_pool_number,&
                                             Fe2_pool_number,FeOH3_pool_number,sodium_pool_number,sulfide_pool_number
     logical, pointer, dimension(:)       :: is_dissolved_gas
+    real(r8),pointer, dimension(:)       :: Henry_const, Henry_Tdep
     real(r8),pointer,dimension(:)        :: DOC_content,DIC_content,DON_content,carbonate_C_content ! Also add extra SOM content tracker for pools beyond ELM's litter and SOM?
     real(r8),pointer,dimension(:)        :: bc ! Boundary condition (len of chem_sizes%num_primary)
     
@@ -367,6 +369,10 @@ contains
     id                                   = L2E_STATE_H2OSFC_COL
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_l2e_state_h2osfc      = index
+
+    id                                   = L2E_STATE_H2OSFC_TIDE_COL
+    call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_l2e_state_tide_height      = index
 
     id                                   = L2E_STATE_WTD
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
@@ -664,6 +670,8 @@ contains
     this%nitrogen_pool_mapping => NULL()
     this%pool_reaction_mapping => NULL()
     this%is_dissolved_gas      => NULL()
+    this%Henry_const           => NULL()
+    this%Henry_Tdep            => NULL()
     this%bc                    => NULL()
 
     ! Allocate memory for status container
@@ -927,7 +935,7 @@ end subroutine EMAlquimia_Coldstart
     real(r8) , pointer, dimension(:,:,:) :: aux_doubles_l2e , aux_doubles_e2l
     integer  , pointer, dimension(:,:,:)   :: aux_ints_l2e, aux_ints_e2l
     real(r8) , pointer, dimension(:,:)    :: qflx_adv_l2e, qflx_lat_aqu_l2e, qflx_drain_l2e
-    real(r8) , pointer, dimension(:)      :: flood_salinity_l2e, h2osfc_l2e, wtd_l2e
+    real(r8) , pointer, dimension(:)      :: flood_salinity_l2e, h2osfc_l2e, wtd_l2e, tide_height_l2e
     real(r8) , pointer, dimension(:,:)    :: DOC_e2l, DON_e2l, DIC_e2l, methane_vr_e2l
     real(r8) , pointer, dimension(:,:)    :: pH_e2l, O2_e2l, salinity_e2l, sulfate_e2l, sulfide_e2l, Fe2_e2l, FeOxide_e2l, carbonate_e2l
     real(r8) , pointer, dimension(:)     :: actual_dt_e2l
@@ -1026,12 +1034,13 @@ end subroutine EMAlquimia_Coldstart
 
     call l2e_list%GetPointerToReal2D(this%index_l2e_flux_qflx_adv       , qflx_adv_l2e     )
     call l2e_list%GetPointerToReal2D(this%index_l2e_flux_qflx_lat_aqu_layer    , qflx_lat_aqu_l2e     ) ! ELM units are mm/m2 (integrated over time step)
-    call l2e_list%GetPointerToReal2D(this%index_l2e_flux_qflx_drain    , qflx_drain_l2e     ) 
+    call l2e_list%GetPointerToReal2D(this%index_l2e_flux_qflx_drain    , qflx_drain_l2e     )
 
     call l2e_list%GetPointerToReal1D(this%index_l2e_state_wtd       , wtd_l2e     )
     call l2e_list%GetPointerToReal1D(this%index_l2e_state_h2osfc    , h2osfc_l2e  )
 
     call l2e_list%GetPointerToReal1D(this%index_l2e_state_flood_salinity , flood_salinity_l2e )
+    call l2e_list%GetPointerToReal1D(this%index_l2e_state_tide_height    , tide_height_l2e     ) 
 
     call e2l_list%GetPointerToReal2D(this%index_e2l_state_DIC , DIC_e2l)
     call e2l_list%GetPointerToReal2D(this%index_e2l_state_DOC , DOC_e2l)
@@ -1208,24 +1217,25 @@ end subroutine EMAlquimia_Coldstart
               ! Boundary conditions are in mol/m3 of H2O (NOT mol/L). Salinity in parts per thousand (g/kg = g/L = kg/m3)
               ! 1 ppt = 1000 g salt/m3 water / (35.453 g Cl/mol Cl * 1.8066 g salt/g Cl)
               if(this%chloride_pool_number>0) then
-                lat_bc(this%chloride_pool_number) = flood_salinity_l2e(c)/(35.453*1.80655)*1000.0
+                lat_bc(this%chloride_pool_number) = flood_salinity_l2e(c)/(35.453*.0018066_r8)
                 if (this%sulfate_pool_number>0) then
-                  lat_bc(this%sulfate_pool_number) = lat_bc(this%chloride_pool_number)*0.14_r8 ! Ratio from Jiaze's manuscript
+                  lat_bc(this%sulfate_pool_number) = flood_salinity_l2e(c)/.0018066_r8*0.14_r8/96.06_r8 ! Ratio from Jiaze's manuscript
                 endif
-                if(this%sodium_pool_number>0) lat_bc(this%sodium_pool_number) = lat_bc(this%chloride_pool_number)*0.5769_r8
-                if(this%sulfide_pool_number>0) lat_bc(this%sulfide_pool_number) = lat_bc(this%chloride_pool_number)*1e-9_r8
-                ! Hard coding ocean water pH for now
-                ! if(this%Hplus_pool_number>0) lat_bc(this%Hplus_pool_number) = 1e-7_r8*1000.0
+                if(this%sodium_pool_number>0) lat_bc(this%sodium_pool_number) = flood_salinity_l2e(c)/.0018066_r8*0.5769_r8/22.989_r8
+                if(this%sulfide_pool_number>0) lat_bc(this%sulfide_pool_number) = flood_salinity_l2e(c)/.0018066_r8*1e-9_r8/33.1_r8
+                ! Assuming ocean water pH is 8 at salinity of 30 and freshwater pH is 6 at salinity of zero
+                if(this%Hplus_pool_number>0) lat_bc(this%Hplus_pool_number) = 10**-(6+flood_salinity_l2e(c)*2.0/30.0)*1000.0
                 
                 ! Need to distinguish between tidal flooding and rainfall infiltration. Doing based on h2osfc but not sure if that's correct
+                ! Now that we have tide height info, we could use that instead. But this won't be correct while tide is going down
                 if (h2osfc_l2e(c)>0) then
-                  surf_bc(this%chloride_pool_number) = flood_salinity_l2e(c)/(35.453*1.80655)*1000.0
+                  surf_bc(this%chloride_pool_number) = flood_salinity_l2e(c)/(35.453*.0018066_r8)
                   if (this%sulfate_pool_number>0) then
-                    surf_bc(this%sulfate_pool_number) = surf_bc(this%chloride_pool_number)*0.14_r8 ! Ratio from Jiaze's manuscript
+                    surf_bc(this%sulfate_pool_number) = flood_salinity_l2e(c)/.0018066_r8*0.14_r8/96.06_r8 ! Ratio from Jiaze's manuscript
                   endif
-                  if(this%sodium_pool_number>0) surf_bc(this%sodium_pool_number) = surf_bc(this%sodium_pool_number)*0.5769_r8
-                  if(this%sulfide_pool_number>0) surf_bc(this%sulfide_pool_number) = surf_bc(this%chloride_pool_number)*1e-9_r8
-                  ! if(this%Hplus_pool_number>0) surf_bc(this%Hplus_pool_number) = 1e-7_r8*1000.0
+                  if(this%sodium_pool_number>0) surf_bc(this%sodium_pool_number) = flood_salinity_l2e(c)/.0018066_r8*0.5769_r8/22.989_r8
+                  if(this%sulfide_pool_number>0) surf_bc(this%sulfide_pool_number) = flood_salinity_l2e(c)/.0018066_r8*1e-9_r8/33.1_r8
+                  if(this%Hplus_pool_number>0) lat_bc(this%Hplus_pool_number) = 10**-(6+flood_salinity_l2e(c)*2.0/30.0)*1000.0
                 endif
 
               endif
@@ -1247,18 +1257,38 @@ end subroutine EMAlquimia_Coldstart
               ! write(iulog,*),'QFLX_DRAIN',qflx_drain_l2e(c,1:nlevdecomp)*dt
               ! write(iulog,*),'QFLX_LAT_AQU',qflx_lat_aqu_l2e(c,1:nlevdecomp)*dt
               ! Lateral flow and drainage both calculated in hydrology from the top down. But maybe in reality
-              ! it makes more sense to drain from the bottom up, or from the tide water level up.
+              ! it makes more sense to drain from the bottom up, or from the tide water level up. 
+              ! Maybe lateral drainage is faster above tide level? Currently still doing from the top down.
               ! qflx_lat_aqu_l2e(c,1:nlevdecomp) = qflx_lat_aqu_l2e(c,1:nlevdecomp) - qflx_drain_l2e(c,1:nlevdecomp)
+
+              ! Probably makes more sense to do hydrology stuff in the hydrology modules... Here for now
+              ! Above tide level, 75% of tide-driven outgoing lateral flux goes laterally from layer and 25% goes downward and out the next lower layer (compounding)
+              ! This actually seems to make the high-salinity problem worse, if anything though...
+              ! do k=1,nlevdecomp-1
+              !   if(zi(c,k+1)>-1e-3_r8*tide_height_l2e(c)) exit
+              ! enddo
+              ! do j=1,k
+              !   if(qflx_lat_aqu_l2e(c,j) < 0.0_r8) then
+              !     qflx_lat_aqu_l2e(c,j+1) = qflx_lat_aqu_l2e(c,j+1) + qflx_lat_aqu_l2e(c,j)*0.25
+              !     qflx_adv_l2e(c,j) = qflx_adv_l2e(c,j) + qflx_lat_aqu_l2e(c,j)*0.25/dt
+              !     qflx_lat_aqu_l2e(c,j) = qflx_lat_aqu_l2e(c,j) - qflx_lat_aqu_l2e(c,j)*0.25
+              !   endif
+              ! enddo
+
+              qflx_adv_l2e(c,1:nlevdecomp-1) = sum(qflx_drain_l2e(c,1:nlevdecomp))/dt
+              qflx_adv_l2e(c,nlevdecomp) = 0.0_r8
+              qflx_adv_l2e(c,0) = min(qflx_adv_l2e(c,0),sum(qflx_drain_l2e(c,1:nlevdecomp))/dt)
+
               ! This takes all qflx_drain out of bottom layer and moves all layers above down. Need to take perched water table into account though
               ! Do drainage above frozen layer
-              do k=1,nlevdecomp-1
-                if(liq_frac(k+1)<0.5) exit
+              do j=1,nlevdecomp
+                if((h2o_liqvol(c,j))/porosity_l2e(c,j)>0.7_r8 .and. (liq_frac(j)>0.5)) then
+
+                  qflx_lat_aqu_l2e(c,j) = qflx_lat_aqu_l2e(c,j) - (qflx_adv_l2e(c,j-1)-qflx_adv_l2e(c,j))*dt - sum(qflx_drain_l2e(c,1:nlevdecomp))*dz(c,j)/sum(dz(c,1:nlevdecomp))*10._r8
+                endif
               enddo
-              qflx_lat_aqu_l2e(c,k) = qflx_lat_aqu_l2e(c,k) - sum(qflx_drain_l2e(c,1:k))
-              do j=k-1,1,-1
-                if(wtd_l2e(c)>zi(c,j)) exit
-                qflx_adv_l2e(c,j) = qflx_adv_l2e(c,j) + sum(qflx_drain_l2e(c,1:nlevdecomp))/dt
-              enddo
+
+
 
               ! Problem: in elm_driver, vertical water movement and lateral (tidal) flow are calculated, then BGC, then drainage. 
               ! So including drainage here is inconsistent order of operations (actually applying drainage from previous time step)
@@ -1286,7 +1316,7 @@ end subroutine EMAlquimia_Coldstart
                   (h2o_liqvol+h2o_icevol)/porosity_l2e,    &    ! Water content as fraction of saturation
                   liq_frac,  &  ! Liquid fraction of soil water
                   -qflx_adv_l2e(:,0:nlevdecomp),&  ! Vertical water flux (mm/s)
-                  qflx_lat_aqu_l2e/dt,         &      ! Horizontal water flux (depth-resolved)
+                  qflx_lat_aqu_l2e/dt,         &      ! Horizontal water flux (depth-resolved) mm/s
                   lat_bc,                   &      ! Lateral flux concentration boundary condition
                   lat_flux,                 &      ! Output: Lateral flux of each solute
                   surf_bc,                  &      ! Surface boundary condition
@@ -1751,6 +1781,7 @@ end subroutine EMAlquimia_Coldstart
         alquimia_NO3_name,alquimia_NH4_name,alquimia_Nimp_name,alquimia_Nmin_name,alquimia_Nimm_name,&
         alquimia_plantNO3uptake_name,alquimia_plantNH4uptake_name,alquimia_plantNO3demand_name,alquimia_plantNH4demand_name
     use elm_varpar, only : nlevdecomp, ndecomp_pools, ndecomp_cascade_transitions
+    use shr_infnan_mod  , only : isnan => shr_infnan_isnan,nan => shr_infnan_nan
 
     class(em_alquimia_type)              :: this
 
@@ -1929,22 +1960,49 @@ end subroutine EMAlquimia_Coldstart
 
     ! Find aqueous gas pools
     allocate(this%is_dissolved_gas(this%chem_sizes%num_primary))
+    allocate(this%Henry_const(this%chem_sizes%num_primary))
+    allocate(this%Henry_Tdep(this%chem_sizes%num_primary))
     this%is_dissolved_gas(:) = .FALSE.
+    this%Henry_const(:) = 0.0 !  mol/(m3*Pa)
+    this%Henry_Tdep(:)  = 0.0 ! temperature dependence
     call c_f_pointer(this%chem_metadata%primary_names%data, name_list, (/this%chem_sizes%num_primary/))
     do ii=1, this%chem_sizes%num_primary
       call c_f_string_ptr(name_list(ii),alq_poolname)
-      if((trim(alq_poolname) == 'CO2(aq)') .or. &
-         (trim(alq_poolname) == 'HCO3-') .or. & ! This one might be tricky because of pH balance?
-         (trim(alq_poolname) == 'CH4(aq)') .or. &
-         (trim(alq_poolname) == 'O2(aq)')  .or. &
-         (trim(alq_poolname) == 'H2S(aq)')  .or. &
-         (trim(alq_poolname) == 'HS-(aq)')  .or. & ! Could cause pH issues
-         (trim(alq_poolname) == 'N2(aq)')  .or. &
-         (trim(alq_poolname) == 'N2O(aq)')  .or. &
-         (trim(alq_poolname) == 'H2(aq)')  ) then
-        this%is_dissolved_gas(ii) = .TRUE.
-        write(iulog,*),'Found alquimia dissolved gas pool: ',trim(alq_poolname)
-
+      if((trim(alq_poolname) == 'CO2(aq)') .or. (trim(alq_poolname) == 'HCO3-')) then
+          this%is_dissolved_gas(ii) = .TRUE.
+          this%Henry_const(ii) = 3.3e-4_r8
+          this%Henry_Tdep(ii)  = 2400_r8
+          write(iulog,'(a,1x,a,1x,i3,a,f5.0,a,g9.2)'),'Found alquimia dissolved gas: ',trim(alq_poolname),ii,' Henry const = ',this%Henry_const(ii),' Henry T dependence = ',this%Henry_Tdep(ii)
+      else if (trim(alq_poolname) == 'CH4(aq)') then
+          this%is_dissolved_gas(ii) = .TRUE.
+          this%Henry_const(ii) = 1.4e-5_r8
+          this%Henry_Tdep(ii)  = 1900_r8
+          write(iulog,'(a,1x,a,1x,i3,a,f5.0,a,g9.2)'),'Found alquimia dissolved gas: ',trim(alq_poolname),ii,' Henry const = ',this%Henry_const(ii),' Henry T dependence = ',this%Henry_Tdep(ii)
+      else if (trim(alq_poolname) == 'O2(aq)')  then
+          this%is_dissolved_gas(ii) = .TRUE.
+          this%Henry_const(ii) = 1.2e-5_r8
+          this%Henry_Tdep(ii)  = 1700_r8
+          write(iulog,'(a,1x,a,1x,i3,a,f5.0,a,g9.2)'),'Found alquimia dissolved gas: ',trim(alq_poolname),ii,' Henry const = ',this%Henry_const(ii),' Henry T dependence = ',this%Henry_Tdep(ii)
+      else if ((trim(alq_poolname) == 'H2S(aq)')  .or. (trim(alq_poolname) == 'HS-(aq)'))  then
+          this%is_dissolved_gas(ii) = .TRUE.
+          this%Henry_const(ii) = 1.0e-3_r8
+          this%Henry_Tdep(ii)  = 2100_r8
+          write(iulog,'(a,1x,a,1x,i3,a,f5.0,a,g9.2)'),'Found alquimia dissolved gas: ',trim(alq_poolname),ii,' Henry const = ',this%Henry_const(ii),' Henry T dependence = ',this%Henry_Tdep(ii)
+      else if (trim(alq_poolname) == 'N2(aq)') then
+          this%is_dissolved_gas(ii) = .TRUE.
+          this%Henry_const(ii) = 6.4e-6_r8
+          this%Henry_Tdep(ii)  = 1600_r8
+          write(iulog,'(a,1x,a,1x,i3,a,f5.0,a,g9.2)'),'Found alquimia dissolved gas: ',trim(alq_poolname),ii,' Henry const = ',this%Henry_const(ii),' Henry T dependence = ',this%Henry_Tdep(ii)
+      else if (trim(alq_poolname) == 'N2O(aq)')  then
+          this%is_dissolved_gas(ii) = .TRUE.
+          this%Henry_const(ii) = 2.4e-4_r8
+          this%Henry_Tdep(ii)  = 2700_r8
+          write(iulog,'(a,1x,a,1x,i3,a,f5.0,a,g9.2)'),'Found alquimia dissolved gas: ',trim(alq_poolname),ii,' Henry const = ',this%Henry_const(ii),' Henry T dependence = ',this%Henry_Tdep(ii)
+      else if (trim(alq_poolname) == 'H2(aq)')   then
+          this%is_dissolved_gas(ii) = .TRUE.
+          this%Henry_const(ii) = 7.7e-6_r8
+          this%Henry_Tdep(ii)  = 530_r8
+          write(iulog,'(a,1x,a,1x,i3,a,f5.0,a,g9.2)'),'Found alquimia dissolved gas: ',trim(alq_poolname),ii,' Henry const = ',this%Henry_const(ii),' Henry T dependence = ',this%Henry_Tdep(ii)
       endif
     enddo
 
@@ -2161,8 +2219,9 @@ end subroutine EMAlquimia_Coldstart
     
   use c_f_interface_module, only : c_f_string_ptr
   use elm_varpar       , only : nlevdecomp
-  use elm_varcon, only : dzsoi_decomp
-  use shr_infnan_mod         , only : isnan => shr_infnan_isnan
+  use elm_varcon       , only : dzsoi_decomp
+  use elm_varcon       , only : denh2o, grav, rgas, c_h_inv, kh_theta, kh_tbase
+  use shr_infnan_mod   , only : isnan => shr_infnan_isnan
   
   implicit none
   
@@ -2201,6 +2260,7 @@ end subroutine EMAlquimia_Coldstart
     real(r8) :: surf_adv_step(this%chem_sizes%num_primary),surf_equil_step(this%chem_sizes%num_primary), surf_equil_step2(this%chem_sizes%num_primary), &
                 lat_flux_step(this%chem_sizes%num_primary)
     ! real(r8) :: bot_adv_step(this%chem_sizes%num_primary)
+    real(r8) :: gas_pressure,water_pressure,ebul_flux
   
   real(r8) :: actual_dt,porosity_tmp
   character(512) :: msg
@@ -2240,8 +2300,27 @@ end subroutine EMAlquimia_Coldstart
         diffus(j) = 2.0e-5_r8*0.66_r8*porosity(c,j)*(1.0_r8-sat(j))*(1-sat(j))**3
       enddo
 
+      ! Ebullition flux, from the bottom up until reaching unsaturated layer
+      do j=nlevdecomp,2,-1
+        if(sat(j)<0.9 .or. liq_frac(j)<0.95) exit
+        ! Calculate total water pressure. Using calculation from Jiaze
+        water_pressure = 101.325e3_r8 ! Should take H2OSFC into account also, and ideally use actual atmospheric pressure
+        do ii=1,j
+          water_pressure = water_pressure + porosity(c,ii)*sat(ii)*dzsoi_decomp(ii)*grav*denh2o
+        enddo
+        ! Gas pressure in Pa from Jiaze's calculation. Should maybe include a bubble gas fraction or take other gas partial pressures into account
+        gas_pressure = total_mobile(c,j,k)/porosity(c,j)/(this%Henry_const(k)*exp(-this%Henry_Tdep(k)*(1/temperature(c,j)-1/298.15)))
+        ebul_flux = total_mobile(c,j,k)*max((gas_pressure-water_pressure)/gas_pressure,0.0) ! mol/m3
+        ! Move excess gas up one layer
+        if(ebul_flux>0.0) then
+          ! write(iulog,*),'Ebullition: ',j,k,gas_pressure,water_pressure,ebul_flux,total_mobile(c,j,k),temperature(c,j),this%Henry_const(k),this%Henry_Tdep(k)
+          total_mobile(c,j,k) = total_mobile(c,j,k) - ebul_flux
+          total_mobile(c,j-1,k) = total_mobile(c,j-1,k) + ebul_flux*(dzsoi_decomp(j))/(dzsoi_decomp(j-1))
+        endif
+      enddo
+
       ! Some issues with oxygen not penetrating very deep under unsaturated conditions. Not sure if this needs to be solved with higher diffusion coeff, 
-      ! or pressure-driven exchange, or equilibrating deeper layers, or what
+      ! or pressure-driven exchange, or equilibrating deeper layers, or what. Or maybe it's ok, only occurs when soil is close to saturated?
 
       ! Equilibrate top layer of dissolved gases w.r.t. upper BC. BC is in mol/m3 H2O units and total_mobile is in mol/m3 units
       ! Unless this should be treated as a source term in advection-diffusion?
@@ -2261,7 +2340,7 @@ end subroutine EMAlquimia_Coldstart
         total_mobile(c,2,k) = surf_bc(k)*porosity(c,2)*max(sat(2),1.0)
       endif
       ! Eventually replace this with calculation using actual saturation/ebullition concentration
-      dissolved_frac(0:nlevdecomp) = 0.0
+      dissolved_frac(0:nlevdecomp) = 0.1
     elseif (lat_bc(k) > 0.0_r8) then
       dissolved_frac(0:nlevdecomp) = 1.0
     else
@@ -2295,6 +2374,7 @@ end subroutine EMAlquimia_Coldstart
         source_term(j,k) = lat_flow(c,j)*1e-3_r8 * lat_bc(k)*porosity(c,j)*sat(j) ! mol/m3 bulk/s
       else
         source_term(j,k) = lat_flow(c,j)*1e-3_r8 * total_mobile(c,j,k)*dissolved_frac(j)
+        source_term(j,k) = lat_flow(c,j)*1e-3_r8 * total_mobile(c,j,k) * 0.01_r8 ! Assume components not specified by salinity are in equilibrium for subsurface flow
       endif
       lat_flux_step(k) = lat_flux_step(k) + source_term(j,k)*dzsoi_decomp(j)*actual_dt/2
 
@@ -2542,6 +2622,26 @@ end subroutine EMAlquimia_Coldstart
           ! Fan et al 2014, a little higher at high air filled porosity
           diffus(j) = 2.0e-5_r8*0.66_r8*porosity(c,j)*(1.0_r8-sat(j))*(1-sat(j))**3
         enddo
+
+      ! Ebullition flux, from the bottom up until reaching unsaturated layer
+        do j=nlevdecomp,2,-1
+          if(sat(j)<0.9 .or. liq_frac(j)<0.95) exit
+          ! Calculate total water pressure. Using calculation from Jiaze
+          water_pressure = 101.325e3_r8 ! Should take H2OSFC into account also, and ideally use actual atmospheric pressure
+          do ii=1,j
+            water_pressure = water_pressure + porosity(c,ii)*sat(ii)*dzsoi_decomp(ii)*grav*denh2o
+          enddo
+          ! Gas pressure in Pa from Jiaze's calculation. Should maybe include a bubble gas fraction or take other gas partial pressures into account
+          gas_pressure = total_mobile(c,j,k)/porosity(c,j)/(this%Henry_const(k)*exp(-this%Henry_Tdep(k)*(1/temperature(c,j)-1/298.15)))
+          ebul_flux = total_mobile(c,j,k)*max((gas_pressure-water_pressure)/gas_pressure,0.0) ! mol/m3
+          ! Move excess gas up one layer
+          if(ebul_flux>0.0) then
+            ! write(iulog,*),'Ebullition: ',j,k,gas_pressure,water_pressure,ebul_flux,total_mobile(c,j,k),temperature(c,j),this%Henry_const(k),this%Henry_Tdep(k)
+            total_mobile(c,j,k) = total_mobile(c,j,k) - ebul_flux
+            total_mobile(c,j-1,k) = total_mobile(c,j-1,k) + ebul_flux*(dzsoi_decomp(j))/(dzsoi_decomp(j-1))
+          endif
+        enddo
+  
   
         ! Equilibrate top layer of dissolved gases w.r.t. upper BC. BC is in mol/m3 H2O units and total_mobile is in mol/m3 units
         ! write(iulog,*),'Dissolved gas',k,'BC',surf_bc(k)*porosity(c,1)*sat(1),'Surf conc',total_mobile(c,1,k),'(mol m-3 equivalent)','porosity',porosity(c,1),'saturation',sat(1)
@@ -2559,7 +2659,7 @@ end subroutine EMAlquimia_Coldstart
         endif
 
         ! Eventually replace this with calculation using actual saturation/ebullition concentration
-        dissolved_frac(0:nlevdecomp) = 0.0
+        dissolved_frac(0:nlevdecomp) = 0.1
       elseif (lat_bc(k) > 0.0_r8) then
         dissolved_frac(0:nlevdecomp) = 1.0
       else
@@ -2573,7 +2673,8 @@ end subroutine EMAlquimia_Coldstart
           call endrun(msg="Mobile species is NaN")
         endif
         ! Assume diffusion through water according to Wright (1990)
-        ! In that paper diffus_water = 0.000025 cm2/s
+        ! In that paper diffus_water = 0.000025 cm2/s and it's further multiplied by .005
+        ! But King et al (1990) and other papers have diffusion coefficients on the order of 1-2e-5 cm2/s = 1.5e-9 m2/s
         diffus(j) = diffus(j) + 2.5e-9_r8*0.005_r8*exp(10.0_r8*sat(j)*liq_frac(j)*porosity(c,j))
 
         ! Add some density-driven mixing if salinity is higher in upper layer than lower layer
@@ -2593,6 +2694,7 @@ end subroutine EMAlquimia_Coldstart
           source_term(j,k) = lat_flow(c,j)*1e-3_r8 * lat_bc(k)*porosity(c,j)*sat(j) ! mol/m3 bulk/s
         else
           source_term(j,k) = lat_flow(c,j)*1e-3_r8 * total_mobile(c,j,k)*dissolved_frac(j)
+          if (lat_bc(k) == 0.0_r8) source_term(j,k) = lat_flow(c,j)*1e-3_r8 * total_mobile(c,j,k) * 0.01_r8 ! Assume components not specified by salinity are in equilibrium for subsurface flow
         endif
         lat_flux_step(k) = lat_flux_step(k) + source_term(j,k)*dzsoi_decomp(j)*actual_dt/2
   
