@@ -84,7 +84,7 @@ contains
        id_val         =  L2E_STATE_H2OSFC_COL
        name_val       =  'Surface water'
        long_name_val  =  'Surface water: ELM to EM'
-       units_val      =  'kg/m2'
+       units_val      =  'mm'
        is_real_type   =  .true.
        ndim           =  1
        dim1_beg_name  =  dimname_begc
@@ -96,6 +96,17 @@ contains
        name_val       =  'Flood salinity'
        long_name_val  =  'Flood salinity: ELM to EM'
        units_val      =  'ppt'
+       is_real_type   =  .true.
+       ndim           =  1
+       dim1_beg_name  =  dimname_begc
+       dim1_end_name  =  dimname_endc
+       data_found   =  .true.
+
+    case(L2E_STATE_H2OSFC_TIDE_COL)
+       id_val         =  L2E_STATE_H2OSFC_TIDE_COL
+       name_val       =  'Tide height'
+       long_name_val  =  'Tide height: ELM to EM'
+       units_val      =  'mm'
        is_real_type   =  .true.
        ndim           =  1
        dim1_beg_name  =  dimname_begc
