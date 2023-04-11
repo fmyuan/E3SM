@@ -1,6 +1,4 @@
-set(CFLAGS "")
-set(CMAKE_OPTS "")
-set(CPPDEFS "")
+string(APPEND CPPDEFS " -DSYSWSL")
 set(CXX_LINKER "CXX")
 string(APPEND FC_AUTO_R8 " -fdefault-real-8")
 string(APPEND FFLAGS " -O -fconvert=big-endian -ffree-line-length-none -ffixed-line-length-none -fno-range-check")
