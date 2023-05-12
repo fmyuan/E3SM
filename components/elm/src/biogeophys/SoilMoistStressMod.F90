@@ -402,6 +402,7 @@ contains
                   rresis(p,j) = rresis(p,j)*osm_inhib(p)
                endif
 
+#ifdef MARSH
                !use floodf to change root water uptake
                if (h2osfc(c) .gt. 0._r8 .and. h2osfc(c) .lt. htop(p)*1000) then
                      floodf(p)=(htop(p)*1000-h2osfc(c))/(htop(p)*1000)
@@ -411,6 +412,7 @@ contains
                      floodf(p)=1.0_r8                       
                endif
                rresis(p,j) = rresis(p,j)*floodf(p)
+#endif
 
                if (.not. (perchroot .or. perchroot_alt) ) then
                   rootr(p,j) = rootfr(p,j)*rresis(p,j)
