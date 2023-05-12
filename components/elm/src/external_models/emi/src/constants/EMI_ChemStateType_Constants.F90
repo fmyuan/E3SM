@@ -22,16 +22,17 @@ module EMI_ChemStateType_Constants
   integer, parameter, public :: E2L_STATE_SOIL_SULFIDE                   = 1816
   integer, parameter, public :: E2L_STATE_SOIL_FE2                       = 1817
   integer, parameter, public :: E2L_STATE_SOIL_FE_OXIDE                  = 1818
-  integer, parameter, public :: E2L_STATE_WATER_DENSITY                  = 1819
-  integer, parameter, public :: E2L_STATE_AQUEOUS_PRESSURE               = 1820
-  integer, parameter, public :: E2L_STATE_TOTAL_MOBILE                   = 1821
-  integer, parameter, public :: E2L_STATE_TOTAL_IMMOBILE                 = 1822
-  integer, parameter, public :: E2L_STATE_MINERAL_VOLUME_FRACTION        = 1823
-  integer, parameter, public :: E2L_STATE_MINERAL_SPECIFIC_SURFACE_AREA  = 1824
-  integer, parameter, public :: E2L_STATE_SURFACE_SITE_DENSITY           = 1825
-  integer, parameter, public :: E2L_STATE_CATION_EXCHANGE_CAPACITY       = 1826
-  integer, parameter, public :: E2L_STATE_AUX_DOUBLES                    = 1827
-  integer, parameter, public :: E2L_STATE_AUX_INTS                       = 1828
-  integer, parameter, public :: E2L_STATE_CHEM_DT                        = 1829
+  integer, parameter, public :: E2L_STATE_SOIL_FE_SULFIDE                = 1819
+  integer, parameter, public :: E2L_STATE_WATER_DENSITY                  = 1820
+  integer, parameter, public :: E2L_STATE_AQUEOUS_PRESSURE               = 1821
+  integer, parameter, public :: E2L_STATE_TOTAL_MOBILE                   = 1822
+  integer, parameter, public :: E2L_STATE_TOTAL_IMMOBILE                 = 1823
+  integer, parameter, public :: E2L_STATE_MINERAL_VOLUME_FRACTION        = 1824
+  integer, parameter, public :: E2L_STATE_MINERAL_SPECIFIC_SURFACE_AREA  = 1825
+  integer, parameter, public :: E2L_STATE_SURFACE_SITE_DENSITY           = 1826
+  integer, parameter, public :: E2L_STATE_CATION_EXCHANGE_CAPACITY       = 1827
+  integer, parameter, public :: E2L_STATE_AUX_DOUBLES                    = 1828
+  integer, parameter, public :: E2L_STATE_AUX_INTS                       = 1829
+  integer, parameter, public :: E2L_STATE_CHEM_DT                        = 1830
 
 end module EMI_ChemStateType_Constants
