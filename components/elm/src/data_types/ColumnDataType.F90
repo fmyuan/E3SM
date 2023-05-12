@@ -1017,6 +1017,7 @@ module ColumnDataType
      real(r8), pointer :: soil_sulfate          (:,:)   => null() ! soil sulfate (mol m^-3) (1:nlevdecomp_full)
      real(r8), pointer :: soil_sulfide          (:,:)   => null() ! soil sulfide (mol m^-3) (1:nlevdecomp_full)
      real(r8), pointer :: soil_FeOxide          (:,:)   => null() ! soil iron oxide minerals (mol Fe m^-3) (1:nlevdecomp_full)
+     real(r8), pointer :: soil_FeS              (:,:)   => null() ! soil iron sulfide minerals (mol Fe m^-3) (1:nlevdecomp_full)
      real(r8), pointer :: soil_Fe2              (:,:)   => null() ! soil Fe(II) (mol Fe m^-3) (1:nlevdecomp_full)
 
      real(r8), pointer :: chem_dt               (:)     => null() ! Time step of successful chemistry solve (s)
@@ -11327,6 +11328,7 @@ contains
       allocate(this%soil_sulfate(begc:endc, lbj:ubj))
       allocate(this%soil_sulfide(begc:endc, lbj:ubj))
       allocate(this%soil_FeOxide(begc:endc, lbj:ubj))
+      allocate(this%soil_FeS(begc:endc, lbj:ubj))
       allocate(this%soil_Fe2(begc:endc, lbj:ubj))
 
       allocate(this%chem_dt(begc:endc))
@@ -11367,6 +11369,11 @@ contains
      call hist_addfld2d (fname='soil_FeOxide', units='mol Fe m-3',  type2d='levdcmp', &
        avgflag='A', long_name='Soil iron oxide mineral concentration', &
            ptr_col=this%soil_FeOxide,default='inactive')
+
+     this%soil_FeS(begc:endc,:) = 0.0_r8
+     call hist_addfld2d (fname='soil_FeS', units='mol Fe m-3',  type2d='levdcmp', &
+        avgflag='A', long_name='Soil iron sulfide mineral concentration', &
+           ptr_col=this%soil_FeS,default='inactive')
 
      this%chem_dt(begc:endc) = 0.0_r8
      call hist_addfld1d (fname='chem_dt', units='s', &

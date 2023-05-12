@@ -87,6 +87,7 @@ module ExternalModelAlquimiaMod
     integer :: index_e2l_state_O2
     integer :: index_e2l_state_Fe2
     integer :: index_e2l_state_FeOxide
+    integer :: index_e2l_state_FeS
     integer :: index_e2l_state_carbonate
 
     integer :: index_e2l_flux_Nimm
@@ -158,7 +159,8 @@ module ExternalModelAlquimiaMod
     integer                              :: plantNO3demand_pool_number,plantNH4demand_pool_number
     integer                              :: plantNO3uptake_reaction_number,plantNH4uptake_reaction_number
     integer                              :: Hplus_pool_number,sulfate_pool_number,O2_pool_number,chloride_pool_number,&
-                                            Fe2_pool_number,FeOH3_pool_number,sodium_pool_number,sulfide_pool_number
+                                            Fe2_pool_number,FeOH3_pool_number,Goethite_pool_number,FeS_pool_number,pyrite_pool_number,&
+                                            sodium_pool_number,sulfide_pool_number
     logical, pointer, dimension(:)       :: is_dissolved_gas
     real(r8),pointer, dimension(:)       :: Henry_const, Henry_Tdep
     real(r8),pointer,dimension(:)        :: DOC_content,DIC_content,DON_content,carbonate_C_content ! Also add extra SOM content tracker for pools beyond ELM's litter and SOM?
@@ -545,6 +547,10 @@ contains
     id                                             = E2L_STATE_SOIL_FE_OXIDE
     call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_e2l_state_FeOxide              = index
+
+    id                                             = E2L_STATE_SOIL_FE_SULFIDE
+    call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_e2l_state_FeS              = index
 
     id                                             = E2L_STATE_SOIL_CARBONATE
     call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
@@ -937,7 +943,7 @@ end subroutine EMAlquimia_Coldstart
     real(r8) , pointer, dimension(:,:)    :: qflx_adv_l2e, qflx_lat_aqu_l2e, qflx_drain_l2e
     real(r8) , pointer, dimension(:)      :: flood_salinity_l2e, h2osfc_l2e, wtd_l2e, tide_height_l2e
     real(r8) , pointer, dimension(:,:)    :: DOC_e2l, DON_e2l, DIC_e2l, methane_vr_e2l
-    real(r8) , pointer, dimension(:,:)    :: pH_e2l, O2_e2l, salinity_e2l, sulfate_e2l, sulfide_e2l, Fe2_e2l, FeOxide_e2l, carbonate_e2l
+    real(r8) , pointer, dimension(:,:)    :: pH_e2l, O2_e2l, salinity_e2l, sulfate_e2l, sulfide_e2l, Fe2_e2l, FeOxide_e2l, FeS_e2l, carbonate_e2l
     real(r8) , pointer, dimension(:)     :: actual_dt_e2l
     real(r8)                            :: CO2_before, molperL_to_molperm3,DON_before,excess_NO3_uptake,excess_NH4_uptake
     real(r8)                            :: totalC_before, totalN_before, totalC_after, totalN_after, Nflux, Cflux
@@ -1053,6 +1059,7 @@ end subroutine EMAlquimia_Coldstart
     call e2l_list%GetPointerToReal2D(this%index_e2l_state_sulfide , sulfide_e2l)
     call e2l_list%GetPointerToReal2D(this%index_e2l_state_Fe2 , Fe2_e2l)
     call e2l_list%GetPointerToReal2D(this%index_e2l_state_FeOxide , FeOxide_e2l)
+    call e2l_list%GetPointerToReal2D(this%index_e2l_state_FeS , FeS_e2l)
     call e2l_list%GetPointerToReal2D(this%index_e2l_state_carbonate , carbonate_e2l)
 
     call e2l_list%GetPointerToReal1D(this%index_e2l_chem_dt , actual_dt_e2l)
@@ -1279,12 +1286,11 @@ end subroutine EMAlquimia_Coldstart
               qflx_adv_l2e(c,nlevdecomp) = 0.0_r8
               qflx_adv_l2e(c,0) = min(qflx_adv_l2e(c,0),sum(qflx_drain_l2e(c,1:nlevdecomp))/dt)
 
-              ! This takes all qflx_drain out of bottom layer and moves all layers above down. Need to take perched water table into account though
               ! Do drainage above frozen layer
               do j=1,nlevdecomp
                 if((h2o_liqvol(c,j))/porosity_l2e(c,j)>0.7_r8 .and. (liq_frac(j)>0.5)) then
 
-                  qflx_lat_aqu_l2e(c,j) = qflx_lat_aqu_l2e(c,j) - (qflx_adv_l2e(c,j-1)-qflx_adv_l2e(c,j))*dt - sum(qflx_drain_l2e(c,1:nlevdecomp))*dz(c,j)/sum(dz(c,1:nlevdecomp))*10._r8
+                  qflx_lat_aqu_l2e(c,j) = qflx_lat_aqu_l2e(c,j) - (qflx_adv_l2e(c,j-1)-qflx_adv_l2e(c,j))*dt - sum(qflx_drain_l2e(c,1:nlevdecomp))*dz(c,j)/sum(dz(c,1:nlevdecomp))*5._r8
                 endif
               enddo
 
@@ -1478,6 +1484,26 @@ end subroutine EMAlquimia_Coldstart
                   FeOxide_e2l(c,j) = mineral_volume_fraction_e2l(c,j,this%FeOH3_pool_number)/34.36e-6
               else
                   FeOxide_e2l(c,j) = 0.0_r8
+              endif
+
+              if(this%Goethite_pool_number>0) then
+                ! Minerals need to be divided by molar volume (m3/mol) since alquimia units are m3/m3
+                ! Molar volume of Geothite is 20.8200 cm3/mol from hanford.dat
+                FeOxide_e2l(c,j) = FeOxide_e2l(c,j) + mineral_volume_fraction_e2l(c,j,this%Goethite_pool_number)/20.82e-6
+              endif
+
+              if(this%FeS_pool_number>0) then
+                ! Minerals need to be divided by molar volume (m3/mol) since alquimia units are m3/m3
+                ! Molar volume of Pyrrhotite is 18.2000 cm3/mol from hanford.dat
+                FeS_e2l(c,j) = mineral_volume_fraction_e2l(c,j,this%FeS_pool_number)/18.2000e-6
+              else
+                FeS_e2l(c,j) = 0.0_r8
+              endif
+
+              if(this%pyrite_pool_number>0) then
+                ! Minerals need to be divided by molar volume (m3/mol) since alquimia units are m3/m3
+                ! Molar volume of Pyrrhotite is 23.9400 cm3/mol from hanford.dat
+                FeS_e2l(c,j) = FeS_e2l(c,j) + mineral_volume_fraction_e2l(c,j,this%pyrite_pool_number)/23.94000e-6
               endif
 
               if(this%NO3_pool_number>0) no3_e2l(c,j) = total_mobile_e2l(c,j,this%NO3_pool_number)*natomw
@@ -2024,7 +2050,7 @@ end subroutine EMAlquimia_Coldstart
       ! Not sure if there's a good way to pass C:N ratios from PFLOTRAN to here, but this is really clunky
       if(trim(alq_poolname) == 'DOM1') then
         this%DOC_content(ii) = 1.0_r8
-        this%DON_content(ii) = 1.0_r8/100.0_r8*12.0110_r8/14.0067_r8
+        this%DON_content(ii) = 1.0_r8/20.0_r8*12.0110_r8/14.0067_r8
       endif
       if(trim(alq_poolname) == 'DOM2') then
         this%DOC_content(ii) = 1.0_r8
@@ -2067,7 +2093,16 @@ end subroutine EMAlquimia_Coldstart
     call c_f_pointer(this%chem_metadata%mineral_names%data, name_list, (/this%chem_sizes%num_minerals/))
     this%FeOH3_pool_number = find_alquimia_pool('Fe(OH)3',name_list,this%chem_sizes%num_minerals)
     if(this%FeOH3_pool_number>0) write(iulog,'(a,6x,a,i3,1x)'),'Fe(OH)3', '<-> Alquimia mineral',this%FeOH3_pool_number
+    this%Goethite_pool_number = find_alquimia_pool('Goethite',name_list,this%chem_sizes%num_minerals)
+    if(this%Goethite_pool_number>0) write(iulog,'(a,6x,a,i3,1x)'),'Goethite', '<-> Alquimia mineral',this%Goethite_pool_number
+
+    this%FeS_pool_number = find_alquimia_pool('Pyrrhotite',name_list,this%chem_sizes%num_minerals)
+    if(this%FeS_pool_number>0) write(iulog,'(a,6x,a,i3,1x)'),'Pyrrhotite (FeS)', '<-> Alquimia mineral',this%FeS_pool_number
+    this%pyrite_pool_number = find_alquimia_pool('Pyrite',name_list,this%chem_sizes%num_minerals)
+    if(this%pyrite_pool_number>0) write(iulog,'(a,6x,a,i3,1x)'),'Pyrite', '<-> Alquimia mineral',this%pyrite_pool_number
     
+
+
     allocate(this%carbonate_C_content(this%chem_sizes%num_minerals))
     this%carbonate_C_content(:) = 0.0_r8
     do ii=1, this%chem_sizes%num_minerals
