@@ -80,8 +80,7 @@
       
     !----------------------------
 
-    subroutine ats_set_veg_properties_c(ats, &
-         rooting_fraction) &
+    subroutine ats_set_veg_properties_c(ats, rooting_fraction) &
            bind(c, name="ats_set_veg_properties")
       use, intrinsic :: iso_c_binding
       implicit none
@@ -109,15 +108,16 @@
     
     
     !----------------------------
-    subroutine ats_get_waterstate_c(ats, ponded_depth, water_table_depth, mass_water_content) &
+    subroutine ats_get_waterstate_c(ats, ponded_depth, water_table_depth, mass_water_content) &   !!!, mass_ice_content, soil_psi) &
          bind(c, name="ats_get_waterstate")
       use, intrinsic :: iso_c_binding
       implicit none
       type(C_PTR), value :: ats
-
       real(C_DOUBLE), dimension(*), intent(out) :: ponded_depth       ! surface water ponding depth, unit: [m] [col]
       real(C_DOUBLE), dimension(*), intent(out) :: water_table_depth  ! water table depth, unit: [m] [col]
       real(C_DOUBLE), dimension(*), intent(out) :: mass_water_content ! soil liq. water content, unit: [kgH2O / m2] [col,nlevgrnd]
+      !real(C_DOUBLE), dimension(*), intent(out) :: mass_ice_content   ! soil ice water content, unit: [kgH2O / m2] [col,nlevgrnd]
+      !real(C_DOUBLE), dimension(*), intent(out) :: soil_psi           ! soil matric potential, unit: [Pa] [col,nlevgrnd]
     end subroutine ats_get_waterstate_c
 
     subroutine ats_get_water_fluxes_c(ats, infiltration, evaporation, transpiration, root_fluxes, net_subsurface_flux, net_runon) &

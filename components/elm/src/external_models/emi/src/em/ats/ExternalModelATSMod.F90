@@ -968,6 +968,8 @@ contains
     real(r8)  , pointer  :: e2l_h2osfc(:),         h2osfc_ats(:)
     real(r8)  , pointer  :: e2l_zwt(:),            zwt_ats(:)
     real(r8)  , pointer  :: e2l_h2osoi_liq(:,:),   h2oliq_ats(:,:)
+    real(r8)  , pointer  :: e2l_h2osoi_ice(:,:),   h2oice_ats(:,:)
+    real(r8)  , pointer  :: e2l_soil_psi(:,:),     soilpsi_ats(:,:)
     real(r8)  , pointer  :: e2l_soilinfl_flux(:),  soilinfl_flux_ats(:)
     real(r8)  , pointer  :: e2l_evap_flux(:),      evap_flux_ats(:)
     real(r8)  , pointer  :: e2l_root_flux(:,:),    root_flux_ats(:,:)
@@ -998,10 +1000,12 @@ contains
 
     nz = size(e2l_h2osoi_liq(1,:))
     allocate(h2oliq_ats(this%filter_col_num, nz))
+    allocate(h2oice_ats(this%filter_col_num, nz))
+    allocate(soilpsi_ats(this%filter_col_num, nz))
     allocate(root_flux_ats(this%filter_col_num, nz))
 
 
-    call this%ats_interface%getdata_hydro(h2osfc_ats, zwt_ats, h2oliq_ats,    &
+    call this%ats_interface%getdata_hydro(h2osfc_ats, zwt_ats, h2oliq_ats, h2oice_ats, soilpsi_ats, &
                                           soilinfl_flux_ats, evap_flux_ats, tran_flux_ats, &
                                           root_flux_ats, net_sub_flux_ats, net_srf_flux_ats)
 
@@ -1019,6 +1023,8 @@ contains
        e2l_tran_flux(c)       = tran_flux_ats(fc)
        do j = 1, nz
           e2l_h2osoi_liq(c,j) = h2oliq_ats(fc,j)
+          !e2l_h2osoi_ice(c,j) = h2oice_ats(fc,j)
+          !e2l_soil_psi(c,j)   = soilpsi_ats(fc,j)
           e2l_root_flux(c,j)  = root_flux_ats(fc,j)
           e2l_rootsoi_frac(p,j) = root_flux_ats(fc,j)
        end do
@@ -1029,6 +1035,8 @@ contains
     deallocate(h2osfc_ats)
     deallocate(zwt_ats)
     deallocate(h2oliq_ats)
+    deallocate(h2oice_ats)
+    deallocate(soilpsi_ats)
     deallocate(soilinfl_flux_ats)
     deallocate(evap_flux_ats)
     deallocate(tran_flux_ats)
