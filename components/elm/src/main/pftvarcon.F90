@@ -668,6 +668,8 @@ contains
     allocate( gcbc_q             (0:mxpft) )
     allocate( gcbr_p             (0:mxpft) )
     allocate( gcbr_q             (0:mxpft) )
+    allocate( gcpsi              (0:mxpft) )
+    allocate( pftcc              (0:mxpft) )
 
 
     ! Tidal cycle coefficients

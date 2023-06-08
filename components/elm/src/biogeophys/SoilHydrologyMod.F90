@@ -322,7 +322,6 @@ contains
      use elm_time_manager , only : get_curr_date, get_curr_time
 #if defined MARSH
       use pftvarcon       , only : num_tide_comps, tide_baseline,tide_coeff_period, tide_coeff_phase, tide_coeff_amp,sfcflow_ratescale
-      use elm_instMod     , only : atm2lnd_vars
       use elm_varctl      , only : tide_file
 #endif
      use elm_varcon       , only : secspday
