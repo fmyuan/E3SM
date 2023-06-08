@@ -1982,7 +1982,6 @@ module VegetationDataType
        allocate(this%grainc_xfer        (begp :endp))   ;  this%grainc_xfer        (:)   = spval
        allocate(this%woodc              (begp :endp))   ;  this%woodc              (:)   = spval
        allocate(this%totvegc_abg        (begp :endp))   ;  this%totvegc_abg        (:)   = spval
-       allocate(this%osm_inhib          (begp :endp))   ;  this%osm_inhib          (:)   = spval
     endif  !  not use_fates
 
     allocate(this%begcb              (begp :endp))   ;  this%begcb              (:) = spval
@@ -5461,8 +5460,8 @@ module VegetationDataType
     allocate(this%qflx_over_supply_patch   (begp:endp))              ; this%qflx_over_supply_patch   (:)   = spval
     allocate(this%n_irrig_steps_left       (begp:endp))              ; this%n_irrig_steps_left       (:)   = 0
 
-    allocate(this%osm_inhib                (begp:endp))              ; this%osm_inhib                (:)   = nan
-    allocate(this%floodf                   (begp:endp))              ; this%floodf                   (:)   = nan
+    allocate(this%osm_inhib                (begp:endp))              ; this%osm_inhib                (:)   = spval
+    allocate(this%floodf                   (begp:endp))              ; this%floodf                   (:)   = spval
 
     !-----------------------------------------------------------------------
     ! initialize history fields for select members of veg_wf

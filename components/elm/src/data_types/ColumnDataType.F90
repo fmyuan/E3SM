@@ -5505,10 +5505,10 @@ contains
     allocate(this%qflx_over_supply       (begc:endc))             ; this%qflx_over_supply     (:)   = spval
     allocate(this%qflx_irr_demand        (begc:endc))             ; this%qflx_irr_demand      (:)   = spval
     allocate(this%qflx_h2orof_drain      (begc:endc))             ; this%qflx_h2orof_drain    (:)   = spval
-    allocate(this%qflx_lat_aqu           (begc:endc))             ; this%qflx_lat_aqu         (:)   = spval
+    allocate(this%qflx_lat_aqu           (begc:endc))             ; this%qflx_lat_aqu         (:)   = 0.0_r8
     allocate(this%qflx_lat_aqu_layer     (begc:endc,1:nlevgrnd))  ; this%qflx_lat_aqu_layer   (:,:) = spval
-    allocate(this%qflx_surf_input        (begc:endc))             ; this%qflx_surf_input      (:)   = spval
-    allocate(this%qflx_tide              (begc:endc))             ; this%qflx_tide            (:)   = spval
+    allocate(this%qflx_surf_input        (begc:endc))             ; this%qflx_surf_input      (:)   = 0.0_r8
+    allocate(this%qflx_tide              (begc:endc))             ; this%qflx_tide            (:)   = 0.0_r8
 
     !VSFM variables
     ncells = endc - begc + 1

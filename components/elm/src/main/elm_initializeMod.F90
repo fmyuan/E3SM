@@ -1015,7 +1015,7 @@ contains
              call get_clump_bounds(nc, bounds_clump)
              call SatellitePhenology(bounds_clump, &
                   filter_inactive_and_active(nc)%num_soilp, filter_inactive_and_active(nc)%soilp, &
-                  waterstate_vars, canopystate_vars)
+                  waterstate_vars, canopystate_vars, soilstate_vars)
           end do
           !$OMP END PARALLEL DO
        end if

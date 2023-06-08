@@ -302,7 +302,7 @@ contains
 
   !-----------------------------------------------------------------------
   subroutine SatellitePhenology(bounds, num_filter, filter, &
-       waterstate_vars, canopystate_vars)
+       waterstate_vars, canopystate_vars, soilstate_vars)
     !
     ! !DESCRIPTION:
     ! Ecosystem dynamics: phenology, vegetation
@@ -331,7 +331,6 @@ contains
     integer                , intent(in)    :: filter(bounds%endp-bounds%begp+1) ! patch filter
     type(waterstate_type)  , intent(in)    :: waterstate_vars
     type(soilstate_type)   , intent(in)    :: soilstate_vars
-    type(temperature_type) , intent(in)    :: temperature_vars
     type(canopystate_type) , intent(inout) :: canopystate_vars
     !
     ! !LOCAL VARIABLES::
@@ -359,7 +358,17 @@ contains
          esai               => canopystate_vars%esai_patch    ,          & ! Output: [real(r8) (:) ] one-sided stem area index with burying by snow
          htop               => canopystate_vars%htop_patch    ,          & ! Output: [real(r8) (:) ] canopy top (m)
          hbot               => canopystate_vars%hbot_patch    ,          & ! Output: [real(r8) (:) ] canopy bottom (m)
-         frac_veg_nosno_alb => canopystate_vars%frac_veg_nosno_alb_patch & ! Output: [integer  (:) ] fraction of vegetation not covered by snow (0 OR 1) [-]
+         frac_veg_nosno_alb => canopystate_vars%frac_veg_nosno_alb_patch,& ! Output: [integer  (:) ] fraction of vegetation not covered by snow (0 OR 1) [-]
+         sp_gdd             => canopystate_vars%sp_gdd_patch,            & ! Output:
+         sp_chil            => canopystate_vars%sp_chil_patch,           & ! Output:
+         sp_swi_on          => canopystate_vars%sp_swi_on_patch,         & ! Output:
+         sp_swi_off         => canopystate_vars%sp_swi_off_patch,        & ! Output:
+         sp_fdd_off         => canopystate_vars%sp_fdd_off_patch,        & ! Output:
+         sp_onset_day       => canopystate_vars%sp_onset_day_patch,      & ! Output:
+         sp_offset_day      => canopystate_vars%sp_offset_day_patch,     & ! Output:
+         sp_dayl_temp       => canopystate_vars%sp_dayl_temp_patch,      & ! Output:
+         annlai             => canopystate_vars%annlai_patch,            &
+         ivt                => veg_pp%itype                              &
          )
  
       if (use_lai_streams) then
@@ -410,7 +419,7 @@ contains
               ws_flag = 0._r8
             end if
             !------ Seasonal deciduous phenology ----------------------
-!put IFDEf hum_hol here
+#if defined HUM_HOL
             !crit_onset_gdd = exp(4.8_r8 + 0.13_r8*(tmean(p) - SHR_CONST_TKFRZ))
             crit_onset_gdd = phen_fstar
             if (.not. use_cn .and. season_decid(ivt(p)) == 1._r8) then
@@ -533,7 +542,7 @@ contains
                 sp_fdd_off(p)    = 0._r8
               end if
            endif
-!End the ifdef here
+#endif
          endif
 
          tsai(p) = timwt(1)*msai2t(p,1) + timwt(2)*msai2t(p,2)

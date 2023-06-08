@@ -318,7 +318,6 @@ contains
 #endif
 #if defined MARSH
       use pftvarcon       , only : num_tide_comps, tide_baseline,tide_coeff_period, tide_coeff_phase, tide_coeff_amp,sfcflow_ratescale
-      use elm_instMod     , only : atm2lnd_vars
       use elm_varctl      , only : tide_file
 #endif
      use clm_time_manager , only : get_step_size, get_curr_date, get_curr_time
@@ -481,20 +480,6 @@ contains
           jwt(c) = nlevbed
           ! allow jwt to equal zero when zwt is in top layer
           do j = 1,nlevbed
-             if(zwt(c) <= zi(c,j)) then
-                jwt(c) = j-1
-                exit
-             end if
-          enddo
-       enddo
-#endif
-
-
-       do fc = 1, num_hydrologyc
-          c = filter_hydrologyc(fc)
-          jwt(c) = nlevsoi
-          ! allow jwt to equal zero when zwt is in top layer
-          do j = 1,nlevsoi
              if(zwt(c) <= zi(c,j)) then
                 jwt(c) = j-1
                 exit
