@@ -186,9 +186,9 @@ contains
 #endif
 
 #if (defined COL3RD)
-         if (c .eq. 1) fsat(c) = 1.0 * exp(-3.0_r8/humhol_ht*(zwt(c)))   !at 30cm, hummock saturated at 5% changed to 0.1 TAO
-         if (c .eq. 2) fsat(c) = 1.0 * exp(-3.0_r8/(humhol_ht*humhol_ht_frac)*(zwt(c)))   !at 30cm, hummock saturated at 5% changed to 0.1 TAO
-         if (c .eq. 3) fsat(c) = min(1.0 * exp(-3.0_r8/(humhol_ht*humhol_ht_frac)*(zwt(c)-h2osfc(c)/1000.+humhol_ht*humhol_ht_frac)), 1._r8) !TAO 0.3 t0 0.1, 0.15 to 0.35 !bsulman: what does 0.15 represent?
+         if (c .eq. 1) fsat(c) = 1.0 * exp(-3.0_r8/humhol_ht*humhol_ht_frac*(zwt(c)))   !at 30cm, hummock saturated at 5% changed to 0.1 TAO
+         if (c .eq. 2) fsat(c) = 1.0 * exp(-3.0_r8/(humhol_ht)*(zwt(c)))   !at 30cm, hummock saturated at 5% changed to 0.1 TAO
+         if (c .eq. 3) fsat(c) = min(1.0 * exp(-3.0_r8/(humhol_ht)*(zwt(c)-h2osfc(c)/1000.+humhol_ht)), 1._r8) !TAO 0.3 t0 0.1, 0.15 to 0.35 !bsulman: what does 0.15 represent?
 #endif
          ! use perched water table to determine fsat (if present)
          if ( frost_table(c) > zwt(c)) then
@@ -207,9 +207,9 @@ contains
 #endif
  
 #if (defined COL3RD)
-            if (c .eq. 1) fsat(c) = 1.0 * exp(-3.0_r8/humhol_ht*(zwt(c)))   !at 30cm, hummock saturated at 5%
-            if (c .eq. 2) fsat(c) = 1.0 * exp(-3.0_r8/(humhol_ht*humhol_ht_frac)*(zwt(c)))
-            if (c .eq. 3) fsat(c) = min(1.0 * exp(-3.0_r8/(humhol_ht*humhol_ht_frac)*(zwt(c)-h2osfc(c)/1000.+humhol_ht*humhol_ht_frac)), 1._r8) !TAO 0.3 t 0.1, 0.15 to 0.35
+            if (c .eq. 1) fsat(c) = 1.0 * exp(-3.0_r8/humhol_ht*humhol_ht_frac*(zwt(c)))   !at 30cm, hummock saturated at 5%
+            if (c .eq. 2) fsat(c) = 1.0 * exp(-3.0_r8/(humhol_ht)*(zwt(c)))
+            if (c .eq. 3) fsat(c) = min(1.0 * exp(-3.0_r8/(humhol_ht)*(zwt(c)-h2osfc(c)/1000.+humhol_ht)), 1._r8) !TAO 0.3 t 0.1, 0.15 to 0.35
 #endif
 
          else
@@ -226,9 +226,9 @@ contains
 #endif 
 
 #if (defined COL3RD)
-            if (c .eq. 1) fsat(c) = 1.0 * exp(-3.0_r8/humhol_ht*(zwt(c))) !at 30cm, hummock saturated at 5%
-            if (c .eq. 2) fsat(c) = 1.0 * exp(-3.0_r8/(humhol_ht*humhol_ht_frac)*(zwt(c)))
-            if (c .eq. 3) fsat(c) = min(1.0 * exp(-3.0_r8/(humhol_ht*humhol_ht_frac)*(zwt(c)-h2osfc(c)/1000.+humhol_ht*humhol_ht_frac)), 1._r8) !TAO 0.3 t 1.5, 0.15 to 0.35
+            if (c .eq. 1) fsat(c) = 1.0 * exp(-3.0_r8/humhol_ht*humhol_ht_frac*(zwt(c))) !at 30cm, hummock saturated at 5%
+            if (c .eq. 2) fsat(c) = 1.0 * exp(-3.0_r8/(humhol_ht)*(zwt(c)))
+            if (c .eq. 3) fsat(c) = min(1.0 * exp(-3.0_r8/(humhol_ht)*(zwt(c)-h2osfc(c)/1000.+humhol_ht)), 1._r8) !TAO 0.3 t 1.5, 0.15 to 0.35
 #endif
          endif
          if (origflag == 1) then
@@ -852,11 +852,11 @@ contains
                  qflx_lat_aqu(:) = 0._r8
                else
                  qflx_lat_aqu(1) =  2._r8/(1._r8/ka_hu1+1._r8/ka_ho) * (zwt_hu1-zwt_ho- &
-                     humhol_ht) / humhol_dist * sqrt(hol_frac/hum_frac)
-                 qflx_lat_aqu(2) =  2._r8/(1._r8/ka_hu2+1._r8/ka_ho) * (zwt_hu2-zwt_ho- &
                      humhol_ht*humhol_ht_frac) / humhol_dist * sqrt(hol_frac/hum_frac)
+                 qflx_lat_aqu(2) =  2._r8/(1._r8/ka_hu2+1._r8/ka_ho) * (zwt_hu2-zwt_ho- &
+                     humhol_ht) / humhol_dist * sqrt(hol_frac/hum_frac)
                  qflx_lat_aqu(3) = -2._r8/(1._r8/ka_hu2+1._r8/ka_ho) * (zwt_hu2-zwt_ho- &
-                     humhol_ht*humhol_ht_frac) / humhol_dist * sqrt(hum_frac/hol_frac)
+                     humhol_ht) / humhol_dist * sqrt(hum_frac/hol_frac)
                  !salinity(1) = 25._r8 + 20_r8*qflx_lat_aqu(2)*dtime
                  !salinity(1) = 0._r8
                  !salinity(2) = 30._r8
@@ -926,25 +926,25 @@ contains
                 write(iulog,*), 'qflx_lat_aqu(c)', qflx_lat_aqu(1), qflx_lat_aqu(2), qflx_lat_aqu(3)
                 write(iulog,*), 'h2osfc(c)', h2osfc(1), h2osfc(2), h2osfc(3)
                 ! If flooded water surface of one column is higher than the other, add faster flow since aquifer transfer (ka parameters) is slow
-                if(h2osfc(3)>0 .and. h2osfc(3)>(h2osfc(2)+humhol_ht*humhol_ht_frac*1000.0)) then
-                  qflx_lat_aqu(3) = qflx_lat_aqu(3) - min((h2osfc(3)-(h2osfc(2)+humhol_ht*humhol_ht_frac*1000.0))*sfcflow_ratescale,h2osfc(3)*0.5/dtime)
-                  qflx_lat_aqu(2) = qflx_lat_aqu(2) + min((h2osfc(3)-(h2osfc(2)+humhol_ht*humhol_ht_frac*1000.0))*sfcflow_ratescale,h2osfc(3)*0.5/dtime)
-                  if (h2osfc(2)>0 .and. (h2osfc(1)+humhol_ht*1000.0) < h2osfc(2)+humhol_ht*1000.0) then
-                     qflx_lat_aqu(2) = qflx_lat_aqu(2) - min((h2osfc(2)+humhol_ht*1000.0-(h2osfc(1)+humhol_ht*1000.0))*sfcflow_ratescale,h2osfc(2)*0.5/dtime)
-                     qflx_lat_aqu(1) = qflx_lat_aqu(1) + min((h2osfc(2)+humhol_ht*1000.0-(h2osfc(1)+humhol_ht*1000.0))*sfcflow_ratescale,h2osfc(2)*0.5/dtime)
-                  elseif (h2osfc(1)>0 .and. (h2osfc(1)+humhol_ht*1000.0) > h2osfc(2)+humhol_ht*1000.0) then
-                     qflx_lat_aqu(2) = qflx_lat_aqu(2) + min(((h2osfc(1)+humhol_ht*1000.0)-h2osfc(2)-humhol_ht*1000.0)*sfcflow_ratescale,h2osfc(1)*0.5/dtime)
-                     qflx_lat_aqu(1) = qflx_lat_aqu(1) - min(((h2osfc(1)+humhol_ht*1000.0)-h2osfc(2)-humhol_ht*1000.0)*sfcflow_ratescale,h2osfc(1)*0.5/dtime)
+                if(h2osfc(3)>0 .and. h2osfc(3)>(h2osfc(2)+humhol_ht*1000.0)) then
+                  qflx_lat_aqu(3) = qflx_lat_aqu(3) - min((h2osfc(3)-(h2osfc(2)+humhol_ht*1000.0))*sfcflow_ratescale,h2osfc(3)*0.5/dtime)
+                  qflx_lat_aqu(2) = qflx_lat_aqu(2) + min((h2osfc(3)-(h2osfc(2)+humhol_ht*1000.0))*sfcflow_ratescale,h2osfc(3)*0.5/dtime)
+                  if (h2osfc(2)>0 .and. (h2osfc(1)+humhol_ht*humhol_ht_frac*1000.0) < h2osfc(2)+humhol_ht*1000.0) then
+                     qflx_lat_aqu(2) = qflx_lat_aqu(2) - min((h2osfc(2)+humhol_ht*1000.0-(h2osfc(1)+humhol_ht*humhol_ht_frac*1000.0))*sfcflow_ratescale,h2osfc(2)*0.5/dtime)
+                     qflx_lat_aqu(1) = qflx_lat_aqu(1) + min((h2osfc(2)+humhol_ht*1000.0-(h2osfc(1)+humhol_ht*humhol_ht_frac*1000.0))*sfcflow_ratescale,h2osfc(2)*0.5/dtime)
+                  elseif (h2osfc(1)>0 .and. (h2osfc(1)+humhol_ht*humhol_ht_frac*1000.0) > h2osfc(2)+humhol_ht*1000.0) then
+                     qflx_lat_aqu(2) = qflx_lat_aqu(2) + min(((h2osfc(1)+humhol_ht*humhol_ht_frac*1000.0)-h2osfc(2)-humhol_ht*1000.0)*sfcflow_ratescale,h2osfc(1)*0.5/dtime)
+                     qflx_lat_aqu(1) = qflx_lat_aqu(1) - min(((h2osfc(1)+humhol_ht*humhol_ht_frac*1000.0)-h2osfc(2)-humhol_ht*1000.0)*sfcflow_ratescale,h2osfc(1)*0.5/dtime)
                   endif
-                elseif(h2osfc(2)>0 .and. (h2osfc(2)+humhol_ht*humhol_ht_frac*1000.0) > h2osfc(3)) then
-                  qflx_lat_aqu(3) = qflx_lat_aqu(3) + min((h2osfc(2)-(h2osfc(3)-humhol_ht*humhol_ht_frac*1000.0))*sfcflow_ratescale,h2osfc(2)*0.5/dtime)
-                  qflx_lat_aqu(2) = qflx_lat_aqu(2) - min((h2osfc(2)-(h2osfc(3)-humhol_ht*humhol_ht_frac*1000.0))*sfcflow_ratescale,h2osfc(2)*0.5/dtime)
-                  if (h2osfc(2)>0 .and. (h2osfc(1)+humhol_ht*1000.0) < h2osfc(2)+humhol_ht*1000.0) then
-                     qflx_lat_aqu(2) = qflx_lat_aqu(2) - min((h2osfc(2)+humhol_ht*1000.0-(h2osfc(1)+humhol_ht*1000.0))*sfcflow_ratescale,h2osfc(2)*0.5/dtime)
-                     qflx_lat_aqu(1) = qflx_lat_aqu(1) + min((h2osfc(2)+humhol_ht*1000.0-(h2osfc(1)+humhol_ht*1000.0))*sfcflow_ratescale,h2osfc(2)*0.5/dtime)
-                  elseif (h2osfc(1)>0 .and. (h2osfc(1)+humhol_ht*1000.0) > h2osfc(2)+humhol_ht*1000.0) then
-                     qflx_lat_aqu(2) = qflx_lat_aqu(2) + min(((h2osfc(1)+humhol_ht*1000.0)-h2osfc(2)-humhol_ht*1000.0)*sfcflow_ratescale,h2osfc(1)*0.5/dtime)
-                     qflx_lat_aqu(1) = qflx_lat_aqu(1) - min(((h2osfc(1)+humhol_ht*1000.0)-h2osfc(2)-humhol_ht*1000.0)*sfcflow_ratescale,h2osfc(1)*0.5/dtime)
+                elseif(h2osfc(2)>0 .and. (h2osfc(2)+humhol_ht*1000.0) > h2osfc(3)) then
+                  qflx_lat_aqu(3) = qflx_lat_aqu(3) + min((h2osfc(2)-(h2osfc(3)-humhol_ht*1000.0))*sfcflow_ratescale,h2osfc(2)*0.5/dtime)
+                  qflx_lat_aqu(2) = qflx_lat_aqu(2) - min((h2osfc(2)-(h2osfc(3)-humhol_ht*1000.0))*sfcflow_ratescale,h2osfc(2)*0.5/dtime)
+                  if (h2osfc(2)>0 .and. (h2osfc(1)+humhol_ht*humhol_ht_frac*1000.0) < h2osfc(2)+humhol_ht*1000.0) then
+                     qflx_lat_aqu(2) = qflx_lat_aqu(2) - min((h2osfc(2)+humhol_ht*1000.0-(h2osfc(1)+humhol_ht*humhol_ht_frac*1000.0))*sfcflow_ratescale,h2osfc(2)*0.5/dtime)
+                     qflx_lat_aqu(1) = qflx_lat_aqu(1) + min((h2osfc(2)+humhol_ht*1000.0-(h2osfc(1)+humhol_ht*humhol_ht_frac*1000.0))*sfcflow_ratescale,h2osfc(2)*0.5/dtime)
+                  elseif (h2osfc(1)>0 .and. (h2osfc(1)+humhol_ht*humhol_ht_frac*1000.0) > h2osfc(2)+humhol_ht*1000.0) then
+                     qflx_lat_aqu(2) = qflx_lat_aqu(2) + min(((h2osfc(1)+humhol_ht*humhol_ht_frac*1000.0)-h2osfc(2)-humhol_ht*1000.0)*sfcflow_ratescale,h2osfc(1)*0.5/dtime)
+                     qflx_lat_aqu(1) = qflx_lat_aqu(1) - min(((h2osfc(1)+humhol_ht*humhol_ht_frac*1000.0)-h2osfc(2)-humhol_ht*1000.0)*sfcflow_ratescale,h2osfc(1)*0.5/dtime)
                   endif
                 endif
                 write(iulog,*), 'qflx_lat_aqu(1) after', qflx_lat_aqu(1), qflx_lat_aqu(2), qflx_lat_aqu(3)
