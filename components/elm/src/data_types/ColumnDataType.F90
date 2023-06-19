@@ -503,6 +503,7 @@ module ColumnDataType
     real(r8), pointer :: qflx_glcice_frz      (:)   => null() ! ice growth (positive definite) (mm H2O/s)
     real(r8), pointer :: qflx_glcice_melt     (:)   => null() ! ice melt (positive definite) (mm H2O/s)
     real(r8), pointer :: qflx_drain_vr        (:,:) => null() ! liquid water lost as drainage (m /time step)
+    real(r8), pointer :: qflx_net_vr          (:,:) => null() ! liquid water flux vertically-resolved (mm H2O/s)
     real(r8), pointer :: qflx_h2osfc2topsoi   (:)   => null() ! liquid water coming from surface standing water top soil (mm H2O/s)
     real(r8), pointer :: qflx_snow2topsoi     (:)   => null() ! liquid water coming from residual snow to topsoil (mm H2O/s)
     real(r8), pointer :: qflx_lateral         (:)   => null() ! lateral subsurface flux (mm H2O /s)
@@ -1461,6 +1462,10 @@ contains
          avgflag='A', long_name='soil liquid water (vegetated landunits only)', &
          ptr_col=this%h2osoi_liq, l2g_scale_type='veg')
 
+    call hist_addfld2d (fname='SOILLIQVOL',  units='m3/m3', type2d='levgrnd', &
+         avgflag='A', long_name='soil volumetric liquid water content (vegetated landunits only)', &
+         ptr_col=this%h2osoi_liqvol, l2g_scale_type='veg')
+
     this%h2osoi_liq(begc:endc,:) = spval
     call hist_addfld2d (fname='SOILLIQ_ICE',  units='kg/m2', type2d='levgrnd', &
          avgflag='A', long_name='soil liquid water (ice landunits only)', &
@@ -1470,6 +1475,10 @@ contains
     call hist_addfld2d (fname='SOILICE',  units='kg/m2', type2d='levgrnd', &
          avgflag='A', long_name='soil ice (vegetated landunits only)', &
          ptr_col=this%h2osoi_ice, l2g_scale_type='veg')
+
+    call hist_addfld2d (fname='SOILICEVOL',  units='m3/m3', type2d='levgrnd', &
+         avgflag='A', long_name='soil volumetric ice water content (vegetated landunits only)', &
+         ptr_col=this%h2osoi_icevol, l2g_scale_type='veg')
 
     this%h2osoi_ice(begc:endc,:) = spval
         call hist_addfld2d (fname='SOILICE_ICE',  units='kg/m2', type2d='levgrnd', &
@@ -5726,6 +5735,7 @@ contains
     allocate(this%qflx_glcice_frz        (begc:endc))             ; this%qflx_glcice_frz      (:)   = spval
     allocate(this%qflx_glcice_melt       (begc:endc))             ; this%qflx_glcice_melt     (:)   = spval
     allocate(this%qflx_drain_vr          (begc:endc,1:nlevgrnd))  ; this%qflx_drain_vr        (:,:) = spval
+    allocate(this%qflx_net_vr            (begc:endc,1:nlevgrnd))  ; this%qflx_net_vr          (:,:) = spval
     allocate(this%qflx_h2osfc2topsoi     (begc:endc))             ; this%qflx_h2osfc2topsoi   (:)   = spval
     allocate(this%qflx_snow2topsoi       (begc:endc))             ; this%qflx_snow2topsoi     (:)   = spval
     allocate(this%qflx_lateral           (begc:endc))             ; this%qflx_lateral         (:)   = 0._r8
@@ -5786,6 +5796,10 @@ contains
     call hist_addfld1d (fname='QDRAI',  units='mm/s',  &
          avgflag='A', long_name='sub-surface drainage', &
          ptr_col=this%qflx_drain, c2l_scale_type='urbanf')
+
+    call hist_addfld2d (fname='QFLX_LIQ_vr',  units='mm/s', type2d='levgrnd', &
+         avgflag='A', long_name='soil liquid water flux vertically resolved (vegetated landunits only)', &
+         ptr_col=this%qflx_net_vr, c2l_scale_type='urbanf')
 
     this%qflx_irr_demand(begc:endc) = spval
     call hist_addfld1d (fname='QIRRIG_WM',  units='mm/s',  &

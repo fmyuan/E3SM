@@ -376,6 +376,7 @@ contains
 
          qflx_deficit      =>    col_wf%qflx_deficit    , & ! Input:  [real(r8) (:)   ]  water deficit to keep non-negative liquid water content
          qflx_infl         =>    col_wf%qflx_infl       , & ! Input:  [real(r8) (:)   ]  infiltration (mm H2O /s)
+         qflx_net_vr       =>    col_wf%qflx_net_vr     , & ! Output:  [real(r8) (:)   ]  water flux vertically-resolved (mm H2O /s)
          qflx_rootsoi_col  =>    col_wf%qflx_rootsoi    , & ! Input: [real(r8) (:,:) ]  vegetation/soil water exchange (mm H2O/s) (+ = to atm)
          t_soisno          =>    col_es%t_soisno        & ! Input:  [real(r8) (:,:) ]  soil temperature (Kelvin)
          )
@@ -749,6 +750,7 @@ contains
          nlevbed = nlev2bed(c)
          do j = 1, nlevbed
             h2osoi_liq(c,j) = h2osoi_liq(c,j) + dwat2(c,j)*dzmm(c,j)
+            qflx_net_vr(c,j) = dwat2(c,j)*dzmm(c,nlevsoi+1)/dtime    ! unit: mmH2O/s
          end do
 
          ! calculate qcharge for case jwt < nlevsoi
@@ -785,6 +787,9 @@ contains
                ! To limit qcharge  (for the first several timesteps)
                qcharge(c) = max(-10.0_r8/dtime,qcharge(c))
                qcharge(c) = min( 10.0_r8/dtime,qcharge(c))
+
+               ! this qcharge may be different from 'dwat2'
+               qflx_net_vr(c,jwt(c)) = qcharge(c)
             else
                ! if water table is below soil column, compute qcharge from dwat2(11)
                qcharge(c) = 0._r8
@@ -822,6 +827,9 @@ contains
                ! To limit qcharge  (for the first several timesteps)
                qcharge(c) = max(-10.0_r8/dtime,qcharge(c))
                qcharge(c) = min( 10.0_r8/dtime,qcharge(c))
+
+               ! this qcharge may be different from 'dwat2'
+               qflx_net_vr(c,jwt(c)) = qcharge(c)
             else
             ! if water table is below soil column, compute qcharge from dwat2(11)
                qcharge(c) = dwat2(c,nlevsoi+1)*dzmm(c,nlevsoi+1)/dtime
