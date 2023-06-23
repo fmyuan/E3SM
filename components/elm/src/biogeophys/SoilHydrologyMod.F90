@@ -755,10 +755,8 @@ contains
                ka_hu = max(ka_hu, 1e-5_r8)
 
                !DMR 12/4/2015
-               if (icefrac(c,min(jwt(1)+1,nlevbed)) .ge. 0.90_r8) then
+               if (icefrac(c,min(jwt(1)+1,nlevbed)) .ge. 1.90_r8) then
                   !turn off lateral transport if any ice is present at or below,
-                  !changed from 0.01 to 0.90 TAO 6/4/2021
-                  !water table
                   qflx_lat_aqu(c) = 0._r8
                else
                   qflx_lat_aqu(c) =  2._r8*ka_hu * (h2osfc_tide(c)/1000._r8 - (h2osfc(c)/1000._r8 - zwt(c))) / humhol_dist

@@ -1231,7 +1231,7 @@ end subroutine EMAlquimia_Coldstart
                 if(this%sodium_pool_number>0) lat_bc(this%sodium_pool_number) = flood_salinity_l2e(c)/.0018066_r8*0.5769_r8/22.989_r8
                 if(this%sulfide_pool_number>0) lat_bc(this%sulfide_pool_number) = flood_salinity_l2e(c)/.0018066_r8*1e-9_r8/33.1_r8
                 ! Assuming ocean water pH is 8 at salinity of 30 and freshwater pH is 6 at salinity of zero
-                if(this%Hplus_pool_number>0) lat_bc(this%Hplus_pool_number) = 10**-(6+flood_salinity_l2e(c)*2.0/30.0)*1000.0
+                if(this%Hplus_pool_number>0) lat_bc(this%Hplus_pool_number) = 10**(-(6+flood_salinity_l2e(c)*2.0/30.0))*1000.0
                 
                 ! Need to distinguish between tidal flooding and rainfall infiltration. Doing based on h2osfc but not sure if that's correct
                 ! Now that we have tide height info, we could use that instead. But this won't be correct while tide is going down
@@ -1242,7 +1242,7 @@ end subroutine EMAlquimia_Coldstart
                   endif
                   if(this%sodium_pool_number>0) surf_bc(this%sodium_pool_number) = flood_salinity_l2e(c)/.0018066_r8*0.5769_r8/22.989_r8
                   if(this%sulfide_pool_number>0) surf_bc(this%sulfide_pool_number) = flood_salinity_l2e(c)/.0018066_r8*1e-9_r8/33.1_r8
-                  if(this%Hplus_pool_number>0) lat_bc(this%Hplus_pool_number) = 10**-(6+flood_salinity_l2e(c)*2.0/30.0)*1000.0
+                  if(this%Hplus_pool_number>0) lat_bc(this%Hplus_pool_number) = 10**(-(6+flood_salinity_l2e(c)*2.0/30.0))*1000.0
                 endif
 
               endif
@@ -1290,7 +1290,7 @@ end subroutine EMAlquimia_Coldstart
               do j=1,nlevdecomp
                 if((h2o_liqvol(c,j))/porosity_l2e(c,j)>0.7_r8 .and. (liq_frac(j)>0.5)) then
 
-                  qflx_lat_aqu_l2e(c,j) = qflx_lat_aqu_l2e(c,j) - (qflx_adv_l2e(c,j-1)-qflx_adv_l2e(c,j))*dt - sum(qflx_drain_l2e(c,1:nlevdecomp))*dz(c,j)/sum(dz(c,1:nlevdecomp))*5._r8
+                  qflx_lat_aqu_l2e(c,j) = qflx_lat_aqu_l2e(c,j) - (qflx_adv_l2e(c,j-1)-qflx_adv_l2e(c,j))*dt - sum(qflx_drain_l2e(c,1:nlevdecomp))*dz(c,j)/sum(dz(c,1:nlevdecomp))*0._r8
                 endif
               enddo
 
@@ -2292,10 +2292,9 @@ end subroutine EMAlquimia_Coldstart
     integer            ::   aux_ints_tmp(1,nlevdecomp,this%chem_sizes%num_aux_integers)
     real(r8) :: diffus(nlevdecomp), sat(nlevdecomp), dissolved_frac(0:nlevdecomp)
     real(r8) :: transport_change_rate(nlevdecomp,this%chem_sizes%num_primary),source_term(nlevdecomp,this%chem_sizes%num_primary)
-    real(r8) :: surf_adv_step(this%chem_sizes%num_primary),surf_equil_step(this%chem_sizes%num_primary), surf_equil_step2(this%chem_sizes%num_primary), &
-                lat_flux_step(this%chem_sizes%num_primary)
+    real(r8) :: surf_flux_step(this%chem_sizes%num_primary), lat_flux_step(this%chem_sizes%num_primary)
     ! real(r8) :: bot_adv_step(this%chem_sizes%num_primary)
-    real(r8) :: gas_pressure,water_pressure,ebul_flux
+    real(r8) :: gas_pressure,water_pressure,ebul_flux,ebul_atmo_frac
   
   real(r8) :: actual_dt,porosity_tmp
   character(512) :: msg
@@ -2312,146 +2311,10 @@ end subroutine EMAlquimia_Coldstart
     sat(j) = min(max(saturation(c,j),0.01),1.0)
   enddo
 
-  do k=1,this%chem_sizes%num_primary
-    diffus(:) = 0.0_r8
-    surf_equil_step(k) = 0.0_r8
-    surf_equil_step2(k) = 0.0_r8
-    lat_flux_step(k) = 0.0_r8
-    surf_adv_step(k) = 0.0_r8
-    ! Set diffusion coefficient depending on saturation and whether species is aqueous gas or not
-    ! Need to set boundary condition concentrations for adv flux (top layer infiltration) and lateral flux (source)
-
-    ! Skip species that are not actually mobile
-    if(k == this%plantNH4uptake_pool_number .or. k == this%plantNO3uptake_pool_number) cycle
-
-    if(this%is_dissolved_gas(k)) then
-      ! For gases, diffusion rates are set using gas diffusive transport (Meslin et al., SSSAJ, 2010. doi:10.2136/sssaj2009.0474)
-      ! Estimating gas diffusion coefficient of 0.2 cm2/s and dry soil diffusion coefficient of 30% of gas (Moldrup et al 2004, SSSAJ)
-      ! This needs to account for frozen water filling pores instead of air
-      do j=1,nlevdecomp
-        ! diffus(j) = 2.0e-5_r8*porosity(c,j)*0.3_r8*(1.0_r8 - sat(j))**2.5
-        
-        ! Fan et al 2014, a little higher at high air filled porosity
-        diffus(j) = 2.0e-5_r8*0.66_r8*porosity(c,j)*(1.0_r8-sat(j))*(1-sat(j))**3
-      enddo
-
-      ! Ebullition flux, from the bottom up until reaching unsaturated layer
-      do j=nlevdecomp,2,-1
-        if(sat(j)<0.9 .or. liq_frac(j)<0.95) exit
-        ! Calculate total water pressure. Using calculation from Jiaze
-        water_pressure = 101.325e3_r8 ! Should take H2OSFC into account also, and ideally use actual atmospheric pressure
-        do ii=1,j
-          water_pressure = water_pressure + porosity(c,ii)*sat(ii)*dzsoi_decomp(ii)*grav*denh2o
-        enddo
-        ! Gas pressure in Pa from Jiaze's calculation. Should maybe include a bubble gas fraction or take other gas partial pressures into account
-        gas_pressure = total_mobile(c,j,k)/porosity(c,j)/(this%Henry_const(k)*exp(-this%Henry_Tdep(k)*(1/temperature(c,j)-1/298.15)))
-        ebul_flux = total_mobile(c,j,k)*max((gas_pressure-water_pressure)/gas_pressure,0.0) ! mol/m3
-        ! Move excess gas up one layer
-        if(ebul_flux>0.0) then
-          ! write(iulog,*),'Ebullition: ',j,k,gas_pressure,water_pressure,ebul_flux,total_mobile(c,j,k),temperature(c,j),this%Henry_const(k),this%Henry_Tdep(k)
-          total_mobile(c,j,k) = total_mobile(c,j,k) - ebul_flux
-          total_mobile(c,j-1,k) = total_mobile(c,j-1,k) + ebul_flux*(dzsoi_decomp(j))/(dzsoi_decomp(j-1))
-        endif
-      enddo
-
-      ! Some issues with oxygen not penetrating very deep under unsaturated conditions. Not sure if this needs to be solved with higher diffusion coeff, 
-      ! or pressure-driven exchange, or equilibrating deeper layers, or what. Or maybe it's ok, only occurs when soil is close to saturated?
-
-      ! Equilibrate top layer of dissolved gases w.r.t. upper BC. BC is in mol/m3 H2O units and total_mobile is in mol/m3 units
-      ! Unless this should be treated as a source term in advection-diffusion?
-      ! Possible issue in low-moisture conditions: Total layer stock of O2 might be really low because not that much fits in the small amount of water
-      ! In reality water should be in equilibrium with soil pore air space
-      ! If we don't multiply by sat here, I guess we shove all the layer gas into the water...
-      if(sat(1)<= 0.9) then
-      surf_equil_step(k) = ( surf_bc(k)*porosity(c,1)*max(sat(1),1.0) - total_mobile(c,1,k) )*dzsoi_decomp(1)
-      ! write(iulog,*),'Dissolved gas',k,'BC',surf_bc(k)*porosity(c,1)*sat(1),'Surf conc',total_mobile(c,1,k),'(mol m-3 equivalent)','porosity',porosity(c,1),'saturation',sat(1),'flux',surf_equil_step(k)
-      ! if(k==this%CH4_pool_number) write(iulog,*),'Methane ','BC',surf_bc(k)*porosity(c,1),'Surf conc',total_mobile(c,1,k),'(mol m-3 equivalent)','porosity',porosity(c,1),'saturation',sat(1),'flux',surf_equil_step(k)/dzsoi_decomp(1)
-      total_mobile(c,1,k) = surf_bc(k)*porosity(c,1)*max(sat(1),1.0)
-      endif
-
-      ! Try equilibrating top two layers if unsaturated
-      if(sat(1)<=0.9 .and. sat(2)<=0.75) then
-        surf_equil_step2(k) = ( surf_bc(k)*porosity(c,2)*max(sat(2),1.0) - total_mobile(c,2,k) )*dzsoi_decomp(2)
-        total_mobile(c,2,k) = surf_bc(k)*porosity(c,2)*max(sat(2),1.0)
-      endif
-      ! Eventually replace this with calculation using actual saturation/ebullition concentration
-      dissolved_frac(0:nlevdecomp) = 0.1
-    elseif (lat_bc(k) > 0.0_r8) then
-      dissolved_frac(0:nlevdecomp) = 1.0
-    else
-      dissolved_frac(0:nlevdecomp) = 0.1
-    endif
-    ! dissolved_frac(1:nlevdecomp) = dissolved_frac(1:nlevdecomp)*liq_frac(1:nlevdecomp)
-    
-    do j=1,nlevdecomp
-      if(isnan(total_mobile(c,j,k))) then
-        write(iulog,*),__LINE__,'Chem spec',k,total_mobile(c,:,k)
-        call endrun(msg="Mobile species is NaN")
-      endif
-      ! Assume diffusion through water according to Wright (1990)
-      ! In that paper diffus_water = 0.000025 cm2/s
-      diffus(j) = diffus(j) + 2.5e-9_r8*0.005_r8*exp(10.0_r8*sat(j)*liq_frac(j)*porosity(c,j))
-
-      ! Should add some density-driven mixing if salinity is higher in upper layer than lower layer
-      ! Not sure what effective diffusion coefficient should be. 100x molecular times difference in salt content for now
-      if(this%chloride_pool_number>0 .and. j<nlevdecomp) then
-        if(total_mobile(c,j,this%chloride_pool_number) > total_mobile(c,j+1,this%chloride_pool_number) .and. total_mobile(c,j,this%chloride_pool_number)>1.0_r8) then
-          diffus(j) = diffus(j) + 2.5e-9_r8*0.005_r8*exp(10.0_r8*sat(j)*liq_frac(j)*porosity(c,j))&
-              *100*(total_mobile(c,j,this%chloride_pool_number) - total_mobile(c,j+1,this%chloride_pool_number))/(total_mobile(c,j,this%chloride_pool_number) + total_mobile(c,j+1,this%chloride_pool_number))
-        endif
-      endif
-
-      ! Source term is lateral flow. For inflow, use lateral boundary condition. For outflow, use local concentration
-      ! lat_flux units are mm H2O/s = 1e-3 m3 h2o/m2/s
-      ! lat_bc in units of mol/m3 H2O
-      ! source_term in mol/m3 bulk/s
-      if(lat_flow(c,j) > 0) then
-        source_term(j,k) = lat_flow(c,j)*1e-3_r8 * lat_bc(k)*porosity(c,j)*sat(j) ! mol/m3 bulk/s
-      else
-        source_term(j,k) = lat_flow(c,j)*1e-3_r8 * total_mobile(c,j,k)*dissolved_frac(j)
-        source_term(j,k) = lat_flow(c,j)*1e-3_r8 * total_mobile(c,j,k) * 0.01_r8 ! Assume components not specified by salinity are in equilibrium for subsurface flow
-      endif
-      lat_flux_step(k) = lat_flux_step(k) + source_term(j,k)*dzsoi_decomp(j)*actual_dt/2
-
-    enddo
-    
-      ! adv_flux units are mm H2O/s
-    if(adv_flux(c,1)<0.0_r8) then ! Downward flow uses surface boundary condition
-      surf_adv_step(k) = - adv_flux(c,1)*1e-3_r8*surf_bc(k)*dissolved_frac(0)*actual_dt/2 
-    else ! Upward flow uses surface layer concentration. Should this concentration be per bulk volume or per water volume?
-      surf_adv_step(k) = - adv_flux(c,1)*1e-3_r8*total_mobile(c,1,k)*dissolved_frac(1)*actual_dt/2
-    endif
-    ! if(k==this%CH4_pool_number) write(iulog,*),'Methane surf adv ',surf_adv_step(k),adv_flux(c,1)
-    ! if(adv_flux(c,nlevdecomp+1)<0.0_r8) then
-      ! bot_adv_step(k) = -adv_flux(c,nlevdecomp+1)*1e-3_r8*total_mobile(c,nlevdecomp,k)*actual_dt/2
-      ! write(iulog,*) 'Flow at bottom',adv_flux(c,nlevdecomp+1),-adv_flux(c,nlevdecomp+1)*1e-3_r8*total_mobile(c,nlevdecomp,k)*actual_dt/2
-    ! endif
-
-    ! At this point, total_mobile is stored as mol/m3 bulk (ELM side). Dividing by porosity*saturation converts to mol/m3 water
-    ! Note adv_flux is defined in advection_diffusion as <0 being downward
-    ! write(iulog,*) 'Before adv_diff. ncuts = ',num_cuts
-    ! write(iulog,*) 'diffus',diffus
-    ! write(iulog,*) 'adv_flux',adv_flux(c,:)
-    ! write(iulog,*) 'source',source_term(:,k)/(porosity(c,:)*sat(:))
-    ! write(iulog,*) 'total_mobile',total_mobile(c,:,k)/(porosity(c,:)*sat(:))
-    ! write(iulog,*) 'lat_flow',lat_flow(c,:)
-    ! write(iulog,*) 'porosity',porosity(c,:)
-    ! write(iulog,*) 'saturation',sat(:) ! Need to account for when saturation is 0
-    ! write(iulog,*),'Mobile spec',k,'Before: ',total_mobile(c,1:nlevdecomp,k)
-    ! write(iulog,*),__LINE__,'adv_flux',adv_flux(c,1:nlevdecomp+1)
-    call advection_diffusion(total_mobile(c,1:nlevdecomp,k),adv_flux(c,1:nlevdecomp+1)*1e-3*dissolved_frac(0:nlevdecomp),diffus(1:nlevdecomp),& 
-      source_term(1:nlevdecomp,k),&
-      surf_bc(k),actual_dt/2,transport_change_rate(1:nlevdecomp,k))
-    ! At this point perhaps we should go through and re-equilibrate dissolved gases in top layer if unsaturated?
-    ! write(iulog,*) 'change rate',transport_change_rate(:,k)
-
-    total_mobile(c,1:nlevdecomp,k) = total_mobile(c,1:nlevdecomp,k) + transport_change_rate(1:nlevdecomp,k)*actual_dt/2
-    ! write(iulog,*),'Mobile spec',k,'After: ',total_mobile(c,1:nlevdecomp,k)
-    ! write(iulog,*),'Diff rate',transport_change_rate(1:nlevdecomp,k)*dzsoi_decomp(1:nlevdecomp)
-    ! write(iulog,*),k,'Total diff',sum(transport_change_rate(1:nlevdecomp,k)*dzsoi_decomp(1:nlevdecomp))*actual_dt/2,'Surf adv',surf_adv_step(k),'Surf equil',surf_equil_step(k)
-  enddo
-
-
+  ! First half of vertical transport
+  call run_vert_transport(this,c,actual_dt/2, total_mobile, &
+                          porosity,temperature,volume,saturation,liq_frac,&
+                          adv_flux,lat_flow,lat_bc,lat_flux_step,surf_bc,surf_flux_step,transport_change_rate)
 
   do j=1,nlevdecomp
 
@@ -2574,8 +2437,6 @@ end subroutine EMAlquimia_Coldstart
         if(k == this%plantNH4uptake_pool_number .or. k == this%plantNO3uptake_pool_number) cycle
         total_mobile(c,1:nlevdecomp,k) = total_mobile(c,1:nlevdecomp,k) &
                         - transport_change_rate(1:nlevdecomp,k)*actual_dt/2
-        total_mobile(c,1,k) = total_mobile(c,1,k) - surf_equil_step(k)/dzsoi_decomp(1)
-        total_mobile(c,2,k) = total_mobile(c,2,k) - surf_equil_step2(k)/dzsoi_decomp(2)
       enddo
         ! write(iulog,'(a,f8.1,a,i3,a,i3)'),'Cutting time step to',actual_dt/2,' s, layer',j,', column',c
         ! Need to run the step two times because we have cut the timestep in half
@@ -2629,155 +2490,222 @@ end subroutine EMAlquimia_Coldstart
     aux_doubles(c,:,:) = aux_doubles_tmp(1,:,:)
     aux_ints(c,:,:) = aux_ints_tmp(1,:,:)
 
-    surf_flux = surf_flux + surf_adv_step + surf_equil_step + surf_equil_step2
+    surf_flux = surf_flux + surf_flux_step
     lat_flux  = lat_flux  + lat_flux_step
       
     ! Second half of transport (Strang splitting)
     ! This is only done if we converged at this time step for all layers
+    call run_vert_transport(this,c,actual_dt/2, total_mobile, &
+                            porosity,temperature,volume,saturation,liq_frac,&
+                            adv_flux,lat_flow,lat_bc,lat_flux_step,surf_bc,surf_flux_step,transport_change_rate)
 
-    do k=1,this%chem_sizes%num_primary
-      ! Set diffusion coefficient depending on saturation and whether species is aqueous gas or not
-      ! Need to set boundary condition concentrations for adv flux (top layer infiltration) and lateral flux (source)
-      diffus(:) = 0.0_r8
-      surf_equil_step(k) = 0.0_r8
-      surf_equil_step2(k) = 0.0_r8
-      lat_flux_step(k) = 0.0_r8
-      surf_adv_step(k) = 0.0_r8
-  
-      ! Skip species that are not actually mobile
-      if(k == this%plantNH4uptake_pool_number .or. k == this%plantNO3uptake_pool_number) cycle
 
-      
-      if(this%is_dissolved_gas(k)) then
-        ! For gases, diffusion rates are set using gas diffusive transport (Meslin et al., SSSAJ, 2010. doi:10.2136/sssaj2009.0474)
-        ! Estimating gas diffusion coefficient of 0.2 cm2/s and dry soil diffusion coefficient of 30% of gas (Moldrup et al 2004, SSSAJ)
-        ! Consider some different diffusion exponents? Previous CORPSE work ended up with an exponent of 0.6 rather than 2.5. But Cusack project gave vals around 1.5-2.5
-        do j=1,nlevdecomp
-          ! diffus(j) = 2.0e-5_r8*porosity(c,j)*0.3_r8*(1.0_r8 - sat(j))**2.5
-          ! Fan et al 2014, a little higher at high air filled porosity
-          diffus(j) = 2.0e-5_r8*0.66_r8*porosity(c,j)*(1.0_r8-sat(j))*(1-sat(j))**3
-        enddo
-
-      ! Ebullition flux, from the bottom up until reaching unsaturated layer
-        do j=nlevdecomp,2,-1
-          if(sat(j)<0.9 .or. liq_frac(j)<0.95) exit
-          ! Calculate total water pressure. Using calculation from Jiaze
-          water_pressure = 101.325e3_r8 ! Should take H2OSFC into account also, and ideally use actual atmospheric pressure
-          do ii=1,j
-            water_pressure = water_pressure + porosity(c,ii)*sat(ii)*dzsoi_decomp(ii)*grav*denh2o
-          enddo
-          ! Gas pressure in Pa from Jiaze's calculation. Should maybe include a bubble gas fraction or take other gas partial pressures into account
-          gas_pressure = total_mobile(c,j,k)/porosity(c,j)/(this%Henry_const(k)*exp(-this%Henry_Tdep(k)*(1/temperature(c,j)-1/298.15)))
-          ebul_flux = total_mobile(c,j,k)*max((gas_pressure-water_pressure)/gas_pressure,0.0) ! mol/m3
-          ! Move excess gas up one layer
-          if(ebul_flux>0.0) then
-            ! write(iulog,*),'Ebullition: ',j,k,gas_pressure,water_pressure,ebul_flux,total_mobile(c,j,k),temperature(c,j),this%Henry_const(k),this%Henry_Tdep(k)
-            total_mobile(c,j,k) = total_mobile(c,j,k) - ebul_flux
-            total_mobile(c,j-1,k) = total_mobile(c,j-1,k) + ebul_flux*(dzsoi_decomp(j))/(dzsoi_decomp(j-1))
-          endif
-        enddo
-  
-  
-        ! Equilibrate top layer of dissolved gases w.r.t. upper BC. BC is in mol/m3 H2O units and total_mobile is in mol/m3 units
-        ! write(iulog,*),'Dissolved gas',k,'BC',surf_bc(k)*porosity(c,1)*sat(1),'Surf conc',total_mobile(c,1,k),'(mol m-3 equivalent)','porosity',porosity(c,1),'saturation',sat(1)
-        if(sat(1)<= 0.9) then
-          surf_equil_step(k) = ( surf_bc(k)*porosity(c,1)*max(sat(1),1.0) - total_mobile(c,1,k) )*dzsoi_decomp(1)
-          ! write(iulog,*),'Dissolved gas',k,'BC',surf_bc(k)*porosity(c,1)*sat(1),'Surf conc',total_mobile(c,1,k),'(mol m-3 equivalent)','porosity',porosity(c,1),'saturation',sat(1),'flux',surf_equil_step(k)
-          ! if(k==this%CH4_pool_number) write(iulog,*),'Methane ','BC',surf_bc(k)*porosity(c,1),'Surf conc',total_mobile(c,1,k),'(mol m-3 equivalent)','porosity',porosity(c,1),'saturation',sat(1),'flux',surf_equil_step(k)/dzsoi_decomp(1)
-          total_mobile(c,1,k) = surf_bc(k)*porosity(c,1)*max(sat(1),1.0)
-        endif
-    
-        ! Try equilibrating top two layers if unsaturated
-        if(sat(1)<=0.9 .and. sat(2)<=0.75) then
-          surf_equil_step2(k)= ( surf_bc(k)*porosity(c,2)*max(sat(2),1.0) - total_mobile(c,2,k) )*dzsoi_decomp(2)
-          total_mobile(c,2,k) = surf_bc(k)*porosity(c,2)*max(sat(2),1.0)
-        endif
-
-        ! Eventually replace this with calculation using actual saturation/ebullition concentration
-        dissolved_frac(0:nlevdecomp) = 0.1
-      elseif (lat_bc(k) > 0.0_r8) then
-        dissolved_frac(0:nlevdecomp) = 1.0
-      else
-        dissolved_frac(0:nlevdecomp) = 0.1
-      endif
-      ! dissolved_frac(1:nlevdecomp) = dissolved_frac(1:nlevdecomp)*liq_frac(1:nlevdecomp)
-      
-      do j=1,nlevdecomp
-        if(isnan(total_mobile(c,j,k))) then
-          write(iulog,*),__LINE__,'Chem ',k,total_mobile(c,:,k)
-          call endrun(msg="Mobile species is NaN")
-        endif
-        ! Assume diffusion through water according to Wright (1990)
-        ! In that paper diffus_water = 0.000025 cm2/s and it's further multiplied by .005
-        ! But King et al (1990) and other papers have diffusion coefficients on the order of 1-2e-5 cm2/s = 1.5e-9 m2/s
-        diffus(j) = diffus(j) + 2.5e-9_r8*0.005_r8*exp(10.0_r8*sat(j)*liq_frac(j)*porosity(c,j))
-
-        ! Add some density-driven mixing if salinity is higher in upper layer than lower layer
-        ! Not sure what effective diffusion coefficient should be. 100x molecular times difference in salt content for now
-        if(this%chloride_pool_number>0 .and. j<nlevdecomp) then
-          if(total_mobile(c,j,this%chloride_pool_number) > total_mobile(c,j+1,this%chloride_pool_number) .and. total_mobile(c,j,this%chloride_pool_number)>1.0_r8) then
-            diffus(j) = diffus(j) + 2.5e-9_r8*0.005_r8*exp(10.0_r8*sat(j)*liq_frac(j)*porosity(c,j))&
-                *100*(total_mobile(c,j,this%chloride_pool_number) - total_mobile(c,j+1,this%chloride_pool_number))/(total_mobile(c,j,this%chloride_pool_number) + total_mobile(c,j+1,this%chloride_pool_number))
-          endif
-        endif
-  
-        ! Source term is lateral flow. For inflow, use lateral boundary condition. For outflow, use local concentration
-        ! lat_flux units are mm H2O/s = 1e-3 m3 h2o/m2/s
-        ! lat_bc in units of mol/m3 H2O
-        ! source_term in mol/m3 bulk/s
-        if(lat_flow(c,j) > 0) then
-          source_term(j,k) = lat_flow(c,j)*1e-3_r8 * lat_bc(k)*porosity(c,j)*sat(j) ! mol/m3 bulk/s
-        else
-          source_term(j,k) = lat_flow(c,j)*1e-3_r8 * total_mobile(c,j,k)*dissolved_frac(j)
-          if (lat_bc(k) == 0.0_r8) source_term(j,k) = lat_flow(c,j)*1e-3_r8 * total_mobile(c,j,k) * 0.01_r8 ! Assume components not specified by salinity are in equilibrium for subsurface flow
-        endif
-        lat_flux_step(k) = lat_flux_step(k) + source_term(j,k)*dzsoi_decomp(j)*actual_dt/2
-  
-      enddo
-
-      ! adv_flux units are mm H2O/s
-      if(adv_flux(c,1)<0.0_r8) then ! Downward flow uses surface boundary condition
-        surf_adv_step(k) = - adv_flux(c,1)*1e-3_r8*surf_bc(k)*actual_dt/2 *dissolved_frac(0)
-      else ! Upward flow uses surface layer concentration. Should this concentration be per bulk volume or per water volume?
-        surf_adv_step(k) = - adv_flux(c,1)*1e-3_r8*total_mobile(c,1,k)*actual_dt/2*dissolved_frac(1)
-      endif    
-      ! if(k==this%CH4_pool_number) write(iulog,*),'Methane surf adv ',surf_adv_step(k),adv_flux(c,1)
-      ! if(adv_flux(c,nlevdecomp+1)>0.0_r8) then
-        ! bot_adv_step(k) = -adv_flux(c,nlevdecomp+1)*1e-3_r8*total_mobile(c,nlevdecomp,k)*actual_dt/2
-        ! write(iulog,*) 'Flow at bottom',adv_flux(c,nlevdecomp+1),-adv_flux(c,nlevdecomp+1)*1e-3_r8*total_mobile(c,nlevdecomp,k)*actual_dt/2
-      ! endif
-
-      ! At this point, total_mobile is stored as mol/m3 bulk (ELM side). Dividing by porosity*saturation converts to mol/m3 water
-      ! Note adv_flux is defined in advection_diffusion as <0 being downward
-      ! write(iulog,*) 'Before adv_diff. ncuts = ',num_cuts
-      ! write(iulog,*) 'diffus',diffus
-      ! write(iulog,*) 'adv_flux',adv_flux(c,:)
-      ! write(iulog,*) 'source',source_term(:,k)/(porosity(c,:)*sat(:))
-      ! write(iulog,*) 'total_mobile',total_mobile(c,:,k)/(porosity(c,:)*sat(:))
-      ! write(iulog,*) 'lat_flow',lat_flow(c,:)
-      ! write(iulog,*) 'porosity',porosity(c,:)
-      ! write(iulog,*) 'saturation',sat(:) ! Need to account for when saturation is 0
-      ! write(iulog,*),'Mobile spec',k,'Before: ',total_mobile(c,1:nlevdecomp,k)
-      ! write(iulog,*),__LINE__,'adv_flux',adv_flux(c,1:nlevdecomp+1)
-      call advection_diffusion(total_mobile(c,1:nlevdecomp,k),adv_flux(c,1:nlevdecomp+1)*1e-3*dissolved_frac(0:nlevdecomp),diffus(1:nlevdecomp),& 
-        source_term(1:nlevdecomp,k),&
-        surf_bc(k),actual_dt/2,transport_change_rate(1:nlevdecomp,k))
-      ! At this point perhaps we should go through and re-equilibrate dissolved gases in top layer if unsaturated?
-      ! write(iulog,*) 'change rate',transport_change_rate(:,k)
-  
-    ! Here need to convert back from mol/m3 water to mol/m3 bulk
-      total_mobile(c,1:nlevdecomp,k) = total_mobile(c,1:nlevdecomp,k) + transport_change_rate(1:nlevdecomp,k)*actual_dt/2
-      ! write(iulog,*),'Mobile spec',k,'After: ',total_mobile(c,1:nlevdecomp,k)
-      ! write(iulog,*),'Diff rate',transport_change_rate(1:nlevdecomp,k)*dzsoi_decomp(1:nlevdecomp)
-      ! write(iulog,*),k,'Total diff',sum(transport_change_rate(1:nlevdecomp,k)*dzsoi_decomp(1:nlevdecomp))*actual_dt/2,'Surf adv',surf_adv_step(k),'Surf equil',surf_equil_step(k)
-    enddo
-  
-  
-    surf_flux = surf_flux + surf_equil_step + surf_equil_step2 + surf_adv_step
+    surf_flux = surf_flux + surf_flux_step
     lat_flux  = lat_flux  + lat_flux_step
   endif ! if converged
 
 end subroutine run_column_onestep
+
+
+subroutine run_vert_transport(this,c,actual_dt, total_mobile, &
+                              porosity,temperature,volume,saturation,liq_frac,&
+                              adv_flux,lat_flow,lat_bc,lat_flux_step,surf_bc,surf_flux_step,transport_change_rate)
+
+  use c_f_interface_module, only : c_f_string_ptr
+  use elm_varpar       , only : nlevdecomp
+  use elm_varcon       , only : dzsoi_decomp
+  use elm_varcon       , only : denh2o, grav, rgas, c_h_inv, kh_theta, kh_tbase
+  use shr_infnan_mod   , only : isnan => shr_infnan_isnan
+
+  implicit none
+
+  class(em_alquimia_type)              :: this
+  real(r8),intent(inout),pointer       :: total_mobile(:,:,:)
+  integer,intent(in)                   :: c
+  real(r8),intent(in)                  :: actual_dt
+  real(r8),intent(in),dimension(:,:)  :: porosity,temperature,volume,saturation,lat_flow
+  real(r8),intent(in),dimension(:,:)   :: adv_flux
+  real(r8),intent(in),dimension(:)   :: lat_bc, surf_bc, liq_frac
+  real(r8),intent(out)             :: surf_flux_step(this%chem_sizes%num_primary), lat_flux_step(this%chem_sizes%num_primary) ! Total (cumulative) surface flux in time step. Units of mol/time step
+  real(r8),intent(out)              :: transport_change_rate(nlevdecomp,this%chem_sizes%num_primary)
+
+  real(r8) :: diffus(nlevdecomp), sat(nlevdecomp), dissolved_frac(0:nlevdecomp), source_term(nlevdecomp,this%chem_sizes%num_primary)
+  real(r8) :: surf_adv_step(this%chem_sizes%num_primary),surf_equil_step(this%chem_sizes%num_primary), surf_equil_step2(this%chem_sizes%num_primary)
+  ! real(r8) :: bot_adv_step(this%chem_sizes%num_primary)
+  real(r8) :: gas_pressure,water_pressure,ebul_flux,ebul_atmo_frac
+
+  integer :: ii,j,k
+
+  do j=1,nlevdecomp
+  sat(j) = min(max(saturation(c,j),0.01),1.0)
+  enddo
+
+  do k=1,this%chem_sizes%num_primary
+    diffus(:) = 0.0_r8
+    surf_equil_step(k) = 0.0_r8
+    surf_equil_step2(k) = 0.0_r8
+    lat_flux_step(k) = 0.0_r8
+    surf_adv_step(k) = 0.0_r8
+    ! Set diffusion coefficient depending on saturation and whether species is aqueous gas or not
+    ! Need to set boundary condition concentrations for adv flux (top layer infiltration) and lateral flux (source)
+
+    ! Skip species that are not actually mobile
+    if(k == this%plantNH4uptake_pool_number .or. k == this%plantNO3uptake_pool_number) cycle
+
+    if(this%is_dissolved_gas(k)) then
+      ! For gases, diffusion rates are set using gas diffusive transport (Meslin et al., SSSAJ, 2010. doi:10.2136/sssaj2009.0474)
+      ! Estimating gas diffusion coefficient of 0.2 cm2/s and dry soil diffusion coefficient of 30% of gas (Moldrup et al 2004, SSSAJ)
+      ! This needs to account for frozen water filling pores instead of air
+      do j=1,nlevdecomp
+        ! diffus(j) = 2.0e-5_r8*porosity(c,j)*0.3_r8*(1.0_r8 - sat(j))**2.5
+
+        ! Fan et al 2014, a little higher at high air filled porosity
+        diffus(j) = 2.0e-5_r8*0.66_r8*porosity(c,j)*(1.0_r8-sat(j))*(1-sat(j))**3
+      enddo
+
+      ! Some issues with oxygen not penetrating very deep under unsaturated conditions. Not sure if this needs to be solved with higher diffusion coeff, 
+      ! or pressure-driven exchange, or equilibrating deeper layers, or what. Or maybe it's ok, only occurs when soil is close to saturated?
+
+      ! Equilibrate top layer of dissolved gases w.r.t. upper BC. BC is in mol/m3 H2O units and total_mobile is in mol/m3 units
+      ! Unless this should be treated as a source term in advection-diffusion?
+      ! Possible issue in low-moisture conditions: Total layer stock of O2 might be really low because not that much fits in the small amount of water
+      ! In reality water should be in equilibrium with soil pore air space
+      ! If we don't multiply by sat here, I guess we shove all the layer gas into the water...
+      if(sat(1)<= 0.9) then
+        surf_equil_step(k) = ( surf_bc(k)*porosity(c,1)*max(sat(1),1.0) - total_mobile(c,1,k) )*dzsoi_decomp(1)
+        ! write(iulog,*),'Dissolved gas',k,'BC',surf_bc(k)*porosity(c,1)*sat(1),'Surf conc',total_mobile(c,1,k),'(mol m-3 equivalent)','porosity',porosity(c,1),'saturation',sat(1),'flux',surf_equil_step(k)
+        ! if(k==this%CH4_pool_number) write(iulog,*),'Methane ','BC',surf_bc(k)*porosity(c,1),'Surf conc',total_mobile(c,1,k),'(mol m-3 equivalent)','porosity',porosity(c,1),'saturation',sat(1),'flux',surf_equil_step(k)/dzsoi_decomp(1)
+        total_mobile(c,1,k) = surf_bc(k)*porosity(c,1)*max(sat(1),1.0)
+      endif
+
+      ! Try equilibrating top two layers if unsaturated
+      if(sat(1)<=0.9 .and. sat(2)<=0.75) then
+        surf_equil_step2(k) = ( surf_bc(k)*porosity(c,2)*max(sat(2),1.0) - total_mobile(c,2,k) )*dzsoi_decomp(2)
+        total_mobile(c,2,k) = surf_bc(k)*porosity(c,2)*max(sat(2),1.0)
+      endif
+      ! Eventually replace this with calculation using actual saturation/ebullition concentration
+      dissolved_frac(0:nlevdecomp) = 0.1
+    elseif (lat_bc(k) > 0.0_r8) then
+      dissolved_frac(0:nlevdecomp) = 1.0
+    else
+      dissolved_frac(0:nlevdecomp) = 0.1
+    endif
+    ! dissolved_frac(1:nlevdecomp) = dissolved_frac(1:nlevdecomp)*liq_frac(1:nlevdecomp)
+    ! dissolved_frac(0) = 1.0 ! Infiltration
+
+    do j=1,nlevdecomp
+      if(isnan(total_mobile(c,j,k))) then
+        write(iulog,*),__LINE__,'Chem spec',k,total_mobile(c,:,k)
+        call endrun(msg="Mobile species is NaN")
+      endif
+      ! Assume diffusion through water according to Wright (1990)
+      ! In that paper diffus_water = 0.000025 cm2/s
+      diffus(j) = diffus(j) + 2.5e-9_r8*0.005_r8*exp(10.0_r8*sat(j)*liq_frac(j)*porosity(c,j))
+
+      ! Should add some density-driven mixing if salinity is higher in upper layer than lower layer
+      ! Not sure what effective diffusion coefficient should be. 100x molecular times difference in salt content for now
+      if(this%chloride_pool_number>0 .and. j<nlevdecomp) then
+        if(total_mobile(c,j,this%chloride_pool_number) > total_mobile(c,j+1,this%chloride_pool_number) .and. total_mobile(c,j,this%chloride_pool_number)>1.0_r8) then
+        diffus(j) = diffus(j) + 2.5e-9_r8*0.005_r8*exp(10.0_r8*sat(j)*liq_frac(j)*porosity(c,j))&
+            *100*(total_mobile(c,j,this%chloride_pool_number) - total_mobile(c,j+1,this%chloride_pool_number))/(total_mobile(c,j,this%chloride_pool_number) + total_mobile(c,j+1,this%chloride_pool_number))
+        endif
+      endif
+
+      ! Source term is lateral flow. For inflow, use lateral boundary condition. For outflow, use local concentration
+      ! lat_flux units are mm H2O/s = 1e-3 m3 h2o/m2/s
+      ! lat_bc in units of mol/m3 H2O
+      ! source_term in mol/m3 bulk/s
+      if(lat_flow(c,j) > 0) then
+        source_term(j,k) = lat_flow(c,j)*1e-3_r8 * lat_bc(k)*porosity(c,j)*sat(j) ! mol/m3 bulk/s
+      else
+        source_term(j,k) = lat_flow(c,j)*1e-3_r8 * total_mobile(c,j,k)*dissolved_frac(j)
+        ! source_term(j,k) = lat_flow(c,j)*1e-3_r8 * total_mobile(c,j,k) * 0.01_r8 ! Assume components not specified by salinity are in equilibrium for subsurface flow
+      endif
+      lat_flux_step(k) = lat_flux_step(k) + source_term(j,k)*dzsoi_decomp(j)*actual_dt
+
+    enddo
+
+    ! adv_flux units are mm H2O/s
+    if(adv_flux(c,1)<0.0_r8) then ! Downward flow uses surface boundary condition
+      surf_adv_step(k) = - adv_flux(c,1)*1e-3_r8*surf_bc(k)*dissolved_frac(0)*actual_dt 
+    else ! Upward flow uses surface layer concentration. Should this concentration be per bulk volume or per water volume?
+      surf_adv_step(k) = - adv_flux(c,1)*1e-3_r8*total_mobile(c,1,k)*dissolved_frac(1)*actual_dt
+    endif
+    ! if(k==this%CH4_pool_number) write(iulog,*),'Methane surf adv ',surf_adv_step(k),adv_flux(c,1)
+    ! if(adv_flux(c,nlevdecomp+1)<0.0_r8) then
+    ! bot_adv_step(k) = -adv_flux(c,nlevdecomp+1)*1e-3_r8*total_mobile(c,nlevdecomp,k)*actual_dt
+    ! write(iulog,*) 'Flow at bottom',adv_flux(c,nlevdecomp+1),-adv_flux(c,nlevdecomp+1)*1e-3_r8*total_mobile(c,nlevdecomp,k)*actual_dt/2
+    ! endif
+
+    ! At this point, total_mobile is stored as mol/m3 bulk (ELM side). Dividing by porosity*saturation converts to mol/m3 water
+    ! Note adv_flux is defined in advection_diffusion as <0 being downward
+    ! write(iulog,*) 'Before adv_diff. ncuts = ',num_cuts
+    ! write(iulog,*) 'diffus',diffus
+    ! write(iulog,*) 'adv_flux',adv_flux(c,:)
+    ! write(iulog,*) 'source',source_term(:,k)/(porosity(c,:)*sat(:))
+    ! write(iulog,*) 'total_mobile',total_mobile(c,:,k)/(porosity(c,:)*sat(:))
+    ! write(iulog,*) 'lat_flow',lat_flow(c,:)
+    ! write(iulog,*) 'porosity',porosity(c,:)
+    ! write(iulog,*) 'saturation',sat(:) ! Need to account for when saturation is 0
+    ! write(iulog,*),'Mobile spec',k,'Before: ',total_mobile(c,1:nlevdecomp,k)
+    ! write(iulog,*),__LINE__,'adv_flux',adv_flux(c,1:nlevdecomp+1)
+    call advection_diffusion(total_mobile(c,1:nlevdecomp,k),adv_flux(c,1:nlevdecomp+1)*1e-3*dissolved_frac(0:nlevdecomp),diffus(1:nlevdecomp),& 
+                            source_term(1:nlevdecomp,k),&
+                            surf_bc(k),actual_dt,transport_change_rate(1:nlevdecomp,k))
+    ! At this point perhaps we should go through and re-equilibrate dissolved gases in top layer if unsaturated?
+    ! write(iulog,*) 'change rate',transport_change_rate(:,k)
+
+    total_mobile(c,1:nlevdecomp,k) = total_mobile(c,1:nlevdecomp,k) + transport_change_rate(1:nlevdecomp,k)*actual_dt
+    ! write(iulog,*),'Mobile spec',k,'After: ',total_mobile(c,1:nlevdecomp,k)
+    ! write(iulog,*),'Diff rate',transport_change_rate(1:nlevdecomp,k)*dzsoi_decomp(1:nlevdecomp)
+    ! write(iulog,*),k,'Total diff',sum(transport_change_rate(1:nlevdecomp,k)*dzsoi_decomp(1:nlevdecomp))*actual_dt,'Surf adv',surf_adv_step(k),'Surf equil',surf_equil_step(k),'Lat flux',lat_flux_step(k)
+
+    ! Save surface equil in transport_change_rate in case it needs to be undone after failed alquimia solve
+    ! This is done after applying transport_change_rate to total_mobile so it's not double counted
+    transport_change_rate(1,k) = transport_change_rate(1,k) + surf_equil_step(k)/actual_dt/dzsoi_decomp(1)
+    transport_change_rate(2,k) = transport_change_rate(2,k) + surf_equil_step2(k)/actual_dt/dzsoi_decomp(2)
+
+  ! ! Ebullition flux, from the bottom up until reaching unsaturated layer
+    if(this%is_dissolved_gas(k)) then
+      ebul_atmo_frac=0.1 ! Fraction of ebullition that goes directly to atmosphere instead of next layer up
+      do j=nlevdecomp,3,-1
+        if(sat(j)<0.9 .or. liq_frac(j)<0.95) exit
+        ! Calculate total water pressure. Using calculation from Jiaze
+        water_pressure = 101.325e3_r8 ! Should take H2OSFC into account also, and ideally use actual atmospheric pressure
+        do ii=1,j
+          water_pressure = water_pressure + porosity(c,ii)*sat(ii)*dzsoi_decomp(ii)*grav*denh2o
+        enddo
+        ! Gas pressure in Pa from Jiaze's calculation. Should maybe include a bubble gas fraction or take other gas partial pressures into account
+        gas_pressure = total_mobile(c,j,k)/porosity(c,j)/(this%Henry_const(k)*exp(-this%Henry_Tdep(k)*(1/temperature(c,j)-1/298.15)))
+        ebul_flux = total_mobile(c,j,k)*max((gas_pressure-water_pressure)/gas_pressure,0.0) ! mol/m3
+        ! Move excess gas up one layer
+        ! What if we spread it over a larger area? Or have some fraction go directly to atmosphere depending on time step?
+        if(total_mobile(c,j,k) < 0.0) then
+          write(iulog,*) 'Gas ',k,"layer",j,'Concentration = ',total_mobile(c,j,k)
+          call endrun(msg="Gas concentration < 0 before ebullition")
+        endif
+        ebul_flux=min(ebul_flux,total_mobile(c,j,k)*0.9_r8)
+        if(ebul_flux>0.0_r8) then
+          ! ebul_flux is in mol/m3, so transfering to a different layer requires correcting for difference in layer thickness so it's in mols
+          ! transport_change_rate is in mol/m3/s so ebul_flux needs to be divided by time step length 
+          ! write(iulog,*),'Ebullition: ',j,k,gas_pressure,water_pressure,ebul_flux,total_mobile(c,j,k),temperature(c,j),this%Henry_const(k),this%Henry_Tdep(k)
+          total_mobile(c,j,k) = total_mobile(c,j,k) - ebul_flux
+          total_mobile(c,j-1,k) = total_mobile(c,j-1,k) + ebul_flux*(dzsoi_decomp(j))/(dzsoi_decomp(j-1))*(1-ebul_atmo_frac)
+          surf_equil_step(k) = surf_equil_step(k) - ebul_flux*ebul_atmo_frac*dzsoi_decomp(j)
+          transport_change_rate(j,k) = transport_change_rate(j,k) - ebul_flux/actual_dt
+          ! transport_change_rate(1,k) = transport_change_rate(1,k) + ebul_flux*ebul_atmo_frac/actual_dt*(dzsoi_decomp(j))/(dzsoi_decomp(1))
+          transport_change_rate(j-1,k) = transport_change_rate(j-1,k) + ebul_flux*(dzsoi_decomp(j))/(dzsoi_decomp(j-1))*(1-ebul_atmo_frac)/actual_dt
+        endif
+      enddo
+    endif
+    ! write(iulog,*),'Diff rate after ebul',transport_change_rate(1:nlevdecomp,k)*dzsoi_decomp(1:nlevdecomp)
+    ! write(iulog,*),k,'Total diff after ebul',sum(transport_change_rate(1:nlevdecomp,k)*dzsoi_decomp(1:nlevdecomp))*actual_dt,'Surf adv',surf_adv_step(k),'Surf equil',surf_equil_step(k),'Lat flux',lat_flux_step(k)
+
+  enddo
+
+  surf_flux_step = surf_equil_step + surf_equil_step2 + surf_adv_step
+
+end subroutine run_vert_transport
   
 #endif
 
