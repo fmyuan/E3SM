@@ -136,8 +136,15 @@ contains
 #if ({ITYPE}!=TYPETEXT) 
        call ncd_io(varname=trim(varname), data=data, &
             ncid=ncid, flag=flag, readvar=readvar)
+            
+       if(.not.readvar) then
+          print *,'Error with varialbe name of : ', trim(varname)
+       end if
+       
 #endif
     end if
+
+
 
     if (flag == 'read') then
        if (.not. readvar .and. is_restart()) call shr_sys_abort()
@@ -265,6 +272,11 @@ contains
           call ncd_io(varname=trim(varname), data=data, &
             dim1name=trim(dim1name), ncid=ncid, flag=flag, readvar=readvar)
        end if
+       
+       if(.not.readvar) then
+          print *,'Error with varialbe name of : ', trim(varname)
+       end if
+       
 #endif
     end if
 
@@ -404,6 +416,10 @@ contains
           call ncd_io(varname=trim(varname), data=data, &
                dim1name=trim(dim1name), switchdim=switchdim, &
                ncid=ncid, flag=flag, readvar=readvar)
+       end if
+       
+       if(.not.readvar) then
+          print *,'Error with varialbe name of : ', trim(varname)
        end if
 
     end if
