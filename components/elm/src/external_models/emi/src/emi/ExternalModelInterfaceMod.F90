@@ -28,6 +28,7 @@ module ExternalModelInterfaceMod
   use EMI_TemperatureType_ExchangeMod       , only : EMI_Unpack_TemperatureType_at_Column_Level_from_EM
   use EMI_WaterStateType_ExchangeMod        , only : EMI_Pack_WaterStateType_at_Column_Level_for_EM
   use EMI_WaterStateType_ExchangeMod        , only : EMI_Unpack_WaterStateType_at_Column_Level_from_EM
+  use EMI_SoilStateType_ExchangeMod         , only : EMI_Pack_SoilStateType_at_Patch_Level_for_EM
   use EMI_SoilStateType_ExchangeMod         , only : EMI_Pack_SoilStateType_at_Column_Level_for_EM
   use EMI_SoilStateType_ExchangeMod         , only : EMI_Unpack_SoilStateType_at_Column_Level_from_EM
   use EMI_SoilHydrologyType_ExchangeMod     , only : EMI_Pack_SoilHydrologyType_at_Column_Level_for_EM
@@ -695,6 +696,8 @@ contains
                num_filter_col, filter_col, soilhydrology_vars)
           call EMI_Pack_SoilStateType_at_Column_Level_for_EM(l2e_init_list(clump_rank), em_stage, &
                num_filter_col, filter_col, soilstate_vars)
+          !call EMI_Pack_SoilStateType_at_Patch_Level_for_EM(l2e_init_list(clump_rank), em_stage, &
+          !need to create and pass filter_patch     num_filter_col, filter_col, soilstate_vars)
           call EMI_Pack_ColumnEnergyStateType_at_Column_Level_for_EM(l2e_init_list(clump_rank), em_stage, &
                num_filter_col, filter_col, col_es)
 
@@ -1332,12 +1335,29 @@ contains
             num_soilc, filter_soilc, chemstate_vars)
    endif
 
-   if (present(soilstate_vars)  .and. &
-      present(num_soilc)   .and. &
-      present(filter_soilc)) then
-      call EMI_Pack_SoilStateType_at_Column_Level_for_EM(l2e_driver_list(iem), em_stage, &
-            num_soilc, filter_soilc, soilstate_vars)
-   endif
+   if (present(soilstate_vars) .and. &
+       present(num_soilc)      .and. &
+       present(filter_soilc))   then
+          ! FIX_ME: Create a temporary filter
+          if (present(clump_rank)) then
+             call get_clump_bounds(clump_rank, bounds_clump)
+          else
+             call get_clump_bounds(1, bounds_clump)
+          endif
+          num_filter_patch = bounds_clump%endp - bounds_clump%begp + 1
+          allocate(filter_patch(num_filter_patch))
+          do ii = 1, num_filter_patch
+             filter_patch(ii) = bounds_clump%begp + ii - 1
+          enddo
+
+          call EMI_Pack_SoilStateType_at_Column_Level_for_EM(l2e_driver_list(iem), em_stage, &
+              num_soilc, filter_soilc, soilstate_vars)
+
+          call EMI_Pack_SoilStateType_at_Patch_Level_for_EM(l2e_driver_list(iem), em_stage, &
+               num_filter_patch, filter_patch, soilstate_vars)
+
+          deallocate(filter_patch)
+    endif
 
     call EMID_Verify_All_Data_Is_Set(l2e_driver_list(iem), em_stage)
 
@@ -1402,38 +1422,36 @@ contains
     ! ------------------------------------------------------------------------
     ! Unpack the data for EM
     ! ------------------------------------------------------------------------
-        if ( present(num_hydrologyc)  .and. &
+        if (present(num_hydrologyc)  .and. &
          present(filter_hydrologyc)) then
-
             call EMI_Unpack_WaterStateType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
                   num_hydrologyc, filter_hydrologyc)
 
          elseif ( present(num_soilc)  .and. &
             present(filter_soilc)) then
-   
             call EMI_Unpack_WaterStateType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
                   num_soilc, filter_soilc)
          endif
-    
 
-    if ( present(waterflux_vars) .and. &
-         present(num_hydrologyc) .and. &
-         present(filter_hydrologyc)) then
+         if  (present(num_hydrologyc) .and. &
+           present(filter_hydrologyc)) then
+             call EMI_Unpack_WaterFluxType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
+                   num_hydrologyc, filter_hydrologyc)
 
-       call EMI_Unpack_WaterFluxType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
-            num_hydrologyc, filter_hydrologyc, waterflux_vars)
-    endif
+         elseif  (present(num_soilc) .and. &
+           present(filter_soilc)) then
+             call EMI_Unpack_WaterFluxType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
+                    num_soilc, filter_soilc)
+         endif
 
     if ( present(soilstate_vars)) then
        if  (present(num_hydrologyc) .and. &
          present(filter_hydrologyc)) then
-
             call EMI_Unpack_SoilStateType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
                   num_hydrologyc, filter_hydrologyc, soilstate_vars)
 
        elseif  (present(num_soilc) .and. &
          present(filter_soilc)) then
-
             call EMI_Unpack_SoilStateType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
                   num_soilc, filter_soilc, soilstate_vars)
        endif
@@ -1442,7 +1460,6 @@ contains
     if ( present(soilhydrology_vars) .and. &
          present(num_hydrologyc)     .and. &
          present(filter_hydrologyc)) then
-
        call EMI_Unpack_SoilHydrologyType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
             num_hydrologyc, filter_hydrologyc, soilhydrology_vars)
     endif
