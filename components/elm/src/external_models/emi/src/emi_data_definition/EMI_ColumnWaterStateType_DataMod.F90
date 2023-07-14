@@ -39,7 +39,7 @@ contains
     character (len=32) , intent(out) :: dim3_end_name
     character (len=32) , intent(out) :: dim4_beg_name
     character (len=32) , intent(out) :: dim4_end_name
-    logical            , intent(out) :: data_found
+    logical            , intent(inout) :: data_found
 
     is_int_type    = .false.
     is_real_type   = .false.
