@@ -40,7 +40,7 @@ module ExternalModelATSMod
   use ExternalModelBaseType        , only : em_base_type
   use ExternalModelConstants
 
-  use ExternalModelATS_readnlMod   , only : ats_inputdir, ats_inputfile
+  use ExternalModelATS_createMod
 
   ! C-F interface
   use ELM_ATS_InterfaceMod
@@ -563,6 +563,7 @@ contains
   subroutine EM_ATS_Init(this, l2e_init_list, e2l_init_list, iam, bounds_clump)
 
     use timeinfoMod
+
     implicit none
     class(em_ats_type)                   :: this
     class(emi_data_list) , intent(in)    :: l2e_init_list
@@ -594,24 +595,16 @@ contains
     end do
 
     ! create an ATS driver object
-    this%ats_interface = ats_drv(ats_inputdir, ats_inputfile, mpicom)
+    call EM_ATS_create(this%ats_interface, iam, bounds_clump, filternum)
 
     if (use_ats) then
       ! pass mesh data to ATS prior to ATS setup (as long as ATS driver object ready)
       call set_mesh(this, l2e_init_list, bounds_clump)
-      ! OR, pass mesh from ATS to ELM
-!      call get_mesh(this, e2l_init_list, bounds_clump)  ! in progress .......
-      ! 'mpicom' is communicator group id for land component
-      print *, ''
-      print *, '============================================================='
-      print *,''
-      print *, ' -------- ELM-ATS Coupled Mode ------------------------------'
-      print *, ''
-      print *, 'EM_ATS_Init: ats inputs - ', trim(ats_inputdir), ' ', trim(ats_inputfile)
-      print *, 'communicator id: ', mpicom
 
-      ! setup fields and pass material properties to ATS
+      ! ats setup
       call this%ats_interface%setup()
+
+      ! pass material properties to ATS
       call set_material_properties(this, l2e_init_list, bounds_clump)
 
     end if
@@ -682,50 +675,6 @@ contains
 
   end subroutine set_mesh
 
-  !------------------------------------------------------------------------
-
-
-  subroutine get_mesh(this, e2l_init_list, bounds_clump)
-    implicit none
-    class(em_ats_type)                   :: this
-    class(emi_data_list) , intent(inout) :: e2l_init_list
-    type(bounds_type)    , intent(in)    :: bounds_clump
-    integer                              :: c, fc, j
-
-    integer                              :: ncols_local, ncols_global
-    integer                              :: ncells_per_col
-    real(r8)  , pointer                  :: surf_xi(:)
-    real(r8)  , pointer                  :: surf_yi(:)
-    real(r8)  , pointer                  :: surf_zi(:)
-    real(r8)  , pointer                  :: surf_area(:)
-    real(r8)  , pointer                  :: col_zi(:,:)
-    real(r8)  , pointer                  :: col_dz(:,:)
-    integer(C_INT), pointer              :: pft(:)
-
-    !-----------------------------------------------------------------------
-
-    allocate(surf_xi(1:this%filter_col_num))           !
-    allocate(surf_yi(1:this%filter_col_num))           !
-    allocate(surf_zi(1:this%filter_col_num))           !
-    allocate(surf_area(1:this%filter_col_num))         !
-
-    allocate(col_zi(1:this%filter_col_num, 1:15))      ! col. cell bottom, assuming top-face of 1st cell is the surf (0.0m)
-    allocate(col_dz(1:this%filter_col_num, 1:15))
-    allocate(pft(1:this%filter_col_num))
-
-    ! in progress ...
-    call this%ats_interface%getmesh(ncols_local, ncols_global, ncells_per_col,  &
-       surf_yi, surf_xi, surf_zi, surf_area, pft, col_zi)
-
-    deallocate(surf_xi)
-    deallocate(surf_yi)
-    deallocate(surf_zi)
-    deallocate(surf_area)
-    deallocate(col_zi)
-    deallocate(col_dz)
-    deallocate(pft)
-
-  end subroutine get_mesh
 
   !------------------------------------------------------------------------
   subroutine set_material_properties(this, l2e_init_list, bounds_clump)
