@@ -1329,10 +1329,11 @@ contains
     character (len=32)                     :: dim2_end_name
     character (len=32)                     :: dim3_end_name
     character (len=32)                     :: dim4_end_name
-    logical                                :: is_int_type
-    logical                                :: is_real_type
-    logical                                :: data_present
-    logical                                :: data_found
+    logical                                :: is_int_type  =.false.
+    logical                                :: is_real_type =.false.
+    logical                                :: data_present =.false.
+    logical                                :: data_found   =.false.
+    !-------------------------------------------------------------------------
 
     call this%IsDataIDPresent(data_id, data_present)
     if (data_present) then
@@ -1470,8 +1471,8 @@ contains
            data_found)
    end if
 
-    if (.not.data_found) then
-       select case(data_id)
+   if (.not.data_found) then
+     select case(data_id)
           ! -------------------------------------------------------------
           ! ELM-to-EM: Filter variables
           ! -------------------------------------------------------------
@@ -1788,8 +1789,8 @@ contains
           dim1_beg_name = dimname_begl
           dim1_end_name = dimname_endl
           data_found    = .true.
-       end select
-    end if
+     end select
+   end if
 
     if (.not.data_found) then
        write(iulog,*)'Unknown EMID id = ',data_id
