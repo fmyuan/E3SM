@@ -45,6 +45,7 @@ module ExternalModelATSMod
   ! C-F interface
   use ELM_ATS_InterfaceMod
 
+
   !
   implicit none
   !
@@ -61,6 +62,11 @@ module ExternalModelATSMod
      integer :: index_l2e_init_col_dz
      integer :: index_l2e_init_col_z
      integer :: index_l2e_init_col_area
+
+     integer :: index_l2e_init_col_patch_i_beg
+     integer :: index_l2e_init_col_patch_i_end
+     integer :: index_l2e_init_col_num_patch
+     !integer :: index_l2e_init_col_pft_type
 
      integer :: index_l2e_init_state_forc_pbot
      integer :: index_l2e_init_state_h2osoi_liq
@@ -96,11 +102,21 @@ module ExternalModelATSMod
      integer :: index_l2e_state_smp
      integer :: index_l2e_state_zwt
 
+     integer :: index_l2e_parameter_effporosityc
+     integer :: index_l2e_state_rootfrac
+     integer :: index_l2e_rootfrac_patch
+
+     integer :: index_e2l_state_h2osoi_vol
      integer :: index_e2l_state_h2osoi_liq
      integer :: index_e2l_state_h2osoi_ice
      integer :: index_e2l_state_soilp
      integer :: index_e2l_state_smp
      integer :: index_e2l_state_zwt
+     integer :: index_e2l_state_h2osfc
+
+     integer :: index_e2l_flux_tran_col
+     integer :: index_e2l_flux_gross_infil
+     integer :: index_e2l_flux_gross_evap
 
      integer :: index_l2e_flux_gross_infil
      integer :: index_l2e_flux_gross_evap
@@ -117,9 +133,10 @@ module ExternalModelATSMod
      integer :: index_l2e_flux_hs_soil
 
 
+
      !
      integer                      :: filter_col_num
-     integer   , pointer          :: filter_col(:)
+     integer   , pointer          :: filter_col(:), filter_pft(:)
      real(r8)  , pointer          :: dz(:) !saved soil thickness for consistency
 
 
@@ -163,7 +180,6 @@ contains
     number_em_stages = 1
     allocate(em_stages(number_em_stages))
     em_stages(1) = EM_INITIALIZATION_STAGE
-
     id                                         = L2E_COLUMN_ACTIVE
     call l2e_init_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_l2e_init_col_active             = index
@@ -196,7 +212,23 @@ contains
     call l2e_init_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_l2e_init_col_area               = index
 
+    id                                         = L2E_COLUMN_PATCH_INDEX_BEGIN
+    call l2e_init_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_l2e_init_col_patch_i_beg        = index
+
+    id                                         = L2E_COLUMN_PATCH_INDEX_END
+    call l2e_init_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_l2e_init_col_patch_i_end        = index
+
+    id                                         = L2E_COLUMN_NUM_PATCH
+    call l2e_init_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_l2e_init_col_num_patch          = index
+
+    !id                                         = L2E_COL_PFT_TYPE
+    !call l2e_init_list%AddDataByID(id, number_em_stages, em_stages, index)
+    !this%index_l2e_init_col_pft_type           = index
     !-------------
+
     id                                        = L2E_STATE_VSFM_PROGNOSTIC_SOILP
     call l2e_init_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_l2e_init_state_soilp           = index
@@ -261,6 +293,10 @@ contains
     id                                         = L2E_PARAMETER_EFFPOROSITYC
     call l2e_init_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_l2e_init_parameter_effporosityc = index
+
+    !id                                         = L2E_PARAMETER_ROOTFR_PATCH
+    !call l2e_init_list%AddDataByID(id, number_em_stages, em_stages, index)
+    !this%index_l2e_init_state_rootfrac = index
 
     deallocate(em_stages)
 
@@ -405,6 +441,18 @@ contains
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_l2e_flux_surf             = index
 
+    id                                   = L2E_PARAMETER_EFFPOROSITYC
+    call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_l2e_parameter_effporosityc = index
+
+    id                                   = L2E_PARAMETER_ROOTFR_COL
+    call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_l2e_state_rootfrac        = index
+
+    id                                   = L2E_PARAMETER_ROOTFR_PATCH
+    call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_l2e_rootfrac_patch        = index
+
     !-----------------
     if (em_stages(1) == EM_ATS_SOIL_THYDRO_STAGE .or. &
         em_stages(1) == EM_ATS_SOIL_THBGC_STAGE) then
@@ -456,6 +504,10 @@ contains
     allocate(em_stages(number_em_stages))
     em_stages(1) = EM_ATS_SOIL_HYDRO_STAGE
 
+    id                              = E2L_STATE_H2OSOI_VOL
+    call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_e2l_state_h2osoi_vol = index
+
     id                              = E2L_STATE_H2OSOI_LIQ
     call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_e2l_state_h2osoi_liq = index
@@ -464,7 +516,7 @@ contains
     call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_e2l_state_h2osoi_ice = index
 
-    id                              = E2L_STATE_SOIL_MATRIC_POTENTIAL
+    id                              = E2L_STATE_SOIL_MATRIC_POTENTIAL_COL
     call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_e2l_state_smp        = index
 
@@ -476,6 +528,21 @@ contains
     call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_e2l_state_zwt        = index
 
+    id                              = E2L_STATE_H2OSFC
+    call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_e2l_state_h2osfc     = index
+
+    id                              = E2L_FLUX_ROOTSOI
+    call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_e2l_flux_tran_col    = index
+
+    id                              = E2L_FLUX_GROSS_INFL_SOIL
+    call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_e2l_flux_gross_infil = index
+    
+    id                              = E2L_FLUX_GROSS_EVAP_SOIL
+    call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_e2l_flux_gross_evap  = index
     !-----------------
     if (em_stages(1) == EM_ATS_SOIL_THYDRO_STAGE .or. &
         em_stages(1) == EM_ATS_SOIL_THBGC_STAGE) then
@@ -492,52 +559,51 @@ contains
   !------------------------------------------------------------------------
   subroutine EM_ATS_Init(this, l2e_init_list, e2l_init_list, iam, bounds_clump)
 
-    !
-    ! !DESCRIPTION:
-    !
-    !
-    ! !USES:
     use timeinfoMod
-
-    !
     implicit none
-    !
-    ! !ARGUMENTS:
     class(em_ats_type)                   :: this
     class(emi_data_list) , intent(in)    :: l2e_init_list
     class(emi_data_list) , intent(inout) :: e2l_init_list
     integer              , intent(in)    :: iam
     type(bounds_type)    , intent(in)    :: bounds_clump
-
-    ! local
-    integer :: filternum
-    integer, pointer :: filtercol(:)
-    real(r8) :: init_timesecond = 0.0 ! (TODO - shall be set by really initial or restarted time)
+    integer :: filternum, fc, c, p
+    integer, pointer :: filtercol(:), numpatch(:), pft_beg(:), pft_end(:)
 
     !-----------------------------------------------------------------------
-
-    !
+    call l2e_init_list%GetPointerToInt1D(this%index_l2e_init_col_num_patch, numpatch)
+    call l2e_init_list%GetPointerToInt1D(this%index_l2e_init_col_patch_i_beg, pft_beg)
+    call l2e_init_list%GetPointerToInt1D(this%index_l2e_init_col_patch_i_end, pft_end)
     call l2e_init_list%GetIntValue(this%index_l2e_init_col_filter_num   , filternum )
     call l2e_init_list%GetPointerToInt1D(this%index_l2e_init_col_filter , filtercol )
     this%filter_col_num = filternum
     allocate(this%filter_col(filternum))
     this%filter_col(1:filternum) = filtercol(1:filternum)
 
-    !
-    ! create an ATS driver object
-    this%ats_interface = ats_create(ats_inputdir, ats_inputfile, mpicom)
 
+    do p = bounds_clump%begp, bounds_clump%endp
+       !if (pft%active(p) .and. pft%wtcol(p) /= 0._r8) then
+       !   if (parr(p) /= spval) then
+       !      c = pft%column(p)
+       !      if (sumwt(c) == 0._r8) carr(c) = 0._r8
+       !      carr(c) = carr(c) + parr(p) * scale_p2c(p) * pft%wtcol(p)
+       !      sumwt(c) = sumwt(c) + pft%wtcol(p)
+       !   end if
+       !end if
+    end do
+
+    do fc=1, this%filter_col_num
+       c = this%filter_col(fc)
+       !print*, "num patches:", numpatch(c), pft_beg(c), pft_end(c)
+    end do
+
+    ! create an ATS driver object
+    this%ats_interface = ats_drv(ats_inputdir, ats_inputfile, mpicom)
 
     if (use_ats) then
       ! pass mesh data to ATS prior to ATS setup (as long as ATS driver object ready)
-      !call set_mesh(this, l2e_init_list, bounds_clump)
-
+      call set_mesh(this, l2e_init_list, bounds_clump)
       ! OR, pass mesh from ATS to ELM
-      call get_mesh(this, e2l_init_list, bounds_clump)  ! in progress .......
-
-      ! pass material properties to ATS prior to ATS setup
-      call set_material_properties(this, l2e_init_list, bounds_clump)
-
+!      call get_mesh(this, e2l_init_list, bounds_clump)  ! in progress .......
       ! 'mpicom' is communicator group id for land component
       print *, ''
       print *, '============================================================='
@@ -546,8 +612,10 @@ contains
       print *, ''
       print *, 'EM_ATS_Init: ats inputs - ', trim(ats_inputdir), ' ', trim(ats_inputfile)
       print *, 'communicator id: ', mpicom
+
+      ! setup fields and pass material properties to ATS
       call this%ats_interface%setup()
-      !
+      call set_material_properties(this, l2e_init_list, bounds_clump)
 
     end if
 
@@ -557,19 +625,10 @@ contains
 
 
   subroutine set_mesh(this, l2e_init_list, bounds_clump)
-    !
-    !DESCRIPTION
-    !  mesh from ELM to ATS
-    !
-    !
     implicit none
-    !
-    ! !ARGUMENTS
     class(em_ats_type)                   :: this
     class(emi_data_list) , intent(in)    :: l2e_init_list
     type(bounds_type)    , intent(in)    :: bounds_clump
-
-    ! !LOCAL VARIABLES:
     integer                              :: c, fc, j
 
     real(r8)  , pointer                  :: surf_xi(:)
@@ -633,19 +692,10 @@ contains
 
 
   subroutine get_mesh(this, e2l_init_list, bounds_clump)
-    !
-    !DESCRIPTION
-    !  mesh from ATS to ELM
-    !
-    !
     implicit none
-    !
-    ! !ARGUMENTS
     class(em_ats_type)                   :: this
     class(emi_data_list) , intent(inout) :: e2l_init_list
     type(bounds_type)    , intent(in)    :: bounds_clump
-
-    ! !LOCAL VARIABLES:
     integer                              :: c, fc, j
 
     integer                              :: ncols_local, ncols_global
@@ -666,6 +716,7 @@ contains
     allocate(surf_area(1:this%filter_col_num))         !
 
     allocate(col_zi(1:this%filter_col_num, 1:15))      ! col. cell bottom, assuming top-face of 1st cell is the surf (0.0m)
+    allocate(col_dz(1:this%filter_col_num, 1:15))
     allocate(pft(1:this%filter_col_num))
 
     ! in progress ...
@@ -684,97 +735,62 @@ contains
 
   !------------------------------------------------------------------------
   subroutine set_material_properties(this, l2e_init_list, bounds_clump)
-    !
-    ! !DESCRIPTION:
-    !
-    !use elm_instMod               , only : soilstate_vars
-    !use elm_instMod               , only : soilhydrology_vars
+
     use elm_varpar                , only : nlevgrnd, nlevsoi
-    !
     implicit none
-    !
-    ! !ARGUMENTS
     class(em_ats_type)               :: this
     class(emi_data_list), intent(in) :: l2e_init_list
     type(bounds_type)   , intent(in) :: bounds_clump
-    !
-    ! !LOCAL VARIABLES:
     real(r8), pointer    :: elm_watsat(:,:)
-    real(r8), pointer    :: elm_hksat(:,:)          ! [mmH2O/s]
+    real(r8), pointer    :: elm_hksat(:,:)
     real(r8), pointer    :: elm_bsw(:,:)
     real(r8), pointer    :: elm_sucsat(:,:)
-    real(r8), pointer    :: elm_eff_porosity(:,:)
-    real(r8), pointer    :: elm_zwt(:)
     real(r8), pointer    :: ats_watsat(:,:)
-    real(r8), pointer    :: ats_hksat(:,:)         !
+    real(r8), pointer    :: ats_hksat(:,:)
     real(r8), pointer    :: ats_bsw(:,:)
     real(r8), pointer    :: ats_sucsat(:,:)
-    real(r8), pointer    :: ats_eff_porosity(:,:)
     real(r8), pointer    :: ats_residual_sat(:,:)
-    real(r8), pointer    :: ats_zwt(:)
-
-    real(r8), pointer    :: ats_pft_tugor(:)
-    real(r8), pointer    :: ats_pft_wp(:)
-
-    !
     integer              :: fc, c, j
     integer              :: nz
 
     !-----------------------------------------------------------------------
-
     call l2e_init_list%GetPointerToReal2D(this%index_l2e_init_parameter_watsatc      , elm_watsat       )
     call l2e_init_list%GetPointerToReal2D(this%index_l2e_init_parameter_hksatc       , elm_hksat        )
     call l2e_init_list%GetPointerToReal2D(this%index_l2e_init_parameter_bswc         , elm_bsw          )
     call l2e_init_list%GetPointerToReal2D(this%index_l2e_init_parameter_sucsatc      , elm_sucsat       )
-    call l2e_init_list%GetPointerToReal2D(this%index_l2e_init_parameter_effporosityc , elm_eff_porosity )
 
-    call l2e_init_list%GetPointerToReal1D(this%index_l2e_init_state_zwt              , elm_zwt          )
-
-    ! Allocate memory (on local rank only), note all dimensions are 0-based
     nz = size(elm_watsat(1,:))
-    allocate(ats_watsat       (0:this%filter_col_num-1, 0:nz-1 ))
-    allocate(ats_hksat        (0:this%filter_col_num-1, 0:nz-1 ))
-    allocate(ats_bsw          (0:this%filter_col_num-1, 0:nz-1 ))
-    allocate(ats_sucsat       (0:this%filter_col_num-1, 0:nz-1 ))
-    allocate(ats_eff_porosity (0:this%filter_col_num-1, 0:nz-1 ))
-    allocate(ats_residual_sat (0:this%filter_col_num-1, 0:nz-1 ))
-    allocate(ats_zwt          (0:this%filter_col_num-1))
+    allocate(ats_watsat       (this%filter_col_num, nz ))
+    allocate(ats_hksat        (this%filter_col_num, nz ))
+    allocate(ats_bsw          (this%filter_col_num, nz ))
+    allocate(ats_sucsat       (this%filter_col_num, nz ))
+    allocate(ats_residual_sat (this%filter_col_num, nz ))
 
-
-
-    ! Initialize
     ats_watsat       (:,:) = 0._r8
-    ats_hksat        (:,:) = 0._r8
+    ats_hksat        (:,:) = 1.0e-6_r8
     ats_bsw          (:,:) = 0._r8
     ats_sucsat       (:,:) = 0._r8
-    ats_eff_porosity (:,:) = 0._r8
     ats_residual_sat (:,:) = 0._r8    ! alway zero from ELM
-    ats_zwt          (:)   = -5.0_r8  ! meters below ground surface
 
     do fc = 1, this%filter_col_num
       c = this%filter_col(fc)
       do j = 1, nz
-         ats_watsat(fc-1,j-1)       = elm_watsat(c,j)
-         ats_hksat(fc-1,j-1)        = elm_hksat(c,j)
-         ats_bsw(fc-1,j-1)          = elm_bsw(c,j)
-         ats_sucsat(fc-1,j-1)       = elm_sucsat(c,j)
-         ats_eff_porosity(fc-1,j-1) = elm_eff_porosity(c,j)
+         ats_watsat(fc,j)       = elm_watsat(c,j)
+         ats_hksat(fc,j)        = ats_hksat(fc,j) + elm_hksat(c,j) * 0.001_r8
+         ats_bsw(fc,j)          = elm_bsw(c,j)
+         ats_sucsat(fc,j)       = elm_sucsat(c,j)
       end do
-      ats_zwt(fc-1)                 = -elm_zwt(c)   ! meters below ground surface
     end do
 
     ! pass data to ATS
     call this%ats_interface%setsoilveg(ats_watsat, ats_hksat, &
-         ats_bsw, ats_sucsat, ats_residual_sat, ats_pft_tugor, ats_pft_wp)
+         ats_bsw, ats_sucsat, ats_residual_sat)
 
     deallocate(ats_watsat)
     deallocate(ats_hksat)
     deallocate(ats_bsw)
     deallocate(ats_sucsat)
-    deallocate(ats_eff_porosity)
     deallocate(ats_residual_sat)
-    deallocate(ats_zwt)
-
   end subroutine set_material_properties
 
   !------------------------------------------------------------------------
@@ -782,16 +798,11 @@ contains
   !------------------------------------------------------------------------
    subroutine EM_ATS_OneStep(this, em_stage, dt, nstep, clump_rank, l2e_list, e2l_list, &
         bounds_clump)
-    !
-    ! !DESCRIPTION:
-    !
-    !
+
     implicit none
-    !
-    ! !ARGUMENTS:
     class(em_ats_type)                   :: this
     integer              , intent(in)    :: em_stage
-    real(r8)             , intent(in)    :: dt             ! unit: seconds
+    real(r8)             , intent(in)    :: dt
     integer              , intent(in)    :: nstep
     integer              , intent(in)    :: clump_rank
     class(emi_data_list) , intent(in)    :: l2e_list
@@ -803,181 +814,146 @@ contains
     logical :: elm_restout
     !-----------------------
 
-    ! reset ICs (TODO: restart nstep)
+    ! initialize all fields in ATS
     if (nstep==0) then
+    print*,"ELM CALLING ATS TO SET INITIAL CONDITIONS"
       call set_initial_conditions(this, nstep, dt, l2e_list, bounds_clump)
     end if
 
-    ! BCs and source-sink terms for each ELM-timestep
+    ! set rates of infiltration and potential evaporation/transpiration
     call set_bc_ss(this, l2e_list, bounds_clump)
 
-    ! run one ELM-timestep
+    ! set root fraction distribution 
+    call set_dyn_properties(this, l2e_list, bounds_clump)
 
     elm_histout = .false.
     elm_restout = .false.
-    ! hist_tape(1) write-out frequency
     if (hist_nhtfrq(1)>0) then
       if (mod(nstep,hist_nhtfrq(1)) == 0) elm_histout = .true.
     end if
     if (ats_chkout) elm_restout = .true.
 
-    call  this%ats_interface%onestep(dt, elm_histout, elm_restout)
+    ! hardwired for now
+    elm_histout = .true.
 
-    ! NOT-yet finished
+    ! Advance ATS to time t+dt 
+    call this%ats_interface%onestep(dt, elm_histout, elm_restout)
+
+    ! get new water state and fluxes from ATS
     call get_data_for_elm(this, e2l_list, bounds_clump)
 
   end subroutine EM_ATS_OneStep
 
   !------------------------------------------------------------------------
   subroutine set_initial_conditions(this, nstep, dt, l2e_list, bounds_clump)
-    !
-    ! !DESCRIPTION:
-    !
+
     implicit none
-    !
-    ! !ARGUMENTS
     class(em_ats_type)               :: this
     class(emi_data_list), intent(in) :: l2e_list
     real(r8)            , intent(in) :: dt             ! unit: seconds
     integer             , intent(in) :: nstep
     type(bounds_type)   , intent(in) :: bounds_clump
-    !
-    ! !LOCAL VARIABLES:
     integer           :: fc, c, j
     integer           :: nz
     real(r8)          :: starting_time
-    real(r8), pointer :: patm(:), patm_ats(:)
     real(r8), pointer :: soilp(:,:), soilp_ats(:,:)
     real(r8), pointer :: wtd(:), wtd_ats(:)
-    !-----------------------------------------------------------------------
-    !call l2e_list%GetPointerToReal1D(this%index_l2e_state_forc_pbot        , patm  ) ! TODO
-    allocate(patm_ats(0:this%filter_col_num-1))
-    patm_ats(:) = 101325.0_r8
+    real(r8), pointer :: h2osoi_liq(:,:), h2oliq_ats(:,:)
 
     call l2e_list%GetPointerToReal2D(this%index_l2e_state_soilp            , soilp )
     nz = size(soilp(1,:))
-    allocate(soilp_ats(0:this%filter_col_num-1, 0:nz-1))                               ! index starting from 0 at soil bottom
+    allocate(soilp_ats(this%filter_col_num, nz))
 
-    !call l2e_list%GetPointerToReal1D(this%index_l2e_state_zwt              , wtd   )   ! TODO
-    allocate(wtd_ats(0:this%filter_col_num-1))
-    wtd_ats(:) = -999.9_r8 ! TODO
+    allocate(h2oliq_ats(this%filter_col_num, nz))
+    call l2e_list%GetPointerToReal2D(this%index_l2e_state_h2osoi_liq       , h2osoi_liq )
 
     do fc = 1, this%filter_col_num
       c = this%filter_col(fc)
       do j = 1, nz
-        soilp_ats(fc-1,j-1) = soilp(c,j)
+        h2oliq_ats(fc,j) = h2osoi_liq(c,j)
       end do
     end do
 
     starting_time = nstep*dt
-    call this%ats_interface%init(starting_time, patm_ats, soilp_ats)
-
-    deallocate(patm_ats)
+    call this%ats_interface%init(starting_time, h2oliq_ats, soilp_ats)
+    deallocate(h2oliq_ats)
     deallocate(soilp_ats)
-    deallocate(wtd_ats)
   end subroutine set_initial_conditions
 
   !------------------------------------------------------------------------
   subroutine set_dyn_properties(this, l2e_list, bounds_clump)
-    !
-    ! !DESCRIPTION:
-    !
+
     implicit none
-    !
-    ! !ARGUMENTS
     class(em_ats_type)               :: this
     class(emi_data_list), intent(in) :: l2e_list
     type(bounds_type)   , intent(in) :: bounds_clump
-    !
-    ! !LOCAL VARIABLES:
-    integer           :: fc, c, j
-    integer           :: nz, npft
-    real(r8), pointer :: soil_effporo(:,:),     soil_effporo_ats(:,:)
-    real(r8), pointer :: pft_rootfrac(:,:,:),   pft_rootfrac_ats(:,:,:)
+    integer           :: fc, c, p, j, ii
+    integer           :: nc, nz
+    real(r8), pointer :: soil_effporo(:,:), soil_effporo_ats(:,:)
+    real(r8), pointer :: pft_rootfrac(:,:), pft_rootfrac_ats(:,:)
+    integer,  pointer :: filter_patch(:)
+    integer, dimension (5) :: rootfrac_idx ! quick and dirty hardwired pft index for 2D run
     !-----------------------------------------------------------------------
+    nc = this%filter_col_num
+    nz = nlevgrnd
 
-    !call l2e_list%GetPointerToReal2D(this%index_l2e_state_effporo         , soil_effporo )
-    nz = 15 !size(soilp_effporo(1,:))
-    allocate(soil_effporo_ats(0:this%filter_col_num-1, 0:nz-1))                               ! index starting from 0 at soil bottom
+    allocate(pft_rootfrac_ats(nc, nz))
+    call l2e_list%GetPointerToReal2D(this%index_l2e_rootfrac_patch, pft_rootfrac)
+    allocate(soil_effporo_ats(nc, nz))
+    call l2e_list%GetPointerToReal2D(this%index_l2e_parameter_effporosityc, soil_effporo)
 
-    !call l2e_list%GetPointerToReal1D(this%index_l2e_state_rootfrac         , pft_rootfrac)   ! TODO
-    npft = 17
-    allocate(pft_rootfrac_ats(0:this%filter_col_num-1, 0:nz-1, 0:npft-1))
+    rootfrac_idx = (/1, 2, 8, 14, 16 /)
+    do fc = 1, nc
+      c = rootfrac_idx(fc)
+      do j = 1, nz
+        pft_rootfrac_ats(fc,j) = pft_rootfrac(c,j)
+      end do
+    end do
 
-    ! in progress ...
     call this%ats_interface%setsoilveg_dyn(soil_effporo_ats, pft_rootfrac_ats)
 
-    deallocate(soil_effporo_ats)
     deallocate(pft_rootfrac_ats)
+    deallocate(soil_effporo_ats)
 
   end subroutine set_dyn_properties
 
   !------------------------------------------------------------------------
   subroutine set_bc_ss(this, l2e_list, bounds_clump)
-    !
-    ! !DESCRIPTION:
-    !
+
     implicit none
-    !
-    ! !ARGUMENTS
     class(em_ats_type)               :: this
     class(emi_data_list), intent(in) :: l2e_list
     type(bounds_type)   , intent(in) :: bounds_clump
-    !
-    ! !LOCAL VARIABLES:
     integer              :: c, fc,  j,  p            ! do loop indices
-    integer              :: nc, nz, npft
+    integer              :: nc, nz
     real(r8), pointer    :: col_dz(:,:)
     real(r8), pointer    :: soilevap_flux(:),    soilinfl_flux(:),       soilevap_flux_ats(:),    soilinfl_flux_ats(:)
     real(r8), pointer    :: soilbot_flux(:),                             soilbot_flux_ats(:)
-    real(r8), pointer    :: pfttran_flux(:),                             pfttran_flux_ats(:,:)     ! summed veg. transpiration for individual pft
+    real(r8), pointer    :: pfttran_flux(:),                             pfttran_flux_ats(:)       ! summed veg. transpiration for column
     real(r8), pointer    :: roottran_flux(:,:),                          roottran_flux_ats(:,:)    ! root-distributed all-pft transpiration
     real(r8), pointer    :: soildrain_flux(:,:),                         soildrain_flux_ats(:,:)
     !-----------------------------------------------------------------------
     nc = this%filter_col_num
-    npft = 1   ! (TODO) colmun -> (col,pft)
 
-    call l2e_list%GetPointerToReal2D(this%index_l2e_column_dz                   , col_dz        )    ! layer thickness (1:nlevgrnd)
-
-    ! soil water source/sink terms. NOTE: here all variables are the potential rather than actual.
-    ! (1) column-wisely summed 1D
-    call l2e_list%GetPointerToReal1D(this%index_l2e_flux_gross_infil            , soilinfl_flux )    ! mmH2O/s, + to soil
-    call l2e_list%GetPointerToReal1D(this%index_l2e_flux_gross_evap             , soilevap_flux )    ! mmH2O/s, + to atm
-    allocate(soilinfl_flux_ats(0:nc-1))                            ! index starting from 0, unit: kgH2O/m2/s, + in, - out
-    allocate(soilevap_flux_ats(0:nc-1))                            ! index starting from 0, unit: kgH2O/m2/s, + in, - out
-
-    allocate(soilbot_flux_ats(0:nc-1))
-    soilbot_flux_ats(:) = 0._r8                                    ! TODO: temporarily set to 0
-
-    call l2e_list%GetPointerToReal1D(this%index_l2e_flux_tran_pft               , pfttran_flux )    ! mmH2O/s, + to atm
-    allocate(pfttran_flux_ats(0:nc-1, 0:npft-1))                    ! index starting from 0, unit: kgH2O/m2/s, + in, - out
-
-    ! (2) column-wisely and vertically distributed (2D)
-    !     In ATS, either 'vegtran_flux_ats' or 'rootran_flux_ats' will be used, BUT NOT both
-    !     In ATS, either 'soilbot_flux_ats' or 'soildrain_flux_ats' will be used, BUT NOT both
-
-    call l2e_list%GetPointerToReal2D(this%index_l2e_flux_tran_vr                , roottran_flux )   ! mmH2O/s, + to atm
-    nz = size(roottran_flux(1,:))
-    allocate(roottran_flux_ats(0:nc-1,0:nz-1))                    ! index starting from 0, unit: kgH2O/m3/s, + in, - out
-
-    call l2e_list%GetPointerToReal2D(this%index_l2e_flux_drain_vr               , soildrain_flux )
-    nz = size(soildrain_flux(1,:))
-    allocate(soildrain_flux_ats(0:nc-1,0:nz-1))                   ! index starting from 0, unit: kgH2O/m3/s, + in, - out
+    call l2e_list%GetPointerToReal1D(this%index_l2e_flux_gross_infil, soilinfl_flux )   ! mmH2O/s, + to soil
+    call l2e_list%GetPointerToReal1D(this%index_l2e_flux_gross_evap, soilevap_flux )    ! mmH2O/s, + to atm
+    call l2e_list%GetPointerToReal1D(this%index_l2e_flux_tran_pft, pfttran_flux )       ! mmH2O/s, + to atm
+    allocate(soilinfl_flux_ats(nc))
+    allocate(soilevap_flux_ats(nc))
+    allocate(pfttran_flux_ats(nc))
 
     do fc = 1, nc
       c = this%filter_col(fc)
-      soilinfl_flux_ats(fc-1) =  soilinfl_flux(c)*denh2o/1000.0                        !  mm/s (0.001m3/m2/s *kg/m3) = 0.001kg/m2/s, with: + in, - out
-      soilevap_flux_ats(fc-1) = -soilevap_flux(c)*denh2o/1000.0
-      do j = 1, nz
-        roottran_flux_ats(fc-1,j-1)  = -roottran_flux(c,j)*denh2o/1000.0/col_dz(c,j)   !  mm/s (0.001m3/m2/s *kg/m3) /m = 0.001kg/m3/s, with: + in, - out
-        soildrain_flux_ats(fc-1,j-1) = -soildrain_flux(c,j)*denh2o/1000.0/col_dz(c,j)  !  mm/s (0.001m3/m2/s *kg/m3) /m = 0.001kg/m3/s, with: + in, - out
-      end do
-      do p = 1, npft
-        pfttran_flux_ats(fc-1,p-1)  = -pfttran_flux(c)*denh2o/1000.0                   !  mm/s (0.001m3/m2/s *kg/m3)  = 0.001kg/m2/s, with: + in, - out
-      end do
+      soilinfl_flux_ats(fc) = soilinfl_flux(c)
+      soilevap_flux_ats(fc) = soilevap_flux(c)
+      pfttran_flux_ats(fc)  = pfttran_flux(c)
     end do
 
     call this%ats_interface%setss_hydro(soilinfl_flux_ats, soilevap_flux_ats, pfttran_flux_ats)
+
+    deallocate(soilinfl_flux_ats)
+    deallocate(soilevap_flux_ats)
+    deallocate(pfttran_flux_ats)
 
   end subroutine set_bc_ss
 
@@ -987,99 +963,83 @@ contains
   !-----------------------------------------------------------------------
 
   subroutine get_data_for_elm(this, e2l_list, bounds_clump)
-    !
-    !DESCRIPTION
-    !  Saves
-    !
-    !
+
     implicit none
-    !
-    ! !ARGUMENTS
     class(em_ats_type)                   :: this
     class(emi_data_list) , intent(inout) :: e2l_list
     type(bounds_type)    , intent(in)    :: bounds_clump
-
-    ! !LOCAL VARIABLES:
     integer              :: c, fc,  j,  p            ! do loop indices
-    integer              :: nc, nz, npft
-    real(r8), pointer    :: col_dz(:,:)
-
-    real(r8)  , pointer  :: e2l_h2osoi_liq(:,:), h2oliq_ats(:,:)
-    real(r8)  , pointer  :: e2l_h2osoi_ice(:,:), h2oice_ats(:,:)
-    real(r8)  , pointer  :: e2l_smp(:,:),        psi_ats(:,:)
-    real(r8)  , pointer  :: e2l_zwt(:),          zwt_ats(:)
-    real(r8)  , pointer  :: e2l_soilp(:,:),      soilp_ats(:,:)
-
-    real(r8)  , pointer  :: soilinfl_flux_ats(:)
-    real(r8)  , pointer  :: evap_flux_ats(:)
-    real(r8)  , pointer  :: pfttran_flux_ats(:,:,:)
-    real(r8)  , pointer  :: net_sub_flux_ats(:)
-    real(r8)  , pointer  :: net_srf_flux_ats(:)
+    integer              :: nc, nz
+    real(r8)  , pointer  :: e2l_h2osfc(:),         h2osfc_ats(:)
+    real(r8)  , pointer  :: e2l_zwt(:),            zwt_ats(:)
+    real(r8)  , pointer  :: e2l_h2osoi_liq(:,:),   h2oliq_ats(:,:)
+    real(r8)  , pointer  :: e2l_h2osoi_vol(:,:)
+    real(r8)  , pointer  :: e2l_soilinfl_flux(:),  soilinfl_flux_ats(:)
+    real(r8)  , pointer  :: e2l_evap_flux(:),      evap_flux_ats(:)
+    real(r8)  , pointer  :: e2l_tran_flux(:,:),    tran_flux_ats(:,:)
+    real(r8)  , pointer  :: e2l_net_sub_flux(:),   net_sub_flux_ats(:)
+    real(r8)  , pointer  :: e2l_net_srf_flux(:),   net_srf_flux_ats(:)
 
     !-----------------------------------------------------------------------
     !
-    call e2l_list%GetPointerToReal1D(this%index_e2l_state_zwt        , e2l_zwt               )
-    call e2l_list%GetPointerToReal2D(this%index_e2l_state_h2osoi_liq , e2l_h2osoi_liq        )
-    call e2l_list%GetPointerToReal2D(this%index_e2l_state_h2osoi_ice , e2l_h2osoi_ice        )
-    call e2l_list%GetPointerToReal2D(this%index_e2l_state_smp        , e2l_smp               )
-    call e2l_list%GetPointerToReal2D(this%index_e2l_state_soilp      , e2l_soilp             )
-    nz = size(e2l_soilp(1,:))
-    npft = 17 ! (TODO: not hard-wired)
+    call e2l_list%GetPointerToReal1D(this%index_e2l_state_h2osfc     , e2l_h2osfc     )
+    call e2l_list%GetPointerToReal1D(this%index_e2l_state_zwt        , e2l_zwt        )
+    call e2l_list%GetPointerToReal2D(this%index_e2l_state_h2osoi_vol , e2l_h2osoi_vol )
+    call e2l_list%GetPointerToReal2D(this%index_e2l_state_h2osoi_liq , e2l_h2osoi_liq )
+    call e2l_list%GetPointerToReal1D(this%index_e2l_flux_gross_infil , e2l_soilinfl_flux )
+    call e2l_list%GetPointerToReal1D(this%index_e2l_flux_gross_evap  , e2l_evap_flux     )
+    call e2l_list%GetPointerToReal2D(this%index_e2l_flux_tran_col    , e2l_tran_flux     )
 
-    ! index starting from 0
-    allocate(zwt_ats(0:this%filter_col_num-1))
-    allocate(h2oliq_ats(0:this%filter_col_num-1, 0:nz-1))
-    allocate(h2oice_ats(0:this%filter_col_num-1, 0:nz-1))
-    allocate(psi_ats(0:this%filter_col_num-1, 0:nz-1))
-    allocate(soilp_ats(0:this%filter_col_num-1, 0:nz-1))
+    nz = size(e2l_h2osoi_vol(1,:))
 
-    allocate(soilinfl_flux_ats(0:this%filter_col_num-1))
-    allocate(evap_flux_ats(0:this%filter_col_num-1))
-    allocate(pfttran_flux_ats(0:this%filter_col_num-1, 0:nz-1, 0:npft-1))
-    allocate(net_sub_flux_ats(0:this%filter_col_num-1))
-    allocate(net_srf_flux_ats(0:this%filter_col_num-1))
+    allocate(h2osfc_ats(this%filter_col_num))
+    allocate(zwt_ats(this%filter_col_num))
+    allocate(h2oliq_ats(this%filter_col_num, nz))
+    allocate(soilinfl_flux_ats(this%filter_col_num))
+    allocate(evap_flux_ats(this%filter_col_num))
+    allocate(tran_flux_ats(this%filter_col_num, nz))
+    allocate(net_sub_flux_ats(this%filter_col_num))
+    allocate(net_srf_flux_ats(this%filter_col_num))
 
-
-    ! currently only checking the ATS data as it is, i.e. NO returning data for ELM
-    call this%ats_interface%getdata_hydro(zwt_ats, soilp_ats, psi_ats, h2oliq_ats, h2oice_ats,    &
-                                          soilinfl_flux_ats, evap_flux_ats, pfttran_flux_ats, &
+    call this%ats_interface%getdata_hydro(h2osfc_ats, zwt_ats, h2oliq_ats,    &
+                                          soilinfl_flux_ats, evap_flux_ats, tran_flux_ats, &
                                           net_sub_flux_ats, net_srf_flux_ats)
+
+    ! Conversions occur in ATS
+    ! h2osfc_ats[m]      ->  e2l_h2osfc[mm]
+    ! zwt_ats[m]         ->  e2l_zwt[m]
+    ! h2oliq_ats[-]      ->  e2l_h2osoi_liq[kg/m2]
     do fc = 1, this%filter_col_num
-      c = this%filter_col(fc)
-      e2l_zwt(c) = zwt_ats(fc-1)
-      do j = 1, nz
-         e2l_h2osoi_liq(c,j) = h2oliq_ats(fc-1,j-1)*this%dz(j) ! kg/m3 --> kgH2O/m2
-         e2l_h2osoi_ice(c,j) = h2oice_ats(fc-1,j-1)
-         e2l_smp(c,j)   = psi_ats(fc-1,j-1)/(-9.8_r8)    ! Pa ---> -mmH2O
-         e2l_soilp(c,j) = soilp_ats(fc-1,j-1)*1.0e-6_r8  ! Pa ---> MPa
-      end do
+       c = this%filter_col(fc)
+       e2l_h2osfc(c)          = h2osfc_ats(fc)
+       e2l_zwt(c)             = zwt_ats(fc)
+       e2l_soilinfl_flux(c)   = soilinfl_flux_ats(fc)
+       e2l_evap_flux(c)       = evap_flux_ats(fc)
+       do j = 1, nz
+          e2l_h2osoi_liq(c,j) = h2oliq_ats(fc,j)
+          e2l_h2osoi_vol(c,j) = h2oliq_ats(fc,j)/(this%dz(j)*denh2o)
+          e2l_tran_flux(c,j)  = tran_flux_ats(fc,j)
+       end do
     end do
 
-    ! (TODO) passing to 'e2l' flux variables
+    ! STILL NEED net_sub_flux, net_srf_flux
 
-
+    deallocate(h2osfc_ats)
     deallocate(zwt_ats)
     deallocate(h2oliq_ats)
-    deallocate(h2oice_ats)
-    deallocate(psi_ats)
-    deallocate(soilp_ats)
-
-
-
-
+    deallocate(soilinfl_flux_ats)
+    deallocate(evap_flux_ats)
+    deallocate(tran_flux_ats)
+    deallocate(net_sub_flux_ats)
+    deallocate(net_srf_flux_ats)
 
    end subroutine get_data_for_elm
 
   !------------------------------------------------------------------------
    subroutine EM_ATS_Finalize(this, dt, nstep, clump_rank, l2e_list, e2l_list, &
         bounds_clump)
-    !
-    ! !DESCRIPTION:
-    !
-    !
+
     implicit none
-    !
-    ! !ARGUMENTS:
     class(em_ats_type)                   :: this
     real(r8)             , intent(in)    :: dt
     integer              , intent(in)    :: nstep

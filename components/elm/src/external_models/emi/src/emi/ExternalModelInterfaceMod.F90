@@ -863,7 +863,6 @@ contains
     case default
        call endrun('Unknown External Model')
     end select
-
   end subroutine EMI_Init_EM
 
   !-----------------------------------------------------------------------
