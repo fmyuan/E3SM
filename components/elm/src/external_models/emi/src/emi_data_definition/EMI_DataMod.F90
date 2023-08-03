@@ -1334,8 +1334,10 @@ contains
     logical                                :: data_present
     logical                                :: data_found
 
+ print*, "DATAMOD ENTRY  ", data_id
     call this%IsDataIDPresent(data_id, data_present)
     if (data_present) then
+    print*, "DATA PRESENT"
        call this%AppendDataEMStages(data_id, num_em_stages_val, &
                   em_stage_ids_val, index_of_new_data)
        return
@@ -1344,14 +1346,16 @@ contains
     data_found     = .false.
 
     if (.not.data_found) then
+    print*, "DATAMOD ENTRY 1"
        call EMI_Atm2LndType_DataInfoByID(data_id, id_val, &
             name_val, long_name_val, units_val, is_int_type, is_real_type, ndim, &
             dim1_beg_name, dim1_end_name, dim2_beg_name, dim2_end_name, &
             dim3_beg_name, dim3_end_name, dim4_beg_name, dim4_end_name, &
             data_found)
     end if
-
+    print*, "DATA FOUND: ", data_found
     if (.not.data_found) then
+    print*, "DATAMOD ENTRY 2"
        call EMI_CanopyStateType_DataInfoByID(data_id, id_val, &
             name_val, long_name_val, units_val, is_int_type, is_real_type, ndim, &
             dim1_beg_name, dim1_end_name, dim2_beg_name, dim2_end_name, &
@@ -1360,6 +1364,7 @@ contains
     end if
 
     if (.not.data_found) then
+    print*, "DATAMOD ENTRY 3"
        call EMI_ChemStateType_DataInfoByID(data_id, id_val, &
             name_val, long_name_val, units_val, is_int_type, is_real_type, ndim, &
             dim1_beg_name, dim1_end_name, dim2_beg_name, dim2_end_name, &
@@ -1368,6 +1373,7 @@ contains
     end if
 
     if (.not.data_found) then
+    print*, "DATAMOD ENTRY 4"
        call EMI_EnergyFluxType_DataInfoByID(data_id, id_val, &
             name_val, long_name_val, units_val, is_int_type, is_real_type, ndim, &
             dim1_beg_name, dim1_end_name, dim2_beg_name, dim2_end_name, &
@@ -1376,6 +1382,7 @@ contains
     end if
 
     if (.not.data_found) then
+    print*, "DATAMOD ENTRY 5"
        call EMI_SoilHydrologyType_DataInfoByID(data_id, id_val, &
             name_val, long_name_val, units_val, is_int_type, is_real_type, ndim, &
             dim1_beg_name, dim1_end_name, dim2_beg_name, dim2_end_name, &
@@ -1384,6 +1391,7 @@ contains
     end if
 
     if (.not.data_found) then
+    print*, "DATAMOD ENTRY 6"
        call EMI_SoilStateType_DataInfoByID(data_id, id_val, &
             name_val, long_name_val, units_val, is_int_type, is_real_type, ndim, &
             dim1_beg_name, dim1_end_name, dim2_beg_name, dim2_end_name, &
@@ -1392,6 +1400,7 @@ contains
     end if
 
     if (.not.data_found) then
+    print*, "DATAMOD ENTRY 7"
        call EMI_TemperatureType_DataInfoByID(data_id, id_val, &
             name_val, long_name_val, units_val, is_int_type, is_real_type, ndim, &
             dim1_beg_name, dim1_end_name, dim2_beg_name, dim2_end_name, &
@@ -1400,6 +1409,7 @@ contains
     end if
 
     if (.not.data_found) then
+    print*, "DATAMOD ENTRY 8"
        call EMI_WaterFluxType_DataInfoByID(data_id, id_val, &
             name_val, long_name_val, units_val, is_int_type, is_real_type, ndim, &
             dim1_beg_name, dim1_end_name, dim2_beg_name, dim2_end_name, &
@@ -1408,6 +1418,7 @@ contains
     end if
 
     if (.not.data_found) then
+    print*, "DATAMOD ENTRY 9"
        call EMI_WaterStateType_DataInfoByID(data_id, id_val, &
             name_val, long_name_val, units_val, is_int_type, is_real_type, ndim, &
             dim1_beg_name, dim1_end_name, dim2_beg_name, dim2_end_name, &
@@ -1416,6 +1427,7 @@ contains
     end if
 
     if (.not.data_found) then
+    print*, "DATAMOD ENTRY 10"
        call EMI_CNCarbonStateType_DataInfoByID(data_id, id_val, &
             name_val, long_name_val, units_val, is_int_type, is_real_type, ndim, &
             dim1_beg_name, dim1_end_name, dim2_beg_name, dim2_end_name, &
@@ -1424,6 +1436,7 @@ contains
     end if
     
     if (.not.data_found) then
+    print*, "DATAMOD ENTRY 11"
        call EMI_CNNitrogenStateType_DataInfoByID(data_id, id_val, &
             name_val, long_name_val, units_val, is_int_type, is_real_type, ndim, &
             dim1_beg_name, dim1_end_name, dim2_beg_name, dim2_end_name, &
@@ -1432,6 +1445,7 @@ contains
     end if
     
     if (.not.data_found) then
+    print*, "DATAMOD ENTRY 12"
        call EMI_CNCarbonFluxType_DataInfoByID(data_id, id_val, &
             name_val, long_name_val, units_val, is_int_type, is_real_type, ndim, &
             dim1_beg_name, dim1_end_name, dim2_beg_name, dim2_end_name, &
@@ -1440,6 +1454,7 @@ contains
     end if
 
     if (.not.data_found) then
+    print*, "DATAMOD ENTRY 13"
        call EMI_CNNitrogenFluxType_DataInfoByID(data_id, id_val, &
            name_val, long_name_val, units_val, is_int_type, is_real_type, ndim, &
            dim1_beg_name, dim1_end_name, dim2_beg_name, dim2_end_name, &
@@ -1448,6 +1463,7 @@ contains
     end if
 
     if (.not.data_found) then
+    print*, "DATAMOD ENTRY 14"
       call EMI_ColumnEnergyStateType_DataInfoByID(data_id, id_val, &
            name_val, long_name_val, units_val, is_int_type, is_real_type, ndim, &
            dim1_beg_name, dim1_end_name, dim2_beg_name, dim2_end_name, &
@@ -1456,6 +1472,7 @@ contains
    end if
 
    if (.not.data_found) then
+   print*, "DATAMOD ENTRY 15"
       call EMI_ColumnWaterStateType_DataInfoByID(data_id, id_val, &
            name_val, long_name_val, units_val, is_int_type, is_real_type, ndim, &
            dim1_beg_name, dim1_end_name, dim2_beg_name, dim2_end_name, &
@@ -1464,6 +1481,7 @@ contains
    end if
 
    if (.not.data_found) then
+   print*, "DATAMOD ENTRY 16"
       call EMI_ColumnWaterFluxType_DataInfoByID(data_id, id_val, &
            name_val, long_name_val, units_val, is_int_type, is_real_type, ndim, &
            dim1_beg_name, dim1_end_name, dim2_beg_name, dim2_end_name, &
@@ -1472,11 +1490,13 @@ contains
    end if
 
     if (.not.data_found) then
+    print*, "DATAMOD SELECT CASE"
        select case(data_id)
           ! -------------------------------------------------------------
           ! ELM-to-EM: Filter variables
           ! -------------------------------------------------------------
        case (L2E_FILTER_HYDROLOGYC)
+       print*, "L2E_FILTER_HYDROLOGYC"
           id_val        = L2E_FILTER_HYDROLOGYC
           name_val      = 'Hydrology filter'
           long_name_val = 'Hydrology filter: ELM to External Model'
@@ -1488,6 +1508,7 @@ contains
           data_found    = .true.
 
        case (L2E_FILTER_NUM_HYDROLOGYC)
+       print*, "L2E_FILTER_HYDROLOGYC NUM"
           id_val        = L2E_FILTER_NUM_HYDROLOGYC
           name_val      = 'Number of hydrology filter'
           long_name_val = 'Number of hydrology filter: ELM to External Model'
@@ -1499,6 +1520,7 @@ contains
           data_found    = .true.
 
       case (L2E_FILTER_SOILC)
+      print*, "L2E_FILTER_SOILC"
          id_val        = L2E_FILTER_SOILC
          name_val      = 'Soil filter'
          long_name_val = 'Soil filter: ELM to External Model'
@@ -1510,6 +1532,7 @@ contains
          data_found    = .true.
 
       case (L2E_FILTER_NUM_SOILC)
+      print*, "L2E_FILTER_SOILC NUM"
          id_val        = L2E_FILTER_NUM_SOILC
          name_val      = 'Number of soil filter'
          long_name_val = 'Number of soil filter: ELM to External Model'
@@ -1521,6 +1544,7 @@ contains
          data_found    = .true.
 
        case (L2E_FILTER_NOLAKEC)
+       print*, "L2E_FILTER_LAKE"
           id_val        = L2E_FILTER_HYDROLOGYC
           name_val      = 'Non-lake filter'
           long_name_val = 'Non-lake filter: ELM to External Model'
@@ -1532,6 +1556,7 @@ contains
           data_found    = .true.
 
        case (L2E_FILTER_NUM_NOLAKEC)
+       print*, "L2E_FILTER_LAKE NUM"
           id_val        = L2E_FILTER_NUM_HYDROLOGYC
           name_val      = 'Number of non-lake filter'
           long_name_val = 'Number of non-lake filter: ELM to External Model'
@@ -1543,6 +1568,7 @@ contains
           data_found    = .true.
 
        case (L2E_FILTER_NOLAKEC_AND_NOURBANC)
+       print*, "L2E_FILTER_LANKE URB"
           id_val        = L2E_FILTER_NOLAKEC_AND_NOURBANC
           name_val      = 'Non-lake & non-urban filter'
           long_name_val = 'Non-lake & non-urban filter: ELM to External Model'
@@ -1554,6 +1580,7 @@ contains
           data_found    = .true.
 
        case (L2E_FILTER_NUM_NOLAKEC_AND_NOURBANC)
+       print*, "L2E_FILTER_LAKE URB NUM "
           id_val        = L2E_FILTER_NUM_NOLAKEC_AND_NOURBANC
           name_val      = 'Number of non-lake & non-urban filter'
           long_name_val = 'Number of non-lake & non-urban filter: ELM to External Model'
@@ -1568,6 +1595,7 @@ contains
           ! ELM-to-ELM: Column variables
           ! -------------------------------------------------------------
        case (L2E_COLUMN_ACTIVE)
+       print*, "COL_ACTIVE"
           id_val        = L2E_COLUMN_ACTIVE
           name_val      = 'Column active'
           long_name_val = 'Column active: ELM to External Model'
@@ -1579,6 +1607,7 @@ contains
           data_found    = .true.
 
        case (L2E_COLUMN_TYPE)
+       print*, "COL TYPE"
           id_val        = L2E_COLUMN_TYPE
           name_val      = 'Column type'
           long_name_val = 'Column type: ELM to External Model'
@@ -1590,6 +1619,7 @@ contains
           data_found    = .true.
 
        case (L2E_COLUMN_LANDUNIT_INDEX)
+       print*, "COL LANDUNIT"
           id_val        = L2E_COLUMN_LANDUNIT_INDEX
           name_val      = 'Column to landunit index'
           long_name_val = 'Column landunit index: ELM to External Model'
@@ -1601,6 +1631,7 @@ contains
           data_found    = .true.
 
        case (L2E_COLUMN_ZI)
+       print*, "COL ZI"
           id_val        = L2E_COLUMN_ZI
           name_val      = 'Column layer interface depth'
           long_name_val = 'Column layer interface depth: ELM to External Model'
@@ -1614,6 +1645,7 @@ contains
           data_found    = .true.
 
        case (L2E_COLUMN_DZ)
+       print*, "COL DZ"
           id_val        = L2E_COLUMN_DZ
           name_val      = 'Column layer thickness'
           long_name_val = 'Column layer thickness: ELM to External Model'
@@ -1627,6 +1659,7 @@ contains
           data_found    = .true.
 
        case (L2E_COLUMN_Z)
+       print*, "COL Z"
           id_val        = L2E_COLUMN_Z
           name_val      = 'Column layer centroid depth'
           long_name_val = 'Column layer centroid depth: ELM to External Model'
@@ -1640,6 +1673,7 @@ contains
           data_found    = .true.
 
        case (L2E_COLUMN_AREA)
+       print*, "COL AREA"
           id_val        = L2E_COLUMN_AREA
           name_val      = 'Column surface area'
           long_name_val = 'Column surface area: ELM to External Model'
@@ -1651,6 +1685,7 @@ contains
           data_found    = .true.
 
        case (L2E_COLUMN_GRIDCELL_INDEX)
+       print*, "COL GRIDCELL"
           id_val        = L2E_COLUMN_GRIDCELL_INDEX
           name_val      = 'Column to gridcell index'
           long_name_val = 'Column to gridcell index: ELM to External Model'
@@ -1662,6 +1697,7 @@ contains
           data_found    = .true.
 
        case (L2E_COLUMN_PATCH_INDEX_BEGIN)
+       print*, "COL PATCVH"
           id_val        = L2E_COLUMN_PATCH_INDEX_BEGIN
           name_val      = 'Beginning column to patch index'
           long_name_val = 'Beginning column to patch index: ELM to External Model'
@@ -1673,6 +1709,7 @@ contains
           data_found    = .true.
 
        case (L2E_COLUMN_PATCH_INDEX_END)
+       print*, "COL PATCH 2"
           id_val        = L2E_COLUMN_PATCH_INDEX_END
           name_val      = 'Ending column to patch index'
           long_name_val = 'Ending column to patch index: ELM to External Model'
@@ -1684,6 +1721,7 @@ contains
           data_found    = .true.
 
        case (L2E_COLUMN_NUM_SNOW_LAYERS)
+       print*, "COL SNL"
           id_val        = L2E_COLUMN_NUM_SNOW_LAYERS
           name_val      = 'Number of snow layers'
           long_name_val = 'Number of snow layers: ELM to External Model'
@@ -1695,6 +1733,7 @@ contains
           data_found    = .true.
 
        case (L2E_COLUMN_ZI_SNOW_AND_SOIL)
+       print*, "COL SNOW + SOIL"
           id_val        = L2E_COLUMN_ZI_SNOW_AND_SOIL
           name_val      = 'Column layer interface depth'
           long_name_val = 'Column layer interface depth: ELM to External Model'
@@ -1708,6 +1747,7 @@ contains
           data_found    = .true.
 
        case (L2E_COLUMN_DZ_SNOW_AND_SOIL)
+       print*, "COL SNOW + SOIL 2"
           id_val        = L2E_COLUMN_DZ_SNOW_AND_SOIL
           name_val      = 'Column layer thickness'
           long_name_val = 'Column layer thickness: ELM to External Model'
@@ -1721,6 +1761,7 @@ contains
           data_found    = .true.
 
        case (L2E_COLUMN_Z_SNOW_AND_SOIL)
+       print*, "COL SNOW + SOIL 3"
           id_val        = L2E_COLUMN_Z_SNOW_AND_SOIL
           name_val      = 'Column layer centroid depth'
           long_name_val = 'Column layer centroid depth: ELM to External Model'
@@ -1733,10 +1774,22 @@ contains
           dim2_end_name = dimname_nlevgrnd
           data_found    = .true.
 
+       case (L2E_COLUMN_NUM_PATCH)
+       print*, "COL PATCH 2"
+          id_val        = L2E_COLUMN_NUM_PATCH
+          name_val      = 'Number of patches'
+          long_name_val = 'Number of patches in column'
+          units_val     = '[-]'
+          is_int_type   = .true.
+          ndim          = 1
+          dim1_beg_name = dimname_begc
+          dim1_end_name = dimname_endc
+          data_found    = .true.
           ! -------------------------------------------------------------
           ! ELM-to-ELM: Landunit variables
           ! -------------------------------------------------------------
        case (L2E_LANDUNIT_TYPE)
+       print*, "LANDUNIT"
           id_val        = L2E_LANDUNIT_TYPE
           name_val      = 'Landunit type'
           long_name_val = 'Landunit type: ELM to External Model'
@@ -1748,6 +1801,7 @@ contains
           data_found    = .true.
 
        case (L2E_LANDUNIT_LAKEPOINT)
+       print*, "LAND LAKE"
           id_val        = L2E_LANDUNIT_LAKEPOINT
           name_val      = 'Landunit lake point'
           long_name_val = 'Landunit lake point: ELM to External Model'
@@ -1759,6 +1813,7 @@ contains
           data_found    = .true.
 
        case (L2E_LANDUNIT_URBANPOINT)
+       print*, "LAND URB"
           id_val        = L2E_LANDUNIT_URBANPOINT
           name_val      = 'Landunit urban point'
           long_name_val = 'Landunit urban point: ELM to External Model'
