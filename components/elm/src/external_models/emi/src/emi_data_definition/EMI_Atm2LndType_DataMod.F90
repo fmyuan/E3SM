@@ -52,14 +52,9 @@ contains
     dim3_end_name  = ''
     dim4_end_name  = ''
 
-     print*, "EMI_Atm2LndType_DataInfoByID"
-     print*, "DATA ID: ", data_id
-     print*, "DATA FOUND START: ", data_found
-
     select case(data_id)
 
     case(L2E_STATE_FORC_PBOT_DOWNSCALED)
-    print*, "L2E_STATE_FORC_PBOT_DOWNSCALED"
        id_val         =  L2E_STATE_FORC_PBOT_DOWNSCALED
        name_val       =  'Downscaled atm pressure'
        long_name_val  =  'Downscaled atm pressure: ELM to EM'
@@ -71,7 +66,6 @@ contains
        data_found   =  .true.
 
     case(L2E_STATE_FORC_T_DOWNSCALED)
-    print*, "L2E_STATE_FORC_T_DOWNSCALED"
        id_val         =  L2E_STATE_FORC_T_DOWNSCALED
        name_val       =  'Downscaled atm temperature'
        long_name_val  =  'Downscaled atm temperature: ELM to EM'
@@ -83,7 +77,6 @@ contains
        data_found   =  .true.
 
     case(L2E_FLUX_SOLAR_DIRECT_RADDIATION)
-    print*, "L2E_FLUX_SOLAR_DIRECT_RADDIATION"
        id_val         =  L2E_FLUX_SOLAR_DIRECT_RADDIATION
        name_val       =  'Incident direct solar radiation'
        long_name_val  =  'Incident direct solar radiation: ELM to EM'
@@ -97,7 +90,6 @@ contains
        data_found   =  .true.
 
     case(L2E_FLUX_SOLAR_DIFFUSE_RADDIATION)
-    print*, "L2E_FLUX_SOLAR_DIFFUSE_RADDIATION"
        id_val         =  L2E_FLUX_SOLAR_DIFFUSE_RADDIATION
        name_val       =  'Incident diffuse solar radiation'
        long_name_val  =  'Incident diffuse solar radiation: ELM to EM'
@@ -111,7 +103,6 @@ contains
        data_found   =  .true.
     end select
    
-   print*, "DATA FOUND END: ", data_found
   end subroutine EMI_Atm2LndType_DataInfoByID
     
 end module EMI_Atm2LndType_DataMod
