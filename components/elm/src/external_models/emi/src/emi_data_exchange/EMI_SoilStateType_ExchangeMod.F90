@@ -75,7 +75,8 @@ contains
          cellclay     => soilstate_vars%cellclay_col     , &
          cellsand     => soilstate_vars%cellsand_col     , &
          bd           => soilstate_vars%bd_col           , &
-         watfc        => soilstate_vars%watfc_col          &
+         watfc        => soilstate_vars%watfc_col        , &
+         rootfr_col   => soilstate_vars%rootfr_col         &
          )
 
     count = 0
@@ -213,6 +214,15 @@ contains
              enddo
              cur_data%is_set = .true.
 
+          case (L2E_PARAMETER_ROOTFR_COL)
+             do fc = 1, num_filter
+                c = filter(fc)
+                do j = 1, nlevgrnd
+                   cur_data%data_real_2d(c,j) = rootfr_col(c,j)
+                enddo
+             enddo
+             cur_data%is_set = .true.
+
           end select
 
        endif
@@ -319,11 +329,11 @@ contains
     integer                             :: count
 
     associate(& 
-#ifdef ATS_READY
+!#ifdef ATS_READY
          smp_l => soilstate_vars%smp_l_col    &  ! -mmH2O
-#else
-         smp_l => soilstate_vars%smp2_l_col   &
-#endif
+!#else
+!         smp_l => soilstate_vars%smp2_l_col   &
+!#endif
          )
 
     count = 0

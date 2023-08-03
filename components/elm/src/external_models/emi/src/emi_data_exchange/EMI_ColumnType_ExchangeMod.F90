@@ -173,6 +173,13 @@ contains
              enddo
              cur_data%is_set = .true.
 
+          case (L2E_COLUMN_NUM_PATCH)
+             do fc = 1, num_filter
+                c = filter(fc)
+                cur_data%data_int_1d(c) = col_pp%npfts(c)
+             enddo
+             cur_data%is_set = .true.
+
           end select
 
        endif

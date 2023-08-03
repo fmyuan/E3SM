@@ -282,16 +282,20 @@ contains
     integer                             :: count
 
     associate(& 
-#ifdef ATS_READY
+!#ifdef ATS_READY
+         h2osoi_vol => col_ws%h2osoi_vol , &
          h2osoi_liq => col_ws%h2osoi_liq , &
          h2osoi_ice => col_ws%h2osoi_ice , &
-         soilp      => col_ws%soilp        &
-#else
-         h2osoi_liq => col_ws%h2osoi2_liq , &
-         h2osoi_ice => col_ws%h2osoi2_ice , &
-         soilp      => col_ws%soilp2        &
+         soilp      => col_ws%soilp      , &
+         smp_l      => col_ws%smp_l      , &
+         h2osfc     => col_ws%h2osfc       &
+!#else
+!         h2osoi_liq => col_ws%h2osoi2_liq , &
+!         h2osoi_ice => col_ws%h2osoi2_ice , &
+!         soilp      => col_ws%soilp2      , &
+!         h2osfc     => col_ws%h2osfc2       &
 
-#endif
+!#endif
          )
 
     count = 0
@@ -311,6 +315,16 @@ contains
        if (need_to_pack) then
 
           select case (cur_data%id)
+
+          case (E2L_STATE_H2OSOI_VOL)
+             do fc = 1, num_filter
+                c = filter(fc)
+                do j = 1, nlevgrnd
+                   h2osoi_vol(c,j) = cur_data%data_real_2d(c,j)
+                enddo
+             enddo
+             cur_data%is_set = .true.
+
 
           case (E2L_STATE_H2OSOI_LIQ)
              do fc = 1, num_filter
@@ -335,6 +349,22 @@ contains
                 c = filter(fc)
                 do j = 1, nlevgrnd
                    soilp(c,j) = cur_data%data_real_2d(c,j)
+                enddo
+             enddo
+             cur_data%is_set = .true.
+
+          case (E2L_STATE_H2OSFC)
+             do fc = 1, num_filter
+                c = filter(fc)
+                h2osfc(c) = cur_data%data_real_1d(c)
+             enddo
+             cur_data%is_set = .true.
+
+          case (E2L_STATE_SOIL_MATRIC_POTENTIAL_COL)
+             do fc = 1, num_filter
+                c = filter(fc)
+                do j = 1, nlevgrnd
+                   smp_l(c,j) = cur_data%data_real_2d(c,j)
                 enddo
              enddo
              cur_data%is_set = .true.
