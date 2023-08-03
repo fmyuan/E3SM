@@ -17,7 +17,7 @@ Module HydrologyNoDrainageMod
   use SoilStateType     , only : soilstate_type
   use LandunitType      , only : lun_pp
   use ColumnType        , only : col_pp
-  use ColumnDataType    , only : col_es, col_ws
+  use ColumnDataType    , only : col_es, col_ws, col_wf
   use VegetationType    , only : veg_pp
   use TopounitDataType  , only : top_as, top_af ! Atmospheric state and flux variables
   use elm_instMod       , only : alm_fates , ep_betr
@@ -198,8 +198,8 @@ contains
            soilhydrology_vars, soilstate_vars, dtime)
 
       !------------------------------------------------------------------------------------
-      if ( (use_pflotran .and. pf_hmode) .or. &
-           (use_ats .and. ats_gmode)) then        ! if ATS surface module coupled
+      if ( (use_pflotran .and. pf_hmode) ) then
+        !!.or. &  (use_ats .and. ats_hmode)) then
         call Infiltration(bounds, num_hydrononsoic, filter_hydrononsoic, &
              num_urbanc, filter_urbanc, &
              energyflux_vars, soilhydrology_vars, soilstate_vars, dtime)
@@ -254,9 +254,8 @@ contains
         !            water states. But it should not be an issue if ATS over-rides ELM later on.
         soilroot_water_method = ATS_HYDRO
 
-        if (nstep==0) then  ! (TODO) need to add something for restart? Maybe useful for all cases
-         ! Update soilpsi.
-         ! Otherwise, those are zero or nan.
+        if (nstep==0) then
+         ! set soilpsi for 1st timestep only.
          do j = 1, nlevgrnd
             do fc = 1, num_hydrologyc
                c = filter_hydrologyc(fc)
@@ -265,45 +264,62 @@ contains
 
                   vwc = h2osoi_liq(c,j)/(dz(c,j)*denh2o)
 
-                  ! the following limit set to catch very small values of
-                  ! fractional saturation that can crash the calculation of psi
-
-                  ! use the same contants used in the supercool so that psi for frozen soils is consistent
+                  ! use the same constants used in the supercool so that psi for frozen soils is consistent
                   fsattmp = max(vwc/watsat(c,j), 0.001_r8)
                   psi = sucsat(c,j) * (-9.8e-6_r8) * (fsattmp)**(-bsw(c,j))  ! Mpa
                   soilpsi(c,j) = min(max(psi,-15.0_r8),0._r8)
 
-                  ! need to assign smp_l to 'col_ws'
-                  ! for later use, e.g. in emi/ats
-                  col_ws%smp_l(c,j) = -sucsat(c,j)*(fsattmp**(-bsw(c,j)))    ! mmH2O
-
                else
                   soilpsi(c,j) = -15.0_r8
-                  col_ws%smp_l(c,j) = -15.0_r8/(9.8e-6_r8)
                end if
-
-               ! need to assign col_ws%soilp
-               ! for later use, e.g. in emi/ats
-               col_ws%soilp(c,j) = soilpsi(c,j) + 0.1013250_r8  ! (TODO - adding the real 'forc_pbot')
 
             end do
          end do
         endif
 
+        ! ATS returns updated state variables h2osoi_liq/vol, h2osfc, zwt
+        ! and flux variables qflx_top_soil, qflx_tran and qflx_evap
         call SoilWater(bounds, num_soilc, filter_soilc, &
             num_urbanc, filter_urbanc, &
             soilhydrology_vars, soilstate_vars, nstep, dtime)
 
+        ! Calculate soilpsi (MPa) from updated soil water content
+        do j = 1, nlevgrnd
+           do fc = 1, num_hydrologyc
+              c = filter_hydrologyc(fc)
+
+              ! recompute soil potential with new h2osoi_liq from ATS
+              if (h2osoi_liq(c,j) > 0._r8) then
+                 vwc = h2osoi_liq(c,j)/(dz(c,j)*denh2o)
+                 fsattmp = max(vwc/watsat(c,j), 0.001_r8)
+                 psi = sucsat(c,j) * (-9.8e-6_r8) * (fsattmp)**(-bsw(c,j))  ! Mpa
+                 soilpsi(c,j) = min(max(psi,-15.0_r8),0._r8)
+              else
+                 soilpsi(c,j) = -15.0_r8
+              end if
+
+              ! WB vars
+              soilhydrology_vars%qcharge_col(c) = 0.0_r8
+              col_wf%qflx_deficit(c) = 0.0_r8
+
+             ! do j = 1, nlevbed
+             !    if (h2osoi_liq(c,j)<0._r8)then
+             !       qflx_deficit(c) = qflx_deficit(c) - h2osoi_liq(c,j)
+             !    endif
+             !enddo
+         enddo
+      enddo
+
 
         ! still using default hydrology for non-soil-column, but may change in future
         soilroot_water_method = zengdecker_2009
-#ifdef ATS_READY
+!#ifdef ATS_READY
         call SoilWater(bounds, num_hydrononsoic, filter_hydrononsoic, &
-#else
+!#else
         ! here means ELM default soil water module still runs, while ATS runs prior to
         ! in this case, ATS data won't return and over-ride ELM default runs.
-        call SoilWater(bounds, num_hydrologyc, filter_hydrologyc, &
-#endif
+!        call SoilWater(bounds, num_hydrologyc, filter_hydrologyc, &
+!#endif
             num_urbanc, filter_urbanc, &
             soilhydrology_vars, soilstate_vars, nstep, dtime)
 
@@ -335,8 +351,8 @@ contains
       end if
 
       !------------------------------------------------------------------------------------
-      if ( (use_pflotran .and. pf_hmode) .or. &
-           (use_ats .and. ats_gmode)) then        ! if ATS surface module coupled
+      if ( (use_pflotran .and. pf_hmode) ) then
+        ! .or. & (use_ats .and. ats_hmode)) then        ! if ATS surface module coupled
 
         call WaterTable(bounds, num_hydrononsoic, filter_hydrononsoic, &
            num_urbanc, filter_urbanc, &
@@ -531,48 +547,6 @@ contains
          end do
       end do
 
-#ifdef ATS_READY
-      if ( (use_cn .or. use_fates) .and. &
-           (.not.(use_pflotran .and. pf_hmode)) .and. &
-           (.not.(use_ats .and. ats_hmode)) ) then
-#else
-      if ( (use_cn .or. use_fates) .and. &
-         .not.(use_pflotran .and. pf_hmode) ) then
-#endif
-         ! Update soilpsi.
-         ! ZMS: Note this could be merged with the following loop updating smp_l in the future.
-         do j = 1, nlevgrnd
-            do fc = 1, num_hydrologyc
-               c = filter_hydrologyc(fc)
-
-               if (h2osoi_liq(c,j) > 0._r8) then
-
-                  vwc = h2osoi_liq(c,j)/(dz(c,j)*denh2o)
-
-                  ! the following limit set to catch very small values of
-                  ! fractional saturation that can crash the calculation of psi
-
-                  ! use the same contants used in the supercool so that psi for frozen soils is consistent
-                  fsattmp = max(vwc/watsat(c,j), 0.001_r8)
-                  psi = sucsat(c,j) * (-9.8e-6_r8) * (fsattmp)**(-bsw(c,j))  ! Mpa
-                  soilpsi(c,j) = min(max(psi,-15.0_r8),0._r8)
-
-                  ! need to assign smp_l to 'col_ws'
-                  ! for later use, e.g. in emi/ats
-                  col_ws%smp_l(c,j) = -sucsat(c,j)*(fsattmp**(-bsw(c,j)))    ! mmH2O
-
-               else
-                  soilpsi(c,j) = -15.0_r8
-                  col_ws%smp_l(c,j) = -15.0_r8/(9.8e-6_r8)
-               end if
-
-               ! need to assign value to col_ws%soilp
-               ! for later use, e.g. in emi/ats
-               col_ws%soilp(c,j) = soilpsi(c,j) + 0.1013250_r8  ! (TODO - adding the real 'forc_pbot')
-
-            end do
-         end do
-      end if
 
       if (use_cn .or. use_fates) then
          ! Available soil water up to a depth of 0.05 m.

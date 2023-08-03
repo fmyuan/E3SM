@@ -681,17 +681,17 @@
 
   <machine MACH="mymac">
     <DESC>Mac OS/X workstation or laptop</DESC>
-    <NODENAME_REGEX>macbook-pro.local</NODENAME_REGEX>
+    <NODENAME_REGEX>mac127537</NODENAME_REGEX>
     <OS>Darwin</OS>
     <COMPILERS>gnu</COMPILERS>
-    <MPILIBS>mpich,openmpi,mpi-serial</MPILIBS>
-    <CIME_OUTPUT_ROOT>$ENV{HOME}/projects/acme/scratch</CIME_OUTPUT_ROOT>
-    <DIN_LOC_ROOT>$ENV{HOME}/project_acme/cesm-inputdata</DIN_LOC_ROOT>
-    <DIN_LOC_ROOT_CLMFORC>$ENV{HOME}/project_acme/cesm-inputdata/atm/datm7</DIN_LOC_ROOT_CLMFORC>
-    <DOUT_S_ROOT>$ENV{HOME}/project_acme/scratch/archive/$CASE</DOUT_S_ROOT>
-    <BASELINE_ROOT>$ENV{HOME}/project_acme/baselines</BASELINE_ROOT>
+    <MPILIBS>openmpi,mpi-serial</MPILIBS>
+    <CIME_OUTPUT_ROOT>$ENV{PROJECT_E3SM}/scratch</CIME_OUTPUT_ROOT>
+    <DIN_LOC_ROOT>$ENV{E3SM_INPUTDATA}</DIN_LOC_ROOT>
+    <DIN_LOC_ROOT_CLMFORC>$ENV{E3SM_INPUTDATA}/atm/datm7</DIN_LOC_ROOT_CLMFORC>
+    <DOUT_S_ROOT>$ENV{PROJECT_E3SM}/scratch/archive/$CASE</DOUT_S_ROOT>
+    <BASELINE_ROOT>$ENV{PROJECT_E3SM}/baselines</BASELINE_ROOT>
     <CCSM_CPRNC>$CCSMROOT/tools/cprnc/build/cprnc</CCSM_CPRNC>
-    <GMAKE>gmake</GMAKE>
+    <GMAKE>make</GMAKE>
     <GMAKE_J>4</GMAKE_J>
     <TESTS>e3sm_developer</TESTS>
     <BATCH_SYSTEM>none</BATCH_SYSTEM>
@@ -714,12 +714,12 @@
       </arguments>
     </mpirun>
     <module_system type="none"></module_system>   
-    <RUNDIR>$ENV{HOME}/project_acme/scratch/$CASE/run</RUNDIR>
-    <EXEROOT>$ENV{HOME}/project_acme/scratch/$CASE/bld</EXEROOT>
+    <RUNDIR>$ENV{PROJECT_E3SM}/scratch/$CASE/run</RUNDIR>
+    <EXEROOT>$ENV{PROJECT_E3SM}/scratch/$CASE/bld</EXEROOT>
     <environment_variables>
       <!--  env name="PATH">$ENV{PATH}</env> -->
-      <env name="PATH">$ENV{FC_ROOT}/bin:$ENV{CC_ROOT}/bin:/usr/local/CMake.App/Contents/bin/:/usr/local/bin/:/usr/bin/:/bin/</env>   <!--This is for Cmake, needed by PIO -->
-    </environment_variables>       
+      <env name="PATH">$ENV{FC_ROOT}/bin:$ENV{CC_ROOT}/bin:$ENV{MPI_ROOT}/bin:/usr/local/CMake.App/Contents/bin/:/usr/local/bin/:/opt/local/sbin/:/opt/local/bin:/usr/bin/:/bin/:$ENV{PATH} </env>   <!--This is for Cmake, needed by PIO -->
+    </environment_variables>        
 
     <environment_variables>
       <!-- NOTE: the following $ENV{} must be available in your .bashrc, otherwise explicitly give the directories -->

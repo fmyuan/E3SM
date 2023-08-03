@@ -271,18 +271,11 @@ contains
             ptr_patch=this%root_depth_patch, default='inactive' )
     end if
 
-    if (use_cn .or. use_fates) then
+    if (use_cn .or. use_fates .or. use_ats) then
        this%soilpsi_col(begc:endc,:) = spval
        call hist_addfld2d (fname='SOILPSI', units='MPa', type2d='levgrnd', &
             avgflag='A', long_name='soil water potential in each soil layer', &
             ptr_col=this%soilpsi_col)
-    end if
-
-    if (use_ats) then
-       this%soilpsi2_col(begc:endc,:) = spval
-       call hist_addfld2d (fname='SOILPSI2', units='MPa', type2d='levgrnd', &
-            avgflag='A', long_name='soil water potential in each soil layer from external model, eg. ATS', &
-            ptr_col=this%soilpsi2_col, default='inactive')
     end if
 
     this%thk_col(begc:endc,-nlevsno+1:0) = spval

@@ -407,9 +407,12 @@ flags should be captured within MPAS CMake files.
     <base> -mcmodel=small </base>
     <append> -I${NETCDF_PATH}/include </append>
   </CFLAGS>
+  <CXX_LIBS>
+    <base> -lstdc++ </base>
+  </CXX_LIBS>
   <FFLAGS>
     <base> -mcmodel=small -fconvert=big-endian -ffree-line-length-none -ffixed-line-length-none </base>
-    <append> -I${NETCDF_PATH}/include </append>
+    <append> -fallow-argument-mismatch -fallow-invalid-boz -I${NETCDF_PATH}/include </append>
   </FFLAGS>
   <LDFLAGS>
     <append> -framework Accelerate </append>
@@ -420,12 +423,12 @@ flags should be captured within MPAS CMake files.
     <append>$SHELL{$ENV{NETCDF_PATH}/bin/nc-config --flibs} -lnetcdf </append>
     <append>$SHELL{$ENV{NETCDF_PATH}/bin/nf-config --flibs} -lnetcdff </append>
   </SLIBS>
-  <SFC>$ENV{FC_ROOT}/bin/gfortran</SFC>
-  <SCC>$ENV{CC_ROOT}/bin/gcc</SCC>
-  <SCXX>$ENV{CC_ROOT}/bin/g++</SCXX>
+  <SFC>/usr/local/bin/gfortran-12</SFC>
+  <SCC>/usr/local/bin/gcc-12</SCC>
+  <SCXX>/usr/local/bin/g++-12</SCXX>
   <MPICC>$ENV{MPI_ROOT}/bin/mpicc</MPICC>
   <MPICXX>$ENV{MPI_ROOT}/bin/mpicxx</MPICXX>
-  <MPIFC>$ENV{MPI_ROOT}/bin/mpifort</MPIFC>
+  <MPIFC>$ENV{MPI_ROOT}/bin/mpif90</MPIFC>
 </compiler>
 
 <compiler COMPILER="pathscale">

@@ -1669,13 +1669,12 @@ contains
                 if (j > nlevbed) then
                    this%h2osoi_vol(c,j) = 0.0_r8
                    if (use_ats .or. use_pflotran) &
-                      this%h2osoi_vol(c,j) = 1._r8         ! for below soil, assuming saturated initially helps spinup
+                      this%h2osoi_vol(c,j) = 1.0_r8 ! saturated bedrock below soil
                 else
 		           if (use_fates_planthydro .or. use_hydrstress) then
                       this%h2osoi_vol(c,j) = 0.70_r8*watsat_input(c,j) !0.15_r8 to avoid very dry conditions that cause errors in FATES HYDRO
                    elseif (use_ats .or. use_pflotran) then
-                      !this%h2osoi_vol(c,j) = 0.15_r8      ! too dry to reach equilibrium
-                      this%h2osoi_vol(c,j) = 0.75_r8
+                      this%h2osoi_vol(c,j) = 0.15_r8 ! keep this the same as ELM for now
                    else
                       this%h2osoi_vol(c,j) = 0.15_r8
                    endif
