@@ -28,5 +28,8 @@ module EMI_WaterFluxType_Constants
   integer, parameter, public :: L2E_FLUX_ROOTSOI_FRAC                             = 0823
 
   integer, parameter, public :: E2L_FLUX_SNOW_LYR_DISAPPERANCE_MASS_FLUX          = 0824
+  integer, parameter, public :: E2L_FLUX_ROOTSOI                                  = 0825
+  integer, parameter, public :: E2L_FLUX_GROSS_EVAP_SOIL                          = 0826
+  integer, parameter, public :: E2L_FLUX_GROSS_INFL_SOIL                          = 0827
 
 end module EMI_WaterFluxType_Constants

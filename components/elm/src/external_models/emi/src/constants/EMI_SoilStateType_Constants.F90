@@ -17,7 +17,8 @@ module EMI_SoilStateType_Constants
   integer, parameter, public :: L2E_PARAMETER_BD                 = 1512
   integer, parameter, public :: L2E_PARAMETER_WATFC              = 1513
   integer, parameter, public :: L2E_PARAMETER_ROOTFR_PATCH       = 1514
+  integer, parameter, public :: L2E_PARAMETER_ROOTFR_COL         = 1515
 
-  integer, parameter, public :: E2L_STATE_SOIL_MATRIC_POTENTIAL  = 1515
+  integer, parameter, public :: E2L_STATE_SOIL_MATRIC_POTENTIAL  = 1516
 
 end module EMI_SoilStateType_Constants
