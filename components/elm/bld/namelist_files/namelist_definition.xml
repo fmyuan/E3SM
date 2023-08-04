@@ -1804,6 +1804,13 @@ Specifies the method for decomposing CLM grids across processors.
     ats input file name $ats_inputfile.xml located in $input_rootdir/lnd/clm2/ats/.
 </entry>
 
+<entry id="use_ats_mesh" type="logical" category="elm_ats"
+    group="elm_ats_inparm"
+    valid_values=".true.,.false."
+    value=".false.">
+    ats mesh will pass to ELM and replace its domain decomposition.
+</entry>
+
 <!-- ========================================================================================  -->
 <!-- Namelist options related to Variably Saturated Flow Model (VSFM)                          -->
 <!-- ========================================================================================  -->

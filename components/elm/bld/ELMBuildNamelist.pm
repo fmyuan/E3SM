@@ -3126,10 +3126,12 @@ sub setup_logic_ats {
     if ( $nl_flags->{'use_ats'}  eq '.true.' ) {
        add_default($test_files, $nl_flags->{'inputdata_rootdir'}, $definition, $defaults, $nl, 'ats_inputdir' );
        add_default($test_files, $nl_flags->{'inputdata_rootdir'}, $definition, $defaults, $nl, 'ats_inputfile' );
+       add_default($test_files, $nl_flags->{'inputdata_rootdir'}, $definition, $defaults, $nl, 'use_ats_mesh' );
        #
        # Check if $ats_inputfile is set in $inputdata_rootdir/$ats#
        my $ats_inputdir = $nl->get_value('ats_inputdir');
        my $ats_inputfile = $nl->get_value('ats_inputfile');
+       my $use_ats_mesh = $nl->get_value('use_ats_mesh');
        #
     }
 } # end setup_logic_ats
