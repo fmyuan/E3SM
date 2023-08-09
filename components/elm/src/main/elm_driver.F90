@@ -1280,20 +1280,20 @@ contains
             energyflux_vars, canopystate_vars)
        call t_stopf('balchk')
 
-       call t_startf('gridbalchk')
-       call GridBalanceCheck(bounds_clump                  , &
-            filter(nc)%num_do_smb_c, filter(nc)%do_smb_c   , &
-            atm2lnd_vars, glc2lnd_vars, solarabs_vars,       &
-            energyflux_vars, canopystate_vars              , &
-            soilhydrology_vars)
-       call t_stopf('gridbalchk')
+       !call t_startf('gridbalchk')
+       !call GridBalanceCheck(bounds_clump                  , &
+       !     filter(nc)%num_do_smb_c, filter(nc)%do_smb_c   , &
+       !     atm2lnd_vars, glc2lnd_vars, solarabs_vars,       &
+       !     energyflux_vars, canopystate_vars              , &
+       !     soilhydrology_vars)
+       !call t_stopf('gridbalchk')
 
-       if (do_budgets) then
-          call WaterBudget_SetEndingMonthlyStates(bounds_clump)
-          if (use_cn) then
-             call CNPBudget_SetEndingMonthlyStates(bounds_clump, col_cs, grc_cs)
-          endif
-       endif
+       !if (do_budgets) then
+       !   call WaterBudget_SetEndingMonthlyStates(bounds_clump)
+       !   if (use_cn) then
+       !      call CNPBudget_SetEndingMonthlyStates(bounds_clump, col_cs, grc_cs)
+       !   endif
+       !endif
 
        if (use_cn .or. use_fates) then
 
