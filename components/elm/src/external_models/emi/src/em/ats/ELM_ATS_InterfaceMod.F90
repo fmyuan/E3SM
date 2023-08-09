@@ -194,7 +194,7 @@ contains
 
   !------------------------------------------------------------------------
   subroutine ats_getdata_hydro(this, h2osfc, zwt, h2oliq, &
-                               soilinfl_flux, evap_flux, tran_flux, netsub_flux, netsrf_runon)
+                               soilinfl_flux, evap_flux, tran_flux, root_flux, netsub_flux, netsrf_runon)
     implicit none
     class(elm_ats_interface_type) :: this
 
@@ -203,7 +203,8 @@ contains
     real(r8), pointer, intent(out) :: h2oliq(:,:)     ! kgH2O/m2
     real(r8), pointer, intent(out) :: soilinfl_flux(:)       ! unit: mm/s
     real(r8), pointer, intent(out) :: evap_flux(:)           ! unit: mm/s
-    real(r8), pointer, intent(out) :: tran_flux(:, :)        ! column level transpiration [col, nlevgrnd]
+    real(r8), pointer, intent(out) :: tran_flux(:)           ! unit: mm/s - transpiration rate at leaves [col]
+    real(r8), pointer, intent(out) :: root_flux(:, :)        ! unit: mm/s - transpiration rate at roots  [col, nlevgrnd]
     real(r8), pointer, intent(out) :: netsub_flux(:)         ! unit: mm/s
     real(r8), pointer, intent(out) :: netsrf_runon(:)        ! unit: mm/s
 
@@ -211,8 +212,8 @@ contains
     call ats_get_waterstate_c(this%ptr, h2osfc, zwt, h2oliq)
 
     ! not yet (TODO)
-    call ats_get_water_fluxes_c(this%ptr, soilinfl_flux, evap_flux, tran_flux, &
-         netsub_flux, netsrf_runon)
+    call ats_get_water_fluxes_c(this%ptr, soilinfl_flux, evap_flux, tran_flux,  &
+         root_flux, netsub_flux, netsrf_runon)
 
     !
   end subroutine ats_getdata_hydro
