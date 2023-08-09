@@ -5,6 +5,7 @@ module elm_initializeMod
   !
   use shr_kind_mod     , only : r8 => shr_kind_r8
   use spmdMod          , only : masterproc, iam
+  use spmdMod          , only : npes
   use shr_sys_mod      , only : shr_sys_flush
   use shr_log_mod      , only : errMsg => shr_log_errMsg
   use decompMod        , only : bounds_type, get_proc_bounds, get_proc_clumps, get_clump_bounds
@@ -14,7 +15,7 @@ module elm_initializeMod
   use elm_varctl       , only : use_lch4, use_cn, use_voc, use_c13, use_c14
   use elm_varctl       , only : use_fates, use_betr, use_fates_sp
   use elm_varctl       , only : use_fates, use_betr
-  use elm_varctl       , only : use_ats
+  use elm_varctl       , only : use_ats, use_ats_mesh
   use elm_varsur       , only : wt_lunit, urban_valid, wt_nat_patch, wt_cft, wt_glc_mec, topo_glc_mec
   use elm_varsur       , only : fert_cft
   use elm_varsur       , only : wt_tunit, elv_tunit, slp_tunit,asp_tunit,num_tunit_per_grd
@@ -24,6 +25,13 @@ module elm_initializeMod
   use ncdio_pio        , only : file_desc_t
 
   use BeTRSimulationALM, only : create_betr_simulation_alm
+
+#ifdef USE_ATS_LIB
+  use ExternalModelATSMod         , only : em_ats_type
+  ! ats create and mesh pass
+  use ExternalModelATS_createMod
+#endif
+
   !
   !-----------------------------------------
   ! Definition of component types
@@ -41,6 +49,7 @@ module elm_initializeMod
   use WaterBudgetMod         , only : WaterBudget_Reset
   use elm_varctl             , only : do_budgets
   !
+
   implicit none
   save
   !
@@ -76,14 +85,21 @@ contains
     use surfrdMod                 , only: surfrd_get_grid_conn, surfrd_topounit_data
     use elm_varctl                , only: lateral_connectivity, domain_decomp_type
     use decompInitMod             , only: decompInit_lnd_using_gp, decompInit_ghosts
+    use decompInitMod             , only: decompInit_clumps_block
+    use decompInitMod             , only: decompInit_lnd_block
     use domainLateralMod          , only: ldomain_lateral, domainlateral_init
     use SoilTemperatureMod        , only: init_soil_temperature
     use ExternalModelInterfaceMod , only: EMI_Determine_Active_EMs
+#ifdef USE_ATS_LIB
+    use ExternalModelInterfaceMod , only: em_ats
+#endif
     use dynSubgridControlMod      , only: dynSubgridControl_init
     use filterMod                 , only: allocFilters
     use reweightMod               , only: reweight_wrapup
     use ELMFatesInterfaceMod      , only: ELMFatesGlobals
     use topounit_varcon           , only: max_topounits, has_topounit, topounit_varcon_init    
+    use domainMod                 , only: ldomain_loc, domain_loc2global
+    use spmdMod
     !
     ! !LOCAL VARIABLES:
     integer           :: ier                     ! error status
@@ -106,7 +122,17 @@ contains
     integer           :: maxEdges                ! max number of edges/neighbors
     integer           :: nclumps                 ! number of clumps on this processor
     integer           :: nc                      ! clump index
+    !
+    integer           :: pid
+    integer           :: ni_loc, nj_loc
+    integer           :: ni_sum, nj_sum
+    integer ,pointer  :: amask_loc(:)            ! local land mask
+    integer ,pointer  :: ni_offset(:), nj_offset(:)
+    integer ,pointer  :: ni_all(:), nj_all(:)
+    integer ,pointer  :: ns_displ(:), ns_rbuf(:)
+
     character(len=32) :: subname = 'initialize1' ! subroutine name
+
     !-----------------------------------------------------------------------
 
     call t_startf('elm_init1')
@@ -147,6 +173,62 @@ contains
     endif
     call surfrd_get_globmask(filename=fatmlndfrc, mask=amask, ni=ni, nj=nj)
 
+#ifdef USE_ATS_LIB
+!
+print *, 'checking ats create:', use_ats, use_ats_mesh
+    if (use_ats .and. use_ats_mesh) then
+
+       ! create ATS elm_api object
+       allocate(em_ats)
+       call EM_ATS_create(em_ats%ats_interface)
+
+print *, 'checking ats create: done - '
+
+       !
+       !call surfrd_get_globmask(filename=trim(fatmlndfrc), mask=amask_loc, ni=ni_loc, nj=nj_loc)
+
+       call mpi_barrier(mpicom,ier)
+
+       ! when using ATS mesh, since ATS coordinates are always in meters while ELM domain (surface mesh) in lat/lon,
+       ! ELM domain has to be in unstructured, and all masked as land.
+       ! HERE, it's assumed that sub-domains appendable by 'ni' (lon) only, 'nj' (lat) by maximum (usually is 1).
+       call mpi_allreduce(ni_loc,ni_sum,1,MPI_INTEGER,MPI_SUM,mpicom,ier)
+       call mpi_allreduce(nj_loc,nj_sum,1,MPI_INTEGER,MPI_MAX,mpicom,ier)
+
+       allocate(ni_all(0:npes-1))
+       call mpi_gather(ni, 1, MPI_INTEGER, &
+                       ni_all, 1, MPI_INTEGER, 0, mpicom, ier)
+       call mpi_bcast(ni_all, npes, MPI_INTEGER, 0, mpicom, ier)
+
+       allocate(nj_all(0:npes-1))
+       call mpi_gather(nj, 1, MPI_INTEGER, &
+                       nj_all, 1, MPI_INTEGER, 0, mpicom, ier)
+       call mpi_bcast(nj_all, npes, MPI_INTEGER, 0, mpicom, ier)
+
+       ! variable-length 'amask_loc' gathering & bcasting
+       if (associated(amask)) deallocate(amask)
+       allocate(ns_displ(0:npes-1), ns_rbuf(0:npes-1))
+       ! note: dimensions in following may be having error for 'nj' (TODO checking)
+       !       it's assumed that global 'nj_sum' is the max. of local 'nj'
+       !       while 'ni_sum' is appendable of local 'ni'
+       call mpi_gather(ni*nj_sum, 1, MPI_INTEGER, &
+                       ns_rbuf, 1, MPI_INTEGER, 0, mpicom, ier)
+       call mpi_bcast(ns_rbuf, size(ns_rbuf), MPI_INTEGER, 0, mpicom, ier)
+       ns_displ(0) = 0
+       do pid = 1,npes-1
+          ns_displ(pid) = ns_displ(pid-1) + ns_rbuf(pid-1)
+       enddo
+       allocate(amask(ni_sum*nj_sum))
+       amask(:) = 0
+       call mpi_gatherv(amask_loc, ni*nj, MPI_INTEGER, &
+                       amask, ns_rbuf, ns_displ, MPI_INTEGER, 0, mpicom, ier)
+       call mpi_bcast(amask, ni_sum*nj_sum, MPI_INTEGER, 0, mpicom, ier)
+       deallocate(ns_displ, ns_rbuf)
+       !
+    end if
+
+#endif
+
     ! Exit early if no valid land points
     if ( all(amask == 0) )then
        if (masterproc) write(iulog,*) trim(subname)//': no valid land points do NOT run elm'
@@ -173,16 +255,44 @@ contains
     ! Determine clm gridcell decomposition and processor bounds for gridcells
     ! ------------------------------------------------------------------------
 
-    select case (trim(domain_decomp_type))
-    case ("round_robin")
-       call decompInit_lnd(ni, nj, amask)
-       deallocate(amask)
-    case ("graph_partitioning")
-       call decompInit_lnd_using_gp(ni, nj, cellsOnCell, nCells_loc, maxEdges, amask)
-    case default
-       call endrun(msg='ERROR elm_initializeMod: '//&
-            'Unsupported domain_decomp_type = ' // trim(domain_decomp_type))
-    end select
+    if (use_ats_mesh) then
+      ! offset for each process
+      allocate(ni_offset(0:npes-1))
+      allocate(nj_offset(0:npes-1))
+        ni_offset(0) = 0
+        nj_offset(0) = 0
+        do pid = 1,npes-1
+           ni_offset(pid) = ni_offset(pid-1) + ni_all(pid-1)  ! sub-domains appendable by 'ni' only
+           nj_offset(pid) = nj_sum                              ! 'nj' not appendable
+        enddo
+        !call decompInit_lnd_loc(ni, nj, amask_loc, ni_offset(iam), nj_offset(iam), ni_sum, nj_sum)
+
+        ! decompose by grid-id of blocks (for individual mpi rank)
+        ! 'an(iam)' is optional (TODO), and if not user-input, it will decompose by default order
+        ! call decompInit_lnd_block(ni, nj, amask, an(iam)) ! TODO
+        call decompInit_lnd_block(ni, nj, amask)
+
+        deallocate(amask_loc)
+        deallocate(ni_offset)
+        deallocate(nj_offset)
+        deallocate(ni_all)
+        deallocate(nj_all)
+        !
+        deallocate(amask)
+
+    else
+
+        select case (trim(domain_decomp_type))
+        case ("round_robin")
+           call decompInit_lnd(ni, nj, amask)
+           deallocate(amask)
+        case ("graph_partitioning")
+           call decompInit_lnd_using_gp(ni, nj, cellsOnCell, nCells_loc, maxEdges, amask)
+        case default
+           call endrun(msg='ERROR elm_initializeMod: '//&
+                'Unsupported domain_decomp_type = ' // trim(domain_decomp_type))
+        end select
+    endif
 
     if (lateral_connectivity) then
        call domainlateral_init(ldomain_lateral, cellsOnCell, edgesOnCell, &
@@ -205,11 +315,25 @@ contains
        write(iulog,*) 'Attempting to read ldomain from ',trim(fatmlndfrc)
        call shr_sys_flush(iulog)
     endif
+
+   if (use_ats_mesh) then
+      if (create_glacier_mec_landunit) then
+       call surfrd_get_grid(begg, endg, ldomain_loc, fatmlndfrc, fglcmask)
+      else
+       call surfrd_get_grid(begg, endg, ldomain_loc, fatmlndfrc)
+      endif
+      call domain_loc2global(ldomain_loc, ldomain, ni_sum, nj_sum)
+
+   else ! if (.not. use_ats_mesh)
+
     if (create_glacier_mec_landunit) then
        call surfrd_get_grid(begg, endg, ldomain, fatmlndfrc, fglcmask)
     else
        call surfrd_get_grid(begg, endg, ldomain, fatmlndfrc)
     endif
+
+   endif ! if (use_ats_mesh)
+
     if (masterproc) then
        call domain_check(ldomain)
     endif
@@ -274,7 +398,12 @@ contains
     end if
 
     ! Read surface dataset and set up subgrid weight arrays
+   if (use_ats_mesh) then
+       call surfrd_get_data(begg, endg, ldomain_loc, fsurdat)
+       call domain_loc2global(ldomain_loc, ldomain, ni_sum, nj_sum) ! this is needed for bcasting ldomain%pftm
+   else
     call surfrd_get_data(begg, endg, ldomain, fsurdat)
+   end if
 
     ! ------------------------------------------------------------------------
     ! Ask Fates to evaluate its own dimensioning needs.
@@ -291,11 +420,20 @@ contains
     ! ------------------------------------------------------------------------
 
     if (create_glacier_mec_landunit) then
-       call decompInit_clumps(ldomain%glcmask)
-       call decompInit_ghosts(ldomain%glcmask)
+      if (use_ats_mesh) then
+        call decompInit_clumps_block(ldomain%glcmask)
+      else
+        call decompInit_clumps(ldomain%glcmask)
+      endif
+      call decompInit_ghosts(ldomain%glcmask)
+
     else
-       call decompInit_clumps()
-       call decompInit_ghosts()
+      if (use_ats_mesh) then
+        call decompInit_clumps_block()
+      else
+        call decompInit_clumps()
+      endif
+      call decompInit_ghosts()
     endif
 
     ! *** Get ALL processor bounds - for gridcells, landunit, columns and patches ***

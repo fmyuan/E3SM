@@ -55,13 +55,14 @@ module domainMod
      ! pflotran:end-----------------------------------------------------
   end type domain_type
 
-  type(domain_type)    , public :: ldomain
+  type(domain_type)    , public :: ldomain, ldomain_loc
   real(r8), allocatable, public :: lon1d(:), lat1d(:) ! 1d lat/lons for 2d grids
 
 ! !PUBLIC MEMBER FUNCTIONS:
   public domain_init          ! allocates/nans domain types
   public domain_clean         ! deallocates domain types
   public domain_check         ! write out domain info
+  public domain_loc2global
 
 ! !REVISION HISTORY:
 ! Originally elm_varsur by Mariana Vertenstein
@@ -143,6 +144,8 @@ contains
            domain%latv     = nan
        endif
     end if
+    domain%lat0 = nan
+    domain%lon0 = nan
     ! pflotran:end-----------------------------------------------------
 
     if (present(elmlevel)) then
@@ -297,6 +300,114 @@ end subroutine domain_clean
   endif
 
 end subroutine domain_check
+
+!------------------------------------------------------------------------------
+
+!------------------------------------------------------------------------------
+
+! !IROUTINE: domain_loc2global
+
+! !INTERFACE:
+  subroutine domain_loc2global(domain_loc,domain_global,ni_sum,nj_sum)
+
+! !DESCRIPTION:
+! This subroutine summarizes locally set domain across procs
+
+! !USES:
+    use spmdMod
+
+! !ARGUMENTS:
+    implicit none
+    type(domain_type), intent(in)    :: domain_loc    ! domain datatype
+    type(domain_type), intent(inout) :: domain_global ! domain datatype
+    integer          , intent(in)    :: ni_sum,nj_sum ! global grid size, 2d
+
+! !LOCAL VARIABLES:
+    logical :: isgrid2d
+    integer :: ier
+    integer :: pid
+    integer, pointer :: ns_rbuf(:), ns_displ(:)
+!
+!------------------------------------------------------------------------------
+  if (.not. domain_loc%set) then
+    call shr_sys_abort('domain_loc2global ERROR: domain_loc NOT set! ')
+  endif
+
+  if (domain_global%set) call domain_clean(domain_global)
+  isgrid2d = .true.
+  if(nj_sum == 1) isgrid2d = .false.
+  call domain_init(domain_global,isgrid2d,ni_sum,nj_sum)
+  ! %set, decomped,ni,nj,ns,nbeg,nend, already known by now
+
+  !
+  allocate(ns_displ(0:npes-1), ns_rbuf(0:npes-1))
+  ! note: dimensions in following may be having error for 'nj' (TODO checking)
+  !       it's assumed that global 'nj' is the max. of local 'nj'
+  !       while 'ni' is appendable
+  call mpi_gather(domain_loc%ni*domain_global%nj, 1, MPI_INTEGER, &
+                  ns_rbuf, 1, MPI_INTEGER, 0, mpicom, ier)
+  call mpi_bcast(ns_rbuf, size(ns_rbuf), MPI_INTEGER, 0, mpicom, ier)
+  ns_displ(0) = 0
+  do pid = 1,npes-1
+     ns_displ(pid) = ns_displ(pid-1) + ns_rbuf(pid-1)
+  enddo
+
+  !
+  call mpi_gatherv(domain_loc%lonc, domain_loc%ns, MPI_REAL8, &
+                  domain_global%lonc, ns_rbuf, ns_displ, MPI_REAL8, 0, mpicom, ier)
+  call mpi_bcast(domain_global%lonc, domain_global%ns, MPI_REAL8, 0, mpicom, ier)
+
+  call mpi_gatherv(domain_loc%latc, domain_loc%ns, MPI_REAL8, &
+                  domain_global%latc, ns_rbuf, ns_displ, MPI_REAL8, 0, mpicom, ier)
+  call mpi_bcast(domain_global%latc, domain_global%ns, MPI_REAL8, 0, mpicom, ier)
+
+  call mpi_gatherv(domain_loc%mask, domain_loc%ns, MPI_INTEGER, &
+                  domain_global%mask, ns_rbuf, ns_displ, MPI_INTEGER, 0, mpicom, ier)
+  call mpi_bcast(domain_global%mask, domain_global%ns, MPI_INTEGER, 0, mpicom, ier)
+
+  call mpi_gatherv(domain_loc%frac, domain_loc%ns, MPI_REAL8, &
+                  domain_global%frac, ns_rbuf, ns_displ, MPI_REAL8, 0, mpicom, ier)
+  call mpi_bcast(domain_global%frac, domain_global%ns, MPI_REAL8, 0, mpicom, ier)
+
+  call mpi_gatherv(domain_loc%topo, domain_loc%ns, MPI_REAL8, &
+                  domain_global%topo, ns_rbuf, ns_displ, MPI_REAL8, 0, mpicom, ier)
+  call mpi_bcast(domain_global%topo, domain_global%ns, MPI_REAL8, 0, mpicom, ier)
+
+  call mpi_gatherv(domain_loc%frac, domain_loc%ns, MPI_REAL8, &
+                  domain_global%frac, ns_rbuf, ns_displ, MPI_REAL8, 0, mpicom, ier)
+  call mpi_bcast(domain_global%frac, domain_global%ns, MPI_REAL8, 0, mpicom, ier)
+
+  call mpi_gather(domain_loc%num_tunits_per_grd, 1, MPI_INTEGER, &
+                  domain_global%num_tunits_per_grd, 1, MPI_INTEGER, 0, mpicom, ier)
+  call mpi_bcast(domain_global%num_tunits_per_grd, 1, MPI_INTEGER, 0, mpicom, ier)
+
+  call mpi_gatherv(domain_loc%firrig, domain_loc%ns, MPI_REAL8, &
+                  domain_global%firrig, ns_rbuf, ns_displ, MPI_REAL8, 0, mpicom, ier)
+  call mpi_bcast(domain_global%firrig, domain_global%ns, MPI_REAL8, 0, mpicom, ier)
+
+  call mpi_gatherv(domain_loc%f_surf, domain_loc%ns, MPI_REAL8, &
+                  domain_global%f_surf, ns_rbuf, ns_displ, MPI_REAL8, 0, mpicom, ier)
+  call mpi_bcast(domain_global%f_surf, domain_global%ns, MPI_REAL8, 0, mpicom, ier)
+
+  call mpi_gatherv(domain_loc%f_grd, domain_loc%ns, MPI_REAL8, &
+                  domain_global%f_grd, ns_rbuf, ns_displ, MPI_REAL8, 0, mpicom, ier)
+  call mpi_bcast(domain_global%f_grd, domain_global%ns, MPI_REAL8, 0, mpicom, ier)
+
+  call mpi_gatherv(domain_loc%area, domain_loc%ns, MPI_REAL8, &
+                  domain_global%area, ns_rbuf, ns_displ, MPI_REAL8, 0, mpicom, ier)
+  call mpi_bcast(domain_global%area, domain_global%ns, MPI_REAL8, 0, mpicom, ier)
+
+  call mpi_gatherv(domain_loc%pftm, domain_loc%ns, MPI_INTEGER, &
+                  domain_global%pftm, ns_rbuf, ns_displ, MPI_INTEGER, 0, mpicom, ier)
+  call mpi_bcast(domain_global%pftm, domain_global%ns, MPI_INTEGER, 0, mpicom, ier)
+
+  call mpi_gatherv(domain_loc%glcmask, domain_loc%ns, MPI_INTEGER, &
+                  domain_global%glcmask, ns_rbuf, ns_displ, MPI_INTEGER, 0, mpicom, ier)
+  call mpi_bcast(domain_global%glcmask, domain_global%ns, MPI_INTEGER, 0, mpicom, ier)
+
+  deallocate(ns_rbuf, ns_displ)
+
+end subroutine domain_loc2global
 
 !------------------------------------------------------------------------------
 

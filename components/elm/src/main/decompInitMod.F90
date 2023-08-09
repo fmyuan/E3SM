@@ -22,7 +22,7 @@ module decompInitMod
   use decompMod
   use mct_mod  
   use topounit_varcon   , only : max_topounits, has_topounit
-  use domainMod         , only: ldomain
+  use domainMod         , only : ldomain
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -30,9 +30,11 @@ module decompInitMod
   ! !PUBLIC MEMBER FUNCTIONS:
   public decompInit_lnd          ! initializes lnd grid decomposition into clumps and processors
   public decompInit_clumps       ! initializes atm grid decomposition into clumps
-  public decompInit_gtlcp         ! initializes g,l,c,p decomp info
+  public decompInit_gtlcp        ! initializes g,l,c,p decomp info
   public decompInit_lnd_using_gp ! initialize lnd grid decomposition into clumps and processors using graph partitioning approach
   public decompInit_ghosts       ! initialize ghost/halo for land grid
+  public decompInit_lnd_block    ! initializes lnd grid decomposition into clumps for local processor (global grids)
+  public decompInit_clumps_block ! initializes atm grid decomposition into clumps for local processor
   !
   ! !PRIVATE TYPES:
   private
@@ -635,7 +637,7 @@ contains
 
     do n = 1,nclumps
        if (clumps(n)%ncells      /= allvecg(n,glev) .or. &
-           clumps(n)%ntunits  /= allvecg(n,tlev) .or. &
+           clumps(n)%ntunits     /= allvecg(n,tlev) .or. &
            clumps(n)%nlunits     /= allvecg(n,llev) .or. &
            clumps(n)%ncols       /= allvecg(n,clev) .or. &
            clumps(n)%npfts       /= allvecg(n,plev) .or. &
@@ -1915,5 +1917,597 @@ contains
     endif
 
   end subroutine decompInit_ghosts
+
+ !------------------------------------------------------------------------------
+  subroutine decompInit_lnd_block(lni,lnj, amask, lan)
+    !
+    ! !DESCRIPTION:
+    ! This subroutine initializes the land surface decomposition into a clump
+    ! data structure FOR current local processor
+    !
+    ! !USES:
+    use spmdMod
+
+    !
+    ! !ARGUMENTS:
+    implicit none
+    integer ,                    intent(in) :: amask(:)    ! domain global land mask
+    integer ,                    intent(in) :: lni,lnj     ! domain global size
+    integer , optional, pointer, intent(in) :: lan(:)      ! domain local gridcell order
+    !
+    ! !LOCAL VARIABLES:
+    integer :: lns                       ! local domain size and global offset
+    integer :: ln                        ! indices
+    integer :: ag,an,ai,aj               ! indices
+    integer :: numg_perc, numg_mod       ! number of land gridcells
+    integer :: cid, cid1, cid2, pid      ! indices of clump/process
+    integer :: n, ng, ngx                ! indices
+    integer :: ier                       ! error code
+    integer :: beg,end,lsize,gsize       ! used for gsmap init
+    integer, pointer :: gindex(:)        ! global index for gsmap init
+    integer, pointer :: clumpcnt(:)      ! clump index counter
+    integer, allocatable :: proc_begg(:) ! beginning land-masked cell index assigned to a process
+    integer, allocatable :: proc_ncell(:)! number of land-masked cells assigned to a process
+    !------------------------------------------------------------------------------
+
+    lns = lni * lnj
+
+    !--- set and verify nclumps ---
+    if (clump_pproc > 0) then
+       nclumps = clump_pproc * npes
+       if (nclumps < npes) then
+          write(iulog,*) 'decompInit_lnd(): Number of gridcell clumps= ',nclumps, &
+               ' is less than the number of processes = ', npes
+          call endrun(msg=errMsg(__FILE__, __LINE__))
+       end if
+    else
+       write(iulog,*)'clump_pproc= ',clump_pproc,'  must be greater than 0'
+       call endrun(msg=errMsg(__FILE__, __LINE__))
+    end if
+
+    ! allocate and initialize procinfo (from decompMod.F90) and clumps
+    ! beg and end indices initialized for simple addition of cells later
+
+    allocate(procinfo%cid(clump_pproc), stat=ier)
+    if (ier /= 0) then
+       write(iulog,*) 'decompInit_lnd_loc(): allocation error for procinfo%cid'
+       call endrun(msg=errMsg(__FILE__, __LINE__))
+    endif
+    procinfo%nclumps   = clump_pproc
+    procinfo%cid(:)    = -1
+    procinfo%ncells    = 0
+    procinfo%ntunits   = 0
+    procinfo%nlunits   = 0
+    procinfo%ncols     = 0
+    procinfo%npfts     = 0
+    procinfo%nCohorts  = 0
+    procinfo%begg      = 1
+    procinfo%begt      = 1
+    procinfo%begl      = 1
+    procinfo%begc      = 1
+    procinfo%begp      = 1
+    procinfo%begCohort = 1
+    procinfo%endg      = 0
+    procinfo%endt      = 0
+    procinfo%endl      = 0
+    procinfo%endc      = 0
+    procinfo%endp      = 0
+    procinfo%endCohort = 0
+
+    cid1 = clump_pproc * iam + 1  ! start cid (1-based) of clumps on current local proc
+    cid2 = cid1 + clump_pproc - 1 ! end cid (1-based) of clumps on current local proc
+    allocate(clumps(cid1:cid2), stat=ier)       ! clump indexing globally but only a segment of local proc
+    if (ier /= 0) then
+       write(iulog,*) 'decompInit_lnd_loc(): allocation error for clumps on proc ', iam
+       call endrun(msg=errMsg(__FILE__, __LINE__))
+    end if
+    clumps(cid1:cid2)%owner    = -1
+    clumps(cid1:cid2)%ncells   = 0
+    clumps(cid1:cid2)%ntunits  = 0
+    clumps(cid1:cid2)%nlunits  = 0
+    clumps(cid1:cid2)%ncols    = 0
+    clumps(cid1:cid2)%npfts    = 0
+    clumps(cid1:cid2)%nCohorts = 0
+    clumps(cid1:cid2)%begg     = 1
+    clumps(cid1:cid2)%begt     = 1
+    clumps(cid1:cid2)%begl     = 1
+    clumps(cid1:cid2)%begc     = 1
+    clumps(cid1:cid2)%begp     = 1
+    clumps(cid1:cid2)%begCohort= 1
+    clumps(cid1:cid2)%endg     = 0
+    clumps(cid1:cid2)%endt     = 0
+    clumps(cid1:cid2)%endl     = 0
+    clumps(cid1:cid2)%endc     = 0
+    clumps(cid1:cid2)%endp     = 0
+    clumps(cid1:cid2)%endCohort= 0
+
+    ! assign clumps to proc
+    do n = cid1, cid2
+       clumps(n)%owner = iam
+       procinfo%cid(n-cid1+1) = n
+    enddo
+
+    ! Assign gridcells to clumps (and thus pes) ---
+
+    allocate(lcid(1:lns), stat=ier)  ! note: this is global gridcell' clump indexing
+    if (ier /= 0) then
+       write(iulog,*) 'decompInit_lnd_loc(): allocation error for lcid'
+       call endrun(msg=errMsg(__FILE__, __LINE__))
+    end if
+
+    ! count total land gridcells (and saved into decompMod::numg, because NOT locally defined)
+    numg = 0
+    do ln = 1,lns
+       if (amask(ln) == 1) then
+          numg = numg + 1
+       endif
+    enddo
+
+    lcid(1:lns) = 0
+    numg_perc = int(numg/nclumps)
+    numg_mod  = mod(numg, nclumps)
+
+    ! first cid
+    cid = 1
+    ngx = cid * numg_perc
+    if (numg_mod>0) then
+      ! add residual grid counts evenly (1) for first few clumps
+      ngx = ngx + 1
+      numg_mod = numg_mod - 1
+    endif
+
+    ng = 1
+    do ln = 1, lns
+       if (amask(ln) == 1) then
+          ! assign gridcell to clump by continuous block (globally)
+          lcid(ln) = cid
+
+          if (cid>=cid1 .and. cid<=cid2) then
+              !--- give gridcell cell to pe that owns cid ---
+              !--- this needs to be done to subsequently use function
+              !--- get_proc_bounds(begg,endg)
+              if (clumps(cid)%owner == iam) &
+              procinfo%ncells  = procinfo%ncells  + 1
+
+              !--- give gridcell to cid ---
+              clumps(cid)%ncells  = clumps(cid)%ncells  + 1
+          endif
+          ng = ng  + 1
+
+          ! new cid, when over its max. ng, assignment by a block of land grids
+          if (ng > ngx) then
+             cid = cid + 1
+             ngx = ngx + numg_perc
+             if (numg_mod>0) then
+                ! add residual grid counts evenly (1) for first few clumps
+                ngx = ngx + 1
+                numg_mod = numg_mod - 1
+             endif
+          endif
+
+       end if
+    enddo
+
+    ! determine offset (begg) for all processes, after all reach to this point
+    call mpi_barrier(mpicom, ier)
+    allocate(proc_ncell(0:npes-1), stat=ier)
+    call mpi_gather(procinfo%ncells, 1, MPI_INTEGER, &
+                    proc_ncell, 1, MPI_INTEGER, 0, mpicom, ier)
+    call mpi_bcast(proc_ncell, npes, MPI_INTEGER, 0, mpicom, ier)
+    if (ier /= 0) then
+       write(iulog,*) 'decompInit_lnd(): allocation error for proc_begg'
+       call endrun(msg=errMsg(__FILE__, __LINE__))
+    end if
+
+    allocate(proc_begg(0:npes-1), stat=ier)
+    proc_begg(0) = 1
+    do pid = 1,npes-1
+       proc_begg(pid) = proc_begg(pid-1) + proc_ncell(pid-1)
+    enddo
+
+    ! current proc (iam)
+    procinfo%begg = proc_begg(iam)
+    procinfo%endg = (procinfo%begg-1) + procinfo%ncells
+
+    ! determine offset for each clump assigned to current process
+    ! (re-using proc_begg as work space)
+    do cid = cid1, cid2
+      clumps(cid)%begg = proc_begg(clumps(cid)%owner)
+      proc_begg(clumps(cid)%owner) = proc_begg(clumps(cid)%owner) &
+                                   + clumps(cid)%ncells
+      clumps(cid)%endg = proc_begg(clumps(cid)%owner) - 1
+    enddo
+
+    ! free work space
+    deallocate(proc_begg, proc_ncell)
+
+    ! Set ldecomp
+
+    allocate(ldecomp%gdc2glo(procinfo%begg:procinfo%endg), stat=ier)
+    if (ier /= 0) then
+       write(iulog,*) 'decompInit_lnd(): allocation error1 for ldecomp, etc'
+       call endrun(msg=errMsg(__FILE__, __LINE__))
+    end if
+
+    ldecomp%gdc2glo(procinfo%begg:procinfo%endg) = 0
+    ag = 0
+
+    ! clumpcnt is the start gdc index of each clump
+    allocate(clumpcnt(cid1: cid2),stat=ier)
+    if (ier /= 0) then
+       write(iulog,*) 'decompInit_lnd(): allocation error1 for clumpcnt'
+       call endrun(msg=errMsg(__FILE__, __LINE__))
+    end if
+    clumpcnt(cid1: cid2) = 0
+    do cid = cid1, cid2
+       clumpcnt(cid) = clumps(cid)%begg
+    enddo
+
+    ! now go through gridcells one at a time and increment clumpcnt
+    ! in order to set gdc2glo
+    if (present(lan)) then
+      do ai = 1, size(lan)
+          an = lan(ai)
+          cid = lcid(an)
+          if (cid>=cid1 .and. cid<=cid2) then
+            ag = clumpcnt(cid)
+            ldecomp%gdc2glo(ag) = an
+            clumpcnt(cid) = clumpcnt(cid) + 1
+          end if
+
+          ! a checking
+          if (ai>lns) then
+           write(iulog,*) 'decompInit_lnd_block(): land grid no. is beyond max.'
+           call endrun(msg=errMsg(__FILE__, __LINE__))
+          end if
+      end do
+
+    else
+      ! not provide a gridcell list
+      do aj = 1, lnj
+        do ai = 1, lni
+          an = (aj-1)*lni + ai   ! (TODO) need changing this to continuous block method
+          cid = lcid(an)
+          if (cid>=cid1 .and. cid<=cid2) then
+            ag = clumpcnt(cid)
+            ldecomp%gdc2glo(ag) = an
+            clumpcnt(cid) = clumpcnt(cid) + 1
+          end if
+        end do
+      end do
+    end if
+    deallocate(clumpcnt)
+
+    ! Set gsMap_lnd_gdc2glo (the global index here includes mask=0 or ocean points)
+
+    call get_proc_bounds(beg, end)
+    allocate(gindex(beg:end))
+    do n = beg,end
+       gindex(n) = ldecomp%gdc2glo(n)
+    enddo
+    lsize = end-beg+1
+
+    gsize = lni * lnj
+    call mct_gsMap_init(gsMap_lnd_gdc2glo, gindex, mpicom, comp_id, lsize, gsize)
+    deallocate(gindex)
+
+    ! Diagnostic output
+    if (masterproc) then
+       write(iulog,*)' Surface Grid Characteristics'
+       write(iulog,*)'   longitude points               = ',lni
+       write(iulog,*)'   latitude points                = ',lnj
+       write(iulog,*)'   total number of land gridcells = ',numg
+       write(iulog,*)' Decomposition Characteristics'
+       write(iulog,*)'   clumps per process             = ',clump_pproc
+       write(iulog,*)' gsMap Characteristics'
+       write(iulog,*) '  lnd gsmap glo num of segs      = ',mct_gsMap_ngseg(gsMap_lnd_gdc2glo)
+       write(iulog,*)
+    end if
+
+    call shr_sys_flush(iulog)
+
+  end subroutine decompInit_lnd_block
+
+ !------------------------------------------------------------------------------
+  subroutine decompInit_clumps_block(glcmask)
+    !
+    ! !DESCRIPTION:
+    ! This subroutine initializes the land surface decomposition into a clump
+    ! data structure.  This assumes each pe has the same number of clumps
+    ! set by clump_pproc
+    !
+    ! !USES:
+    use subgridMod, only : subgrid_get_gcellinfo
+    use spmdMod
+    use domainMod,  only : ldomain_loc
+    !
+    ! !ARGUMENTS:
+    implicit none
+    integer , pointer, optional   :: glcmask(:)  ! glc mask
+    !integer , pointer, optional   :: num_tunits_per_grd(:)  ! Number of topounits per grid
+    !
+    ! !LOCAL VARIABLES:
+    integer :: ln,an              ! indices
+    integer :: i,g,l,k            ! indices
+    integer :: cid,pid            ! indices
+    integer :: n,m,np             ! indices
+    integer :: anumg              ! lnd num gridcells
+    integer :: icells             ! temporary
+    integer :: begg, endg         ! temporary
+    integer :: itunits            ! temporary
+    integer :: ilunits            ! temporary
+    integer :: icols              ! temporary
+    integer :: ipfts              ! temporary
+    integer :: icohorts           ! temporary
+    integer :: ier                ! error code
+    integer :: glev, tlev, llev, clev, plev, hlev  ! order of subgrid levels in the allvec arrays
+    integer :: nlev               ! number of subgrid levels
+    integer, allocatable :: allvecg(:,:)  ! temporary vector "global"
+    integer, allocatable :: allvecl(:,:)  ! temporary vector "local"
+    integer, allocatable :: proc_nXXX(:) ! number of XXX assigned to a process
+    integer, allocatable :: proc_begX(:) ! beginning XXX index assigned to a process
+    integer :: ntest
+    character(len=32), parameter :: subname = 'decompInit_clumps'
+    !------------------------------------------------------------------------------
+
+    !--- assign order of subgrid levels in allvecl and allvecg arrays ---
+    nlev=6  ! number of subgrid levels
+    glev=1  ! gridcell
+    tlev=2  ! topounit
+    llev=3  ! landunit
+    clev=4  ! column
+    plev=5  ! pft/patch
+    hlev=6  ! cohort
+
+    !--- assign gridcells to clumps (and thus pes) ---
+    call get_proc_bounds(begg, endg)
+
+    allocate(allvecl(nclumps,nlev))   ! local  clumps [gcells,topounits,lunits,cols,pfts,cohs]
+    allocate(allvecg(nclumps,nlev))   ! global clumps [gcells,topounits,lunits,cols,pfts,cohs]
+
+    ! Determine the number of gridcells, topounits, landunits, columns, pfts, and cohorts
+    ! on this processor
+    ! Determine number of topounits, landunits, columns and pfts for each global
+    ! gridcell index (an) that is associated with the local gridcell index (ln)
+    ! More detail: an is the row-major order 1d-index into the global ixj grid.
+
+    itunits=0
+    ilunits=0
+    icols=0
+    ipfts=0
+    icohorts=0
+
+    allvecg= 0
+    allvecl= 0
+    ! Loop through the gridcells on this proc
+    do anumg = begg,endg
+       ! an is the row-major order 1d-index into the global ixj grid.
+       an  = ldecomp%gdc2glo(anumg)
+       cid = lcid(an)
+       ln  = anumg
+       if(max_topounits > 1) then
+          if (present(glcmask)) then
+             call subgrid_get_gcellinfo (ln, ntunits=itunits, nlunits=ilunits, ncols=icols, npfts=ipfts, &
+                 ncohorts=icohorts, glcmask=glcmask(ln), num_tunits_per_grd= ldomain_loc%num_tunits_per_grd(ln))
+          else
+             call subgrid_get_gcellinfo (ln, ntunits=itunits, nlunits=ilunits, ncols=icols, npfts=ipfts, &
+                 ncohorts=icohorts, num_tunits_per_grd= ldomain_loc%num_tunits_per_grd(ln) )
+          endif
+       else
+          if (present(glcmask)) then
+             call subgrid_get_gcellinfo (ln, ntunits=itunits, nlunits=ilunits, ncols=icols, npfts=ipfts, &
+                 ncohorts=icohorts, glcmask=glcmask(ln))
+          else
+             call subgrid_get_gcellinfo (ln, ntunits=itunits, nlunits=ilunits, ncols=icols, npfts=ipfts, &
+                 ncohorts=icohorts )
+          endif
+       endif
+
+       allvecl(cid,glev) = allvecl(cid,glev) + 1           ! number of gridcells for local clump cid
+       allvecl(cid,tlev) = allvecl(cid,tlev) + itunits     ! number of topographic units for local clump cid
+       allvecl(cid,llev) = allvecl(cid,llev) + ilunits     ! number of landunits for local clump cid
+       allvecl(cid,clev) = allvecl(cid,clev) + icols       ! number of columns for local clump cid
+       allvecl(cid,plev) = allvecl(cid,plev) + ipfts       ! number of pfts for local clump cid
+       allvecl(cid,hlev) = allvecl(cid,hlev) + icohorts    ! number of cohorts for local clump cid
+    enddo
+    call mpi_allreduce(allvecl,allvecg,size(allvecg),MPI_INTEGER,MPI_SUM,mpicom,ier)
+
+    ! Determine overall  total gridcells, landunits, columns and pfts and distribute
+    ! over all clumps
+
+    do cid = procinfo%cid(1), procinfo%cid(clump_pproc)
+       icells      = allvecg(cid,glev)  ! number of all clump cid gridcells (over all processors)
+       itunits     = allvecg(cid,tlev)  ! number of all clump cid topounits (over all processors)
+       ilunits     = allvecg(cid,llev)  ! number of all clump cid landunits (over all processors)
+       icols       = allvecg(cid,clev)  ! number of all clump cid columns (over all processors)
+       ipfts       = allvecg(cid,plev)  ! number of all clump cid pfts (over all processors)
+       icohorts    = allvecg(cid,hlev)  ! number of all clump cid cohorts (over all processors)
+
+       !--- give gridcell to cid ---
+       clumps(cid)%ntunits     = clumps(cid)%ntunits  + itunits
+       clumps(cid)%nlunits     = clumps(cid)%nlunits  + ilunits
+       clumps(cid)%ncols       = clumps(cid)%ncols    + icols
+       clumps(cid)%npfts       = clumps(cid)%npfts    + ipfts
+       clumps(cid)%nCohorts    = clumps(cid)%nCohorts + icohorts
+
+       !--- give gridcell to the proc that owns the cid ---
+       if (iam == clumps(cid)%owner) then
+          procinfo%ntunits     = procinfo%ntunits  + itunits
+          procinfo%nlunits     = procinfo%nlunits  + ilunits
+          procinfo%ncols       = procinfo%ncols    + icols
+          procinfo%npfts       = procinfo%npfts    + ipfts
+          procinfo%nCohorts    = procinfo%nCohorts + icohorts
+       endif
+
+    enddo
+    !--- overall total over all procs (or clumps) globally ---
+    ! note: those constants are saved into 'decompMod.F90', visiable globally
+    call mpi_allreduce(procinfo%ncells,numg,1,MPI_INTEGER,MPI_SUM,mpicom,ier)  ! total number of gridcells
+    call mpi_allreduce(procinfo%ntunits,numt,1,MPI_INTEGER,MPI_SUM,mpicom,ier) ! total number of landunits
+    call mpi_allreduce(procinfo%nlunits,numl,1,MPI_INTEGER,MPI_SUM,mpicom,ier) ! total number of landunits
+    call mpi_allreduce(procinfo%ncols,numc,1,MPI_INTEGER,MPI_SUM,mpicom,ier)   ! total number of columns
+    call mpi_allreduce(procinfo%npfts,nump,1,MPI_INTEGER,MPI_SUM,mpicom,ier)   ! total number of pfts
+    call mpi_allreduce(procinfo%nCohorts,numCohort,1,MPI_INTEGER,MPI_SUM,mpicom,ier) ! total number of cohorts
+
+    allocate(proc_nXXX(0:npes-1), stat=ier)
+    if (ier /= 0) then
+       write(iulog,*) 'decompInit_clumps(): allocation error for proc_nXXX'
+       call endrun(msg=errMsg(__FILE__, __LINE__))
+    end if
+
+    allocate(proc_begX(0:npes-1), stat=ier)
+    if (ier /= 0) then
+       write(iulog,*) 'decompInit_clumps(): allocation error for proc_begX'
+       call endrun(msg=errMsg(__FILE__, __LINE__))
+    end if
+
+    ! TOPOUNITS:
+    ! calculate number of topographic units per process and bcast
+    call mpi_gather(procinfo%ntunits, 1, MPI_INTEGER, &
+                    proc_nXXX, 1, MPI_INTEGER, 0, mpicom, ier)
+    call mpi_bcast(proc_nXXX, npes, MPI_INTEGER, 0, mpicom, ier)
+
+    ! determine offset (begt) for all processes,
+    ! and then procinfo%begt and procinfo%endt (for iam)
+    proc_begX(0) = 1
+    do pid = 1,npes-1
+       proc_begX(pid) = proc_begX(pid-1) + proc_nXXX(pid-1)
+    enddo
+    procinfo%begt = proc_begX(iam)
+    procinfo%endt = (procinfo%begt-1) + procinfo%ntunits
+
+    ! determine topounit offset for each clump assigned to each process
+    ! (re-using proc_begX as work space)
+    do cid = procinfo%cid(1), procinfo%cid(clump_pproc)
+      clumps(cid)%begt = proc_begX(clumps(cid)%owner)
+      proc_begX(clumps(cid)%owner) = proc_begX(clumps(cid)%owner) &
+                                   + clumps(cid)%ntunits
+      clumps(cid)%endt = proc_begX(clumps(cid)%owner) - 1
+    enddo
+
+    ! LUNITS:
+    ! calculate number of lunits per process
+    call mpi_gather(procinfo%nlunits, 1, MPI_INTEGER, &
+                    proc_nXXX, 1, MPI_INTEGER, 0, mpicom, ier)
+    call mpi_bcast(proc_nXXX, npes, MPI_INTEGER, 0, mpicom, ier)
+
+    ! determine offset (begl) for all processes,
+    ! and then procinfo%begl and procinfo%endl (for iam)
+    proc_begX(0) = 1
+    do pid = 1,npes-1
+       proc_begX(pid) = proc_begX(pid-1) + proc_nXXX(pid-1)
+    enddo
+    procinfo%begl = proc_begX(iam)
+    procinfo%endl = (procinfo%begl-1) + procinfo%nlunits
+
+    ! determine lunit offset for each clump assigned to each process
+    ! (re-using proc_begX as work space)
+    do cid = procinfo%cid(1), procinfo%cid(clump_pproc)
+      clumps(cid)%begl = proc_begX(clumps(cid)%owner)
+      proc_begX(clumps(cid)%owner) = proc_begX(clumps(cid)%owner) &
+                                   + clumps(cid)%nlunits
+      clumps(cid)%endl = proc_begX(clumps(cid)%owner) - 1
+    enddo
+
+    ! COLS:
+    ! calculate number of cols per process
+    call mpi_gather(procinfo%ncols, 1, MPI_INTEGER, &
+                    proc_nXXX, 1, MPI_INTEGER, 0, mpicom, ier)
+    call mpi_bcast(proc_nXXX, npes, MPI_INTEGER, 0, mpicom, ier)
+
+    ! determine offset (begc) for all processes,
+    ! and then procinfo%begc and procinfo%endc (for iam)
+    proc_begX(0) = 1
+    do pid = 1,npes-1
+       proc_begX(pid) = proc_begX(pid-1) + proc_nXXX(pid-1)
+    enddo
+    procinfo%begc = proc_begX(iam)
+    procinfo%endc = (procinfo%begc-1) + procinfo%ncols
+
+    ! determine col offset for each clump assigned to each process
+    ! (re-using proc_begX as work space)
+    do cid = procinfo%cid(1), procinfo%cid(clump_pproc)
+      clumps(cid)%begc = proc_begX(clumps(cid)%owner)
+      proc_begX(clumps(cid)%owner) = proc_begX(clumps(cid)%owner) &
+                                   + clumps(cid)%ncols
+      clumps(cid)%endc = proc_begX(clumps(cid)%owner) - 1
+    enddo
+
+    ! PFTS:
+    ! calculate number of pfts per process
+    call mpi_gather(procinfo%npfts, 1, MPI_INTEGER, &
+                    proc_nXXX, 1, MPI_INTEGER, 0, mpicom, ier)
+    call mpi_bcast(proc_nXXX, npes, MPI_INTEGER, 0, mpicom, ier)
+
+    ! determine offset (begp) for all processes,
+    ! and then procinfo%begp and procinfo%endp (for iam)
+    proc_begX(0) = 1
+    do pid = 1,npes-1
+       proc_begX(pid) = proc_begX(pid-1) + proc_nXXX(pid-1)
+    enddo
+    procinfo%begp = proc_begX(iam)
+    procinfo%endp = (procinfo%begp-1) + procinfo%npfts
+
+    ! determine col offset for each clump assigned to each process
+    ! (re-using proc_begX as work space)
+    do cid = procinfo%cid(1), procinfo%cid(clump_pproc)
+      clumps(cid)%begp = proc_begX(clumps(cid)%owner)
+      proc_begX(clumps(cid)%owner) = proc_begX(clumps(cid)%owner) &
+                                   + clumps(cid)%npfts
+      clumps(cid)%endp = proc_begX(clumps(cid)%owner) - 1
+    enddo
+
+    ! COHORTS:
+    ! calculate number of cohorts per process
+    call mpi_gather(procinfo%nCohorts, 1, MPI_INTEGER, &
+                    proc_nXXX, 1, MPI_INTEGER, 0, mpicom, ier)
+    call mpi_bcast(proc_nXXX, npes, MPI_INTEGER, 0, mpicom, ier)
+
+    ! determine offset (begCohort) for all processes,
+    ! and then procinfo%begCohort and procinfo%endCohort (for iam)
+    proc_begX(0) = 1
+    do pid = 1,npes-1
+       proc_begX(pid) = proc_begX(pid-1) + proc_nXXX(pid-1)
+    enddo
+    procinfo%begCohort = proc_begX(iam)
+    procinfo%endCohort = (procinfo%begCohort-1) + procinfo%nCohorts
+
+    ! determine col offset for each clump assigned to each process
+    ! (re-using proc_begX as work space)
+    do cid = procinfo%cid(1), procinfo%cid(clump_pproc)
+      clumps(cid)%begCohort = proc_begX(clumps(cid)%owner)
+      proc_begX(clumps(cid)%owner) = proc_begX(clumps(cid)%owner) &
+                                   + clumps(cid)%nCohorts
+      clumps(cid)%endCohort = proc_begX(clumps(cid)%owner) - 1
+    enddo
+
+    ! free work space
+    deallocate(proc_nXXX, proc_begX)
+
+    do n = procinfo%cid(1), procinfo%cid(clump_pproc)
+       if (clumps(n)%ncells      /= allvecg(n,glev) .or. &
+           clumps(n)%ntunits     /= allvecg(n,tlev) .or. &
+           clumps(n)%nlunits     /= allvecg(n,llev) .or. &
+           clumps(n)%ncols       /= allvecg(n,clev) .or. &
+           clumps(n)%npfts       /= allvecg(n,plev) .or. &
+           clumps(n)%nCohorts    /= allvecg(n,hlev)) then
+
+               write(iulog,*) 'decompInit_glcp(): allvecg error ncells ',iam,n,clumps(n)%ncells ,allvecg(n,glev)
+               write(iulog,*) 'decompInit_glcp(): allvecg error topounits ',iam,n,clumps(n)%ntunits,allvecg(n,tlev)
+               write(iulog,*) 'decompInit_glcp(): allvecg error lunits ',iam,n,clumps(n)%nlunits,allvecg(n,llev)
+               write(iulog,*) 'decompInit_glcp(): allvecg error ncols  ',iam,n,clumps(n)%ncols  ,allvecg(n,clev)
+               write(iulog,*) 'decompInit_glcp(): allvecg error pfts   ',iam,n,clumps(n)%npfts  ,allvecg(n,plev)
+               write(iulog,*) 'decompInit_glcp(): allvecg error cohorts ',iam,n,clumps(n)%nCohorts ,allvecg(n,hlev)
+
+               call endrun(msg=errMsg(__FILE__, __LINE__))
+
+       endif
+    enddo
+
+    deallocate(allvecg,allvecl)
+    deallocate(lcid)
+
+  end subroutine decompInit_clumps_block
+  !------------------------------------------------------------------------------
 
 end module decompInitMod
