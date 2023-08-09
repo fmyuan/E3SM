@@ -233,7 +233,7 @@ contains
        dim1_beg_name  =  dimname_begp
        dim1_end_name  =  dimname_endp
        dim2_beg_name  =  dimname_one
-       dim2_end_name  =  dimname_nlevgrnd
+       dim2_end_name  =  dimname_nlevsoi
        data_found   =  .true.
 
     case(L2E_PARAMETER_ROOTFR_COL)
