@@ -306,19 +306,6 @@ contains
        dim1_end_name  =  dimname_endc
        data_found   =  .true.
 
-    case(L2E_FLUX_ROOTSOI_FRAC)
-       id_val         =  L2E_FLUX_ROOTSOI_FRAC
-       name_val       =  'Root soil fraction'
-       long_name_val  =  'Root soil fraction: ELM to EM'
-       units_val      =  '[mm H2O/s]'
-       is_real_type   =  .true.
-       ndim           =  2
-       dim1_beg_name  =  dimname_begp
-       dim1_end_name  =  dimname_endp
-       dim2_beg_name  =  dimname_one
-       dim2_end_name  =  dimname_nlevsoi
-       data_found   =  .true.
-
     case(E2L_FLUX_SNOW_LYR_DISAPPERANCE_MASS_FLUX)
        id_val         =  E2L_FLUX_SNOW_LYR_DISAPPERANCE_MASS_FLUX
        name_val       =  'Snow layer disappearance sink'
@@ -332,8 +319,8 @@ contains
 
     case(E2L_FLUX_ROOTSOI)
        id_val         =  E2L_FLUX_ROOTSOI
-       name_val       =  'Root and soil water exchange'
-       long_name_val  =  'Root and soil water exchange: EM to ELM'
+       name_val       =  'Root and soil water exchange, column'
+       long_name_val  =  'Root and soil water exchange, column: EM to ELM'
        units_val      =  '[mm H2O/s]'
        is_real_type   =  .true.
        ndim           =  2
@@ -364,6 +351,31 @@ contains
        dim1_beg_name  =  dimname_begc
        dim1_end_name  =  dimname_endc
        data_found   =  .true.
+
+    case(E2L_FLUX_TRAN_VEG)
+       id_val         =  E2L_FLUX_TRAN_VEG
+       name_val       =  'Total transpiration from vegetation on column'
+       long_name_val  =  'Total transpiration from vegetation on column: EM to ELM'
+       units_val      =  '[mm H2O/s]'
+       is_real_type   =  .true.
+       ndim           =  1
+       dim1_beg_name  =  dimname_begc
+       dim1_end_name  =  dimname_endc
+       data_found   =  .true.
+
+    case(E2L_FLUX_ROOTSOI_FRAC)
+       id_val         =  E2L_FLUX_ROOTSOI_FRAC
+       name_val       =  'Root and soil water exchange, pft'
+       long_name_val  =  'Root and soil water exchange, pft: EM to ELM'
+       units_val      =  '[mm H2O/s]'
+       is_real_type   =  .true.
+       ndim           =  2
+       dim1_beg_name  =  dimname_begp
+       dim1_end_name  =  dimname_endp
+       dim2_beg_name  =  dimname_one
+       dim2_end_name  =  dimname_nlevgrnd
+       data_found   =  .true.
+
     end select
     
   end subroutine EMI_WaterFluxType_DataInfoByID

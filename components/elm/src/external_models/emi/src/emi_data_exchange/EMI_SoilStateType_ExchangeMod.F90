@@ -7,6 +7,7 @@ module EMI_SoilStateType_ExchangeMod
   use EMI_DataMod         , only : emi_data_list, emi_data
   use EMI_DataDimensionMod , only : emi_data_dimension_list_type
   use SoilStateType                         , only : soilstate_type
+  use VegetationType       , only : veg_pp
   use EMI_Atm2LndType_Constants
   use EMI_CanopyStateType_Constants
   use EMI_ChemStateType_Constants
@@ -44,7 +45,7 @@ contains
     ! Pack data from ALM soilstate_vars for EM
     !
     ! !USES:
-    use elm_varpar             , only : nlevsoi, nlevgrnd, nlevsno
+    use elm_varpar             , only : nlevsoi, nlevgrnd, nlevsno, numpft
     !
     implicit none
     !
@@ -56,7 +57,7 @@ contains
     type(soilstate_type)   , intent(in) :: soilstate_vars
     !
     ! !LOCAL_VARIABLES:
-    integer                             :: fc,c,j,k
+    integer                             :: fc,c,j,k,patch_idx, npfts
     class(emi_data), pointer            :: cur_data
     logical                             :: need_to_pack
     integer                             :: istage
@@ -76,7 +77,9 @@ contains
          cellsand     => soilstate_vars%cellsand_col     , &
          bd           => soilstate_vars%bd_col           , &
          watfc        => soilstate_vars%watfc_col        , &
-         rootfr_col   => soilstate_vars%rootfr_col         &
+         rootfr_patch => soilstate_vars%rootfr_patch     , &
+         wtcol  => veg_pp%wtcol                          , &
+         active => veg_pp%active                           &
          )
 
     count = 0
@@ -215,10 +218,17 @@ contains
              cur_data%is_set = .true.
 
           case (L2E_PARAMETER_ROOTFR_COL)
+             npfts = numpft+1
              do fc = 1, num_filter
                 c = filter(fc)
-                do j = 1, nlevgrnd
-                   cur_data%data_real_2d(c,j) = rootfr_col(c,j)
+                patch_idx = npfts * (c - 1)
+                do k = 1, npfts
+                   patch_idx = patch_idx + 1
+                   if (active(patch_idx)) then
+                      do j = 1, nlevsoi
+                         cur_data%data_real_2d(c,j) = rootfr_patch(patch_idx,j)
+                      enddo
+                   endif
                 enddo
              enddo
              cur_data%is_set = .true.
@@ -261,7 +271,9 @@ contains
     integer                             :: count
 
     associate(& 
-         rootfr => soilstate_vars%rootfr_patch   &
+         rootfr => soilstate_vars%rootfr_patch   , &
+         wtcol  => veg_pp%wtcol                  , &
+         active => veg_pp%active                   &
          )
 
     count = 0
@@ -285,7 +297,7 @@ contains
           case (L2E_PARAMETER_ROOTFR_PATCH)
              do fp = 1, num_filter
                 p = filter(fp)
-                do j = 1, nlevgrnd
+                do j = 1, nlevsoi
                    cur_data%data_real_2d(p,j) = rootfr(p,j)
                 enddo
              enddo

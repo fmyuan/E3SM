@@ -1742,6 +1742,17 @@ contains
           dim1_beg_name = dimname_begc
           dim1_end_name = dimname_endc
           data_found    = .true.
+
+      case (L2E_COLUMN_PFT_TYPE)
+          id_val        = L2E_COLUMN_PFT_TYPE
+          name_val      = 'Active PFT type'
+          long_name_val = 'Active PFT on column - assumes 1 PFT per column'
+          units_val     = '[-]'
+          is_int_type   = .true.
+          ndim          = 1
+          dim1_beg_name = dimname_begc
+          dim1_end_name = dimname_endc
+          data_found    = .true.
           ! -------------------------------------------------------------
           ! ELM-to-ELM: Landunit variables
           ! -------------------------------------------------------------

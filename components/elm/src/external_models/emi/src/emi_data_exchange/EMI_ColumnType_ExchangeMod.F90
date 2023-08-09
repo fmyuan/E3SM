@@ -26,6 +26,7 @@ contains
     !
     ! !USES:
     use ColumnType                , only : col_pp
+    use VegetationType            , only : veg_pp
     use elm_varpar                , only : nlevgrnd, nlevsno
     !
     implicit none
@@ -35,7 +36,7 @@ contains
     integer              , intent(in) :: num_filter ! number of column soil points in column filter
     integer              , intent(in) :: filter(:)  ! column filter for soil points
     !
-    integer                           :: fc,c,j
+    integer                           :: fc,c,j,p
     class(emi_data), pointer          :: cur_data
     logical                           :: need_to_pack
     integer                           :: istage
@@ -177,6 +178,17 @@ contains
              do fc = 1, num_filter
                 c = filter(fc)
                 cur_data%data_int_1d(c) = col_pp%npfts(c)
+             enddo
+             cur_data%is_set = .true.
+
+          case (L2E_COLUMN_PFT_TYPE)
+             do fc = 1, num_filter
+                c = filter(fc)
+                do p = col_pp%pfti(c), col_pp%pftf(c)
+                   if (veg_pp%active(p)) then
+                      cur_data%data_int_1d(fc) = p - col_pp%pfti(c)
+                   endif
+                enddo
              enddo
              cur_data%is_set = .true.
 

@@ -18,5 +18,6 @@ module EMI_ColumnType_Constants
   integer, parameter, public :: L2E_COLUMN_DZ_SNOW_AND_SOIL                      = 1313
   integer, parameter, public :: L2E_COLUMN_Z_SNOW_AND_SOIL                       = 1314
   integer, parameter, public :: L2E_COLUMN_NUM_PATCH                             = 1315
+  integer, parameter, public :: L2E_COLUMN_PFT_TYPE                              = 1316
 
 end module EMI_ColumnType_Constants

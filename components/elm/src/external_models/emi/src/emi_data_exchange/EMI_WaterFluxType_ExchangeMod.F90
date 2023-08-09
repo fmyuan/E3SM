@@ -34,6 +34,7 @@ module EMI_WaterFluxType_ExchangeMod
   !
   public :: EMI_Pack_WaterFluxType_at_Column_Level_for_EM
   public :: EMI_Unpack_WaterFluxType_at_Column_Level_from_EM
+  public :: EMI_Unpack_WaterFluxType_at_Patch_Level_from_EM
 
 contains
   
@@ -86,8 +87,7 @@ contains
          qflx_rootsoi         => col_wf%qflx_rootsoi         , &
          qflx_adv             => col_wf%qflx_adv             , &
          qflx_drain_vr        => col_wf%qflx_drain_vr        , &
-         qflx_tran_veg        => col_wf%qflx_tran_veg        , &
-         qflx_rootsoi_frac    => veg_wf%qflx_rootsoi_frac    &
+         qflx_tran_veg        => col_wf%qflx_tran_veg          &
          )
 
     count = 0
@@ -284,15 +284,6 @@ contains
              enddo
              cur_data%is_set = .true.
 
-          case (L2E_FLUX_ROOTSOI_FRAC)
-             do fc = 1, num_filter
-                c = filter(fc)
-                do j = 1, nlevsoi
-                   cur_data%data_real_2d(c,j) = qflx_rootsoi_frac(c,j)
-                enddo
-             enddo
-             cur_data%is_set = .true.
-
           end select
 
        endif
@@ -339,7 +330,8 @@ contains
          qflx_gross_evap_soil => col_wf%qflx_gross_evap_soil , &
          qflx_gross_infl_soil => col_wf%qflx_gross_infl_soil , &
 #endif
-         qflx_rootsoi_col     => col_wf%qflx_rootsoi &
+         qflx_rootsoi         => col_wf%qflx_rootsoi         , &
+         qflx_tran_veg        => col_wf%qflx_tran_veg          &
          )
 
     count = 0
@@ -371,7 +363,7 @@ contains
              do fc = 1, num_filter
                 c = filter(fc)
                 do j = 1, nlevgrnd
-                   qflx_rootsoi_col(c,j) = cur_data%data_real_2d(c,j)
+                   qflx_rootsoi(c,j) = cur_data%data_real_2d(c,j)
                 enddo
              enddo
              cur_data%is_set = .true.
@@ -402,6 +394,13 @@ contains
              enddo
              cur_data%is_set = .true.
 
+          case (E2L_FLUX_TRAN_VEG)
+             do fc = 1, num_filter
+                c = filter(fc)
+                qflx_tran_veg(c) = cur_data%data_real_1d(c)
+             enddo
+             cur_data%is_set = .true.
+
           end select
 
        endif
@@ -412,6 +411,74 @@ contains
     end associate
 
   end subroutine EMI_Unpack_WaterFluxType_at_Column_Level_from_EM
+
+  !-----------------------------------------------------------------------
+  subroutine EMI_Unpack_WaterFluxType_at_Patch_Level_from_EM(data_list, em_stage, &
+        num_filter, filter, waterflux_vars)
+    !
+    ! !DESCRIPTION:
+    ! Unpack data for ALM soilstate_vars from EM
+    !
+    ! !USES:
+    use elm_varpar             , only : nlevsoi, nlevgrnd, nlevsno
+    !
+    implicit none
+    !
+    ! !ARGUMENTS:
+    class(emi_data_list)   , intent(in) :: data_list
+    integer                , intent(in) :: em_stage
+    integer                , intent(in) :: num_filter
+    integer                , intent(in) :: filter(:)
+    type(waterflux_type)   , intent(in), optional :: waterflux_vars
+    !
+    ! !LOCAL_VARIABLES:
+    integer                             :: fp,p,j
+    class(emi_data), pointer            :: cur_data
+    logical                             :: need_to_pack
+    integer                             :: istage
+    integer                             :: count
+
+    associate(&
+         qflx_rootsoi_frac    =>  veg_wf%qflx_rootsoi_frac      &
+         )
+
+    count = 0
+    cur_data => data_list%first
+    do
+       if (.not.associated(cur_data)) exit
+       count = count + 1
+
+       need_to_pack = .false.
+       do istage = 1, cur_data%num_em_stages
+          if (cur_data%em_stage_ids(istage) == em_stage) then
+             need_to_pack = .true.
+             exit
+          endif
+       enddo
+
+       if (need_to_pack) then
+
+          select case (cur_data%id)
+
+          case (E2L_FLUX_ROOTSOI_FRAC)
+             do fp = 1, num_filter
+                p = filter(fp)
+                do j = 1, nlevgrnd
+                   qflx_rootsoi_frac(p,j) = cur_data%data_real_2d(p,j)
+                enddo
+             enddo
+             cur_data%is_set = .true.
+
+          end select
+
+       endif
+
+       cur_data => cur_data%next
+    enddo
+
+    end associate
+
+  end subroutine EMI_Unpack_WaterFluxType_at_Patch_Level_from_EM
 
 
 end module EMI_WaterFluxType_ExchangeMod
