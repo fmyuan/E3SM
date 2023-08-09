@@ -273,6 +273,10 @@ contains
                   soilpsi(c,j) = -15.0_r8
                end if
 
+               ! remove old fluxes
+               ! These will be replaced with fluxes from ATS 
+               col_wf%qflx_evap_tot(c) = col_wf%qflx_evap_tot(c) - col_wf%qflx_evap_veg(c) - col_wf%qflx_evap_soi(c) - col_wf%qflx_tran_veg(c)
+
             end do
          end do
         endif
@@ -294,13 +298,44 @@ contains
                  fsattmp = max(vwc/watsat(c,j), 0.001_r8)
                  psi = sucsat(c,j) * (-9.8e-6_r8) * (fsattmp)**(-bsw(c,j))  ! Mpa
                  soilpsi(c,j) = min(max(psi,-15.0_r8),0._r8)
+                 h2osoi_vol(c,j) = vwc + h2osoi_ice(c,j)/(dz(c,j)*denice)
               else
                  soilpsi(c,j) = -15.0_r8
+                 h2osoi_vol(c,j) = h2osoi_ice(c,j)/(dz(c,j)*denice)
               end if
 
               ! WB vars
-              soilhydrology_vars%qcharge_col(c) = 0.0_r8
-              col_wf%qflx_deficit(c) = 0.0_r8
+! Recalculate this
+!qflx_evap_tot - qflx_evap_soi + qflx_evap_can + qflx_tran_veg
+
+! Zero these out in any columns using ATS
+!qflx_floodc        - column flux of flood water from RTM
+!qflx_surf          - surface runoff
+!qflx_h2osfc_surf   - surface water runoff
+!qflx_qrgwl         - qflx_surf at glaciers, wetlands, lakes
+!qflx_drain         - sub-surface runoff
+!qflx_drain_perched - perched wt sub-surface runoff
+!qflx_lateral       - lateral flux of water to neighboring column
+
+! Leave these alone
+!qflx_surf_irrig_col
+!qflx_over_supply_col
+!qflx_snwcp_ice
+
+              soilhydrology_vars%qcharge_col(c) = 0.0_r8 ! used in WaterTable
+              soilhydrology_vars%wa_col(c) = 0.0_r8
+              col_wf%qflx_rsub_sat(c) = 0.0_r8
+
+
+              col_wf%qflx_evap_tot(c) = col_wf%qflx_evap_tot(c) + col_wf%qflx_evap_veg(c) + col_wf%qflx_evap_soi(c) + col_wf%qflx_tran_veg(c)
+
+              col_wf%qflx_floodc(c) = 0.0_r8
+              col_wf%qflx_surf(c) = -col_wf%qflx_top_soil(c)
+              col_wf%qflx_h2osfc_surf(c) = 0.0_r8
+              col_wf%qflx_qrgwl(c) = 0.0_r8
+              col_wf%qflx_drain(c) = 0.0_r8
+              col_wf%qflx_drain_perched(c) = 0.0_r8
+              col_wf%qflx_lateral(c) = 0.0_r8
 
              ! do j = 1, nlevbed
              !    if (h2osoi_liq(c,j)<0._r8)then
