@@ -120,14 +120,15 @@
       real(C_DOUBLE), dimension(*), intent(out) :: mass_water_content ! soil liq. water content, unit: [kgH2O / m2] [col,nlevgrnd]
     end subroutine ats_get_waterstate_c
 
-    subroutine ats_get_water_fluxes_c(ats, infiltration, evaporation, transpiration, net_subsurface_flux, net_runon) &
+    subroutine ats_get_water_fluxes_c(ats, infiltration, evaporation, transpiration, root_fluxes, net_subsurface_flux, net_runon) &
          bind(c, name="ats_get_water_fluxes")
       use, intrinsic :: iso_c_binding
       implicit none
       type(C_PTR), value :: ats
       real(C_DOUBLE), dimension(*), intent(out) :: infiltration        ! water source/sink into top soil - gross infiltration, unit: mm/s, [col]
       real(C_DOUBLE), dimension(*), intent(out) :: evaporation         ! actual evaporation into top of col (positive = condensation), unit: mm/s, [col]
-      real(C_DOUBLE), dimension(*), intent(out) :: transpiration       ! actual transpiration, (negative = water loss), unit: mm/s, [col, nlevgrnd]
+      real(C_DOUBLE), dimension(*), intent(out) :: transpiration       ! actual transpiration, (negative = water loss), unit: mm/s, [col]
+      real(C_DOUBLE), dimension(*), intent(out) :: root_fluxes         ! actual transpiration distributed to roots, (negative = water loss), unit: mm/s, [col, nlevgrnd]
       real(C_DOUBLE), dimension(*), intent(out) :: net_subsurface_flux ! net flux of water across all column boundaries (positive = inward), unit: mm/s, [col]
       real(C_DOUBLE), dimension(*), intent(out) :: net_runon           ! net flux of water across all surface boundaries (positive = inward), unit: mm/s, [col]
     end subroutine ats_get_water_fluxes_c

@@ -66,7 +66,7 @@ module ExternalModelATSMod
      integer :: index_l2e_init_col_patch_i_beg
      integer :: index_l2e_init_col_patch_i_end
      integer :: index_l2e_init_col_num_patch
-     !integer :: index_l2e_init_col_pft_type
+     integer :: index_l2e_init_col_pft_type
 
      integer :: index_l2e_init_state_forc_pbot
      integer :: index_l2e_init_state_h2osoi_liq
@@ -103,10 +103,9 @@ module ExternalModelATSMod
      integer :: index_l2e_state_zwt
 
      integer :: index_l2e_parameter_effporosityc
-     integer :: index_l2e_state_rootfrac
+     integer :: index_l2e_rootfrac_col
      integer :: index_l2e_rootfrac_patch
 
-     integer :: index_e2l_state_h2osoi_vol
      integer :: index_e2l_state_h2osoi_liq
      integer :: index_e2l_state_h2osoi_ice
      integer :: index_e2l_state_soilp
@@ -114,14 +113,16 @@ module ExternalModelATSMod
      integer :: index_e2l_state_zwt
      integer :: index_e2l_state_h2osfc
 
-     integer :: index_e2l_flux_tran_col
+     integer :: index_e2l_flux_rootsoi
      integer :: index_e2l_flux_gross_infil
      integer :: index_e2l_flux_gross_evap
+     integer :: index_e2l_flux_tran_veg
+     integer :: index_e2l_flux_rootsoi_frac
 
      integer :: index_l2e_flux_gross_infil
      integer :: index_l2e_flux_gross_evap
      integer :: index_l2e_flux_tran_pft
-     integer :: index_l2e_flux_tran_vr
+     !integer :: index_l2e_flux_tran_vr
      integer :: index_l2e_flux_drain_vr
      integer :: index_l2e_flux_surf
 
@@ -134,11 +135,9 @@ module ExternalModelATSMod
 
 
 
-     !
+     ! save col and patch filters
      integer                      :: filter_col_num
      integer   , pointer          :: filter_col(:), filter_pft(:)
-     real(r8)  , pointer          :: dz(:) !saved soil thickness for consistency
-
 
      type(elm_ats_interface_type) :: ats_interface
 
@@ -224,9 +223,9 @@ contains
     call l2e_init_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_l2e_init_col_num_patch          = index
 
-    !id                                         = L2E_COL_PFT_TYPE
-    !call l2e_init_list%AddDataByID(id, number_em_stages, em_stages, index)
-    !this%index_l2e_init_col_pft_type           = index
+    id                                         = L2E_COLUMN_PFT_TYPE
+    call l2e_init_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_l2e_init_col_pft_type           = index
     !-------------
 
     id                                        = L2E_STATE_VSFM_PROGNOSTIC_SOILP
@@ -425,9 +424,9 @@ contains
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_l2e_flux_tran_pft         = index
 
-    id                                   = L2E_FLUX_ROOTSOI
-    call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
-    this%index_l2e_flux_tran_vr          = index
+   !id                                   = L2E_FLUX_ROOTSOI ! may not need
+   !call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
+   !this%index_l2e_flux_tran_vr          = index
 
     id                                   = L2E_FLUX_GROSS_EVAP_SOIL
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
@@ -447,7 +446,7 @@ contains
 
     id                                   = L2E_PARAMETER_ROOTFR_COL
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
-    this%index_l2e_state_rootfrac        = index
+    this%index_l2e_rootfrac_col          = index
 
     id                                   = L2E_PARAMETER_ROOTFR_PATCH
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
@@ -504,10 +503,6 @@ contains
     allocate(em_stages(number_em_stages))
     em_stages(1) = EM_ATS_SOIL_HYDRO_STAGE
 
-    id                              = E2L_STATE_H2OSOI_VOL
-    call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
-    this%index_e2l_state_h2osoi_vol = index
-
     id                              = E2L_STATE_H2OSOI_LIQ
     call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_e2l_state_h2osoi_liq = index
@@ -534,7 +529,7 @@ contains
 
     id                              = E2L_FLUX_ROOTSOI
     call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
-    this%index_e2l_flux_tran_col    = index
+    this%index_e2l_flux_rootsoi     = index
 
     id                              = E2L_FLUX_GROSS_INFL_SOIL
     call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
@@ -543,6 +538,14 @@ contains
     id                              = E2L_FLUX_GROSS_EVAP_SOIL
     call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_e2l_flux_gross_evap  = index
+
+    id                              = E2L_FLUX_TRAN_VEG
+    call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_e2l_flux_tran_veg    = index
+
+    id                              = E2L_FLUX_ROOTSOI_FRAC
+    call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_e2l_flux_rootsoi_frac= index
     !-----------------
     if (em_stages(1) == EM_ATS_SOIL_THYDRO_STAGE .or. &
         em_stages(1) == EM_ATS_SOIL_THBGC_STAGE) then
@@ -567,33 +570,27 @@ contains
     integer              , intent(in)    :: iam
     type(bounds_type)    , intent(in)    :: bounds_clump
     integer :: filternum, fc, c, p
-    integer, pointer :: filtercol(:), numpatch(:), pft_beg(:), pft_end(:)
+    integer, pointer :: filtercol(:), pft_type(:), numpatch(:), pft_beg(:), pft_end(:)
 
     !-----------------------------------------------------------------------
-    call l2e_init_list%GetPointerToInt1D(this%index_l2e_init_col_num_patch, numpatch)
-    call l2e_init_list%GetPointerToInt1D(this%index_l2e_init_col_patch_i_beg, pft_beg)
-    call l2e_init_list%GetPointerToInt1D(this%index_l2e_init_col_patch_i_end, pft_end)
-    call l2e_init_list%GetIntValue(this%index_l2e_init_col_filter_num   , filternum )
-    call l2e_init_list%GetPointerToInt1D(this%index_l2e_init_col_filter , filtercol )
+    call l2e_init_list%GetPointerToInt1D(this%index_l2e_init_col_num_patch, numpatch )
+    call l2e_init_list%GetPointerToInt1D(this%index_l2e_init_col_patch_i_beg, pft_beg )
+    call l2e_init_list%GetPointerToInt1D(this%index_l2e_init_col_patch_i_end, pft_end )
+    call l2e_init_list%GetIntValue(this%index_l2e_init_col_filter_num, filternum )
+    call l2e_init_list%GetPointerToInt1D(this%index_l2e_init_col_filter, filtercol )
+    call l2e_init_list%GetPointerToInt1D(this%index_l2e_init_col_pft_type, pft_type )
+    
     this%filter_col_num = filternum
+    
     allocate(this%filter_col(filternum))
     this%filter_col(1:filternum) = filtercol(1:filternum)
 
+    ! 1 pft per column, so use column indexing
+    allocate(this%filter_pft(filternum))
 
-    do p = bounds_clump%begp, bounds_clump%endp
-       !if (pft%active(p) .and. pft%wtcol(p) /= 0._r8) then
-       !   if (parr(p) /= spval) then
-       !      c = pft%column(p)
-       !      if (sumwt(c) == 0._r8) carr(c) = 0._r8
-       !      carr(c) = carr(c) + parr(p) * scale_p2c(p) * pft%wtcol(p)
-       !      sumwt(c) = sumwt(c) + pft%wtcol(p)
-       !   end if
-       !end if
-    end do
-
-    do fc=1, this%filter_col_num
+    do fc=1, filternum
        c = this%filter_col(fc)
-       !print*, "num patches:", numpatch(c), pft_beg(c), pft_end(c)
+       this%filter_pft(fc) = pft_beg(c) + pft_type(c)
     end do
 
     ! create an ATS driver object
@@ -669,9 +666,6 @@ contains
 
     nz_nodes = size(col_zi(1,:))
     surf_zi(:,:) = 0.0         ! (TO-FIX) temporarily set to 0
-
-    allocate(this%dz(1:size(col_z(1,:))))
-    this%dz(:) = col_dz(1,:)          ! saved for output usage
 
     allocate(col_nodes(0:nz_nodes-1))
     c = 1                                       ! here assuming soil column node coords are same for all ELM columns
@@ -767,7 +761,7 @@ contains
     allocate(ats_residual_sat (this%filter_col_num, nz ))
 
     ats_watsat       (:,:) = 0._r8
-    ats_hksat        (:,:) = 1.0e-6_r8
+    ats_hksat        (:,:) = 1.0e-6_r8 ! this is the value that will be assigned to the 'bedrock' layers in ATS 
     ats_bsw          (:,:) = 0._r8
     ats_sucsat       (:,:) = 0._r8
     ats_residual_sat (:,:) = 0._r8    ! alway zero from ELM
@@ -883,36 +877,39 @@ contains
   !------------------------------------------------------------------------
   subroutine set_dyn_properties(this, l2e_list, bounds_clump)
 
+    use elm_varpar, only : nlevgrnd, nlevsoi
     implicit none
     class(em_ats_type)               :: this
     class(emi_data_list), intent(in) :: l2e_list
     type(bounds_type)   , intent(in) :: bounds_clump
-    integer           :: fc, c, p, j, ii
+    integer           :: fc, c, j
     integer           :: nc, nz
     real(r8), pointer :: soil_effporo(:,:), soil_effporo_ats(:,:)
     real(r8), pointer :: pft_rootfrac(:,:), pft_rootfrac_ats(:,:)
+    real(r8), pointer :: col_rootfrac(:,:), col_rootfrac_ats(:,:)
     integer,  pointer :: filter_patch(:)
     integer, dimension (5) :: rootfrac_idx ! quick and dirty hardwired pft index for 2D run
     !-----------------------------------------------------------------------
+    
     nc = this%filter_col_num
     nz = nlevgrnd
 
-    allocate(pft_rootfrac_ats(nc, nz))
-    call l2e_list%GetPointerToReal2D(this%index_l2e_rootfrac_patch, pft_rootfrac)
     allocate(soil_effporo_ats(nc, nz))
     call l2e_list%GetPointerToReal2D(this%index_l2e_parameter_effporosityc, soil_effporo)
 
-    rootfrac_idx = (/1, 2, 8, 14, 16 /)
+    allocate(col_rootfrac_ats(nc, nz))
+    call l2e_list%GetPointerToReal2D(this%index_l2e_rootfrac_col, col_rootfrac)
+
     do fc = 1, nc
-      c = rootfrac_idx(fc)
+      c = this%filter_col(fc)
       do j = 1, nz
-        pft_rootfrac_ats(fc,j) = pft_rootfrac(c,j)
+         col_rootfrac_ats(fc,j) = col_rootfrac(c,j)
       end do
     end do
 
-    call this%ats_interface%setsoilveg_dyn(soil_effporo_ats, pft_rootfrac_ats)
+    call this%ats_interface%setsoilveg_dyn(soil_effporo_ats, col_rootfrac_ats)
 
-    deallocate(pft_rootfrac_ats)
+    deallocate(col_rootfrac_ats)
     deallocate(soil_effporo_ats)
 
   end subroutine set_dyn_properties
@@ -929,31 +926,29 @@ contains
     real(r8), pointer    :: col_dz(:,:)
     real(r8), pointer    :: soilevap_flux(:),    soilinfl_flux(:),       soilevap_flux_ats(:),    soilinfl_flux_ats(:)
     real(r8), pointer    :: soilbot_flux(:),                             soilbot_flux_ats(:)
-    real(r8), pointer    :: pfttran_flux(:),                             pfttran_flux_ats(:)       ! summed veg. transpiration for column
-    real(r8), pointer    :: roottran_flux(:,:),                          roottran_flux_ats(:,:)    ! root-distributed all-pft transpiration
-    real(r8), pointer    :: soildrain_flux(:,:),                         soildrain_flux_ats(:,:)
+    real(r8), pointer    :: tran_veg_flux(:),                            tran_veg_flux_ats(:)      ! summed veg. transpiration for column
     !-----------------------------------------------------------------------
     nc = this%filter_col_num
 
     call l2e_list%GetPointerToReal1D(this%index_l2e_flux_gross_infil, soilinfl_flux )   ! mmH2O/s, + to soil
     call l2e_list%GetPointerToReal1D(this%index_l2e_flux_gross_evap, soilevap_flux )    ! mmH2O/s, + to atm
-    call l2e_list%GetPointerToReal1D(this%index_l2e_flux_tran_pft, pfttran_flux )       ! mmH2O/s, + to atm
+    call l2e_list%GetPointerToReal1D(this%index_l2e_flux_tran_pft, tran_veg_flux )      ! mmH2O/s, + to atm
     allocate(soilinfl_flux_ats(nc))
     allocate(soilevap_flux_ats(nc))
-    allocate(pfttran_flux_ats(nc))
+    allocate(tran_veg_flux_ats(nc))
 
     do fc = 1, nc
       c = this%filter_col(fc)
       soilinfl_flux_ats(fc) = soilinfl_flux(c)
       soilevap_flux_ats(fc) = soilevap_flux(c)
-      pfttran_flux_ats(fc)  = pfttran_flux(c)
+      tran_veg_flux_ats(fc) = tran_veg_flux(c)
     end do
 
-    call this%ats_interface%setss_hydro(soilinfl_flux_ats, soilevap_flux_ats, pfttran_flux_ats)
+    call this%ats_interface%setss_hydro(soilinfl_flux_ats, soilevap_flux_ats, tran_veg_flux_ats)
 
     deallocate(soilinfl_flux_ats)
     deallocate(soilevap_flux_ats)
-    deallocate(pfttran_flux_ats)
+    deallocate(tran_veg_flux_ats)
 
   end subroutine set_bc_ss
 
@@ -973,37 +968,42 @@ contains
     real(r8)  , pointer  :: e2l_h2osfc(:),         h2osfc_ats(:)
     real(r8)  , pointer  :: e2l_zwt(:),            zwt_ats(:)
     real(r8)  , pointer  :: e2l_h2osoi_liq(:,:),   h2oliq_ats(:,:)
-    real(r8)  , pointer  :: e2l_h2osoi_vol(:,:)
     real(r8)  , pointer  :: e2l_soilinfl_flux(:),  soilinfl_flux_ats(:)
     real(r8)  , pointer  :: e2l_evap_flux(:),      evap_flux_ats(:)
-    real(r8)  , pointer  :: e2l_tran_flux(:,:),    tran_flux_ats(:,:)
+    real(r8)  , pointer  :: e2l_root_flux(:,:),    root_flux_ats(:,:)
+    real(r8)  , pointer  :: e2l_tran_flux(:),      tran_flux_ats(:)
     real(r8)  , pointer  :: e2l_net_sub_flux(:),   net_sub_flux_ats(:)
     real(r8)  , pointer  :: e2l_net_srf_flux(:),   net_srf_flux_ats(:)
+    real(r8)  , pointer  :: e2l_rootsoi_frac(:,:)
 
     !-----------------------------------------------------------------------
     !
     call e2l_list%GetPointerToReal1D(this%index_e2l_state_h2osfc     , e2l_h2osfc     )
-    call e2l_list%GetPointerToReal1D(this%index_e2l_state_zwt        , e2l_zwt        )
-    call e2l_list%GetPointerToReal2D(this%index_e2l_state_h2osoi_vol , e2l_h2osoi_vol )
+    call e2l_list%GetPointerToReal1D(this%index_e2l_state_zwt        , e2l_zwt        ) ! remove and calc in ELM
     call e2l_list%GetPointerToReal2D(this%index_e2l_state_h2osoi_liq , e2l_h2osoi_liq )
     call e2l_list%GetPointerToReal1D(this%index_e2l_flux_gross_infil , e2l_soilinfl_flux )
     call e2l_list%GetPointerToReal1D(this%index_e2l_flux_gross_evap  , e2l_evap_flux     )
-    call e2l_list%GetPointerToReal2D(this%index_e2l_flux_tran_col    , e2l_tran_flux     )
 
-    nz = size(e2l_h2osoi_vol(1,:))
+    call e2l_list%GetPointerToReal2D(this%index_e2l_flux_rootsoi_frac, e2l_rootsoi_frac  )
+    call e2l_list%GetPointerToReal2D(this%index_e2l_flux_rootsoi     , e2l_root_flux     )
+    call e2l_list%GetPointerToReal1D(this%index_e2l_flux_tran_veg    , e2l_tran_flux     )
 
     allocate(h2osfc_ats(this%filter_col_num))
     allocate(zwt_ats(this%filter_col_num))
-    allocate(h2oliq_ats(this%filter_col_num, nz))
-    allocate(soilinfl_flux_ats(this%filter_col_num))
-    allocate(evap_flux_ats(this%filter_col_num))
-    allocate(tran_flux_ats(this%filter_col_num, nz))
     allocate(net_sub_flux_ats(this%filter_col_num))
     allocate(net_srf_flux_ats(this%filter_col_num))
+    allocate(soilinfl_flux_ats(this%filter_col_num))
+    allocate(evap_flux_ats(this%filter_col_num))
+    allocate(tran_flux_ats(this%filter_col_num))
+
+    nz = size(e2l_h2osoi_liq(1,:))
+    allocate(h2oliq_ats(this%filter_col_num, nz))
+    allocate(root_flux_ats(this%filter_col_num, nz))
+
 
     call this%ats_interface%getdata_hydro(h2osfc_ats, zwt_ats, h2oliq_ats,    &
                                           soilinfl_flux_ats, evap_flux_ats, tran_flux_ats, &
-                                          net_sub_flux_ats, net_srf_flux_ats)
+                                          root_flux_ats, net_sub_flux_ats, net_srf_flux_ats)
 
     ! Conversions occur in ATS
     ! h2osfc_ats[m]      ->  e2l_h2osfc[mm]
@@ -1011,14 +1011,16 @@ contains
     ! h2oliq_ats[-]      ->  e2l_h2osoi_liq[kg/m2]
     do fc = 1, this%filter_col_num
        c = this%filter_col(fc)
+       p = this%filter_pft(fc)
        e2l_h2osfc(c)          = h2osfc_ats(fc)
        e2l_zwt(c)             = zwt_ats(fc)
        e2l_soilinfl_flux(c)   = soilinfl_flux_ats(fc)
        e2l_evap_flux(c)       = evap_flux_ats(fc)
+       e2l_tran_flux(c)       = tran_flux_ats(fc)
        do j = 1, nz
           e2l_h2osoi_liq(c,j) = h2oliq_ats(fc,j)
-          e2l_h2osoi_vol(c,j) = h2oliq_ats(fc,j)/(this%dz(j)*denh2o)
-          e2l_tran_flux(c,j)  = tran_flux_ats(fc,j)
+          e2l_root_flux(c,j)  = root_flux_ats(fc,j)
+          e2l_rootsoi_frac(p,j) = root_flux_ats(fc,j)
        end do
     end do
 
@@ -1030,6 +1032,7 @@ contains
     deallocate(soilinfl_flux_ats)
     deallocate(evap_flux_ats)
     deallocate(tran_flux_ats)
+    deallocate(root_flux_ats)
     deallocate(net_sub_flux_ats)
     deallocate(net_srf_flux_ats)
 
@@ -1050,7 +1053,7 @@ contains
 
     ! (TODO)
     if (associated(this%filter_col)) deallocate(this%filter_col)
-    if (associated(this%dz)) deallocate(this%dz)
+    if (associated(this%filter_pft)) deallocate(this%filter_pft)
 
   end subroutine EM_ATS_Finalize
 
