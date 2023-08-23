@@ -109,6 +109,7 @@ module ColumnDataType
     real(r8), pointer :: h2osoi_vol         (:,:) => null() ! volumetric soil water (0<=h2osoi_vol<=watsat) (1:nlevgrnd) (m3/m3)
     real(r8), pointer :: h2osfc             (:)   => null() ! surface water (kg/m2)
     real(r8), pointer :: salinity           (:) => null() ! salinity from PFLOTRAN when using interface (TAO 5/19/2020)
+    real(r8), pointer :: humhol_ht          (:) => null()   !humhol_ht added to output (WH 8/21/2023) 
     real(r8), pointer :: salt_content       (:,:) => null() ! salt mass for each soil layer
     real(r8), pointer :: floodf             (:)   => null() ! Flood factor to reduce growth when plants submerged
     real(r8), pointer :: h2ocan             (:)   => null() ! canopy water integrated to column (kg/m2)
@@ -1378,6 +1379,7 @@ contains
     allocate(this%h2ocan             (begc:endc))                     ; this%h2ocan             (:)   = nan 
     allocate(this%wslake_col         (begc:endc))                     ; this%wslake_col         (:)   = nan 
     allocate(this%salinity           (begc:endc))                     ; this%salinity           (:)   = nan !TAO 5/19/2020 !soil layers SLL 7/13/21
+    allocate(this%humhol_ht          (begc:endc))                     ; this%humhol_ht          (:)   = nan !WH added 8/21/2023 
     allocate(this%salt_content       (begc:endc, 1:nlevgrnd))         ; this%salt_content       (:,:) = nan !SL added 7/27/21
     allocate(this%floodf             (begc:endc))                     ; this%floodf             (:)   = nan !SL added 8/10/22
     allocate(this%total_plant_stored_h2o(begc:endc))                  ; this%total_plant_stored_h2o(:)= nan  
@@ -1483,7 +1485,13 @@ contains
     call hist_addfld1d (fname='FLOODF',  units='', &
     avgflag='A', long_name='Factor 0-1 to reduce plant growth due to flooding', &
     ptr_col=this%floodf)
-   
+  
+   !WH added 8/21/2023
+   this%humhol_ht(begc:endc) = spval
+    call hist_addfld1d (fname='HUMHOL_HT', units='mm', &
+         avgflag='A', long_name='Humhol_ht', &
+         ptr_col=this%humhol_ht)
+
    !this%osm_inhib(begc:endc) = spval
    ! call hist_addfld1d (fname='OSM_INHIB',  units=' ',  &
    !      avgflag='A', long_name='Factor to reduce growth due to salinity stress', &
@@ -1629,6 +1637,7 @@ contains
        this%h2osfc(c)                 = 0._r8
        this%h2ocan(c)                 = 0._r8
        this%salinity(c)             = 0._r8 !TAO added 5/19/2020
+       this%humhol_ht(c)              = 0._r8 !WH added 8/21/2023
        this%salt_content(c,:)         = 0._r8
        this%frac_h2osfc(c)            = 0._r8
 
