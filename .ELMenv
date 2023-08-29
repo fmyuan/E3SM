@@ -1,0 +1,25 @@
+
+export CC_ROOT=/usr/local
+export FC_ROOT=/usr/local
+export MPI_ROOT=${OPENMPI_DIR}
+
+
+export HDF5_PATH=${AMANZI_TPLS_DIR}
+export NETCDF_PATH=${AMANZI_TPLS_DIR}
+#export PNETCDF_PATH=${AMANZI_TPLS_DIR}
+export PNETCDF_PATH=/Users/80x/Software/kernel_test_E3SM/pnetcdf/pnetcdf-install
+export BLASLAPACK_DIR=/Library/Developer/CommandLineTools/SDKs/MacOSX13.3.sdk/usr/lib
+
+
+export PROJECT_E3SM=${ATS_BASE}/E3SM_jb_branch
+export E3SM_ROOT=${PROJECT_E3SM}/E3SM
+export E3SM_INPUTDATA=${E3SM_ROOT}/pt-e3sm-inputdata
+
+
+export MACH_NAME=mymac
+
+export OMPI_CC=gcc
+export OMPI_FC=gfortran
+export OMPI_CXX=g++
+
+export PYTHONPATH=${E3SM_ROOT}/python:$PYTHONPATH
