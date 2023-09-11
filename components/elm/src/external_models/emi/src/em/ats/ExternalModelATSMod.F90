@@ -594,8 +594,8 @@ contains
        this%filter_pft(fc) = pft_beg(c) + pft_type(c)
     end do
 
-    ! create an ATS driver object
-    call EM_ATS_create(this%ats_interface, iam, bounds_clump, filternum)
+    ! create an ATS driver object (via mpicom)
+    call EM_ATS_create(this%ats_interface)
 
     if (use_ats) then
       ! pass mesh data to ATS prior to ATS setup (as long as ATS driver object ready)

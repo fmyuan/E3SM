@@ -27,7 +27,7 @@ module ExternalModelATS_createMod
 contains
 
   !------------------------------------------------------------------------
-  subroutine EM_ATS_create(elmats_interface, iam, bounds_clump, col_num)
+  subroutine EM_ATS_create(elmats_interface)
 
     !
     ! !DESCRIPTION:
@@ -40,9 +40,6 @@ contains
     !
     ! !ARGUMENTS:
     type(elm_ats_interface_type), intent(inout) :: elmats_interface
-    integer                     , intent(in)    :: iam
-    type(bounds_type)           , intent(in)    :: bounds_clump
-    integer                     , intent(in)    :: col_num    ! actually elm's grid no.
 
     ! local
 
@@ -51,20 +48,23 @@ contains
     ! create an ATS driver object
     elmats_interface = ats_create(ats_inputdir, ats_inputfile, mpicom)
 
+    ! 'mpicom' is communicator group id for land component
+    print *, ''
+    print *, '============================================================='
+    print *,''
+    print *, ' -------- ELM-ATS Coupled Mode ------------------------------'
+    print *, ''
+    print *, 'EM_ATS_Init: ats inputs - ', trim(ats_inputdir), ' ', trim(ats_inputfile)
+    print *, 'communicator id: ', mpicom
+    print *, '============================================================='
+    print *, ''
+    !
+
 
     if (use_ats) then
-      ! pass mesh from ATS to ELM locally
-      call get_mesh_local(elmats_interface, bounds_clump, col_num)  ! in progress .......
 
-      ! 'mpicom' is communicator group id for land component
-      print *, ''
-      print *, '============================================================='
-      print *,''
-      print *, ' -------- ELM-ATS Coupled Mode ------------------------------'
-      print *, ''
-      print *, 'EM_ATS_Init: ats inputs - ', trim(ats_inputdir), ' ', trim(ats_inputfile)
-      print *, 'communicator id: ', mpicom
-      !
+      ! pass mesh from ATS to ELM locally
+      call get_mesh_local(elmats_interface)  ! in progress .......
 
     end if
 
@@ -73,7 +73,7 @@ contains
   !------------------------------------------------------------------------
 
 
-  subroutine get_mesh_local(elmats_interface, bounds_clump, col_num)
+  subroutine get_mesh_local(elmats_interface)
     !
     !DESCRIPTION
     !  mesh from ATS to ELM, locally
@@ -82,55 +82,34 @@ contains
     implicit none
     !
     ! !ARGUMENTS
-    type(elm_ats_interface_type), intent(in) :: elmats_interface
-    type(bounds_type)           , intent(in) :: bounds_clump
-    integer                     , intent(in) :: col_num
+    type(elm_ats_interface_type), intent(inout) :: elmats_interface
 
     ! !LOCAL VARIABLES:
     integer                              :: c, fc, j
-
-    integer                              :: ncols_local, ncols_global
-    integer                              :: ncells_per_col
-    real(r8)  , pointer                  :: surf_xi(:)
-    real(r8)  , pointer                  :: surf_yi(:)
-    real(r8)  , pointer                  :: surf_zi(:)
-    real(r8)  , pointer                  :: surf_area(:)
-    real(r8)  , pointer                  :: col_zi(:,:)
-    real(r8)  , pointer                  :: col_dz(:,:)
-    integer(C_INT), pointer              :: pft(:)
+    integer                              :: col_num, nz
 
     !-----------------------------------------------------------------------
+    col_num = elmats_interface%ncols_local
+    nz      = elmats_interface%ncells_per_col
+    allocate(elmats_interface%lon(1:col_num))              !
+    allocate(elmats_interface%lat(1:col_num))              !
+    allocate(elmats_interface%elev(1:col_num))             !
+    allocate(elmats_interface%surf_area(1:col_num))        !
 
-    allocate(surf_xi(1:col_num))           !
-    allocate(surf_yi(1:col_num))           !
-    allocate(surf_zi(1:col_num))           !
-    allocate(surf_area(1:col_num))         !
-
-    allocate(col_zi(1:col_num, 1:15))      ! col. cell bottom, assuming top-face of 1st cell is the surf (0.0m)
-    allocate(col_dz(1:col_num, 1:15))      ! col. cell thickness (m)
-    allocate(pft(1:col_num))
+    allocate(elmats_interface%depth(1:col_num, 1:nz))      ! col. cell bottom, assuming top-face of 1st cell is the surf (0.0m)
+    allocate(elmats_interface%pft(1:col_num))
 
     ! in progress ...
-    call elmats_interface%getmesh(ncols_local, ncols_global, ncells_per_col,  &
-       surf_yi, surf_xi, surf_zi, surf_area, pft, col_zi)
+    call elmats_interface%getmesh()
 
 
 print *, '----- checking mesh from ATS: '
-print *, 'lat:', surf_yi
-print *, 'lon:', surf_xi
-print *, 'elev:', surf_zi
-print *, 'depth:', col_zi
-print *, 'surf_area:', surf_area
-print *, 'pft index:', pft
-
-
-    deallocate(surf_xi)
-    deallocate(surf_yi)
-    deallocate(surf_zi)
-    deallocate(surf_area)
-    deallocate(col_zi)
-    deallocate(col_dz)
-    deallocate(pft)
+print *, 'lat:', elmats_interface%lat
+print *, 'lon:', elmats_interface%lon
+print *, 'elev:', elmats_interface%elev
+print *, 'depth:', elmats_interface%depth
+print *, 'surf_area:', elmats_interface%surf_area
+print *, 'pft index:', elmats_interface%pft
 
   end subroutine get_mesh_local
 

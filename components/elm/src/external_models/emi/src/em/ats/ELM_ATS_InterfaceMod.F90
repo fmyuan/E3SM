@@ -22,6 +22,17 @@ module ELM_ATS_InterfaceMod
      private
      type(C_PTR) :: ptr                ! pointer to ats driver
 
+     ! ats mesh information
+     integer(C_INT), public :: ncols_local
+     integer(C_INT), public :: ncols_global
+     integer(C_INT), public :: ncells_per_col
+     real(r8), pointer, public :: lat(:)
+     real(r8), pointer, public :: lon(:)
+     real(r8), pointer, public :: elev(:)
+     real(r8), pointer, public :: surf_area(:)
+     integer(C_INT), pointer, public :: pft(:)
+     real(r8), pointer, public :: depth(:,:)
+
    contains
 
      final :: ats_delete
@@ -82,7 +93,16 @@ contains
   subroutine ats_delete(this)
     implicit none
     type(elm_ats_interface_type) :: this
+
     call ats_delete_c(this%ptr)
+
+    deallocate(this%lat)
+    deallocate(this%lon)
+    deallocate(this%elev)
+    deallocate(this%surf_area)
+    deallocate(this%pft)
+    deallocate(this%depth)
+
   end subroutine ats_delete
 
   !------------------------------------------------------------------------
@@ -95,22 +115,13 @@ contains
 
    !------------------------------------------------------------------------
 
-  subroutine ats_getmesh(this, ncols_local, ncols_global, ncells_per_col, &
-       lat, lon, elev, surf_area, pft, depth)
+  subroutine ats_getmesh(this)
     implicit none
     class(elm_ats_interface_type) :: this
-    integer(C_INT) :: ncols_local
-    integer(C_INT) :: ncols_global
-    integer(C_INT) :: ncells_per_col
-    real(r8), pointer :: lat(:)
-    real(r8), pointer :: lon(:)
-    real(r8), pointer :: elev(:)
-    real(r8), pointer :: surf_area(:)
-    integer(C_INT), pointer :: pft(:)
-    real(r8), pointer :: depth(:,:)
 
-    call ats_get_mesh_info_c(this%ptr, ncols_local, ncols_global, &
-         lat, lon, elev, surf_area, pft, ncells_per_col, depth)
+    call ats_get_mesh_info_c(this%ptr, this%ncols_local, this%ncols_global, &
+         this%lat, this%lon, this%elev, this%surf_area, &
+         this%pft, this%ncells_per_col, this%depth)
 
     !
   end subroutine ats_getmesh
