@@ -341,11 +341,7 @@ contains
     integer                             :: count
 
     associate(& 
-!#ifdef ATS_READY
          smp_l => soilstate_vars%smp_l_col    &  ! -mmH2O
-!#else
-!         smp_l => soilstate_vars%smp2_l_col   &
-!#endif
          )
 
     count = 0

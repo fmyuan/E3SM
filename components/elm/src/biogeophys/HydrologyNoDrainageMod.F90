@@ -244,7 +244,7 @@ contains
             soilhydrology_vars, soilstate_vars, nstep, dtime)
 
       !------------------------------------------------------------------------------------
-      elseif (use_ats .and. ats_hmode) then  ! note: 'ats_hmode' is subsurface hydrology-only mode of ATS
+      elseif (use_ats .and. ats_hmode) then  ! note: 'ats_hmode' is surface-subsurface hydrology mode of ATS
 
         ! now only apply to natural soil column, when coupling ats hydrology
         !  (NOTE:
@@ -290,20 +290,14 @@ contains
          end do
         endif
 
+        ! soil-column, within ATS hydrology will be exectuted
         call SoilWater(bounds, num_soilc, filter_soilc, &
             num_urbanc, filter_urbanc, &
             soilhydrology_vars, soilstate_vars, nstep, dtime)
 
-
         ! still using default hydrology for non-soil-column, but may change in future
         soilroot_water_method = zengdecker_2009
-#ifdef ATS_READY
         call SoilWater(bounds, num_hydrononsoic, filter_hydrononsoic, &
-#else
-        ! here means ELM default soil water module still runs, while ATS runs prior to
-        ! in this case, ATS data won't return and over-ride ELM default runs.
-        call SoilWater(bounds, num_hydrologyc, filter_hydrologyc, &
-#endif
             num_urbanc, filter_urbanc, &
             soilhydrology_vars, soilstate_vars, nstep, dtime)
 
@@ -531,14 +525,9 @@ contains
          end do
       end do
 
-#ifdef ATS_READY
       if ( (use_cn .or. use_fates) .and. &
            (.not.(use_pflotran .and. pf_hmode)) .and. &
            (.not.(use_ats .and. ats_hmode)) ) then
-#else
-      if ( (use_cn .or. use_fates) .and. &
-         .not.(use_pflotran .and. pf_hmode) ) then
-#endif
          ! Update soilpsi.
          ! ZMS: Note this could be merged with the following loop updating smp_l in the future.
          do j = 1, nlevgrnd

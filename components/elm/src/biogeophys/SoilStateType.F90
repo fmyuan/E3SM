@@ -52,7 +52,6 @@ module SoilStateType
      real(r8), pointer :: hksat_min_col        (:,:) ! col mineral hydraulic conductivity at saturation (hksat) (mm/s)
      real(r8), pointer :: hk_l_col             (:,:) ! col hydraulic conductivity (mm/s)
      real(r8), pointer :: smp_l_col            (:,:) ! col soil matric potential (mm)
-     real(r8), pointer :: smp2_l_col            (:,:) ! col soil matric potential (mm), e.g. from ATS
      real(r8), pointer :: smpmin_col           (:)   ! col restriction for min of soil potential (mm)
      real(r8), pointer :: bsw_col              (:,:) ! col Clapp and Hornberger "b" (nlevgrnd)
      real(r8), pointer :: watsat_col           (:,:) ! col volumetric soil water at saturation (porosity)
@@ -66,7 +65,6 @@ module SoilStateType
      real(r8), pointer :: soilalpha_col        (:)   ! col factor that reduces ground saturated specific humidity (-)
      real(r8), pointer :: soilalpha_u_col      (:)   ! col urban factor that reduces ground saturated specific humidity (-)
      real(r8), pointer :: soilpsi_col          (:,:) ! col soil water potential in each soil layer (MPa) (CN)
-     real(r8), pointer :: soilpsi2_col         (:,:) ! col soil water potential in each soil layer (MPa) (ATS)
      real(r8), pointer :: wtfact_col           (:)   ! col maximum saturated fraction for a gridcell
      real(r8), pointer :: porosity_col         (:,:) ! col soil porisity (1-bulk_density/soil_density) (VIC)
      real(r8), pointer :: eff_porosity_col     (:,:) ! col effective porosity = porosity - vol_ice (nlevgrnd)
@@ -153,7 +151,6 @@ contains
     allocate(this%hksat_min_col        (begc:endc,nlevgrnd))            ; this%hksat_min_col        (:,:) = spval
     allocate(this%hk_l_col             (begc:endc,nlevgrnd))            ; this%hk_l_col             (:,:) = spval
     allocate(this%smp_l_col            (begc:endc,nlevgrnd))            ; this%smp_l_col            (:,:) = spval
-    allocate(this%smp2_l_col           (begc:endc,nlevgrnd))            ; this%smp2_l_col           (:,:) = spval
     allocate(this%smpmin_col           (begc:endc))                     ; this%smpmin_col           (:)   = spval
 
     allocate(this%bsw_col              (begc_all:endc_all,nlevgrnd))    ; this%bsw_col              (:,:) = spval
@@ -168,7 +165,6 @@ contains
     allocate(this%soilalpha_col        (begc:endc))                     ; this%soilalpha_col        (:)   = spval
     allocate(this%soilalpha_u_col      (begc:endc))                     ; this%soilalpha_u_col      (:)   = spval
     allocate(this%soilpsi_col          (begc:endc,nlevgrnd))            ; this%soilpsi_col          (:,:) = spval
-    allocate(this%soilpsi2_col         (begc:endc,nlevgrnd))            ; this%soilpsi2_col         (:,:) = spval
     allocate(this%wtfact_col           (begc:endc))                     ; this%wtfact_col           (:)   = spval
     allocate(this%porosity_col         (begc:endc,nlayer))              ; this%porosity_col         (:,:) = spval
     allocate(this%eff_porosity_col     (begc:endc,nlevgrnd))            ; this%eff_porosity_col     (:,:) = spval
@@ -229,12 +225,6 @@ contains
          avgflag='A', long_name='soil matric potential (vegetated landunits only)', &
          ptr_col=this%smp_l_col, set_spec=spval, l2g_scale_type='veg', default=active)
 
-    if (use_ats) then
-      call hist_addfld2d (fname='SMP2',  units='mm', type2d='levgrnd',  &
-         avgflag='A', long_name='soil matric potential (vegetated landunits only), from e.g. ATS', &
-         ptr_col=this%smp2_l_col, set_spec=spval, l2g_scale_type='veg', default='inactive')
-    end if
-
     if (use_cn) then
        this%bsw_col(begc:endc,:) = spval
        call hist_addfld2d (fname='bsw', units='1', type2d='levgrnd', &
@@ -271,18 +261,11 @@ contains
             ptr_patch=this%root_depth_patch, default='inactive' )
     end if
 
-    if (use_cn .or. use_fates) then
+    if (use_cn .or. use_fates .or. use_ats) then
        this%soilpsi_col(begc:endc,:) = spval
        call hist_addfld2d (fname='SOILPSI', units='MPa', type2d='levgrnd', &
             avgflag='A', long_name='soil water potential in each soil layer', &
             ptr_col=this%soilpsi_col)
-    end if
-
-    if (use_ats) then
-       this%soilpsi2_col(begc:endc,:) = spval
-       call hist_addfld2d (fname='SOILPSI2', units='MPa', type2d='levgrnd', &
-            avgflag='A', long_name='soil water potential in each soil layer from external model, eg. ATS', &
-            ptr_col=this%soilpsi2_col, default='inactive')
     end if
 
     this%thk_col(begc:endc,-nlevsno+1:0) = spval
