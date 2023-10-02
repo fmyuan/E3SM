@@ -61,7 +61,7 @@ contains
     !
 
 
-    if (use_ats_mesh) then
+    if (use_ats .and. use_ats_mesh) then
       ! pass mesh from ATS to ELM locally
       call get_mesh_local(elmats_interface)  ! in progress .......
 

@@ -324,8 +324,9 @@ contains
     associate(& 
          mflx_snowlyr => col_wf%mflx_snowlyr   , &
 #ifdef USE_ATS_LIB
+         ! when coupling with ATS, these 2 vars are actual returned from ATS
          qflx_evap_soi        => col_wf%qflx_evap_soi        , &
-         qflx_top_soil        => col_wf%qflx_top_soil        , &
+         qflx_infl            => col_wf%qflx_infl            , &
 #else
          qflx_gross_evap_soil => col_wf%qflx_gross_evap_soil , &
          qflx_gross_infl_soil => col_wf%qflx_gross_infl_soil , &
@@ -387,7 +388,7 @@ contains
 #ifdef USE_ATS_LIB
                 ! when coupling with ATS, ground surface hydrology is integrated into subsurface hydrology
                 ! So, water input into soil should be rainfall+snowmelt (todo check if dew is accounted into soil evap???)
-                qflx_top_soil(c) = cur_data%data_real_1d(c)
+                qflx_infl(c) = cur_data%data_real_1d(c)
 #else
                  qflx_gross_infl_soil(c) = cur_data%data_real_1d(c)
 #endif

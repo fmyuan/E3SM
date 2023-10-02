@@ -133,11 +133,12 @@ module ExternalModelATSMod
      integer :: index_e2l_state_tsoil
      integer :: index_l2e_flux_hs_soil
 
-
-
      ! save col and patch filters
      integer                      :: filter_col_num
      integer   , pointer          :: filter_col(:), filter_pft(:)
+
+     ! elm nstep at start/restart
+     integer :: elmnstep0
 
      type(elm_ats_interface_type) :: ats_interface
 
@@ -562,7 +563,7 @@ contains
   !------------------------------------------------------------------------
   subroutine EM_ATS_Init(this, l2e_init_list, e2l_init_list, iam, bounds_clump)
 
-    use timeinfoMod
+    use clm_time_manager, only: get_nstep
 
     implicit none
     class(em_ats_type)                   :: this
@@ -574,6 +575,9 @@ contains
     integer, pointer :: filtercol(:), pft_type(:), numpatch(:), pft_beg(:), pft_end(:)
 
     !-----------------------------------------------------------------------
+
+    this%elmnstep0 = get_nstep()
+    !
     call l2e_init_list%GetPointerToInt1D(this%index_l2e_init_col_num_patch, numpatch )
     call l2e_init_list%GetPointerToInt1D(this%index_l2e_init_col_patch_i_beg, pft_beg )
     call l2e_init_list%GetPointerToInt1D(this%index_l2e_init_col_patch_i_end, pft_end )
@@ -613,6 +617,8 @@ contains
         ! pass material properties to ATS
         call set_material_properties(this, l2e_init_list, bounds_clump)
       end if
+
+      print *, 'EM_ATS_Init @nstep: ', this%elmnstep0
 
     end if
 
@@ -765,8 +771,7 @@ contains
     !-----------------------
 
     ! initialize all fields in ATS
-    if (nstep==0) then
-    print*,"ELM CALLING ATS TO SET INITIAL CONDITIONS"
+    if (nstep==this%elmnstep0) then
       call set_initial_conditions(this, nstep, dt, l2e_list, bounds_clump)
     end if
 
@@ -896,8 +901,8 @@ contains
     do fc = 1, nc
       c = this%filter_col(fc)
       soilinfl_flux_ats(fc) = soilinfl_flux(c)
-      soilevap_flux_ats(fc) = soilevap_flux(c)
-      tran_veg_flux_ats(fc) = tran_veg_flux(c)
+      soilevap_flux_ats(fc) = -soilevap_flux(c)
+      tran_veg_flux_ats(fc) = -tran_veg_flux(c)
     end do
 
     call this%ats_interface%setss_hydro(soilinfl_flux_ats, soilevap_flux_ats, tran_veg_flux_ats)
@@ -925,7 +930,7 @@ contains
     real(r8)  , pointer  :: e2l_zwt(:),            zwt_ats(:)
     real(r8)  , pointer  :: e2l_h2osoi_liq(:,:),   h2oliq_ats(:,:)
     real(r8)  , pointer  :: e2l_h2osoi_ice(:,:),   h2oice_ats(:,:)
-    real(r8)  , pointer  :: e2l_soil_psi(:,:),     soilpsi_ats(:,:)
+    real(r8)  , pointer  :: e2l_smp_l(:,:), e2l_soilp(:,:), soilpsi_ats(:,:)
     real(r8)  , pointer  :: e2l_soilinfl_flux(:),  soilinfl_flux_ats(:)
     real(r8)  , pointer  :: e2l_evap_flux(:),      evap_flux_ats(:)
     real(r8)  , pointer  :: e2l_root_flux(:,:),    root_flux_ats(:,:)
@@ -937,8 +942,13 @@ contains
     !-----------------------------------------------------------------------
     !
     call e2l_list%GetPointerToReal1D(this%index_e2l_state_h2osfc     , e2l_h2osfc     )
-    call e2l_list%GetPointerToReal1D(this%index_e2l_state_zwt        , e2l_zwt        ) ! remove and calc in ELM
+    call e2l_list%GetPointerToReal1D(this%index_e2l_state_zwt        , e2l_zwt        )
     call e2l_list%GetPointerToReal2D(this%index_e2l_state_h2osoi_liq , e2l_h2osoi_liq )
+    !call e2l_list%GetPointerToReal2D(this%index_e2l_state_h2osoi_ice , e2l_h2osoi_ice )  ! TODO
+    call e2l_list%GetPointerToReal2D(this%index_e2l_state_smp        , e2l_smp_l      )
+    call e2l_list%GetPointerToReal2D(this%index_e2l_state_soilp      , e2l_soilp      )
+
+    ! when coupling with ATS, following 2 vars are actual (not gross) returned from ATS
     call e2l_list%GetPointerToReal1D(this%index_e2l_flux_gross_infil , e2l_soilinfl_flux )
     call e2l_list%GetPointerToReal1D(this%index_e2l_flux_gross_evap  , e2l_evap_flux     )
 
@@ -960,7 +970,6 @@ contains
     allocate(soilpsi_ats(this%filter_col_num, nz))
     allocate(root_flux_ats(this%filter_col_num, nz))
 
-
     call this%ats_interface%getdata_hydro(h2osfc_ats, zwt_ats, h2oliq_ats, h2oice_ats, soilpsi_ats, &
                                           soilinfl_flux_ats, evap_flux_ats, tran_flux_ats, &
                                           root_flux_ats, net_sub_flux_ats, net_srf_flux_ats)
@@ -979,10 +988,10 @@ contains
        e2l_tran_flux(c)       = tran_flux_ats(fc)
        do j = 1, nz
           e2l_h2osoi_liq(c,j) = h2oliq_ats(fc,j)
-          !e2l_h2osoi_ice(c,j) = h2oice_ats(fc,j)
-          !e2l_soil_psi(c,j)   = soilpsi_ats(fc,j)
+          !e2l_h2osoi_ice(c,j) = h2oice_ats(fc,j)                   ! TODO when thermal coupling is ready
+          e2l_smp_l(c,j)      = soilpsi_ats(fc,j)/(-9.80665_r8)    ! Pa ---> -mmH2O
+          e2l_soilp(c,j)      = -soilpsi_ats(fc,j)*1.0e-6_r8 + 0.1013250_r8    ! Pa ---> MPa
           e2l_root_flux(c,j)  = root_flux_ats(fc,j)
-          e2l_rootsoi_frac(p,j) = root_flux_ats(fc,j)
        end do
     end do
 

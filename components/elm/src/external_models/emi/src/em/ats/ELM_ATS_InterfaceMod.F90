@@ -217,12 +217,12 @@ contains
     real(r8), pointer, intent(out) :: soilinfl_flux(:)       ! unit: mm/s
     real(r8), pointer, intent(out) :: evap_flux(:)           ! unit: mm/s
     real(r8), pointer, intent(out) :: tran_flux(:)           ! unit: mm/s - transpiration rate at leaves [col]
-    real(r8), pointer, intent(out) :: root_flux(:, :)        ! unit: mm/s - transpiration rate at roots  [col, nlevgrnd]
+    real(r8), pointer, intent(out) :: root_flux(:, :)        ! unit: mm/s - transpiration rate at roots [col, nlevgrnd] (TODO)
     real(r8), pointer, intent(out) :: netsub_flux(:)         ! unit: mm/s
     real(r8), pointer, intent(out) :: netsrf_runon(:)        ! unit: mm/s
 
     ! note: zwt NOT really what is now (TODO)
-    call ats_get_waterstate_c(this%ptr, h2osfc, zwt, h2oliq) !, h2oice, soilpsi)
+    call ats_get_waterstate_c(this%ptr, h2osfc, zwt, h2oliq, h2oice, soilpsi)
 
     ! not yet (TODO)
     call ats_get_water_fluxes_c(this%ptr, soilinfl_flux, evap_flux, tran_flux,  &
