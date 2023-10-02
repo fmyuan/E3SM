@@ -213,13 +213,6 @@ contains
          avgflag='A', long_name='water table depth (vegetated landunits only)', &
          ptr_col=this%zwt_col, l2g_scale_type='veg')
 
-    if (use_ats) then
-      this%zwt2_col(begc:endc) = spval
-      call hist_addfld1d (fname='ZWT2',  units='m',  &
-         avgflag='A', long_name='water table depth (vegetated landunits only), from external model e.g. ATS', &
-         ptr_col=this%zwt2_col, l2g_scale_type='veg', default='inactive')
-    end if
-
     this%zwt_perched_col(begc:endc) = spval
     call hist_addfld1d (fname='ZWT_PERCH',  units='m',  &
          avgflag='A', long_name='perched water table depth (vegetated landunits only)', &

@@ -29,7 +29,7 @@ module ColumnDataType
   use elm_varctl      , only : hist_wrtch4diag, use_century_decomp
   use elm_varctl      , only : get_carbontag, override_bgc_restart_mismatch_dump
   use elm_varctl      , only : pf_hmode, nu_com
-  use elm_varctl      , only : use_ats, ats_thmode, ats_thcmode
+  use elm_varctl      , only : use_ats, ats_hmode, ats_thmode, ats_thcmode
   use ch4varcon       , only : allowlakeprod
   use pftvarcon       , only : VMAX_MINSURF_P_vr, KM_MINSURF_P_vr, pinit_beta1, pinit_beta2
   use soilorder_varcon, only : smax, ks_sorption
@@ -1415,7 +1415,7 @@ contains
           avgflag='A', long_name='soil pressure (vegetated landunits only)', &
            ptr_col=this%soilp, l2g_scale_type='veg', default='inactive')
 
-    if (use_ats) then
+    if (use_ats .and. ats_hmode) then
       this%h2osoi_liqvol(begc:endc, :) = spval
       call hist_addfld2d (fname='H2OSOIL_LIQVOL',  units='m3/m3 bulk',  type2d='levgrnd', &
           avgflag='A', long_name='soil liq water vol fraction from external model, e.g. ATS', &

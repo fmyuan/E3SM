@@ -1182,7 +1182,8 @@ contains
 
        call t_startf('hydro2 drainage')
 
-       if (use_elm_interface .and. (use_pflotran .and. pf_hmode)) then
+       if ((use_elm_interface .and. (use_pflotran .and. pf_hmode)) .or. &
+           (use_ats .and. ats_hmode) ) then
          ! pflotran only works on 'soilc' (already done above).
          ! here for non-soil hydrology columns
          call HydrologyDrainage(bounds_clump,                     &
