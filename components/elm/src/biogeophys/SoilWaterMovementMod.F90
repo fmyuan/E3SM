@@ -159,6 +159,7 @@ contains
        do fc = 1, num_hydrologyc
          c = filter_hydrologyc(fc)
          col_wf%qflx_evap_tot(c) = col_wf%qflx_tran_veg(c) + col_wf%qflx_evap_soi(c) + col_wf%qflx_evap_veg(c)
+print *, 'checking after passing: ', col_wf%qflx_infl(c), col_wf%qflx_tran_veg(c), col_wf%qflx_evap_soi(c)
 
          ! no drainage out of ATS soil columns
          col_wf%qflx_drain(c)         = 0._r8

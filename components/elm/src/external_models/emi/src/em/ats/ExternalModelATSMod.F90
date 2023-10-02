@@ -153,6 +153,8 @@ module ExternalModelATSMod
      procedure, public :: Finalize                => EM_ATS_Finalize
   end type em_ats_type
 
+real(r8)  , pointer  :: prev_h2osoi_liq(:,:)
+
   !---------------------------------------------------------------------------
 
 contains
@@ -767,6 +769,7 @@ contains
     !-----------------------
 
     ! initialize all fields in ATS
+print *, 'initial timestep:', nstep, this%elmnstep0
     if (nstep==this%elmnstep0) then
       call set_initial_conditions(this, nstep, dt, l2e_list, bounds_clump)
     end if
@@ -818,10 +821,15 @@ contains
     allocate(h2oliq_ats(this%filter_col_num, nz))
     call l2e_list%GetPointerToReal2D(this%index_l2e_state_h2osoi_liq       , h2osoi_liq )
 
+if (.not.associated(prev_h2osoi_liq)) then
+allocate(prev_h2osoi_liq(this%filter_col_num, nz))
+endif
+
     do fc = 1, this%filter_col_num
       c = this%filter_col(fc)
       do j = 1, nz
         h2oliq_ats(fc,j) = h2osoi_liq(c,j)
+        prev_h2osoi_liq(fc,j)=h2osoi_liq(c,j)
       end do
     end do
 
@@ -899,6 +907,8 @@ contains
       soilinfl_flux_ats(fc) = soilinfl_flux(c)
       soilevap_flux_ats(fc) = -soilevap_flux(c)
       tran_veg_flux_ats(fc) = -tran_veg_flux(c)
+print *
+print *, 'potential water fluxes from ELM: ',soilinfl_flux_ats(fc), soilevap_flux_ats(fc), tran_veg_flux_ats(fc)
     end do
 
     call this%ats_interface%setss_hydro(soilinfl_flux_ats, soilevap_flux_ats, tran_veg_flux_ats)
@@ -934,7 +944,7 @@ contains
     real(r8)  , pointer  :: e2l_net_sub_flux(:),   net_sub_flux_ats(:)
     real(r8)  , pointer  :: e2l_net_srf_flux(:),   net_srf_flux_ats(:)
     real(r8)  , pointer  :: e2l_rootsoi_frac(:,:)
-
+real(r8) :: dsoil_liq
     !-----------------------------------------------------------------------
     !
     call e2l_list%GetPointerToReal1D(this%index_e2l_state_h2osfc     , e2l_h2osfc     )
@@ -982,14 +992,24 @@ contains
        e2l_soilinfl_flux(c)   = soilinfl_flux_ats(fc)
        e2l_evap_flux(c)       = evap_flux_ats(fc)
        e2l_tran_flux(c)       = tran_flux_ats(fc)
+print *
+print *, 'ats out 1: ', e2l_h2osfc(c), e2l_zwt(c), e2l_soilinfl_flux(c), e2l_evap_flux(c), e2l_tran_flux(c)
+print *
+       dsoil_liq = 0._r8
        do j = 1, nz
           e2l_h2osoi_liq(c,j) = h2oliq_ats(fc,j)
           !e2l_h2osoi_ice(c,j) = h2oice_ats(fc,j)                   ! TODO when thermal coupling is ready
           e2l_smp_l(c,j)      = soilpsi_ats(fc,j)/(-9.80665_r8)    ! Pa ---> -mmH2O
           e2l_soilp(c,j)      = -soilpsi_ats(fc,j)*1.0e-6_r8 + 0.1013250_r8    ! Pa ---> MPa
           e2l_root_flux(c,j)  = root_flux_ats(fc,j)
+          dsoil_liq = dsoil_liq + (h2oliq_ats(fc,j) - prev_h2osoi_liq(fc,j))
+print *, 'ats out 2: ', j, e2l_h2osoi_liq(c,j), prev_h2osoi_liq(fc,j), h2oliq_ats(fc,j) - prev_h2osoi_liq(fc,j), dsoil_liq, soilpsi_ats(fc,j)
        end do
+
+prev_h2osoi_liq(fc,:) = h2oliq_ats(fc,:)
+
     end do
+
 
     ! STILL NEED net_sub_flux, net_srf_flux
 
@@ -1004,6 +1024,10 @@ contains
     deallocate(root_flux_ats)
     deallocate(net_sub_flux_ats)
     deallocate(net_srf_flux_ats)
+
+print *
+print *, 'ATS data passed'
+print *
 
    end subroutine get_data_for_elm
 
