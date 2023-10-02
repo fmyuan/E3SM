@@ -94,7 +94,6 @@ contains
       !$acc routine seq
     use elm_varctl                 , only : use_betr
     use elm_varctl                 , only : use_var_soil_thick
-    use elm_varctl                 , only : use_ats, ats_hmode
     use shr_kind_mod               , only : r8 => shr_kind_r8
     use elm_varpar                 , only : nlevsoi
     use decompMod                  , only : bounds_type
@@ -154,6 +153,25 @@ contains
             num_hydrologyc=num_hydrologyc, filter_hydrologyc=filter_hydrologyc,   &  ! NOTE: here 'num_hydrologyc/filter_hydroogyc' are dummy, upon actual ones
             col_ws=col_ws, col_wf=col_wf,                                         &
             num_soilc=num_hydrologyc, filter_soilc=filter_hydrologyc)                ! NOTE: here 'num_hydrologyc/filter_hydroogyc' are dummy, upon actual ones
+
+       ! col_ws%qflx_evap_tot, which summed from patches already, was regarded as potential by
+       ! ATS, and down-regulated. So need to re-sum it. Other water balances(???)
+       do fc = 1, num_hydrologyc
+         c = filter_hydrologyc(fc)
+         col_wf%qflx_evap_tot(c) = col_wf%qflx_tran_veg(c) + col_wf%qflx_evap_soi(c) + col_wf%qflx_evap_veg(c)
+
+         ! no drainage out of ATS soil columns
+         col_wf%qflx_drain(c)         = 0._r8
+         col_wf%qflx_drain_perched(c) = 0._r8
+         col_wf%qflx_qrgwl(c)         = 0._r8     ! drained into groundwater
+
+         ! but lateral shall be from ATS (TODO)
+         ! col_wf%qflx_surf(c)        = 0.0_r8    ! no-ponded surface runoff
+         ! col_wf%qflx_h2osfc_surf(c) = 0.0_r8    ! ponded surface runoff
+         ! col_wf%qflx_lateral(c)     = 0.0_r8    ! lateral drainage (net)
+
+       end do
+
 
 #endif
 #endif
