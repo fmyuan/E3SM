@@ -1415,18 +1415,15 @@ contains
           avgflag='A', long_name='soil pressure (vegetated landunits only)', &
            ptr_col=this%soilp, l2g_scale_type='veg', default='inactive')
 
-    if (use_ats .and. ats_hmode) then
-      this%h2osoi_liqvol(begc:endc, :) = spval
-      call hist_addfld2d (fname='H2OSOIL_LIQVOL',  units='m3/m3 bulk',  type2d='levgrnd', &
+    this%h2osoi_liqvol(begc:endc, :) = spval
+    call hist_addfld2d (fname='H2OSOIL_LIQVOL',  units='m3/m3 bulk',  type2d='levgrnd', &
           avgflag='A', long_name='soil liq water vol fraction from external model, e.g. ATS', &
            ptr_col=this%h2osoi_liqvol, default='inactive')
 
-      this%h2osoi_icevol(begc:endc,:) = spval
-      call hist_addfld2d (fname='H2OSOIL_ICEVOL',  units='m3/m3 bulk', type2d='levgrnd', &
+    this%h2osoi_icevol(begc:endc,:) = spval
+    call hist_addfld2d (fname='H2OSOIL_ICEVOL',  units='m3/m3 bulk', type2d='levgrnd', &
           avgflag='A', long_name='soil ice water vol fraction from external model, e.g. ATS', &
            ptr_col=this%h2osoi_icevol, default='inactive')
-
-    end if
 
     this%h2osoi_vol(begc:endc,:) = spval
      call hist_addfld2d (fname='H2OSOI',  units='mm3/mm3', type2d='levgrnd', &
