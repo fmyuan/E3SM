@@ -308,16 +308,6 @@ contains
 
           select case (cur_data%id)
 
-          case (E2L_STATE_H2OSOI_VOL)
-             do fc = 1, num_filter
-                c = filter(fc)
-                do j = 1, nlevgrnd
-                   h2osoi_vol(c,j) = cur_data%data_real_2d(c,j)
-                enddo
-             enddo
-             cur_data%is_set = .true.
-
-
           case (E2L_STATE_H2OSOI_LIQ)
              do fc = 1, num_filter
                 c = filter(fc)
@@ -341,6 +331,15 @@ contains
                 c = filter(fc)
                 do j = 1, nlevgrnd
                    soilp(c,j) = cur_data%data_real_2d(c,j)
+                enddo
+             enddo
+             cur_data%is_set = .true.
+
+          case (E2L_STATE_H2OSOI_VOL)
+             do fc = 1, num_filter
+                c = filter(fc)
+                do j = 1, nlevgrnd
+                   h2osoi_vol(c,j) = cur_data%data_real_2d(c,j)
                 enddo
              enddo
              cur_data%is_set = .true.

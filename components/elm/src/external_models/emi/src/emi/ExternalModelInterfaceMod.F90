@@ -699,8 +699,9 @@ contains
                num_filter_col, filter_col, soilhydrology_vars)
           call EMI_Pack_SoilStateType_at_Column_Level_for_EM(l2e_init_list(clump_rank), em_stage, &
                num_filter_col, filter_col, soilstate_vars)
-          !call EMI_Pack_SoilStateType_at_Patch_Level_for_EM(l2e_init_list(clump_rank), em_stage, &
-          !need to create and pass filter_patch     num_filter_col, filter_col, soilstate_vars)
+          !need to create and pass filter_patch
+          call EMI_Pack_SoilStateType_at_Patch_Level_for_EM(l2e_init_list(clump_rank), em_stage, &
+               num_filter_col, filter_col, soilstate_vars)
           call EMI_Pack_ColumnEnergyStateType_at_Column_Level_for_EM(l2e_init_list(clump_rank), em_stage, &
                num_filter_col, filter_col, col_es)
 

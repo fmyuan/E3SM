@@ -291,19 +291,6 @@ contains
        dim1_end_name  =  dimname_endc
        data_found   =  .true.
 
-    case(E2L_STATE_H2OSOI_VOL)
-       id_val         =  E2L_STATE_H2OSOI_VOL
-       name_val       =  'Soil volumetric liquid water'
-       long_name_val  =  'Soil volumetric liquid water: EM to ELM'
-       units_val      =  '[-]'
-       is_real_type   =  .true.
-       ndim           =  2
-       dim1_beg_name  =  dimname_begc
-       dim1_end_name  =  dimname_endc
-       dim2_beg_name  =  dimname_one
-       dim2_end_name  =  dimname_nlevgrnd
-       data_found   =  .true.
-
    case(E2L_STATE_H2OSOI_LIQ)
        id_val         =  E2L_STATE_H2OSOI_LIQ
        name_val       =  'Soil liquid water'
@@ -343,6 +330,19 @@ contains
        dim2_end_name  =  dimname_nlevgrnd
        data_found   =  .true.
     
+    case(E2L_STATE_H2OSOI_VOL)
+       id_val         =  E2L_STATE_H2OSOI_VOL
+       name_val       =  'Soil volumetric liquid water'
+       long_name_val  =  'Soil volumetric liquid water: EM to ELM'
+       units_val      =  '[-]'
+       is_real_type   =  .true.
+       ndim           =  2
+       dim1_beg_name  =  dimname_begc
+       dim1_end_name  =  dimname_endc
+       dim2_beg_name  =  dimname_one
+       dim2_end_name  =  dimname_nlevgrnd
+       data_found   =  .true.
+
     case(E2L_STATE_H2OSFC)
        id_val         =  E2L_STATE_H2OSFC
        name_val       =  'Standing surface water in'
@@ -366,6 +366,7 @@ contains
        dim2_beg_name  =  dimname_one
        dim2_end_name  =  dimname_nlevgrnd
        data_found   =  .true.
+
     end select
 
 

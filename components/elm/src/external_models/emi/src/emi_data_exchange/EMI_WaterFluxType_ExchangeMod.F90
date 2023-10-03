@@ -369,29 +369,21 @@ contains
              enddo
              cur_data%is_set = .true.
 
-          case (E2L_FLUX_GROSS_EVAP_SOIL)
+          case (E2L_FLUX_EVAP_SOIL)
              do fc = 1, num_filter
                 c = filter(fc)
-#ifdef USE_ATS_LIB
                 ! when coupling with ATS, ground surface hydrology is integrated into subsurface hydrology
                 ! soil evap is that between soil/ground and near-air
                 qflx_evap_soi(c) = cur_data%data_real_1d(c)
-#else
-                qflx_gross_evap_soil(c) = cur_data%data_real_1d(c)
-#endif
              enddo
              cur_data%is_set = .true.
 
-          case (E2L_FLUX_GROSS_INFL_SOIL)
+          case (E2L_FLUX_INFL_SOIL)
              do fc = 1, num_filter
                 c = filter(fc)
-#ifdef USE_ATS_LIB
                 ! when coupling with ATS, ground surface hydrology is integrated into subsurface hydrology
                 ! So, water input into soil should be rainfall+snowmelt (todo check if dew is accounted into soil evap???)
                 qflx_infl(c) = cur_data%data_real_1d(c)
-#else
-                 qflx_gross_infl_soil(c) = cur_data%data_real_1d(c)
-#endif
              enddo
              cur_data%is_set = .true.
 

@@ -41,6 +41,7 @@ contains
     logical                           :: need_to_pack
     integer                           :: istage
     integer                           :: count
+    real(r8)                          :: rtemp
 
     count = 0
     cur_data => data_list%first
@@ -184,8 +185,11 @@ contains
           case (L2E_COLUMN_PFT_TYPE)
              do fc = 1, num_filter
                 c = filter(fc)
+                cur_data%data_int_1d(fc) = 0
+                rtemp = 0._r8
                 do p = col_pp%pfti(c), col_pp%pftf(c)
-                   if (veg_pp%active(p)) then
+                   ! pick the largest patch fraction in a column
+                   if (veg_pp%active(p) .and. veg_pp%wtcol(p)>rtemp) then
                       cur_data%data_int_1d(fc) = p - col_pp%pfti(c)
                    endif
                 enddo

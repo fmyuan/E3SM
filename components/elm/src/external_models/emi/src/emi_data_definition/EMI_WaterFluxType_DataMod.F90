@@ -306,6 +306,7 @@ contains
        dim1_end_name  =  dimname_endc
        data_found   =  .true.
 
+    !
     case(E2L_FLUX_SNOW_LYR_DISAPPERANCE_MASS_FLUX)
        id_val         =  E2L_FLUX_SNOW_LYR_DISAPPERANCE_MASS_FLUX
        name_val       =  'Snow layer disappearance sink'
@@ -330,8 +331,8 @@ contains
        dim2_end_name  =  dimname_nlevgrnd
        data_found   =  .true.
 
-    case(E2L_FLUX_GROSS_EVAP_SOIL)
-       id_val         =  E2L_FLUX_GROSS_EVAP_SOIL
+    case(E2L_FLUX_EVAP_SOIL)
+       id_val         =  E2L_FLUX_EVAP_SOIL
        name_val       =  'Gross evaporation from soil'
        long_name_val  =  'Gross evaporation from soil: EM to ELM'
        units_val      =  '[mm H2O/s]'
@@ -341,10 +342,10 @@ contains
        dim1_end_name  =  dimname_endc
        data_found   =  .true.
 
-    case(E2L_FLUX_GROSS_INFL_SOIL)
-       id_val         =  E2L_FLUX_GROSS_INFL_SOIL
-       name_val       =  'Gross infiltration into soil'
-       long_name_val  =  'Gross infiltration into soil: EM to ELM'
+    case(E2L_FLUX_INFL_SOIL)
+       id_val         =  E2L_FLUX_INFL_SOIL
+       name_val       =  'Actual infiltration into soil'
+       long_name_val  =  'Actual infiltration into soil: EM to ELM'
        units_val      =  '[mm H2O/s]'
        is_real_type   =  .true.
        ndim           =  1

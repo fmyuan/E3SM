@@ -62,6 +62,7 @@ contains
     logical                             :: need_to_pack
     integer                             :: istage
     integer                             :: count
+    real(r8)                            :: rtemp
 
     associate(& 
          watsat       => soilstate_vars%watsat_col       , &
@@ -222,9 +223,10 @@ contains
              do fc = 1, num_filter
                 c = filter(fc)
                 patch_idx = npfts * (c - 1)
+                rtemp = 0._r8
                 do k = 1, npfts
                    patch_idx = patch_idx + 1
-                   if (active(patch_idx)) then
+                   if (active(patch_idx) .and. wtcol(patch_idx)>rtemp) then
                       do j = 1, nlevsoi
                          cur_data%data_real_2d(c,j) = rootfr_patch(patch_idx,j)
                       enddo
