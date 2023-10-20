@@ -104,7 +104,8 @@ contains
     integer :: sdate_addco2, sy_addco2, sm_addco2, sd_addco2
     character(len=200) metsource_str, thisline
     character(len=*), parameter :: sub = 'lnd_import_mct'
-    integer :: av, v, n, nummetdims, g3, gtoget, ztoget, line, mystart, tod_start, thistimelen  
+    integer :: av, v, n, nummetdims, g3, gtoget, ztoget, line, mystart, tod_start, thistimelen
+    integer :: ngrids_tide, ndims, dimids(2)
     character(len=20) aerovars(14), metvars(14)
     character(len=3) zst
     integer :: stream_year_first_lightng, stream_year_last_lightng, model_year_align_lightng
@@ -1056,26 +1057,51 @@ contains
 
         !------------------------------------Tidal forcing--------------------------------------------------
        if (atm2lnd_vars%loaded_bypassdata .eq. 0 ) then !.or. (mon .eq. 1 .and. day .eq. 1 .and. tod .eq. 0)) then ! Do on the first day of the year
-        if (masterproc .and. i .eq. 1) then  ! Only do it on one processor
+        if (i .eq. 1) then  ! i is grid cell index so only doing this on first grid cell of clump
           ierr = nf90_open(trim(tide_file), nf90_nowrite, ncid)
           if(ierr == 0) then
-            ! We can read the lenght of the array. Currently we might be wasting memory since the vars for holding the data were already allocated for 100 years
+            ! Should adapt some of the code above to align starting time correctly
+            ! Also need to allow tide_height to be specified by grid cell. May need elevation/HAND at topo unit level (separately)
             ierr = nf90_inq_dimid(ncid, 'time', dimid)
             if(ierr .ne. 0) call endrun('Error finding time variable')
             ierr = nf90_Inquire_Dimension(ncid, dimid, len = thistimelen)
             if(ierr .ne. 0) call endrun('Error reading time variable')
-            write(iulog,*),'Reading tide forcing file. Found time dimension of length',thistimelen
-            if(thistimelen>876000) write(iulog,*), 'Warning: truncating tide forcing data length to 876000'
-            atm2lnd_vars%tide_forcing_len = min(thistimelen,876000)
+            write(iulog,*),'Reading tide forcing file. ',trim(tide_file),' Found time dimension of length',thistimelen
+            ! if(thistimelen>876000) write(iulog,*), 'Warning: truncating tide forcing data length to 876000'
+            atm2lnd_vars%tide_forcing_len = thistimelen
 
+            ! Here we check if the forcing has more than one spatial dimension. Currently only allowing 0D or 1D spatial setup
+            ! Maybe it would make more sense to do this using pio since it could potentially be big spatial data and CPL_BYPASS seems more designed for time series
             ierr = nf90_inq_varid(ncid, 'tide_height',varid) ! Tide height should be in m
             if(ierr .ne. 0) call endrun('Error finding tide_height variable')
-            ierr = nf90_get_var(ncid, varid, atm2lnd_vars%tide_height(1,1:atm2lnd_vars%tide_forcing_len),(/1,1/),(/1,atm2lnd_vars%tide_forcing_len/))
-            if(ierr .ne. 0) call endrun('Error reading tide_height variable')
+            ierr = nf90_inquire_variable(ncid, varid, ndims=ndims,dimids=dimids)
+            if(ierr .ne. 0) call endrun('Error reading tide_height number of dimensions')
+            if(ndims>2) call endrun('Currently, tide forcing can have max 1 spatial dimension')
+            if(ndims>1) then
+              ! ierr = nf90_inq_vardimid(ncid, varid, dimids)
+              ! if(ierr .ne. 0) call endrun('Error reading tide_height dimensions')
+              ierr = nf90_Inquire_Dimension(ncid, dimids(1), len = ngrids_tide)
+              if(ierr .ne. 0) call endrun('Error reading spatial dimension')
+              write(iulog,*),'Tide forcing file has',ngrids_tide,'spatial length and model grid has',ldomain%ns,'length'
+              if(ngrids_tide .ne. ldomain%ns .and. ngrids_tide>1) call endrun('Error: Length of tide forcing grid does not match length of model grid')
+            else
+              ngrids_tide=1
+            endif
+            atm2lnd_vars%ngrids_tide = ngrids_tide
+            allocate(atm2lnd_vars%tide_height(bounds%begg:bounds%endg,atm2lnd_vars%tide_forcing_len))
+            allocate(atm2lnd_vars%tide_salinity(bounds%begg:bounds%endg,atm2lnd_vars%tide_forcing_len))
+            ierr = nf90_get_var(ncid, varid, atm2lnd_vars%tide_height(bounds%begg:bounds%endg,1:atm2lnd_vars%tide_forcing_len),(/bounds%begg,1/),(/bounds%endg-bounds%begg+1,atm2lnd_vars%tide_forcing_len/))
+            if(ierr .ne. 0)  then
+              write(iulog,*) 'ierr =',ierr
+              call endrun('Error reading tide_height variable')
+            endif
             ierr = nf90_inq_varid(ncid, 'tide_salinity',varid)
             if(ierr .ne. 0) call endrun('Error finding tide_salinity variable')
-            ierr = nf90_get_var(ncid, varid, atm2lnd_vars%tide_salinity(1,1:atm2lnd_vars%tide_forcing_len),(/1,1/),(/1,atm2lnd_vars%tide_forcing_len/))
-            if(ierr .ne. 0) call endrun('Error reading tide_salinity variable')
+            ierr = nf90_get_var(ncid, varid, atm2lnd_vars%tide_salinity(bounds%begg:bounds%endg,1:atm2lnd_vars%tide_forcing_len),(/bounds%begg,1/),(/bounds%endg-bounds%begg+1,atm2lnd_vars%tide_forcing_len/))
+            if(ierr .ne. 0) then 
+              write(iulog,*) 'ierr =',ierr
+              call endrun('Error reading tide_salinity variable')
+            endif
             !ierr = nf90_inq_varid(ncid, 'tide_temp',varid)
             !if(ierr .ne. 0) call endrun('Error finding tide_temp variable')
             !ierr = nf90_get_var(ncid, varid, atm2lnd_vars%tide_temp(1,1:atm2lnd_vars%tide_forcing_len),(/1,1/),(/1,atm2lnd_vars%tide_forcing_len/))
@@ -1085,20 +1111,32 @@ contains
             
 
             ierr = nf90_close(ncid)
-            write(iulog,*) 'Reading tide height, salinity from file '//trim(tide_file)
+            write(iulog,*) 'Successfully read tide height, salinity from file '//trim(tide_file)
           else
             if(tide_file .ne. ' ') write(iulog,*) 'Did not find tide forcing file '//trim(tide_file)
             atm2lnd_vars%tide_forcing_len = 1
+            ngrids_tide=ldomain%ns
+            allocate(atm2lnd_vars%tide_height(ldomain%ns,atm2lnd_vars%tide_forcing_len))
+            allocate(atm2lnd_vars%tide_salinity(ldomain%ns,atm2lnd_vars%tide_forcing_len))
             atm2lnd_vars%tide_height(:,:) = 0.0_r8
             atm2lnd_vars%tide_salinity(:,:) = 0.0_r8
             !atm2lnd_vars%tide_temp(:,:) = 0.0_r8
           endif
+          ! write(iulog,*),'lnd_import_export g =',g,'tide_forcing_len =',atm2lnd_vars%tide_forcing_len,'ns =',ldomain%ns
+          ! write(iulog,*),'tide_height =',atm2lnd_vars%tide_height(g,1:10)
         end if
-        if (i .eq. 1) then 
-           call mpi_bcast (atm2lnd_vars%tide_height, 876000, MPI_REAL8, 0, mpicom, ier)
-           call mpi_bcast (atm2lnd_vars%tide_salinity, 876000, MPI_REAL8, 0, mpicom, ier)
-           !call mpi_bcast (atm2lnd_vars%tide_temp, 876000, MPI_REAL8, 0, mpicom, ier)
-        end if
+        ! if (i .eq. 1 .and. .not. masterproc) then
+        !   allocate(atm2lnd_vars%tide_height(ldomain%ns,atm2lnd_vars%tide_forcing_len))
+        !   allocate(atm2lnd_vars%tide_salinity(ldomain%ns,atm2lnd_vars%tide_forcing_len))
+        ! endif
+        ! if (i .eq. 1) then 
+        !    call mpi_bcast (atm2lnd_vars%tide_height, atm2lnd_vars%tide_forcing_len*ngrids_tide, MPI_REAL8, 0, mpicom, ier)
+        !    call mpi_bcast (atm2lnd_vars%tide_salinity, atm2lnd_vars%tide_forcing_len*ngrids_tide, MPI_REAL8, 0, mpicom, ier)
+        !   !  call mpi_bcast (atm2lnd_vars%tide_forcing_len, 1, MPI_INTEGER, 0, mpicom, ier)
+        !    !call mpi_bcast (atm2lnd_vars%tide_temp, 876000, MPI_REAL8, 0, mpicom, ier)
+        !    write(iulog,*),'lnd_import_export g =',g,'tide_forcing_len =',atm2lnd_vars%tide_forcing_len,'ns =',ldomain%ns
+        !    write(iulog,*),'tide_height =',atm2lnd_vars%tide_height(g,1:10)
+        ! end if
       end if
 
        !set the topounit-level atmospheric state and flux forcings (bypass mode)
