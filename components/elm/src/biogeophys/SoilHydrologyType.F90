@@ -68,6 +68,10 @@ Module SoilHydrologyType
      real(r8), pointer :: fover             (:)     => null()! decay factor for surface runoff
      real(r8), pointer :: pc                (:)     => null()! surface water threshold probability
      
+     ! Tidal
+     real(r8), pointer :: ht_above_stream   (:)     => null()! Column height difference from stream
+     real(r8), pointer :: dist_from_stream  (:)     => null()! Column distance from stream
+
    contains
 
      procedure, public  :: Init
@@ -160,6 +164,10 @@ contains
     allocate(this%fover             (begg:endg))                 ; this%fover             (:)     = spval
     allocate(this%pc                (begg:endg))                 ; this%pc                (:)     = spval
 
+    allocate(this%ht_above_stream   (begc:endc))                 ; this%ht_above_stream   (:)   = spval
+    allocate(this%dist_from_stream  (begc:endc))                 ; this%dist_from_stream  (:)   = spval
+
+
   end subroutine InitAllocate
 
   !------------------------------------------------------------------------
@@ -244,6 +252,7 @@ contains
     use fileutils       , only : getfil
     use organicFileMod  , only : organicrd
     use ncdio_pio       , only : file_desc_t, ncd_io, ncd_pio_openfile, ncd_pio_closefile
+    use pftvarcon       , only : humhol_ht, humhol_dist
     !
     ! !ARGUMENTS:
     class(soilhydrology_type) :: this
@@ -547,6 +556,27 @@ contains
     if (.not. readvar) then
        fdrain(:) = 2.5_r8
     end if
+
+#ifdef MARSH
+
+   if (masterproc) then
+      write(iulog,*) 'Attempting to read water boundary condition data .....'
+   end if
+
+   call ncd_io(ncid=ncid, varname='ht_above_stream', flag='read', data=this%ht_above_stream, dim1name=grlnd, readvar=readvar)
+   if (.not. readvar) then
+      if(masterproc) write(iulog,*),'Did not find ht_above_stream in surface data'
+      this%ht_above_stream(:) = humhol_ht
+   end if
+
+   call ncd_io(ncid=ncid, varname='dist_from_stream', flag='read', data=this%dist_from_stream, dim1name=grlnd, readvar=readvar)
+   if (.not. readvar) then
+      if(masterproc) write(iulog,*),'Did not find dist_from_stream in surface data'
+      this%dist_from_stream(:) = humhol_dist
+   end if
+
+#endif
+
     call ncd_pio_closefile(ncid)
     
     call getfil (fsurdat, locfn, 0)

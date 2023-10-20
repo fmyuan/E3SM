@@ -1093,7 +1093,7 @@ contains
       write(tempname,'(I0)') i
       call ncd_io('tide_coeff_amp_'//trim(tempname),tide_coeff_amp(i), 'read', ncid, readvar=readv, posNOTonfile=.true.)
       if (.not. readv) then
-         write(iulog,*) "Stopped looking for tidal components after not finding ",'tide_coeff_amp_'//trim(tempname)
+         ! write(iulog,*) "Stopped looking for tidal components after not finding ",'tide_coeff_amp_'//trim(tempname)
          num_tide_comps=i-1
          exit
       else
@@ -1105,14 +1105,11 @@ contains
       if (.not. readv) call endrun(msg="Error: Must specify amp, period, and phase for each tide component: i = "//trim(tempname))
    enddo
    if(num_tide_comps == 0) then
-      write(iulog,*) "No tidal coefficients found in parameter file. Using Teri's 2-component fit values for GCREW site as default"
-      num_tide_comps = 2
-      tide_coeff_amp(1) = 250.0_r8
-      tide_coeff_amp(2) = 1.0/0.91518
+      ! write(iulog,*) "No tidal coefficients found in parameter file. Using Teri's 2-component fit values for GCREW site as default"
+      num_tide_comps = 1
+      tide_coeff_amp(1) = 0.0_r8
       tide_coeff_period(1) = 1.0/0.00003
-      tide_coeff_period(2) = 1.0/0.00000001
-      tide_coeff_phase(1) = 513.4328
-      tide_coeff_phase(2) = 0.0
+      tide_coeff_phase(1) = 0.0
    endif
    call ncd_io('sfcflow_ratescale',sfcflow_ratescale, 'read', ncid, readvar=readv, posNOTonfile=.true.)
    if (.not. readv) sfcflow_ratescale = 7.0e-5_r8 ! Probably better to have default be zero for safety
