@@ -253,7 +253,7 @@ contains
           case (L2E_FLUX_ROOTSOI)
              do fc = 1, num_filter
                 c = filter(fc)
-                do j = 1, nlevgrnd
+                do j = 1, nlevsoi
                    cur_data%data_real_2d(c,j) = qflx_rootsoi(c,j)
                 enddo
              enddo

@@ -1274,12 +1274,16 @@ contains
        ! ============================================================================
 
        call t_startf('balchk')
-       call ColWaterBalanceCheck(bounds_clump, &
-            filter(nc)%num_do_smb_c, filter(nc)%do_smb_c, &
-            atm2lnd_vars, glc2lnd_vars, solarabs_vars,  &
-            energyflux_vars, canopystate_vars)
-       call t_stopf('balchk')
+       ! ELM WATER BALANCE
+       ! TURNED OFF FOR ATS
+       ! This can be turned back on once ATS water balance is connected to ELM variables
 
+       !call ColWaterBalanceCheck(bounds_clump, &
+       !     filter(nc)%num_do_smb_c, filter(nc)%do_smb_c, &
+       !     atm2lnd_vars, glc2lnd_vars, solarabs_vars,  &
+       !     energyflux_vars, canopystate_vars)
+       !call t_stopf('balchk')
+    
        !call t_startf('gridbalchk')
        !call GridBalanceCheck(bounds_clump                  , &
        !     filter(nc)%num_do_smb_c, filter(nc)%do_smb_c   , &

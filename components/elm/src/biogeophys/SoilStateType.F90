@@ -710,10 +710,11 @@ contains
                 this%sucsat_col(c,lev)    = (1._r8-om_frac) * this%sucsat_col(c,lev) + om_sucsat*om_frac
                 this%hksat_min_col(c,lev) = xksat
 
-                if (lev > nlevbed) then
-                   ! bedrock porosity
-                   this%watsat_col(c,lev) = 1.0e-5_r8
-                endif
+                ! not needed - remove
+                !if (lev > nlevbed) then
+                !   ! bedrock porosity
+                !   this%watsat_col(c,lev) = 1.0e-5_r8
+                !endif
 
                 ! perc_frac is zero unless perf_frac greater than percolation threshold
                 if (om_frac > pcalpha) then
@@ -747,7 +748,8 @@ contains
 
                 if (lev > nlevbed) then
                    ! bedrock sat. hydraulic conductivity
-                   this%hksat_col(c,lev) = 1.0e-50_r8
+                   ! not needed - remove
+                   !this%hksat_col(c,lev) = 1.0e-50_r8
                    this%csol_col(c,lev) = csol_bedrock
                 endif
 

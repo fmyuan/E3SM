@@ -1345,7 +1345,6 @@ contains
              call get_clump_bounds(1, bounds_clump)
           endif
           num_filter_patch = bounds_clump%endp - bounds_clump%begp + 1
-          print*, "patch vars?? ", num_filter_patch, bounds_clump%endp,  bounds_clump%begp
           allocate(filter_patch(num_filter_patch))
           do ii = 1, num_filter_patch
              filter_patch(ii) = bounds_clump%begp + ii - 1

@@ -106,10 +106,8 @@ contains
          if (col_pp%itype(c) == icol_roof .or. col_pp%itype(c) == icol_sunwall &
               .or. col_pp%itype(c) == icol_shadewall .or. col_pp%itype(c) == icol_road_imperv) then
             begwb(c) = h2ocan_col(c) + h2osno(c)
-            print*,'begwb: ', h2ocan_col(c) , h2osno(c)
          else
             begwb(c) = h2ocan_col(c) + h2osno(c) + h2osfc(c) + wa(c)
-            print*,'begwb: ', h2ocan_col(c) , h2osno(c) , h2osfc(c) , wa(c)
          end if
 
       end do
@@ -121,7 +119,6 @@ contains
                  .or. col_pp%itype(c) == icol_roof) .and. j > nlevurb) then
             else
                begwb(c) = begwb(c) + h2osoi_ice(c,j) + h2osoi_liq(c,j)
-               print*,'begwb2: ', begwb(c), h2osoi_ice(c,j) , h2osoi_liq(c,j)
             end if
          end do
       end do
@@ -136,13 +133,11 @@ contains
       do f = 1, num_nolakec
          c = filter_nolakec(f)
          begwb(c) = begwb(c) + total_plant_stored_h2o(c)
-         print*,'no no'
       end do
 
       do f = 1, num_lakec
          c = filter_lakec(f)
          begwb(c) = h2osno(c)
-         print*,'no no no'
       end do
 
     end associate

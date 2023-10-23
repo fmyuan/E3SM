@@ -761,7 +761,7 @@ contains
     allocate(ats_residual_sat (this%filter_col_num, nz ))
 
     ats_watsat       (:,:) = 0._r8
-    ats_hksat        (:,:) = 1.0e-6_r8 ! this is the value that will be assigned to the 'bedrock' layers in ATS 
+    ats_hksat        (:,:) = 0._r8
     ats_bsw          (:,:) = 0._r8
     ats_sucsat       (:,:) = 0._r8
     ats_residual_sat (:,:) = 0._r8    ! alway zero from ELM
@@ -770,7 +770,7 @@ contains
       c = this%filter_col(fc)
       do j = 1, nz
          ats_watsat(fc,j)       = elm_watsat(c,j)
-         ats_hksat(fc,j)        = ats_hksat(fc,j) + elm_hksat(c,j) * 0.001_r8
+         ats_hksat(fc,j)        = elm_hksat(c,j) * 0.001_r8 ! mm/s (elm) to m/s (ats)
          ats_bsw(fc,j)          = elm_bsw(c,j)
          ats_sucsat(fc,j)       = elm_sucsat(c,j)
       end do

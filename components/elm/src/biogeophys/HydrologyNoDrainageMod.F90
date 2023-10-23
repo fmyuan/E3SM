@@ -304,9 +304,9 @@ contains
                  h2osoi_vol(c,j) = h2osoi_ice(c,j)/(dz(c,j)*denice)
               end if
 
-              ! WB vars
+! WB vars
 ! Recalculate this
-!qflx_evap_tot - qflx_evap_soi + qflx_evap_can + qflx_tran_veg
+! qflx_evap_tot - qflx_evap_soi + qflx_evap_can + qflx_tran_veg
 
 ! Zero these out in any columns using ATS
 !qflx_floodc        - column flux of flood water from RTM
@@ -325,10 +325,7 @@ contains
               soilhydrology_vars%qcharge_col(c) = 0.0_r8 ! used in WaterTable
               soilhydrology_vars%wa_col(c) = 0.0_r8
               col_wf%qflx_rsub_sat(c) = 0.0_r8
-
-
               col_wf%qflx_evap_tot(c) = col_wf%qflx_evap_tot(c) + col_wf%qflx_evap_veg(c) + col_wf%qflx_evap_soi(c) + col_wf%qflx_tran_veg(c)
-
               col_wf%qflx_floodc(c) = 0.0_r8
               col_wf%qflx_surf(c) = -col_wf%qflx_top_soil(c)
               col_wf%qflx_h2osfc_surf(c) = 0.0_r8
