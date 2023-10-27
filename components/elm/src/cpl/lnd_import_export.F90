@@ -1090,6 +1090,7 @@ contains
             atm2lnd_vars%ngrids_tide = ngrids_tide
             allocate(atm2lnd_vars%tide_height(bounds%begg:bounds%endg,atm2lnd_vars%tide_forcing_len))
             allocate(atm2lnd_vars%tide_salinity(bounds%begg:bounds%endg,atm2lnd_vars%tide_forcing_len))
+            allocate(atm2lnd_vars%tide_nitrate(bounds%begg:bounds%endg,atm2lnd_vars%tide_forcing_len))
             ierr = nf90_get_var(ncid, varid, atm2lnd_vars%tide_height(bounds%begg:bounds%endg,1:atm2lnd_vars%tide_forcing_len),(/bounds%begg,1/),(/bounds%endg-bounds%begg+1,atm2lnd_vars%tide_forcing_len/))
             if(ierr .ne. 0)  then
               write(iulog,*) 'ierr =',ierr
@@ -1102,13 +1103,13 @@ contains
               write(iulog,*) 'ierr =',ierr
               call endrun('Error reading tide_salinity variable')
             endif
-            !ierr = nf90_inq_varid(ncid, 'tide_temp',varid)
-            !if(ierr .ne. 0) call endrun('Error finding tide_temp variable')
-            !ierr = nf90_get_var(ncid, varid, atm2lnd_vars%tide_temp(1,1:atm2lnd_vars%tide_forcing_len),(/1,1/),(/1,atm2lnd_vars%tide_forcing_len/))
-            !write(iulog,*) 'ierr'
-            !write(iulog,*) ierr
-            !if(ierr .ne. 0) call endrun('Error reading tide_temp variable')
-            
+            ierr = nf90_inq_varid(ncid, 'tide_nitrate',varid)
+            if(ierr .ne. 0) call endrun('Error finding tide_nitrate variable')
+            ierr = nf90_get_var(ncid, varid, atm2lnd_vars%tide_nitrate(1,1:atm2lnd_vars%tide_forcing_len),(/1,1/),(/1,atm2lnd_vars%tide_forcing_len/))
+            if(ierr .ne. 0) then
+              atm2lnd_vars%tide_nitrate(1,1:atm2lnd_vars%tide_forcing_len) = 0.0_r8
+              write(iulog,*) 'Error reading tide_nitrate. Setting to zero.'
+            endif
 
             ierr = nf90_close(ncid)
             write(iulog,*) 'Successfully read tide height, salinity from file '//trim(tide_file)
@@ -1118,9 +1119,10 @@ contains
             ngrids_tide=ldomain%ns
             allocate(atm2lnd_vars%tide_height(ldomain%ns,atm2lnd_vars%tide_forcing_len))
             allocate(atm2lnd_vars%tide_salinity(ldomain%ns,atm2lnd_vars%tide_forcing_len))
+            allocate(atm2lnd_vars%tide_nitrate(ldomain%ns,atm2lnd_vars%tide_forcing_len))
             atm2lnd_vars%tide_height(:,:) = 0.0_r8
             atm2lnd_vars%tide_salinity(:,:) = 0.0_r8
-            !atm2lnd_vars%tide_temp(:,:) = 0.0_r8
+            atm2lnd_vars%tide_nitrate(:,:) = 0.0_r8
           endif
           ! write(iulog,*),'lnd_import_export g =',g,'tide_forcing_len =',atm2lnd_vars%tide_forcing_len,'ns =',ldomain%ns
           ! write(iulog,*),'tide_height =',atm2lnd_vars%tide_height(g,1:10)

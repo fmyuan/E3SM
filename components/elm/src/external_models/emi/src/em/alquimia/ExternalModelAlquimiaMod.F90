@@ -66,6 +66,7 @@ module ExternalModelAlquimiaMod
     integer :: index_l2e_state_h2osfc
     integer :: index_l2e_state_tide_height
     integer :: index_l2e_state_flood_salinity
+    integer :: index_l2e_state_flood_nitrate
     integer :: index_l2e_flux_qflx_drain
     
     ! Solve data returned to land model
@@ -367,6 +368,10 @@ contains
     id                                   = L2E_STATE_SALINITY_COL
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_l2e_state_flood_salinity      = index
+
+    id                                   = L2E_STATE_TIDE_NITRATE_COL
+    call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_l2e_state_flood_nitrate      = index
 
     id                                   = L2E_STATE_H2OSFC_COL
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
@@ -941,7 +946,7 @@ end subroutine EMAlquimia_Coldstart
     real(r8) , pointer, dimension(:,:,:) :: aux_doubles_l2e , aux_doubles_e2l
     integer  , pointer, dimension(:,:,:)   :: aux_ints_l2e, aux_ints_e2l
     real(r8) , pointer, dimension(:,:)    :: qflx_adv_l2e, qflx_lat_aqu_l2e, qflx_drain_l2e
-    real(r8) , pointer, dimension(:)      :: flood_salinity_l2e, h2osfc_l2e, wtd_l2e, tide_height_l2e
+    real(r8) , pointer, dimension(:)      :: flood_salinity_l2e, flood_nitrate_l2e, h2osfc_l2e, wtd_l2e, tide_height_l2e
     real(r8) , pointer, dimension(:,:)    :: DOC_e2l, DON_e2l, DIC_e2l, methane_vr_e2l
     real(r8) , pointer, dimension(:,:)    :: pH_e2l, O2_e2l, salinity_e2l, sulfate_e2l, sulfide_e2l, Fe2_e2l, FeOxide_e2l, FeS_e2l, carbonate_e2l
     real(r8) , pointer, dimension(:)     :: actual_dt_e2l
@@ -1046,6 +1051,7 @@ end subroutine EMAlquimia_Coldstart
     call l2e_list%GetPointerToReal1D(this%index_l2e_state_h2osfc    , h2osfc_l2e  )
 
     call l2e_list%GetPointerToReal1D(this%index_l2e_state_flood_salinity , flood_salinity_l2e )
+    call l2e_list%GetPointerToReal1D(this%index_l2e_state_flood_nitrate , flood_nitrate_l2e )
     call l2e_list%GetPointerToReal1D(this%index_l2e_state_tide_height    , tide_height_l2e     ) 
 
     call e2l_list%GetPointerToReal2D(this%index_e2l_state_DIC , DIC_e2l)
@@ -1237,6 +1243,8 @@ end subroutine EMAlquimia_Coldstart
                 ! Assuming ocean water pH is 8 at salinity of 30 and freshwater pH is 6 at salinity of zero
                 if(this%Hplus_pool_number>0) lat_bc(this%Hplus_pool_number) = 10**(-(6+flood_salinity_l2e(c)*2.0/30.0))*1000.0
                 
+                if(this%NO3_pool_number>0) lat_bc(this%NO3_pool_number) = flood_nitrate_l2e(c)*1000
+
                 ! Need to distinguish between tidal flooding and rainfall infiltration. Doing based on h2osfc but not sure if that's correct
                 ! Now that we have tide height info, we could use that instead. But this won't be correct while tide is going down
                 if (h2osfc_l2e(c)>0) then
@@ -1247,6 +1255,8 @@ end subroutine EMAlquimia_Coldstart
                   if(this%sodium_pool_number>0) surf_bc(this%sodium_pool_number) = flood_salinity_l2e(c)/.0018066_r8*0.5769_r8/22.989_r8
                   if(this%sulfide_pool_number>0) surf_bc(this%sulfide_pool_number) = flood_salinity_l2e(c)/.0018066_r8*1e-9_r8/33.1_r8
                   if(this%Hplus_pool_number>0) lat_bc(this%Hplus_pool_number) = 10**(-(6+flood_salinity_l2e(c)*2.0/30.0))*1000.0
+                  
+                  if(this%NO3_pool_number>0) surf_bc(this%NO3_pool_number) = flood_nitrate_l2e(c)*1000
                 endif
 
               endif
@@ -1587,7 +1597,7 @@ end subroutine EMAlquimia_Coldstart
         enddo
         Nflux = sum((plantNO3uptake_e2l(c,:)+plantNH4uptake_e2l(c,:))*dz(c,:))*dt + (NO3runoff_e2l(c) + DONrunoff_e2l(c))*dt
         if(abs(totalN_after + Nflux - totalN_before) > 1e-9 ) then
-              write(iulog,*) ' N imbalance after alquimia solve ',totalN_after + Nflux - totalN_before
+              ! write(iulog,*) ' N imbalance after alquimia solve ',totalN_after + Nflux - totalN_before
               ! write(iulog,*) 'N before = ',totalN_before
               ! write(iulog,*) 'N after = ',totalN_after
               ! write(iulog,*) 'N flux = ',Nflux
@@ -1599,7 +1609,7 @@ end subroutine EMAlquimia_Coldstart
                 do j=nlevdecomp-1,1,-1
                   if(no3_e2l(c,j)*dz(c,j) > abs(totalN_after + Nflux - totalN_before)*100 & ! Only if it's a small percent of NO3
                     ) then
-                      write(iulog,*) 'Subtracting imbalance from NO3 in layer ',j,no3_e2l(c,j)*dz(c,j)
+                      ! write(iulog,*) 'Subtracting imbalance from NO3 in layer ',j,no3_e2l(c,j)*dz(c,j)
                       no3_e2l(c,j) = no3_e2l(c,j) - (totalN_after + Nflux - totalN_before)/dz(c,j)
                       exit
                   endif
@@ -1614,19 +1624,19 @@ end subroutine EMAlquimia_Coldstart
         enddo
         Cflux =  (DICrunoff_e2l(c) + DOCrunoff_e2l(c) + hr_e2l(c) + methaneflux_e2l(c))*dt
         if(abs(totalC_after + Cflux - totalC_before) > 1e-9 ) then
-          write(iulog,*) ' C imbalance after alquimia solve ',totalC_after + Cflux - totalC_before
+          ! write(iulog,*) ' C imbalance after alquimia solve ',totalC_after + Cflux - totalC_before
           ! write(iulog,*) 'C before = ',totalC_before
           ! write(iulog,*) 'C after = ',totalC_after
           ! write(iulog,*) 'C flux = ',Cflux
           ! write(iulog,*) 'C pool diff = ',totalC_after-totalC_before
 
           if(  abs(totalC_after + Cflux - totalC_before) < 1e-7 & ! Only do it for relatively small errors
-          .and. abs(hr_e2l(c)*dt) > abs(totalC_after + Cflux - totalC_before)*100 & ! Only if it's a small percent of Cflux
+          ! .and. abs(hr_e2l(c)*dt) > abs(totalC_after + Cflux - totalC_before)*100 & ! Only if it's a small percent of Cflux
           ) then
-            write(iulog,*) 'Adding imbalance to HR ',hr_e2l(c)*dt
+            ! write(iulog,*) 'Adding imbalance to HR ',hr_e2l(c)*dt
             hr_e2l(c) = hr_e2l(c) - (totalC_after + Cflux - totalC_before)/dt
           else
-            write(iulog,*) "Couldn't add C imbalance to HR. HR =",hr_e2l(c)*dt
+            ! write(iulog,*) "Alquimia: Couldn't add C imbalance to HR. HR =",hr_e2l(c)*dt,' imbalance =',totalC_after + Cflux - totalC_before
           endif
         endif
     enddo ! Column loop
@@ -2149,7 +2159,7 @@ end subroutine EMAlquimia_Coldstart
     call c_f_pointer(this%chem_aux_data%aux_doubles%data, alquimia_aux_data, (/this%chem_sizes%num_aux_doubles/))
     write(iulog,'(a)'),'Alquimia aux doubles:'
     do poolnum=1,this%chem_sizes%num_aux_doubles
-      write(iulog,'(a,i3,e18.5)'),'Aux double ',poolnum,alquimia_aux_data(poolnum)
+      write(iulog,'(a,i3,e18.6)'),'Aux double ',poolnum,alquimia_aux_data(poolnum)
     enddo
 
     call c_f_pointer(this%chem_metadata%primary_names%data, name_list, (/this%chem_sizes%num_primary/))
@@ -2157,7 +2167,7 @@ end subroutine EMAlquimia_Coldstart
     write(iulog,'(23x,a22,5x,a22,5x,a22)'),'Immobile (mol/m3 bulk)','Tot Mobile (mol/L H2O)','Free (mol/L H2O)'
     do poolnum=1,this%chem_sizes%num_primary
       call c_f_string_ptr(name_list(poolnum),poolname)
-      write(iulog,'(i3,a20,e22.5,5x,e22.5,5x,e22.5)'),poolnum,trim(poolname),alquimia_immobile_data(poolnum),alquimia_mobile_data(poolnum),alquimia_free_data(poolnum)
+      write(iulog,'(i3,a20,e22.6,5x,e22.6,5x,e22.6)'),poolnum,trim(poolname),alquimia_immobile_data(poolnum),alquimia_mobile_data(poolnum),alquimia_free_data(poolnum)
     enddo
 
     call c_f_pointer(this%chem_metadata%mineral_names%data, name_list, (/this%chem_sizes%num_minerals/))
@@ -2165,15 +2175,15 @@ end subroutine EMAlquimia_Coldstart
     write(iulog,'(23x,a22,5x,a22)'),'Vol. frac. (m3/m3)', 'SSA (m2/m3)'
     do poolnum=1,this%chem_sizes%num_minerals
       call c_f_string_ptr(name_list(poolnum),poolname)
-      write(iulog,'(i3,a20,e22.5,5x,e22.5)'),poolnum,trim(poolname),alquimia_mineral_data(poolnum),alquimia_mineral_SSA(poolnum)
+      write(iulog,'(i3,a20,e22.6,5x,e22.6)'),poolnum,trim(poolname),alquimia_mineral_data(poolnum),alquimia_mineral_SSA(poolnum)
     enddo
 
-    write(iulog,'(a,f10.3)'),'Porosity      = ',this%chem_state%porosity
-    write(iulog,'(a,f10.3)'),'Saturation    = ',this%chem_properties%saturation
-    write(iulog,'(a,f10.3)'),'Temperature   = ',this%chem_state%temperature
-    write(iulog,'(a,f10.3)'),'Pressure      = ',this%chem_state%aqueous_pressure
-    write(iulog,'(a,f10.3)'),'Water density = ',this%chem_state%water_density
-    write(iulog,'(a,f10.3)'),'Volume        = ',this%chem_properties%volume
+    write(iulog,'(a,f12.4)'),'Porosity      = ',this%chem_state%porosity
+    write(iulog,'(a,f12.4)'),'Saturation    = ',this%chem_properties%saturation
+    write(iulog,'(a,f12.4)'),'Temperature   = ',this%chem_state%temperature
+    write(iulog,'(a,f12.4)'),'Pressure      = ',this%chem_state%aqueous_pressure
+    write(iulog,'(a,f12.4)'),'Water density = ',this%chem_state%water_density
+    write(iulog,'(a,f12.4)'),'Volume        = ',this%chem_properties%volume
 
 
   end subroutine print_alquimia_state
@@ -2361,9 +2371,10 @@ end subroutine EMAlquimia_Coldstart
     if(j==1) then
       do k=1,this%chem_sizes%num_primary
         if(this%is_dissolved_gas(k) .and. (surf_bc(k) > 0.0) .and. (sat(1)<=0.9) .and. &
-            ((surf_bc(k)*porosity(1)*max(sat(1),0.3) - total_mobile(1,k) )/(surf_bc(k)*porosity(1)*max(sat(1),0.3)) > 0.25)) then
+            ((surf_bc(k)*porosity(1)*max(sat(1),0.3) - total_mobile(1,k) )/(surf_bc(k)*porosity(1)*max(sat(1),0.3)) > 0.5) &
+            .and. num_cuts<4) then
               this%chem_status%converged = .FALSE.
-              if(num_cuts>6) write(iulog,'(a,f5.2,x,a,x,i4,x,a)'),'Cutting time step to dt = ',actual_dt,' because species',k,'reduced too fast in layer 1'
+              write(iulog,'(a,f5.2,x,a,x,i4,x,a)'),'Cutting time step to dt = ',actual_dt,' because species',k,'reduced too fast in layer 1'
         endif
       enddo
     endif
@@ -2391,6 +2402,7 @@ end subroutine EMAlquimia_Coldstart
         ! I wonder if at bailout we should first try pausing transport and solving each layer separately?
         write(msg,'(a,i3,a,f5.3,a,i4,a,i3,a,i5)') "Error: Alquimia ReactionStepOperatorSplit failed to converge after ",num_cuts," cuts to dt = ",actual_dt,' s. Newton iterations = ',this%chem_status%num_newton_iterations,' Layer = ',j!," Col = ",c
         call print_alquimia_state(this)
+        write(iulog,*),'Alquimia status message: '//status_message
         call endrun(msg=msg)
       else
         exit ! Drop out of the layer loop to start over at shorter time step
@@ -2399,8 +2411,8 @@ end subroutine EMAlquimia_Coldstart
     enddo ! Layer loop
 
 
-    if(actual_dt<=30.0_r8) then
-      write(iulog,*),'Alquimia: Time step cut to 30 s. Attempting to solve by pausing transport and solving layer by layer'
+    if(actual_dt<=60.0_r8) then
+      write(iulog,*),'Alquimia: Time step cut to 60 s. Attempting to solve by pausing transport and solving layer by layer'
       do j=1,nlevdecomp
             ! Update properties from ELM
         this%chem_state%porosity =    porosity(j)
