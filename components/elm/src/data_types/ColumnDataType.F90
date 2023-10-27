@@ -110,6 +110,7 @@ module ColumnDataType
     real(r8), pointer :: h2osfc             (:)   => null() ! surface water (kg/m2)
     real(r8), pointer :: salinity           (:) => null() ! salinity from PFLOTRAN when using interface (TAO 5/19/2020)
     real(r8), pointer :: h2osfc_tide        (:)   => null() ! tidal height above surface
+    real(r8), pointer :: nitrate_tide       (:)   => null() ! tide water nitrate concentration (mol/L)
     real(r8), pointer :: h2ocan             (:)   => null() ! canopy water integrated to column (kg/m2)
     real(r8), pointer :: total_plant_stored_h2o(:)=> null() ! total water in plants (kg/m2)
     real(r8), pointer :: wslake_col         (:)   => null() ! col lake water storage (mm H2O)
@@ -1403,6 +1404,7 @@ contains
     allocate(this%h2ocan             (begc:endc))                     ; this%h2ocan             (:)   = spval 
     allocate(this%wslake_col         (begc:endc))                     ; this%wslake_col         (:)   = spval
     allocate(this%salinity           (begc:endc))                     ; this%salinity           (:)   = spval
+    allocate(this%nitrate_tide       (begc:endc))                     ; this%nitrate_tide       (:)   = spval
     allocate(this%h2osfc_tide        (begc:endc))                     ; this%h2osfc_tide        (:)   = spval 
     allocate(this%total_plant_stored_h2o(begc:endc))                  ; this%total_plant_stored_h2o(:)= spval  
     allocate(this%h2osoi_liqvol      (begc:endc,-nlevsno+1:nlevgrnd)) ; this%h2osoi_liqvol      (:,:) = spval
@@ -1647,6 +1649,7 @@ contains
        this%h2ocan(c)                 = 0._r8
        this%salinity(c)             = 0._r8 !TAO added 5/19/2020
        this%h2osfc_tide(c)          = 0._r8
+       this%nitrate_tide(c)          = 0._r8
        this%frac_h2osfc(c)            = 0._r8
        this%h2orof(c)                 = 0._r8
        this%frac_h2orof(c)            = 0._r8

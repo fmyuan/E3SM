@@ -71,6 +71,7 @@ module atm2lndType
       real(r8), pointer :: tide_height               (:,:) => null()  ! Height in meters (need to figure what it's relative to though - long-term mean or something?) 
       real(r8), pointer :: tide_salinity             (:,:) => null()  ! Salinity in ppt
       real(r8), pointer :: tide_temp                 (:,:) => null()  ! temperature in K
+      real(r8), pointer :: tide_nitrate              (:,:) => null()  ! Nitrate concentration in mol/L
       integer,  pointer :: tide_forcing_len                => null()
       integer,  pointer :: ngrids_tide                     => null()
 #endif

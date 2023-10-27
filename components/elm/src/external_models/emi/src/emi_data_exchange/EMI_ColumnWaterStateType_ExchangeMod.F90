@@ -65,6 +65,7 @@ contains
          h2osoi_icevol => col_ws%h2osoi_icevol , &
          h2osfc        => col_ws%h2osfc        , &
          salinity      => col_ws%salinity      , &
+         nitrate_tide  => col_ws%nitrate_tide  , &
          h2osfc_tide   => col_ws%h2osfc_tide     &
          )
 
@@ -115,6 +116,13 @@ contains
              do fc = 1, num_filter
                 c = filter(fc)
                 cur_data%data_real_1d(c) = salinity(c)
+             enddo
+             cur_data%is_set = .true.
+
+          case (L2E_STATE_TIDE_NITRATE_COL)
+             do fc = 1, num_filter
+                c = filter(fc)
+                cur_data%data_real_1d(c) = nitrate_tide(c)
              enddo
              cur_data%is_set = .true.
 
