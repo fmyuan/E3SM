@@ -1,0 +1,4 @@
+fsurdat = '$DIN_LOC_ROOT/atm/datm7/42_FLUXNETSITES05/CLM1PT_data/surfdata_42_FLUXNETSITES05_simyr1850_c170912.nc'
+!
+! below is a new physioloy file example if intend to do parameter testing
+! paramfile = '$DIN_LOC_ROOT/lnd/clm2/paramdata/clm_params_c211124arctic.nc'

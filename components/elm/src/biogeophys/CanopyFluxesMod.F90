@@ -1077,13 +1077,13 @@ contains
                erre = efe(p) - efeold
             end if
             ! fractionate ground emitted longwave
-            lw_grnd=(frac_sno(c)*t_soisno(c,snl(c)+1)**4 &
-                 +(1._r8-frac_sno(c)-frac_h2osfc(c))*t_soisno(c,1)**4 &
-                 +frac_h2osfc(c)*t_h2osfc(c)**4)
+            lw_grnd=(frac_sno(c)*t_soisno(c,snl(c)+1)**4_r8 &
+                 +(1._r8-frac_sno(c)-frac_h2osfc(c))*t_soisno(c,1)**4_r8 &
+                 +frac_h2osfc(c)*t_h2osfc(c)**4_r8)
 
-            dt_veg(p) = (sabv(p) + air(p) + bir(p)*t_veg(p)**4 + &
+            dt_veg(p) = (sabv(p) + air(p) + bir(p)*t_veg(p)**4_r8 + &
                  cir(p)*lw_grnd - efsh - efe(p)) / &
-                 (- 4._r8*bir(p)*t_veg(p)**3 +dc1*wtga +dc2*wtgaq*qsatldT(p))
+                 (- 4._r8*bir(p)*t_veg(p)**3_r8 +dc1*wtga +dc2*wtgaq*qsatldT(p))
             t_veg(p) = tlbef(p) + dt_veg(p)
             dels = dt_veg(p)
             del(p)  = abs(dels)
@@ -1091,7 +1091,7 @@ contains
             if (del(p) > delmax) then
                dt_veg(p) = delmax*dels/del(p)
                t_veg(p) = tlbef(p) + dt_veg(p)
-               err(p) = sabv(p) + air(p) + bir(p)*tlbef(p)**3*(tlbef(p) + &
+               err(p) = sabv(p) + air(p) + bir(p)*tlbef(p)**3_r8*(tlbef(p) + &
                     4._r8*dt_veg(p)) + cir(p)*lw_grnd - &
                     (efsh + dc1*wtga*dt_veg(p)) - (efe(p) + &
                     dc2*wtgaq*qsatldT(p)*dt_veg(p))
@@ -1219,11 +1219,11 @@ contains
 
          ! Energy balance check in canopy
 
-         lw_grnd=(frac_sno(c)*t_soisno(c,snl(c)+1)**4 &
-              +(1._r8-frac_sno(c)-frac_h2osfc(c))*t_soisno(c,1)**4 &
-              +frac_h2osfc(c)*t_h2osfc(c)**4)
+         lw_grnd=(frac_sno(c)*t_soisno(c,snl(c)+1)**4_r8 &
+              +(1._r8-frac_sno(c)-frac_h2osfc(c))*t_soisno(c,1)**4_r8 &
+              +frac_h2osfc(c)*t_h2osfc(c)**4_r8)
 
-         err(p) = sabv(p) + air(p) + bir(p)*tlbef(p)**3*(tlbef(p) + 4._r8*dt_veg(p)) &
+         err(p) = sabv(p) + air(p) + bir(p)*tlbef(p)**3_r8*(tlbef(p) + 4._r8*dt_veg(p)) &
                                 !+ cir(p)*t_grnd(c)**4 - eflx_sh_veg(p) - hvap*qflx_evap_veg(p)
               + cir(p)*lw_grnd - eflx_sh_veg(p) - hvap*qflx_evap_veg(p)
 
