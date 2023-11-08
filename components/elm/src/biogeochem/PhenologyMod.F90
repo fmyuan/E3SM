@@ -794,7 +794,7 @@ contains
          g = veg_pp%gridcell(p)           
       
          if (season_decid(ivt(p)) == 1._r8) then
-            soilt = t_soisno(1,3)
+            soilt = t_soisno(c,3)
             crit_onset_gdd = exp(crit_gdd1(ivt(p)) + 0.13_r8*(annavg_t2m(p) - SHR_CONST_TKFRZ))
             ! set background litterfall rate, background transfer rate, and
             ! long growing season factor to 0 for seasonal deciduous types
