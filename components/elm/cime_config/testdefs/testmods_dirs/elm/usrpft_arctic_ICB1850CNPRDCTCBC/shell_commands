@@ -1,0 +1,7 @@
+./xmlchange LND_DOMAIN_FILE=domain.lnd.51x63pt_kougarok-NGEE_TransA_navy.nc
+./xmlchange ATM_DOMAIN_FILE=domain.lnd.51x63pt_kougarok-NGEE_TransA_navy.nc
+./xmlchange LND_DOMAIN_PATH="\$DIN_LOC_ROOT/share/domains/domain.clm"
+./xmlchange ATM_DOMAIN_PATH="\$DIN_LOC_ROOT/share/domains/domain.clm"
+./xmlchange ELM_USRDAT_NAME=51x63pt_kougarok-NGEE_TransA
+./xmlchange NTASKS=1
+./xmlchange NTHRDS=1
