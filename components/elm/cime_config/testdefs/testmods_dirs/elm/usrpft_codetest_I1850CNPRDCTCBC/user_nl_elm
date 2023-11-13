@@ -1,0 +1,4 @@
+fsurdat = '$DIN_LOC_ROOT/lnd/clm2/surfdata_map/surfdata_42_FLUXNETSITES_simyr1850_c170912.nc'
+paramfile = '$DIN_LOC_ROOT/lnd/clm2/paramdata/clm_params_c211124vpft0.nc'
+!woody=2 for shrub, and pft flags: climatezone, nonvascular, nfixer, needleleaf
+!paramfile = '$DIN_LOC_ROOT/lnd/clm2/paramdata/clm_params_c211124vpft.nc'
