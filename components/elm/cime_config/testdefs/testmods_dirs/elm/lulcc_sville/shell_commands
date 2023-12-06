@@ -1,2 +1,6 @@
 ./xmlchange ELM_BLDNML_OPTS="-irrig .true." -append
+if [ `./xmlquery --value LND_GRID` == 1x1_smallvilleIA ]; then
+  ./xmlchange NTASKS=1
+  ./xmlchange NTASKS_PER_INST=1 
+fi
 if [ `./xmlquery --value MACH` == chrysalis ]; then ./xmlchange FORCE_BUILD_SMP=TRUE; fi
