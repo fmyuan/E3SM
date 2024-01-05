@@ -1104,11 +1104,15 @@ contains
               call endrun('Error reading tide_salinity variable')
             endif
             ierr = nf90_inq_varid(ncid, 'tide_nitrate',varid)
-            if(ierr .ne. 0) call endrun('Error finding tide_nitrate variable')
-            ierr = nf90_get_var(ncid, varid, atm2lnd_vars%tide_nitrate(1,1:atm2lnd_vars%tide_forcing_len),(/1,1/),(/1,atm2lnd_vars%tide_forcing_len/))
             if(ierr .ne. 0) then
               atm2lnd_vars%tide_nitrate(1,1:atm2lnd_vars%tide_forcing_len) = 0.0_r8
               write(iulog,*) 'Error reading tide_nitrate. Setting to zero.'
+            else
+              ierr = nf90_get_var(ncid, varid, atm2lnd_vars%tide_nitrate(1,1:atm2lnd_vars%tide_forcing_len),(/1,1/),(/1,atm2lnd_vars%tide_forcing_len/))
+              if(ierr .ne. 0) then
+                atm2lnd_vars%tide_nitrate(1,1:atm2lnd_vars%tide_forcing_len) = 0.0_r8
+                write(iulog,*) 'Error reading tide_nitrate. Setting to zero.'
+              endif
             endif
 
             ierr = nf90_close(ncid)
