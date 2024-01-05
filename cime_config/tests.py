@@ -74,6 +74,14 @@ _TESTS = {
             )
         },
 
+    "e3sm_land_mytests" : {
+        "share" : True,
+        "time"  : "0:45:00",
+        "tests" : (
+            "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_default_I1850CNPRDCTCBC",
+            "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_codetest_I1850CNPRDCTCBC"
+            )
+        },
 
     "e3sm_land_developer" : {
         "share" : True,
