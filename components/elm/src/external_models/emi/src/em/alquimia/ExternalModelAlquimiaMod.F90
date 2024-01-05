@@ -1605,7 +1605,7 @@ end subroutine EMAlquimia_Coldstart
 
               ! Assuming this is a precision issue in PFLOTRAN solve, change NO3 runoff or top layer NO3 to balance things
               ! This is to fix a tradeoff where making the precision of the PFLOTRAN solve too fine means it crashes on convergence errors, but making it too low violates ELM N balance limit of 1e-8
-              if (  abs(totalN_after + Nflux - totalN_before) < 1e-7 ) then ! Only do it for relatively small errors
+              if (  abs(totalN_after + Nflux - totalN_before) < 5e-7 ) then ! Only do it for relatively small errors
                 do j=nlevdecomp-1,1,-1
                   if(no3_e2l(c,j)*dz(c,j) > abs(totalN_after + Nflux - totalN_before)*100 & ! Only if it's a small percent of NO3
                     ) then
@@ -1630,7 +1630,7 @@ end subroutine EMAlquimia_Coldstart
           ! write(iulog,*) 'C flux = ',Cflux
           ! write(iulog,*) 'C pool diff = ',totalC_after-totalC_before
 
-          if(  abs(totalC_after + Cflux - totalC_before) < 1e-7 & ! Only do it for relatively small errors
+          if(  abs(totalC_after + Cflux - totalC_before) < 5e-7 & ! Only do it for relatively small errors
           ! .and. abs(hr_e2l(c)*dt) > abs(totalC_after + Cflux - totalC_before)*100 & ! Only if it's a small percent of Cflux
           ) then
             ! write(iulog,*) 'Adding imbalance to HR ',hr_e2l(c)*dt
@@ -2372,7 +2372,7 @@ end subroutine EMAlquimia_Coldstart
       do k=1,this%chem_sizes%num_primary
         if(this%is_dissolved_gas(k) .and. (surf_bc(k) > 0.0) .and. (sat(1)<=0.9) .and. &
             ((surf_bc(k)*porosity(1)*max(sat(1),0.3) - total_mobile(1,k) )/(surf_bc(k)*porosity(1)*max(sat(1),0.3)) > 0.5) &
-            .and. num_cuts<4) then
+            .and. max_cuts<4) then
               this%chem_status%converged = .FALSE.
               write(iulog,'(a,f5.2,x,a,x,i4,x,a)'),'Cutting time step to dt = ',actual_dt,' because species',k,'reduced too fast in layer 1'
         endif
@@ -2412,7 +2412,7 @@ end subroutine EMAlquimia_Coldstart
 
 
     if(actual_dt<=60.0_r8) then
-      write(iulog,*),'Alquimia: Time step cut to 60 s. Attempting to solve by pausing transport and solving layer by layer'
+      ! write(iulog,*),'Alquimia: Time step cut to 60 s. Attempting to solve by pausing transport and solving layer by layer'
       do j=1,nlevdecomp
             ! Update properties from ELM
         this%chem_state%porosity =    porosity(j)
