@@ -23,6 +23,9 @@ module VegStructUpdateMod
   !
   ! !PUBLIC MEMBER FUNCTIONS:
   public :: VegStructUpdate
+  !
+  ! !PRIVATE DATA MEMBERS:
+
   !-----------------------------------------------------------------------
 
 contains
@@ -38,6 +41,7 @@ contains
     !
     ! !USES:
     use pftvarcon        , only : noveg, woody, generic_crop, crop, percrop
+    use pftvarcon        , only : stem_taper
     use pftvarcon        , only : ncorn, ncornirrig, ztopmx, laimx
     use pftvarcon        , only : nmiscanthus, nmiscanthusirrig, nswitchgrass, nswitchgrassirrig
     use elm_time_manager , only : get_rad_step_size
@@ -161,14 +165,7 @@ contains
             if (woody(ivt(p)) >= 1.0_r8) then
 
                ! trees and shrubs
-
-               ! if shrubs have a squat taper
-               if (woody(ivt(p)) == 2.0_r8) then
-                  taper = 10._r8
-                  ! otherwise have a tall taper
-               else
-                  taper = 200._r8
-               end if
+               taper = stem_taper(ivt(p))
 
                ! trees and shrubs for now have a very simple allometry, with hard-wired
                ! stem taper (height:radius) and hard-wired stocking density (#individuals/area)

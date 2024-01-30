@@ -116,6 +116,8 @@ module pftvarcon
   real(r8), allocatable :: leafcn(:)      !leaf C:N [gC/gN]
   real(r8), allocatable :: flnr(:)        !fraction of leaf N in Rubisco [no units]
   real(r8), allocatable :: woody(:)       !woody lifeform flag (0 = non-woody, 1 = tree, 2 = shrub (TODO) )
+  ! allow woody stem_taper as an input of pft physilogy constants
+  real(r8), allocatable :: stem_taper(:)       ! woody pft stem ratio of height:radius (by default, it's 200 for tree and 10 for shrub)
   real(r8), allocatable :: lflitcn(:)     !leaf litter C:N (gC/gN)
   real(r8), allocatable :: frootcn(:)     !fine root C:N (gC/gN)
   real(r8), allocatable :: livewdcn(:)    !live wood (phloem and ray parenchyma) C:N (gC/gN)
@@ -313,14 +315,13 @@ module pftvarcon
   real(r8), allocatable :: gcbr_q(:)           !effectiveness of roots in reducing runoff-driven erosion
 
   ! new pft properties, together with woody, crop, percrop, evergreen, stress_decid, season_decid, defined above,
-  ! are introduced to define vegetation properties. This will be well defineing a pft so that no indices needed for codes.
+  ! are introduced to define vegetation properties. This will be well defining a pft so that no indices needed for codes.
   real(r8), allocatable :: climatezone(:)      ! distributed climate zone  (0 = any zone, 1 = tropical, 2 = temperate, 3 = boreal, 4 = arctic)
   real(r8), allocatable :: nonvascular(:)      ! nonvascular lifeform flag (0 = vascular, 1 = moss, 2 = lichen)
   real(r8), allocatable :: needleleaf(:)       ! needleleaf lifeform flag  (0 = broadleaf, 1 = needleleaf)
   real(r8), allocatable :: graminoid(:)        ! graminoid lifeform flag   (0 = nonvascular+woody+crop+percrop, 1 = graminoid)
   real(r8), allocatable :: generic_crop(:)     ! generic_crop   (0 = not_crop or prognostic crop, 1 = generic crop, i.e. crop when use_crop=false)
   real(r8), allocatable :: nfixer(:)           ! nitrogen fixer flag  (0 = inable, 1 = able to nitrogen fixation from atm. N2)
-
 
   !
   ! !PUBLIC MEMBER FUNCTIONS:
@@ -472,6 +473,7 @@ contains
     allocate( leafcn        (0:mxpft) )
     allocate( flnr          (0:mxpft) )        
     allocate( woody         (0:mxpft) )       
+    allocate( stem_taper    (0:mxpft) )
     allocate( lflitcn       (0:mxpft) )      
     allocate( frootcn       (0:mxpft) )      
     allocate( livewdcn      (0:mxpft) )     
@@ -705,6 +707,14 @@ contains
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
     call ncd_io('woody',woody, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
+    call ncd_io('taper',stem_taper, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if ( .not. readv ) then
+       ! if known 'woody' type from previous reading
+       stem_taper(:) = 200.0_r8
+       do i=  0, npft-1
+          if (woody(i) == 2) stem_taper(i) = 10.0_r8
+       end do
+    end if
     call ncd_io('lflitcn',lflitcn, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
     call ncd_io('frootcn',frootcn, 'read', ncid, readvar=readv, posNOTonfile=.true.)
@@ -1184,6 +1194,8 @@ contains
     needleleaf(noveg+1:ndllf_dcd_brl_tree) = 1
     woody(ndllf_evr_tmp_tree:nbrdlf_dcd_brl_tree) = 1
     woody(nbrdlf_evr_shrub:nbrdlf_dcd_brl_shrub)  = 2
+    stem_taper(ndllf_evr_tmp_tree:nbrdlf_dcd_brl_tree) = 200.0_r8
+    stem_taper(nbrdlf_evr_shrub:nbrdlf_dcd_brl_shrub) = 10.0_r8
     graminoid(nc3_arctic_grass:nc4_grass) = 1
     generic_crop(nc3crop:nc3irrig) = 1
     nfixer(nsoybean)       = 1
