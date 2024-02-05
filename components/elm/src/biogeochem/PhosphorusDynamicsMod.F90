@@ -56,6 +56,10 @@ contains
     ! This could be updated later to divide the inputs between mineral P absorbed
     ! directly into the canopy and mineral P entering the soil pool.
     !
+
+    use clm_time_manager, only : get_curr_date
+    use pdepStreamMod,    only : startdate_scale_pdep, scale_pdep
+
     ! !ARGUMENTS:
       !$acc routine seq
     type(bounds_type)        , intent(in)    :: bounds
@@ -63,8 +67,21 @@ contains
     !
     ! !LOCAL VARIABLES:
     integer :: g,c                    ! indices
-    !-----------------------------------------------------------------------
 
+    ! sensitivity testing
+    integer :: sdate_sclp, sy_sclp, sm_sclp, sd_sclp ! scale pdep date componets
+    integer :: year, mon, day, sec                   ! return variables for get_curr_date
+    !-----------------------------------------------------------------------
+    
+    call get_curr_date(year, mon, day, sec)
+
+    if (startdate_scale_pdep .ne. '') then
+       read(startdate_scale_pdep,*) sdate_sclp
+       sy_sclp = sdate_sclp/10000
+       sm_sclp = (sdate_sclp-sy_sclp*10000)/100
+       sd_sclp = sdate_sclp-sy_sclp*1000-sm_sclp*100
+    end if
+    
     associate(&
          forc_pdep     =>  atm2lnd_vars%forc_pdep_grc           , & ! Input:  [real(r8) (:)]  Phosphorus deposition rate (gP/m2/s)
          pdep_to_sminp =>  col_pf%pdep_to_sminp   & ! Output: [real(r8) (:)]
@@ -74,7 +91,13 @@ contains
       do c = bounds%begc, bounds%endc
          g = col_pp%gridcell(c)
          pdep_to_sminp(c) = forc_pdep(g)
-      end do
+         if (startdate_scale_pdep .ne. '') then
+            if ((year == sy_sclp .and. mon == sm_sclp .and. day >= sd_sclp) .or. &
+                (year == sy_sclp .and. mon > sm_sclp) .or. (year > sy_sclp)) then
+                  pdep_to_sminp(c) = scale_pdep * forc_pdep(g)
+            end if
+         end if
+      end do  
 
     end associate
 
