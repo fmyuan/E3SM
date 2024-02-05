@@ -817,7 +817,13 @@ contains
                ! In that case, it will take until the next winter solstice
                ! before the growing degree-day summation starts again.
 
-               if (onset_gddflag(p) == 1._r8 .and. ws_flag == 0._r8) then
+               ! A note by F-M Yuan (2020-02-21): when having heavy snow winter,
+               ! snow melting may be lasting into July in some Arctic area (esp. East Russia)
+               ! So better to let ONSET stage up to 'offset' starting criteria date.
+
+               !if (onset_gddflag(p) == 1._r8 .and. ws_flag == 0._r8) then
+               if (onset_gddflag(p) == 1._r8 .and. &
+                   (ws_flag == 0._r8 .and. dayl(g) < PhenolParamsInst%crit_dayl) ) then
                   onset_gddflag(p) = 0._r8
                   onset_gdd(p) = 0._r8
                end if
@@ -825,7 +831,8 @@ contains
                ! if the gdd flag is set, and if the soil is above freezing
                ! then accumulate growing degree days for onset trigger
 
-               soilt = t_soisno(c,3)
+               !soilt = t_soisno(c,3)
+               soilt = (t_soisno(c,1)+t_soisno(c,2)+t_soisno(c,3))/3._r8
                if (onset_gddflag(p) == 1.0_r8 .and. soilt > SHR_CONST_TKFRZ) then
                   onset_gdd(p) = onset_gdd(p) + (soilt-SHR_CONST_TKFRZ)*fracday
                end if
@@ -1060,7 +1067,8 @@ contains
          g = veg_pp%gridcell(p)
 
          if (stress_decid(ivt(p)) == 1._r8) then
-            soilt = t_soisno(c,3)
+            !soilt = t_soisno(c,3)
+            soilt = (t_soisno(c,1)+t_soisno(c,2)+t_soisno(c,3))/3._r8
             psi = soilpsi(c,3)
 
             ! onset gdd sum from Biome-BGC, v4.1.2
