@@ -198,7 +198,7 @@ contains
 
     deallocate( class_nums, comp_factors,class_factors,factors )
 
-  endsubroutine megan_factors_init
+  end subroutine megan_factors_init
 !-----------------------------------------------------------------------
 
   !-----------------------------------------------------------------------
@@ -219,7 +219,7 @@ contains
        hash_table_indices(hashkey) = i
     enddo
 
-  endsubroutine bld_hash_table_indices
+  end subroutine bld_hash_table_indices
 
   !-----------------------------------------------------------------------
   !-----------------------------------------------------------------------

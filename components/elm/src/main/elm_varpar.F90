@@ -59,7 +59,7 @@ module elm_varpar
   logical :: crop_prog   = .true.  ! If prognostic crops is turned on
   integer :: maxpatch_urb= 5       ! max number of urban patches (columns) in urban landunit
 
-  integer :: mxpft_nc            ! maximum number of PFT's when use_crop=False;
+  integer :: mxpft_nc    = numveg  ! maximum number of PFT's when use_crop=False;
 
   integer :: maxpatch_pft        ! max number of plant functional types in naturally vegetated landunit (namelist setting)
 

@@ -40,6 +40,9 @@ contains
     use pftvarcon        , only : noveg, nc3crop, nc3irrig, nbrdlf_evr_shrub, nbrdlf_dcd_brl_shrub
     use pftvarcon        , only : ncorn, ncornirrig, npcropmin, ztopmx, laimx
     use pftvarcon        , only : nmiscanthus, nmiscanthusirrig, nswitchgrass, nswitchgrassirrig
+    !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
+    use pftvarcon        , only : ntree, nshrub, ngraminoid
+    !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
     use clm_time_manager , only : get_rad_step_size
     use elm_varctl       , only : spinup_state, spinup_mortality_factor
     !
@@ -80,10 +83,11 @@ contains
     !   crop    tsai_alpha,tsai_min = 0.0,0.1
     !   noncrop tsai_alpha,tsai_min = 0.5,1.0  (includes bare soil and urban)
     !-------------------------------------------------------------------------------
-
-    associate(                                                            &
-         ivt                =>  veg_pp%itype                         ,       & ! Input:  [integer  (:) ] pft vegetation type
-         woody              =>  veg_vp%woody                  ,       & ! Input:  [real(r8) (:) ] binary flag for woody lifeform (1=woody, 0=not woody)
+    
+    associate(                                                            & 
+         ivt                =>  veg_pp%itype                       ,      & ! Input:  [integer  (:) ] pft vegetation type
+         woody              =>  veg_vp%woody                       ,      & ! Input:  [real(r8) (:) ] binary flag for woody lifeform (1=woody, 0=not woody)
+         nonvascular        =>  veg_vp%nonvascular                 ,      & ! Input:  [integer  (:) ] nonvascluar lifeform (0 - vascular, 1=moss, 2=lichen, etc)
          slatop             =>  veg_vp%slatop                 ,       & ! Input:  [real(r8) (:) ] specific leaf area at top of canopy, projected area basis [m^2/gC]
          dsladlai           =>  veg_vp%dsladlai               ,       & ! Input:  [real(r8) (:) ] dSLA/dLAI, projected area basis [m^2/gC]
          z0mr               =>  veg_vp%z0mr                   ,       & ! Input:  [real(r8) (:) ] ratio of momentum roughness length to canopy top height (-)
@@ -136,6 +140,10 @@ contains
             ! Eq 3 from Thornton and Zimmerman, 2007, J Clim, 20, 3902-3923.
             if (dsladlai(ivt(p)) > 0._r8) then
                tlai(p) = (slatop(ivt(p))*(exp(leafc(p)*dsladlai(ivt(p))) - 1._r8))/dsladlai(ivt(p))
+            elseif (tlai(p) > 2._r8) then
+               ! if high LAI, always assuming non-zero 'dsladlai'(0.005) (fmyuan, 2022-12-20)
+               ! when LAI>2 shading usually would be very much so it's possible sla would be changing significantly
+               tlai(p) = (slatop(ivt(p))*(exp(leafc(p)*0.005_r8) - 1._r8))/0.005_r8
             else
                tlai(p) = slatop(ivt(p)) * leafc(p)
             end if
@@ -148,7 +156,8 @@ contains
             ! alpha are set by PFT, and alpha is scaled to CLM time step by multiplying by
             ! dt and dividing by dtsmonth (seconds in average 30 day month)
             ! tsai_min scaled by 0.5 to match MODIS satellite derived values
-            if (ivt(p) == nc3crop .or. ivt(p) == nc3irrig) then ! generic crops
+            !if (ivt(p) == nc3crop .or. ivt(p) == nc3irrig) then ! generic crops
+            if (ivt(p) > ngraminoid .and. ivt(p) < npcropmin) then ! generic crops
 
                tsai_alpha = 1.0_r8-1.0_r8*dt/dtsmonth
                tsai_min = 0.1_r8
@@ -159,12 +168,14 @@ contains
             tsai_min = tsai_min * 0.5_r8
             tsai(p) = max(tsai_alpha*tsai_old+max(tlai_old-tlai(p),0._r8),tsai_min)
 
-            if (woody(ivt(p)) == 1._r8) then
+            !if (woody(ivt(p)) >= 1.0_r8) then
+            if (woody(ivt(p)) >= 1.0_r8) then
 
                ! trees and shrubs
 
-               ! if shrubs have a squat taper
-               if (ivt(p) >= nbrdlf_evr_shrub .and. ivt(p) <= nbrdlf_dcd_brl_shrub) then
+               ! if shrubs have a squat taper 
+               if ((ivt(p) >ntree .and. ivt(p) <= nshrub) .or. & ! CLM-style indexing for 'shrub'
+                   (woody(ivt(p)) == 2._r8) ) then  ! tree: 1, shrub: 2
                   taper = 10._r8
                   ! otherwise have a tall taper
                else
@@ -224,8 +235,17 @@ contains
 
                ! grasses
 
+               if(nonvascular(ivt(p)) == 1) then
+               ! moss: ranging from 0.02 - 0.1 m
+                 htop(p) = max(0.02_r8, min(0.10_r8, tlai(p) * 0.10_r8)) ! (TODO: requires further literature study on this)
+               elseif(nonvascular(ivt(p)) == 2) then
+               ! lichen: ususally composited onto/into surface (rock, bare soil, or even plant trunk/branch).
+               !         here only considering on bare/rock surface ones, i.e. distinguishable as fraction of land as one type of coverage.
+                 htop(p) = 0.01_r8
+               else
                ! height for grasses depends only on LAI
-               htop(p) = max(0.25_r8, tlai(p) * 0.25_r8)
+                 htop(p) = max(0.25_r8, tlai(p) * 0.25_r8)
+               endif
 
                htop(p) = min(htop(p),(forc_hgt_u_patch(p)/(displar(ivt(p))+z0mr(ivt(p))))-3._r8)
 
@@ -248,7 +268,10 @@ contains
          ! adjust lai and sai for burying by snow.
          ! snow burial fraction for short vegetation (e.g. grasses) as in
          ! Wang and Zeng, 2007.
-         if (ivt(p) > noveg .and. ivt(p) <= nbrdlf_dcd_brl_shrub ) then
+    !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
+         !if (ivt(p) > noveg .and. ivt(p) <= nbrdlf_dcd_brl_shrub ) then
+         if (ivt(p) > noveg .and. woody(ivt(p)) >= 1.0_r8 ) then
+    !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
             ol = min( max(snow_depth(c)-hbot(p), 0._r8), htop(p)-hbot(p))
             fb = 1._r8 - ol / max(1.e-06_r8, htop(p)-hbot(p))
          else

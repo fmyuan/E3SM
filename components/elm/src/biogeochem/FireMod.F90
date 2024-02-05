@@ -127,8 +127,8 @@ contains
     use elm_varcon           , only: secspday
     use elm_varctl           , only: use_nofire, spinup_state, spinup_mortality_factor
     use dynSubgridControlMod , only: run_has_transient_landcover
-    use pftvarcon            , only: nc4_grass, nc3crop, ndllf_evr_tmp_tree
     use pftvarcon            , only: nbrdlf_evr_trp_tree, nbrdlf_dcd_trp_tree, nbrdlf_evr_shrub
+    use pftvarcon            , only : ntree, nshrub, ngraminoid
     !
     ! !ARGUMENTS:
     type(bounds_type)        , intent(in)    :: bounds
@@ -306,11 +306,12 @@ contains
            if (pi <=  col_pp%npfts(c)) then
               p = col_pp%pfti(c) + pi - 1
               ! For crop veg types
-              if( veg_pp%itype(p) > nc4_grass )then
+              if( veg_pp%itype(p) > ngraminoid )then
                  cropf_col(c) = cropf_col(c) + veg_pp%wtcol(p)
               end if
               ! For natural vegetation (non-crop and non-bare-soil)
-              if( veg_pp%itype(p) >= ndllf_evr_tmp_tree .and. veg_pp%itype(p) <= nc4_grass )then
+              !if( veg_pp%itype(p) >= ndllf_evr_tmp_tree .and. veg_pp%itype(p) <= nc4_grass )then
+              if( veg_pp%itype(p) > noveg .and. veg_pp%itype(p) <= ngraminoid )then
                  lfwt(c) = lfwt(c) + veg_pp%wtcol(p)
               end if
            end if
@@ -332,7 +333,8 @@ contains
               ! column-level litter carbon
               ! is available, so we use leaf carbon to estimate the
               ! litter carbon for crop PFTs
-              if( veg_pp%itype(p) > nc4_grass .and. veg_pp%wtcol(p) > 0._r8 .and. leafc_col(c) > 0._r8 )then
+              !if( veg_pp%itype(p) > nc4_grass .and. veg_pp%wtcol(p) > 0._r8 .and. leafc_col(c) > 0._r8 )then
+              if( veg_pp%itype(p) > ngraminoid .and. veg_pp%wtcol(p) > 0._r8 .and. leafc_col(c) > 0._r8 )then
                  fuelc_crop(c)=fuelc_crop(c) + (leafc(p) + leafc_storage(p) + &
                       leafc_xfer(p))*veg_pp%wtcol(p)/cropf_col(c)     + &
                       totlitc(c)*leafc(p)/leafc_col(c)*veg_pp%wtcol(p)/cropf_col(c)
@@ -369,7 +371,7 @@ contains
               p = col_pp%pfti(c) + pi - 1
 
               ! For non-crop -- natural vegetation and bare-soil
-              if( veg_pp%itype(p)  <  nc3crop .and. cropf_col(c)  <  1.0_r8 )then
+              if( veg_pp%itype(p)  <=  ngraminoid .and. cropf_col(c)  <  1.0_r8 )then
                  if( .not. (btran2(p) .ne. btran2(p)))then !?shr_infnan_isnan(btran2(p))) then
                     if (btran2(p)  <=  1._r8 ) then
                        btran_col(c) = btran_col(c)+btran2(p)*veg_pp%wtcol(p)
@@ -492,7 +494,7 @@ contains
            if (pi <=  col_pp%npfts(c)) then
               p = col_pp%pfti(c) + pi - 1
               ! For crop
-              if( forc_t(t)  >=  SHR_CONST_TKFRZ .and. veg_pp%itype(p)  >  nc4_grass .and.  &
+              if( forc_t(t)  >=  SHR_CONST_TKFRZ .and. veg_pp%itype(p)  >  ngraminoid .and.  &
                    kmo == abm_lf(c) .and. forc_rain(t)+forc_snow(t) == 0._r8  .and. &
                    burndate(p) >= 999 .and. veg_pp%wtcol(p)  >  0._r8 )then ! catch  crop burn time
 
@@ -663,6 +665,7 @@ contains
       !$acc routine seq
    use pftvarcon            , only: cc_leaf,cc_lstem,cc_dstem,cc_other,fm_leaf,fm_lstem,fm_other,fm_root,fm_lroot,fm_droot
    use pftvarcon            , only: nc3crop,lf_flab,lf_fcel,lf_flig,fr_flab,fr_fcel,fr_flig
+   use pftvarcon            , only: ntree, nshrub, ngraminoid
    use elm_varpar           , only: max_patch_per_col
    use elm_varctl           , only: spinup_state, spinup_mortality_factor
    use dynSubgridControlMod , only: get_flanduse_timeseries
@@ -966,7 +969,7 @@ contains
         c = veg_pp%column(p)
 
         itype = veg_pp%itype(p)
-        if( itype < nc3crop .and. cropf_col(c) < 1.0_r8)then
+        if( itype <= ngraminoid .and. cropf_col(c) < 1.0_r8)then
            ! For non-crop (bare-soil and natural vegetation)
            if (transient_landcover) then    !true when landuse data is used
               f = (fbac(c)-baf_crop(c))/(1.0_r8-cropf_col(c))
