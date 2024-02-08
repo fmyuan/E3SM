@@ -1152,7 +1152,10 @@ end subroutine EMAlquimia_Coldstart
 
 
              ! Copy dissolved nitrogen species. Units need to be converted from gN/m3 to M/L. Currently assuming saturated porosity
-             
+             if(this%NO3_pool_number>0 .and. no3_l2e(c,j) < 0.0 ) then
+                write(iulog,*) c,j,'NO3 < 0 passed to Alquimia',no3_l2e(c,j)
+                call endrun(msg = 'NO3 < 0 passed to Alquimia')
+             endif
              if(this%NO3_pool_number>0) total_mobile_l2e(c,j,this%NO3_pool_number) = max(no3_l2e(c,j)/natomw,minval)
              if(this%NH4_pool_number>0) total_mobile_l2e(c,j,this%NH4_pool_number) = max(nh4_l2e(c,j)/natomw,minval)
 
@@ -1184,6 +1187,9 @@ end subroutine EMAlquimia_Coldstart
              if(this%plantNO3uptake_pool_number>0) total_mobile_l2e(c,j,this%plantNO3uptake_pool_number) = minval
              if(this%plantNH4uptake_pool_number>0) total_immobile_l2e(c,j,this%plantNH4uptake_pool_number) = minval
              if(this%plantNH4uptake_pool_number>0) total_mobile_l2e(c,j,this%plantNH4uptake_pool_number) = minval
+
+             ! Prevent negative values of h2o_liqvol
+             h2o_liqvol(c,j) = max(h2o_liqvol(c,j),0.0001_r8)
 
              if(h2o_liqvol(c,j)+h2o_icevol(c,j)>0) then
               liq_frac(j) = h2o_liqvol(c,j)/(h2o_liqvol(c,j)+h2o_icevol(c,j))
@@ -1264,15 +1270,15 @@ end subroutine EMAlquimia_Coldstart
               ! if (c .ne. 2) then ! skip chemistry for the tidal channel column
 #endif
               ! Limit velocity of vertical water flux to 1 cm/hour for now (for purposes of advection)
-              do j = 0, nlevdecomp 
-                if(qflx_adv_l2e(c,j) > 10.0/dt) then
-                  qflx_adv_l2e(c,j) = 10.0/dt
-                elseif(qflx_adv_l2e(c,j) < -10.0/dt) then
-                  qflx_adv_l2e(c,j) = -10.0/dt
-                endif
-                ! Enforce a small downward flow
-                ! if(abs(qflx_adv_l2e(c,j))<1e-4)  qflx_adv_l2e(c,j) = 1e-4_r8
-              enddo
+              ! do j = 0, nlevdecomp 
+              !   if(qflx_adv_l2e(c,j) > 10.0/dt) then
+              !     qflx_adv_l2e(c,j) = 10.0/dt
+              !   elseif(qflx_adv_l2e(c,j) < -10.0/dt) then
+              !     qflx_adv_l2e(c,j) = -10.0/dt
+              !   endif
+              !   ! Enforce a small downward flow
+              !   ! if(abs(qflx_adv_l2e(c,j))<1e-4)  qflx_adv_l2e(c,j) = 1e-4_r8
+              ! enddo
 
               ! Add subsurface drainage flux to bottom layer of lateral flow
               ! write(iulog,*),'QFLX_DRAIN',qflx_drain_l2e(c,1:nlevdecomp)*dt
@@ -1296,9 +1302,11 @@ end subroutine EMAlquimia_Coldstart
               !   endif
               ! enddo
 
-              qflx_adv_l2e(c,1:nlevdecomp-1) = sum(qflx_drain_l2e(c,1:nlevdecomp))/dt
+              ! Limit velocity of vertical water flux to 1 cm/hour for now (for purposes of advection)
+              ! Higher velocities tend to produce negative solute concentrations and crash the model
+              qflx_adv_l2e(c,1:nlevdecomp-1) = max(sum(qflx_drain_l2e(c,1:nlevdecomp))/dt,-10.0/dt)
               qflx_adv_l2e(c,nlevdecomp) = 0.0_r8
-              qflx_adv_l2e(c,0) = min(qflx_adv_l2e(c,0),sum(qflx_drain_l2e(c,1:nlevdecomp))/dt)
+              qflx_adv_l2e(c,0) = max(min(qflx_adv_l2e(c,0),sum(qflx_drain_l2e(c,1:nlevdecomp))/dt),-10.0/dt)
 
               ! Do drainage above frozen layer
               do j=1,nlevdecomp
@@ -1587,6 +1595,18 @@ end subroutine EMAlquimia_Coldstart
         ! write(iulog,*),'pH',pH_e2l(c,1:nlevdecomp)
         ! write(iulog,*),'H2O_liq',h2o_liqvol(c,1:nlevdecomp)
         ! write(iulog,*),'H2O_ice',h2o_icevol(c,1:nlevdecomp)
+
+        if(this%NO3_pool_number>0 .and. any(no3_e2l(c,:) < 0.0) ) then
+          write(iulog,*) c,'NO3 < 0 after Alquimia',no3_e2l(c,:)
+          write(iulog,*),'NO3 before',no3_l2e(c,:)
+          write(iulog,*),'Porosity',porosity_l2e(c,:)
+          write(iulog,*),'qflx_lat_aqu',qflx_lat_aqu_l2e(c,:)
+          write(iulog,*),'qflx_adv',qflx_adv_l2e(c,:)
+          write(iulog,*),'water content',(h2o_liqvol(c,:)+h2o_icevol(c,:))/porosity_l2e(c,:)
+          write(iulog,*),'h2o_liqvol',h2o_liqvol(c,:)
+          write(iulog,*),'h2o_icevol',h2o_icevol(c,:)
+          call endrun(msg = 'NO3 < 0 after Alquimia')
+        endif
 
 
         ! I wonder if these errors are occurring because we are dividing by a very small liquid water amount somewhere in the chemistry?
@@ -2331,7 +2351,10 @@ end subroutine EMAlquimia_Coldstart
   call run_vert_transport(this,actual_dt/2, total_mobile, &
                           porosity(:),temperature(:),volume(:),saturation(:),liq_frac(:),&
                           adv_flux(:),lat_flow(:),lat_bc,lat_flux_step,surf_bc,surf_flux_step,transport_change_rate)
-
+  if(any(total_mobile(1:nlevdecomp,this%NO3_pool_number)<0.0)) then
+    write(iulog,*),'NO3 Before (1st half step): ',total_mobile(1:nlevdecomp,this%NO3_pool_number)- transport_change_rate(1:nlevdecomp,this%NO3_pool_number)*actual_dt
+    write(iulog,*),'NO3 after: ',total_mobile(1:nlevdecomp,this%NO3_pool_number)
+  endif
   do j=1,nlevdecomp
 
     ! Update properties from ELM
@@ -2510,13 +2533,22 @@ end subroutine EMAlquimia_Coldstart
     surf_flux = surf_flux + surf_flux_step
     lat_flux  = lat_flux  + lat_flux_step
       
+    if(any(total_mobile(1:nlevdecomp,this%NO3_pool_number)<0.0)) then
+      write(iulog,*),'NO3 Before (2nd half step): ',total_mobile(1:nlevdecomp,this%NO3_pool_number)- transport_change_rate(1:nlevdecomp,this%NO3_pool_number)*actual_dt
+     endif
+
     ! Second half of transport (Strang splitting)
     ! This is only done if we converged at this time step for all layers
     call run_vert_transport(this,actual_dt/2, total_mobile, &
                             porosity,temperature,volume,saturation,liq_frac,&
                             adv_flux,lat_flow,lat_bc,lat_flux_step,surf_bc,surf_flux_step,transport_change_rate)
 
-
+    if(any(total_mobile(1:nlevdecomp,this%NO3_pool_number)<0.0)) then
+      write(iulog,*),'NO3 Before (2nd half step): ',total_mobile(1:nlevdecomp,this%NO3_pool_number)- transport_change_rate(1:nlevdecomp,this%NO3_pool_number)*actual_dt
+      write(iulog,*),'NO3 after: ',total_mobile(1:nlevdecomp,this%NO3_pool_number)
+      write(iulog,*),'transport_change',transport_change_rate(1:nlevdecomp,this%NO3_pool_number)*actual_dt
+      write(iulog,*),'surf_bc',surf_bc(this%NO3_pool_number),'lat_bc',lat_bc(this%NO3_pool_number),lat_flux_step(this%NO3_pool_number),surf_flux_step(this%NO3_pool_number)
+    endif
     surf_flux = surf_flux + surf_flux_step
     lat_flux  = lat_flux  + lat_flux_step
   endif ! if converged
@@ -2664,7 +2696,7 @@ subroutine run_vert_transport(this,actual_dt, total_mobile, &
     ! write(iulog,*) 'lat_flow',lat_flow(c,:)
     ! write(iulog,*) 'porosity',porosity(c,:)
     ! write(iulog,*) 'saturation',sat(:) ! Need to account for when saturation is 0
-    ! write(iulog,*),'Mobile spec',k,'Before: ',total_mobile(c,1:nlevdecomp,k)
+   
     ! write(iulog,*),__LINE__,'adv_flux',adv_flux(c,1:nlevdecomp+1)
     call advection_diffusion(total_mobile(1:nlevdecomp,k),adv_flux(1:nlevdecomp+1)*1e-3*dissolved_frac(0:nlevdecomp),diffus(1:nlevdecomp),& 
                             source_term(1:nlevdecomp,k),&
