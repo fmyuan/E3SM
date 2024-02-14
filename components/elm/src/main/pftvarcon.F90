@@ -1088,7 +1088,7 @@ contains
     ! Defaults from Teri's hard coded numbers
     ! Multiple parameters specified in params file like tide_coeff_amp_1, tide_coeff_amp_2, ...
     call ncd_io('tide_baseline',tide_baseline, 'read', ncid, readvar=readv, posNOTonfile=.true.)
-    if (.not. readv) tide_baseline = 800.0_r8
+    if (.not. readv) tide_baseline = 0.0_r8
     do i=1,max_tide_coeffs
       write(tempname,'(I0)') i
       call ncd_io('tide_coeff_amp_'//trim(tempname),tide_coeff_amp(i), 'read', ncid, readvar=readv, posNOTonfile=.true.)
