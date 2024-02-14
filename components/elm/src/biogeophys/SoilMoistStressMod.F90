@@ -411,7 +411,7 @@ contains
                elseif(h2osfc(c) .le. 0._r8) then
                      floodf(p)=1.0_r8                       
                endif
-               rresis(p,j) = rresis(p,j)*floodf(p)
+               rresis(p,j) = rresis(p,j)*max(floodf(p),0.25_r8) !BNS limit flood effect, should update to optimal PFT range
 #endif
 
                if (.not. (perchroot .or. perchroot_alt) ) then
