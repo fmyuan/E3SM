@@ -111,6 +111,7 @@ contains
     ! !DESCRIPTION:
     !
     ! !USES:
+    use pftvarcon            , only : rhizome_long
     !
     ! !ARGUMENTS:
       !$acc routine seq
@@ -231,7 +232,7 @@ contains
          else if (ivt(p) >= npcropmin .and. livestemn(p) .gt. 0._r8) then
             livestem_mr(p) = livestemn(p)*br_mr*tc
             grain_mr(p) = grainn(p)*br_mr*tc
-         else ! Graminoid rhizomes
+         else if (rhizome_long(ivt(p))>0._r8) then ! Graminoid rhizomes
             livecroot_mr(p) = livecrootn(p)*br_mr*tc
          end if
          if (br_xr(ivt(p)) .gt. 1e-9_r8) then
