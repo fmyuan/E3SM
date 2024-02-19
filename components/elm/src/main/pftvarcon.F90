@@ -722,7 +722,7 @@ contains
     call ncd_io('froot_long',froot_long, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if (.not. readv) froot_long = leaf_long
     call ncd_io('rhizome_long',rhizome_long(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
-    if (.not. readv) rhizome_long = froot_long
+    if (.not. readv) rhizome_long = 0.0_r8 !froot_long
     call ncd_io('evergreen',evergreen(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
     call ncd_io('stress_decid',stress_decid, 'read', ncid, readvar=readv, posNOTonfile=.true.)

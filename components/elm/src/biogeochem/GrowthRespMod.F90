@@ -8,6 +8,7 @@ module GrowthRespMod
   ! !USES:
   use shr_kind_mod     , only : r8 => shr_kind_r8
   use pftvarcon        , only : grperc, grpnow, npcropmin
+  use pftvarcon        , only : rhizome_long
   use VegetationPropertiesType   , only : veg_vp
   use VegetationType        , only : veg_pp
   use VegetationDataType    , only : veg_cf
@@ -133,13 +134,7 @@ contains
          transfer_froot_gr(p)      = frootc_xfer_to_frootc(p) * grperc(ivt(p)) * &
               (1._r8 - grpnow(ivt(p)))
 
-         ! B. Sulman: Moved out of woody to allow graminoid rhizomes
-         cpool_livecroot_gr(p)         = cpool_to_livecrootc(p) * grperc(ivt(p))
-         cpool_livecroot_storage_gr(p) = cpool_to_livecrootc_storage(p) * &
-             grperc(ivt(p)) * grpnow(ivt(p))
-         transfer_livecroot_gr(p)      = livecrootc_xfer_to_livecrootc(p) * &
-             grperc(ivt(p)) * (1._r8 - grpnow(ivt(p)))
-         if (woody(ivt(p)) >= 1.0_r8) then
+         if (woody(ivt(p)) == 1._r8) then
             cpool_livestem_gr(p)          = cpool_to_livestemc(p) * grperc(ivt(p))
             cpool_livestem_storage_gr(p)  = cpool_to_livestemc_storage(p) * &
                  grperc(ivt(p)) * grpnow(ivt(p))
@@ -150,11 +145,24 @@ contains
                  grperc(ivt(p)) * grpnow(ivt(p))
             transfer_deadstem_gr(p)       = deadstemc_xfer_to_deadstemc(p) * &
                  grperc(ivt(p)) * (1._r8 - grpnow(ivt(p)))
+            cpool_livecroot_gr(p)         = cpool_to_livecrootc(p) * grperc(ivt(p))
+            cpool_livecroot_storage_gr(p) = cpool_to_livecrootc_storage(p) * &
+                 grperc(ivt(p)) * grpnow(ivt(p))
+            transfer_livecroot_gr(p)      = livecrootc_xfer_to_livecrootc(p) * &
+                 grperc(ivt(p)) * (1._r8 - grpnow(ivt(p)))
             cpool_deadcroot_gr(p)         = cpool_to_deadcrootc(p) * grperc(ivt(p))
             cpool_deadcroot_storage_gr(p) = cpool_to_deadcrootc_storage(p) * &
                  grperc(ivt(p)) * grpnow(ivt(p))
             transfer_deadcroot_gr(p)      = deadcrootc_xfer_to_deadcrootc(p) * &
                  grperc(ivt(p)) * (1._r8 - grpnow(ivt(p)))
+         else if (rhizome_long(ivt(p))>0._r8) then
+            ! B. Sulman: Moved out of woody to allow graminoid rhizomes
+            cpool_livecroot_gr(p)         = cpool_to_livecrootc(p) * grperc(ivt(p))
+            cpool_livecroot_storage_gr(p) = cpool_to_livecrootc_storage(p) * &
+                 grperc(ivt(p)) * grpnow(ivt(p))
+            transfer_livecroot_gr(p)      = livecrootc_xfer_to_livecrootc(p) * &
+                 grperc(ivt(p)) * (1._r8 - grpnow(ivt(p)))
+
          end if
 
       end do
