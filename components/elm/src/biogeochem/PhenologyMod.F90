@@ -1060,7 +1060,7 @@ contains
             !make sure a second onset period doesn't occur SL 02-09-22
             if (ws_flag == 0._r8 .and. dayl(g) < PhenolParamsInst%crit_dayl) then
                onset_flag(p) = 0._r8
-               onset_counter = 0._r8 !SL this might interfere with arctic stuff but fixes random fall onset_counter > 0
+               onset_counter(p) = 0._r8 !SL this might interfere with arctic stuff but fixes random fall onset_counter > 0
                !dormant_flag(p) = 1._r8
             endif
          end if ! end if seasonal deciduous
