@@ -2896,7 +2896,7 @@ contains
          p = filter_soilp(fp)
 
          ! only calculate these fluxes for woody types
-         if (woody(ivt(p)) > 0._r8) then
+         if (woody(ivt(p)) >= 1._r8) then
             if ( nu_com .eq. 'RD') then
                ! live stem to dead stem turnover
 
