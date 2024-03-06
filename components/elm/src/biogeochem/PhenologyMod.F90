@@ -3455,7 +3455,7 @@ contains
          p = filter_soilp(fp)
 
          ! only calculate these fluxes for woody types
-         if (woody(ivt(p)) > 0._r8) then
+         if (woody(ivt(p)) >= 1._r8) then
             ! These are only used for nonwoody rhizomes
             livecrootc_to_litter(p) = 0.0_r8
             livecrootn_to_litter(p) = 0.0_r8
