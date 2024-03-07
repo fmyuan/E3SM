@@ -266,7 +266,7 @@ contains
             col_coutputs(c) = col_coutputs(c) + som_c_yield(c)
          end if
 
-         if (use_alquimia) col_coutputs = col_coutputs + col_cf%DOC_runoff(c) + col_cf%DIC_runoff(c) + col_cf%ch4flux(c)
+         if (use_alquimia) col_coutputs(c) = col_coutputs(c) + col_cf%DOC_runoff(c) + col_cf%DIC_runoff(c) + col_cf%ch4flux(c)
 
          ! calculate the total column-level carbon balance error for this time step
          col_errcb(c) = (col_cinputs(c) - col_coutputs(c))*dt - (col_endcb(c) - col_begcb(c))
@@ -486,9 +486,6 @@ contains
                col_prod1n_loss(c) + col_prod10n_loss(c) + col_prod100n_loss(c)
 
          if(use_alquimia) col_noutputs(c) = col_noutputs(c) + col_nf%DON_runoff(c)
-
-         col_noutputs(c) = col_noutputs(c) + col_prod1n_loss(c)
-         
          col_noutputs(c) = col_noutputs(c) - som_n_leached(c)
 
          ! subtracted erosion flux
