@@ -18,6 +18,7 @@ module pftvarcon
   !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
   use elm_varpar  , only : maxpatch_pft, natpft_lb, natpft_ub, crop_prog
   use elm_varpar  , only : numpft, numcft, natpft_size, cft_size, max_patch_per_col, maxpatch_urb
+  use elm_varpar  , only : surfpft_size, surfpft_lb, surfpft_ub
   use elm_varctl  , only : create_crop_landunit
   !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
   !
@@ -1386,6 +1387,7 @@ contains
 
        ! MUST re-do some constants which already set in 'clm_varpar.F90:clm_varpar_init()'
        numpft       = npft - 1                   ! actual # of patches (without bare)
+       mxpft_nc     = numpft                     ! user-defined is what max.
        if (npcropmin < npft) then
           numcft    = npcropmax - npcropmin + 1  ! actual # of crops
           crop_prog = .true.                     ! If prognostic crops is turned on
@@ -1405,6 +1407,10 @@ contains
        natpft_ub = natpft_lb + natpft_size - 1
        cft_lb = natpft_ub + 1
        cft_ub = max(cft_lb, cft_lb + cft_size - 1)            ! NOTE: if cft_size is ZERO, could be issue (but so far so good)
+       ! surfdata pft size must be same as physiology's natpft number
+       surfpft_lb  = natpft_lb
+       surfpft_ub  = natpft_ub
+       surfpft_size = natpft_size
 
        max_patch_per_col= max(numpft+1, numcft, maxpatch_urb)
 
