@@ -257,7 +257,7 @@ contains
     ! !USES:
     use elm_varctl , only : irrigate
     use elm_varpar , only : cft_lb, cft_ub, cft_size
-    use pftvarcon  , only : npcropmax, mergetoelmpft, npcropmin
+    use pftvarcon  , only : npcropmax, mergetoelmpft
     use topounit_varcon      , only : max_topounits   ! TKT
     use GridcellType   , only : grc_pp                ! TKT
     !
