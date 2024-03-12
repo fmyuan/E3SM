@@ -320,7 +320,7 @@ module pftvarcon
   real(r8), allocatable :: nonvascular(:)      ! nonvascular lifeform flag (0 = vascular, 1 = moss, 2 = lichen)
   real(r8), allocatable :: needleleaf(:)       ! needleleaf lifeform flag  (0 = broadleaf, 1 = needleleaf)
   real(r8), allocatable :: graminoid(:)        ! graminoid lifeform flag   (0 = nonvascular+woody+crop+percrop, 1 = graminoid)
-  real(r8), allocatable :: generic_crop(:)     ! generic_crop   (0 = not_crop or prognostic crop, 1 = generic crop, i.e. crop when use_crop=false)
+  real(r8), allocatable :: iscft(:)            ! crop function type flag   (0 = not_crop or generic crop, i.e. crop when use_crop=false, 1 = prognostic crop with cft created)
   real(r8), allocatable :: nfixer(:)           ! nitrogen fixer flag  (0 = inable, 1 = able to nitrogen fixation from atm. N2)
 
   !
@@ -643,7 +643,7 @@ contains
     allocate( climatezone        (0:mxpft) )
     allocate( nonvascular        (0:mxpft) )
     allocate( graminoid          (0:mxpft) )
-    allocate( generic_crop       (0:mxpft) )
+    allocate( iscft              (0:mxpft) )
     allocate( needleleaf         (0:mxpft) )
     allocate( nfixer             (0:mxpft) )
 
@@ -1097,8 +1097,8 @@ contains
     if ( .not. readv ) nonvascular(:) = 0
     call ncd_io('graminoid', graminoid, 'read', ncid, readvar=readv)
     if ( .not. readv ) graminoid(:) = 0
-    call ncd_io('generic_crop', generic_crop, 'read', ncid, readvar=readv)
-    if ( .not. readv ) generic_crop(:) = 0
+    call ncd_io('iscft', iscft, 'read', ncid, readvar=readv)
+    if ( .not. readv ) iscft(:) = 0
 
     call ncd_pio_closefile(ncid)
 
@@ -1197,7 +1197,7 @@ contains
     stem_taper(ndllf_evr_tmp_tree:nbrdlf_dcd_brl_tree) = 200.0_r8
     stem_taper(nbrdlf_evr_shrub:nbrdlf_dcd_brl_shrub) = 10.0_r8
     graminoid(nc3_arctic_grass:nc4_grass) = 1
-    generic_crop(nc3crop:nc3irrig) = 1
+    iscft(npcropmin:max(npcropmax,nppercropmax)) = 1
     nfixer(nsoybean)       = 1
     nfixer(nsoybeanirrig)  = 1
 
@@ -1234,13 +1234,16 @@ contains
        ncft0  = -1
        noncropmax = 0
        do i = 0, npft-1
-          if (crop(i)>=1 .or. percrop(i)>=1 .or. generic_crop(i)>=1) then
-              numcft = numcft + 1
+          if (crop(i)>=1 .or. percrop(i)>=1 .or. iscft(i)>=1) then
+              numcft = numcft + 1  ! includes generic_crop, while cft_size NOT (???? todo checking)
 
               if(use_crop) then
-                 ! if 'generic_crop' specifically defined,
+
+                 ! the following assumes that all crop pfts are in a block
+
+                 ! if 'generic_crop' (crop=1) specifically flagged by iscft=0
                  ! 'crop' will not be counted into prognostic
-                 if (crop(i)>=1 .and. generic_crop(i)==0) then
+                 if (crop(i)>=1 .and. iscft(i)==1) then
                     npcropmax = i
                     if(npcropmin<=0) npcropmin = i
                  end if
@@ -1253,11 +1256,9 @@ contains
                  end if
 
               else
-                 if(crop(i)>=1 .or. generic_crop(i)>=1) then
-                    ! in case either 'crop' or 'generic_crop' or both defined when not use_crop=.true.
-                    generic_crop(i) = 1
-                 else
-                    generic_crop(i) = 0
+                 if(crop(i)>=1 .or. percrop(i)>=1) then
+                    ! in case either 'crop' or 'generic_crop' or both defined, it must be generic, when not use_crop=.true.
+                    iscft(i) = 0
                  end if
               end if
 
@@ -1276,7 +1277,7 @@ contains
 
           ! need to check 'noveg'
           if ( woody(i)<=0 .and. graminoid(i)<=0 .and. nonvascular(i)<=0 .and. &
-               generic_crop(i)<=0 .and. crop(i)<=0 .and. percrop(i)<=0) then
+               iscft(i)<=0 .and. crop(i)<=0 .and. percrop(i)<=0) then
               if (noveg>=0) then
                  ! not yet support multiple non-vegetated PFT
                  ! this also will catch error of no actual PFT if npft>1
@@ -1329,23 +1330,23 @@ contains
      if ( .not. use_fates ) then
         do i = 0, mxpft
           if (i == noveg) then
-             if ( (nonvascular(i)+woody(i)+graminoid(i)+generic_crop(i)+crop(i)+percrop(i)) >= 1 .or. &
+             if ( (nonvascular(i)+woody(i)+graminoid(i)+max(iscft(i),crop(i)+percrop(i))) >= 1 .or. &
                   (needleleaf(i)+evergreen(i)+stress_decid(i)+season_decid(i)+nfixer(i)) >= 1 ) then
                 print *, 'ERROR: Incorrect not-vegetated PFT flags: ', i, ' ', trim(pftname(i))
                 call endrun(msg=' ERROR: not_vegetated has at least one positive PFT flag '//errMsg(__FILE__, __LINE__))
              end if
 
-          else if ( (nonvascular(i)+woody(i)+graminoid(i)+generic_crop(i)+crop(i)+percrop(i)) >= 1) then
-             if (nonvascular(i) >= 1 .and. (woody(i)+graminoid(i)+generic_crop(i)+crop(i)+percrop(i)) >= 1) then
+          else if ( (nonvascular(i)+woody(i)+graminoid(i)+max(iscft(i),crop(i)+percrop(i))) >= 1) then
+             if (nonvascular(i) >= 1 .and. (woody(i)+graminoid(i)+max(iscft(i),crop(i)+percrop(i))) >= 1) then
                 print *, 'ERROR: Incorrect nonvasculr PFT flags: ', i, ' ', trim(pftname(i))
                 call endrun(msg=' ERROR: nonvascular PFT cannot be any of woody/graminoid/crop type '//errMsg(__FILE__, __LINE__))
-             else if (woody(i) >= 1 .and. (nonvascular(i)+graminoid(i)+generic_crop(i)+crop(i)+percrop(i)) >= 1) then
+             else if (woody(i) >= 1 .and. (nonvascular(i)+graminoid(i)+max(iscft(i),crop(i)+percrop(i))) >= 1) then
                 print *, 'ERROR: Incorrect woody PFT flags: ', i, ' ', trim(pftname(i))
                 call endrun(msg=' ERROR: woody PFT cannot be any of nonvascular/graminoid/crop type - '//errMsg(__FILE__, __LINE__))
-             else if (graminoid(i) >= 1 .and. (nonvascular(i)+woody(i)+generic_crop(i)+crop(i)+percrop(i)) >=1 ) then
+             else if (graminoid(i) >= 1 .and. (nonvascular(i)+woody(i)+max(iscft(i),crop(i)+percrop(i))) >=1 ) then
                 print *, 'ERROR: Incorrect graminoid PFT flags: ', i, ' ', trim(pftname(i))
                 call endrun(msg=' ERROR: graminoid PFT cannot be any of nonvascular/woody/crop type - '//errMsg(__FILE__, __LINE__))
-             else if ( (generic_crop(i)+crop(i)+percrop(i)) >= 1 .and. (nonvascular(i)+woody(i)+graminoid(i)) >= 1) then
+             else if ( (max(iscft(i),crop(i)+percrop(i))) >= 1 .and. (nonvascular(i)+woody(i)+graminoid(i)) >= 1) then
                 print *, 'ERROR: Incorrect crop PFT flags: ', i, ' ', trim(pftname(i))
                 call endrun(msg=' ERROR: crop PFT cannot be any of nonvascular/woody/graminoid type - '//errMsg(__FILE__, __LINE__))
              end if
@@ -1371,11 +1372,11 @@ contains
      if (masterproc) then
            write(iulog,*)
            write(iulog,*) 'Using PFT physiological parameters from: ', paramfile
-           write(iulog,*) '        -- index -- name                                 -- climate zone --    -- woody --     -- needleleaf --    -- evergreen --    -- stress_decid --    -- season_decid --    -- graminoid--    -- generic_crop --   -- crop --    -- perennial crop --    -- nfixer --'
+           write(iulog,*) '        -- index -- name                                 -- climate zone --    -- woody --     -- needleleaf --    -- evergreen --    -- stress_decid --    -- season_decid --    -- graminoid--    -- iscft --   -- crop --    -- perennial crop --    -- nfixer --'
            do i = 0, npft-1
                write(iulog,*) i, pftname(i), int(climatezone(i)), int(woody(i)), int(needleleaf(i)), &
                 int(evergreen(i)), int(stress_decid(i)), int(season_decid(i)), &
-                int(graminoid(i)), int(generic_crop(i)), int(crop(i)), int(percrop(i)), int(nfixer(i))
+                int(graminoid(i)), int(iscft(i)), int(crop(i)), int(percrop(i)), int(nfixer(i))
            end do
            write(iulog,*)
      end if
