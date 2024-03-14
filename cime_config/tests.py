@@ -80,7 +80,7 @@ _TESTS = {
         "time"  : "0:45:00",
         "tests" : (
             "SMS_Ly2_P1x1_D.1x1_smallvilleIA.IELMCNCROP.elm-lulcc_sville",
-            "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-mydebug_I1850CNPRDCTCBC"
+            "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrdat_I1850CNPRDCTCBC1site"
             )
         },
 
@@ -90,8 +90,8 @@ _TESTS = {
         "tests" : (
             "SMS_Ly2_P1x1.1x1_smallvilleIA.IELMCNCROP.elm-per_crop",
             "SMS_Ly2_P1x1_D.1x1_smallvilleIA.IELMCNCROP.elm-lulcc_sville",
-            "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-arcticpft_codetest_I1850CNPRDCTCBC",
-            "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-arcticpft_onsetgdd_I1850CNPRDCTCBC",
+            "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrdat_I1850CNPRDCTCBC42sites"
+            "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_onsetgdd_I1850CNPRDCTCBC",
             #"ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_arctic_I1850CNPRDCTCBC",
             "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_codetest_I1850CNPRDCTCBC",
             "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_default_I1850CNPRDCTCBC"
@@ -115,9 +115,10 @@ _TESTS = {
             "SMS_Ly2_P1x1.1x1_smallvilleIA.IELMCNCROP.elm-fan",
             "SMS.r05_r05.IELM.elm-topounit",
             "ERS.ELM_USRDAT.I1850ELM.elm-usrdat",
+            "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrdat_I1850CNPRDCTCBC42sites",
             "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_default_I1850CNPRDCTCBC",
             "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_codetest_I1850CNPRDCTCBC",
-            "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-arcticpft_codetest_I1850CNPRDCTCBC",
+            "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_arctic_I1850CNPRDCTCBC",
             "ERS.r05_r05.IELM.elm-lnd_rof_2way",
             "ERS.r05_r05.IELM.elm-V2_ELM_MOSART_features",
             "ERS.ELM_USRDAT.IELM.elm-surface_water_dynamics"
