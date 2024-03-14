@@ -1,0 +1,12 @@
+./xmlchange LND_DOMAIN_FILE=domain_42_FLUXNETSITES05_simyr1850_c170912.nc
+./xmlchange ATM_DOMAIN_FILE=domain_42_FLUXNETSITES05_simyr1850_c170912.nc
+./xmlchange LND_DOMAIN_PATH="\$DIN_LOC_ROOT/atm/datm7/42_FLUXNETSITES05/CLM1PT_data"
+./xmlchange ATM_DOMAIN_PATH="\$DIN_LOC_ROOT/atm/datm7/42_FLUXNETSITES05/CLM1PT_data"
+./xmlchange DATM_MODE=CLM1PT
+./xmlchange DATM_CLMNCEP_YR_START=1980
+./xmlchange DATM_CLMNCEP_YR_END=2015
+./xmlchange ELM_USRDAT_NAME=42_FLUXNETSITES05
+./xmlchange NTASKS=1
+echo "
+ taxmode = 'cycle','extend','extend'
+">>user_nl_datm
