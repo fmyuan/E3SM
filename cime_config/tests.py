@@ -53,6 +53,8 @@ _TESTS = {
             "ERS_Ld150.ELM_USRDAT.I1850CNPRDCTCBC.elm-snowveg_arctic",
             "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_default_I1850CNPRDCTCBC",
             "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_codetest_I1850CNPRDCTCBC",
+            "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_arctic_codetest_I1850CNPRDCTCBC",
+            "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_arctic_onsetgdd_I1850CNPRDCTCBC",
             "ERS.1x1_icycape.I1850GSWCNPRDCTCBC.elm-polygonal_tundra",
             "SMS_Ly1.ELM_USRDAT.I1850CNPRDCTCBC.elm-kilocraft",
             )
@@ -97,8 +99,11 @@ _TESTS = {
         "tests" : (
             "SMS_Ly2_P1x1.1x1_smallvilleIA.IELMCNCROP.elm-per_crop",
             "SMS_Ly2_P1x1_D.1x1_smallvilleIA.IELMCNCROP.elm-lulcc_sville",
-            "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_arctic_I1850CNPRDCTCBC",
-            "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_onsetgdd_I1850CNPRDCTCBC",
+            "ERS_Ly10.ELM_USRDAT.I1850CNPRDCTCBC.elm-alquimia_emitest_I1850CNPRDCTCBC",
+            "ERS_Ly10.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrdat_I1850CNPRDCTCBC42sites",
+            "ERS_Ly10.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrdat_I1850CNPRDCTCBCxcol2",
+            "ERS_Ly10.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_arctic_I1850CNPRDCTCBC",
+            "ERS_Ly10.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_onsetgdd_I1850CNPRDCTCBC",
             "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_codetest_I1850CNPRDCTCBC",
             "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_default_I1850CNPRDCTCBC"
             )

@@ -1,0 +1,2 @@
+fsurdat = '$DIN_LOC_ROOT/lnd/clm2/surfdata_map/surfdata_3x1pt_US-PIE_simyr1850.nc'
+paramfile = '$DIN_LOC_ROOT/lnd/clm2/paramdata/clm_params_tai.c20250415.nc'
