@@ -1,0 +1,4 @@
+fsurdat = '$DIN_LOC_ROOT/lnd/clm2/surfdata_map/surfdata_2x1pt_US-PIE_simyr1850.nc'
+paramfile = '$DIN_LOC_ROOT/lnd/clm2/paramdata/clm_params_tai.c20250415.nc'
+# the following is for testing Tidal Channel seawater/tide up/down, etc. CPPDEFS for this is -DMARSH
+# tide_file = '$DIN_LOC_ROOT/lnd/clm2/surfdata_map/tide_forcing_US-PIE_c20250505.nc'
