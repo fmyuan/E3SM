@@ -85,6 +85,20 @@ _TESTS = {
             )
         },
 
+
+    "e3sm_land_mytests" : {
+        "share" : True,
+        "time"  : "0:45:00",
+        "tests" : (
+            "SMS_Ly2_P1x1.1x1_smallvilleIA.IELMCNCROP.elm-fan",
+            "SMS_Ly5_P1x1.1x1_smallvilleIA.IELMCNCROP.elm-force_netcdf_pio",
+            "SMS_Ly5_P1x1.1x1_smallvilleIA.IELMCNCROP.elm-per_crop",
+            "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_arctic_codetest_I1850CNPRDCTCBC",
+            "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_arctic_onsetgdd_I1850CNPRDCTCBC",
+            "ERS_Ly5_P1x1.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_arctic_maxpft12_I1850CNPRDCTCBC",
+            )
+        },
+
     "e3sm_land_developer" : {
         "share" : True,
         "time"  : "0:45:00",
