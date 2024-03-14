@@ -1,0 +1,5 @@
+fsurdat = '$DIN_LOC_ROOT/lnd/clm2/surfdata_map/surfdata_42_FLUXNETSITES_simyr1850_c170912.nc'
+!
+! and turn on a namelist option for arctic region, but likely non-BFB if it's true
+ onset_gdd_extension = .true.
+
