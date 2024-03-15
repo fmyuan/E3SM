@@ -15,14 +15,14 @@ module restFileMod
   use accumulMod           , only : accumulRest
   use histFileMod          , only : hist_restart_ncd
   use elm_varpar           , only : crop_prog
-  use elm_varctl           , only : use_cn, use_c13, use_c14, use_lch4, use_fates, use_betr
+  use elm_varctl           , only : use_cn, use_c13, use_c14, use_lch4, use_fates, use_betr, use_ew
   use elm_varctl           , only : use_erosion
   use elm_varctl           , only : create_glacier_mec_landunit, iulog 
   use elm_varcon           , only : c13ratio, c14ratio
   use elm_varcon           , only : nameg, namet, namel, namec, namep, nameCohort
   use CH4Mod               , only : ch4_type
   use CNStateType          , only : cnstate_type
-  
+
 
   use ELMFatesInterfaceMod , only : hlm_fates_interface_type
 
@@ -58,6 +58,7 @@ module restFileMod
   use ColumnDataType       , only : col_cf, c13_col_cf, c14_col_cf
   use ColumnDataType       , only : col_ns, col_nf
   use ColumnDataType       , only : col_ps, col_pf
+  use ColumnDataType       , only : col_ew, col_ms, col_mf
   use VegetationDataType   , only : veg_es, veg_ef, veg_ws, veg_wf
   use VegetationDataType   , only : veg_cs, c13_veg_cs, c14_veg_cs
   use VegetationDataType   , only : veg_cf, c13_veg_cf, c14_veg_cf
@@ -134,7 +135,7 @@ contains
     type(soilstate_type)           , intent(inout) :: soilstate_vars
     type(solarabs_type)            , intent(in)    :: solarabs_vars
     type(surfalb_type)             , intent(in)    :: surfalb_vars
-    class(betr_simulation_elm_type), intent(inout):: ep_betr
+    class(betr_simulation_elm_type), intent(inout) :: ep_betr
     type(hlm_fates_interface_type) , intent(inout) :: alm_fates
     type(crop_type)                , intent(inout) :: crop_vars
     character(len=*)               , intent(in), optional :: rdate     ! restart file time stamp for name
@@ -193,22 +194,21 @@ contains
     call soilstate_vars%restart (bounds, ncid, flag='define')
 
     call solarabs_vars%restart (bounds, ncid, flag='define')
-    
+
     call grc_wf%Restart (bounds, ncid, flag='define')
 
     call col_wf%Restart (bounds, ncid, flag='define')
-    
+
     call veg_wf%Restart (bounds, ncid, flag='define')
 
     call top_es%Restart (bounds, ncid, flag='define')
-    
+
     call lun_es%Restart (bounds, ncid, flag='define')
 
     call col_es%Restart (bounds, ncid, flag='define')
 
     call veg_es%Restart (bounds, ncid, flag='define')
 
-    
     call grc_ws%Restart(bounds, ncid, flag='define')
     
     call lun_ws%Restart (bounds, ncid, flag='define')
@@ -272,6 +272,11 @@ contains
 
     end if
 
+    if (use_ew) then
+      call col_ew%Restart(bounds, ncid, flag = 'define')
+      call col_ms%Restart(bounds, ncid, flag = 'define')
+      call col_mf%Restart(bounds, ncid, flag = 'define')
+    end if
 
     if (use_fates) then
        call alm_fates%restart(bounds, ncid, flag='define',  &
@@ -300,7 +305,7 @@ contains
     ! --------------------------------------------
     ! Write restart file variables
     ! --------------------------------------------
-    
+
     call timemgr_restart_io( ncid, flag='write' )
 
     call SubgridRest(bounds, ncid, flag='write' )
@@ -406,6 +411,10 @@ contains
        call crop_vars%Restart(bounds, ncid, flag='write')
     end if
 
+
+    call col_ew%Restart(bounds, ncid, flag='write')
+    call col_ms%Restart(bounds, ncid, flag='write')
+    call col_mf%Restart(bounds, ncid, flag='write')
 
 
     if (use_fates) then
@@ -601,7 +610,13 @@ contains
         call col_ps%Restart(bounds, ncid, flag='read', cnstate_vars=cnstate_vars)
         call col_pf%Restart(bounds, ncid, flag='read')
     end if
-   
+
+
+    call col_ew%Restart(bounds, ncid, flag = 'read')
+    call col_ms%Restart(bounds, ncid, flag = 'read')
+    call col_mf%Restart(bounds, ncid, flag = 'read')
+
+
     if (use_cn) then
        call veg_cs%restart(bounds, ncid, flag='read', &
             carbon_type='c12', cnstate_vars=cnstate_vars)
@@ -640,7 +655,7 @@ contains
     if (use_betr) then
        call ep_betr%BeTRRestart(bounds, ncid, flag='read')
     endif
-        
+
     call hist_restart_ncd (bounds, ncid, flag='read')
 
     if (do_budgets) then
@@ -651,7 +666,7 @@ contains
     endif
 
     ! Do error checking on file
-    
+
     call restFile_check_consistency(bounds, ncid)
 
     ! Close file 
@@ -909,6 +924,7 @@ contains
     use elm_varctl           , only : caseid, ctitle, version, username, hostname, fsurdat
     use elm_varctl           , only : conventions, source, use_hydrstress
     use elm_varpar           , only : numrad, nlevlak, nlevsno, nlevgrnd, nlevurb, nlevcan, nlevtrc_full, nmonth, nvegwcs
+    use elm_varpar           , only : nminerals, ncations, nminsec
     use elm_varpar           , only : cft_lb, cft_ub, maxpatch_glcmec
     use dynSubgridControlMod , only : get_flanduse_timeseries
     use decompMod            , only : get_proc_global
@@ -956,6 +972,9 @@ contains
     call ncd_defdim(ncid , 'levtot'  , nlevsno+nlevgrnd, dimid)
     call ncd_defdim(ncid , 'numrad'  , numrad         ,  dimid)
     call ncd_defdim(ncid , 'levcan'  , nlevcan        ,  dimid)
+    call ncd_defdim(ncid , 'minerals', nminerals      ,  dimid)
+    call ncd_defdim(ncid , 'cations' , ncations       ,  dimid)
+    call ncd_defdim(ncid , 'minsec'  , nminsec         ,  dimid)
     if ( use_hydrstress ) then
       call ncd_defdim(ncid , 'vegwcs'  , nvegwcs        ,  dimid)
     end if
@@ -1052,7 +1071,7 @@ contains
 
     character(len=*), parameter :: subname = 'restFile_add_icol_metadata'
     !-----------------------------------------------------------------------
-    
+
     ! Unlike ilun and ipft, the column names currently do not exist in column_varcon.
     ! This is partly because of the trickiness of encoding column values for crop &
     ! icemec.
@@ -1143,7 +1162,7 @@ contains
     call check_dim(ncid, 'levsno'  , nlevsno)
     call check_dim(ncid, 'levgrnd' , nlevgrnd)
     call check_dim(ncid, 'levurb'  , nlevurb)
-    call check_dim(ncid, 'levlak'  , nlevlak) 
+    call check_dim(ncid, 'levlak'  , nlevlak)
 
   end subroutine restFile_dimcheck
 
@@ -1418,9 +1437,4 @@ contains
 
   end subroutine restFile_check_year
 
-
-
 end module restFileMod
-
-
-

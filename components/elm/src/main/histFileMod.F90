@@ -4687,7 +4687,7 @@ contains
     ! !USES:
     use elm_varpar      , only : nlevgrnd, nlevsno, nlevlak, numrad, nlevdecomp_full, nlevtrc_soil, nmonth, nvegwcs
     use elm_varpar      , only : natpft_size, cft_size, maxpatch_glcmec
-    use elm_varpar      , only : nlevsoi
+    use elm_varpar      , only : nlevsoi, nminerals, ncations, nminsec
     use landunit_varcon , only : max_lunit
     !
     ! !ARGUMENTS:
@@ -4820,6 +4820,12 @@ contains
        num2d = nlevsno
     case ('nvegwcs')
         num2d = nvegwcs
+    case ('minerals')
+       num2d = nminerals
+    case ('cations')
+       num2d = ncations
+    case ('minsec')
+       num2d = nminsec
     case ('fates_levscls')
        num2d = nlevsclass_fates
     case('fates_levcacls')
@@ -4861,7 +4867,7 @@ contains
     case default
        write(iulog,*) trim(subname),' ERROR: unsupported 2d type ',type2d, &
           ' currently supported types for multi level fields are: ', &
-          '[levgrnd,levlak,numrad,nmonthlevdcmp,levtrc,ltype,natpft,cft,glc_nec,elevclas,levsno,levsoi]'
+          '[levgrnd,levlak,numrad,nmonthlevdcmp,levtrc,ltype,natpft,cft,glc_nec,elevclas,levsno,levsoi,nminerals,ncations,nminsec]'
        call endrun(msg=errMsg(__FILE__, __LINE__))
     end select
 
@@ -5235,4 +5241,3 @@ contains
   end subroutine hist_do_disp
 
 end module histFileMod
-

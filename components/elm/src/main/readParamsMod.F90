@@ -13,7 +13,7 @@ module readParamsMod
   !
   public :: readSharedParameters
   public :: readPrivateParameters
-  
+
   !-----------------------------------------------------------------------
 
 contains
@@ -35,7 +35,7 @@ contains
     ! read CN and BGC shared parameters
     !
 
-    use SharedParamsMod       , only : ParamsReadShared
+    use SharedParamsMod         , only : ParamsReadShared
 
     use elm_varctl              , only : paramfile, iulog
     use spmdMod                 , only : masterproc
@@ -76,25 +76,26 @@ contains
   subroutine readPrivateParameters
     ! read CN and BGC shared parameters
     !
-    use AllocationMod          , only : readCNAllocParams    
-    use SoilLittDecompMod              , only : readSoilLittDecompParams
-    use DecompCascadeBGCMod    , only : readDecompBGCParams
-    use DecompCascadeCNMod     , only : readDecompCNParams
+    use AllocationMod            , only : readCNAllocParams    
+    use SoilLittDecompMod        , only : readSoilLittDecompParams
+    use DecompCascadeBGCMod      , only : readDecompBGCParams
+    use DecompCascadeCNMod       , only : readDecompCNParams
     use PhenologyMod             , only : readPhenolParams
     use CNPhenologyBeTRMod       , only : readCNPhenolBeTRParams
-    use MaintenanceRespMod               , only : readMaintenanceRespParams
-    use NitrogenDynamicsMod           , only : readNitrogenDynamicsParams
+    use MaintenanceRespMod       , only : readMaintenanceRespParams
+    use NitrogenDynamicsMod      , only : readNitrogenDynamicsParams
     use GapMortalityMod          , only : readGapMortParams 
     use CNGapMortalityBeTRMod    , only : readCNGapMortBeTRParams
-    use NitrifDenitrifMod      , only : readNitrifDenitrifParams
+    use NitrifDenitrifMod        , only : readNitrifDenitrifParams
     use SoilLittVertTranspMod    , only : readSoilLittVertTranspParams
+    use EnhancedWeatheringMod    , only : readEnhancedWeatheringParams
     use CH4Mod                   , only : readCH4Params
     use elm_varctl               , only : paramfile, iulog, use_betr, use_hydrstress
     use spmdMod                  , only : masterproc
     use fileutils                , only : getfil
     use ncdio_pio                , only : ncd_pio_closefile, ncd_pio_openfile, &
                                           file_desc_t, ncd_inqdid, ncd_inqdlen
-    use tracer_varcon            , only : is_active_betr_bgc                                         
+    use tracer_varcon            , only : is_active_betr_bgc
     use PhotosynthesisMod        , only : params_inst
     
     !
@@ -118,7 +119,7 @@ contains
     call ncd_pio_openfile (ncid, trim(locfn), 0)
     call ncd_inqdid(ncid,'pft',dimid) 
     call ncd_inqdlen(ncid,dimid,npft)
-    
+
     if(use_betr)then
     !  the following will be replaced with something more general. Jinyun Tang
     !  call bgc_reaction%readParams(ncid, betrtracer_vars)   
@@ -138,7 +139,7 @@ contains
          else
             call readDecompCNParams(ncid)
          end if
-       
+
          call readNitrifDenitrifParams(ncid)
 
          call readSoilLittVertTranspParams(ncid)
@@ -163,6 +164,7 @@ contains
          call readGapMortParams (ncid)
        endif
     end if
+
     !
     ! Biogeophysics
     !
@@ -171,10 +173,19 @@ contains
     endif
 
     !
+    ! Read enhanced weathering parameters from the same file
+    !
+    if (masterproc) then
+       write(iulog,*) 'readParamsMod.F90::'//trim(subname)//&
+                      ' :: reading Enhanced Weathering parameter file'
+    end if
+
+    call readEnhancedWeatheringParams (ncid)
+
+    !
     ! close CN params file
     !
     call ncd_pio_closefile(ncid)
-
 
  end subroutine readPrivateParameters
 end module readParamsMod

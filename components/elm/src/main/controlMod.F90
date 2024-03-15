@@ -265,6 +265,8 @@ contains
 
     namelist /elm_inparm / use_lai_streams
 
+    namelist /elm_inparm / use_ew
+
     namelist /elm_inparm/  &
          use_c14_bombspike, atm_c14_filename
 

@@ -7,7 +7,7 @@ module EcosystemDynMod
   use dynSubgridControlMod, only : get_do_harvest
   use shr_kind_mod        , only : r8 => shr_kind_r8
   use shr_sys_mod         , only : shr_sys_flush
-  use elm_varctl          , only : use_c13, use_c14, use_fates, use_dynroot
+  use elm_varctl          , only : use_c13, use_c14, use_fates, use_dynroot, use_ew
   use decompMod           , only : bounds_type
   use perf_mod            , only : t_startf, t_stopf
   use spmdMod             , only : masterproc
@@ -29,6 +29,7 @@ module EcosystemDynMod
   use ColumnDataType      , only : col_cf, c13_col_cf, c14_col_cf
   use ColumnDataType      , only : col_ns, col_nf
   use ColumnDataType      , only : col_ps, col_pf
+  use ColumnDataType      , only : col_ms, col_mf
   use VegetationDataType  , only : veg_cs, c13_veg_cs, c14_veg_cs
   use VegetationDataType  , only : veg_cf, c13_veg_cf, c14_veg_cf
   use VegetationDataType  , only : veg_ns, veg_nf
@@ -39,18 +40,24 @@ module EcosystemDynMod
   use elm_varctl         , only : use_elm_interface, use_elm_bgc, use_pflotran, pf_cmode, pf_hmode
   use VerticalProfileMod , only : decomp_vertprofiles
   use AllocationMod      , only : nu_com_nfix, nu_com_phosphatase
-  use elm_varctl         , only : nu_com, use_pheno_flux_limiter
+
+
+  use elm_varctl         , only : nu_com, use_pheno_flux_limiter, iulog
+
+  use LandunitType    , only : lun_pp
+
+
   use PhenologyFLuxLimitMod , only : phenology_flux_limiter, InitPhenoFluxLimiter
 
   use timeinfoMod
   use perfMod_GPU
   use VegetationDataType , only : veg_cf_summary, veg_cf_summary_for_ch4, veg_cf_summary_rr
-  use VegetationDataType , only : veg_nf_summary, veg_ns_summary, veg_cs_Summary
+  use VegetationDataType , only : veg_nf_summary, veg_ns_summary, veg_cs_summary
   use VegetationDataType , only : veg_pf_summary, veg_ps_summary
   use VegetationDataType , only : veg_cf_setvalues, veg_nf_setvalues, veg_pf_setvalues
 
-  use ColumnDataType , only : col_cf_summary, col_nf_summary, col_pf_Summary
-  use ColumnDataType , only : col_cs_summary, col_ns_summary, col_ps_summary
+  use ColumnDataType , only : col_cf_summary, col_nf_summary, col_pf_summary, col_mf_summary
+  use ColumnDataType , only : col_cs_summary, col_ns_summary, col_ps_summary, col_ms_summary
   use ColumnDataType , only : col_cf_summary_for_ch4
   use ColumnDataType , only : col_cf_setvalues, col_nf_setvalues, col_pf_setvalues 
 
@@ -132,6 +139,7 @@ contains
     use perf_mod             , only: t_startf, t_stopf
     use shr_sys_mod          , only: shr_sys_flush
     use PhosphorusDynamicsMod         , only: PhosphorusBiochemMin_balance
+    use EnhancedWeatheringMod         , only: MineralLeaching
 
     !
     ! !ARGUMENTS:
@@ -197,6 +205,10 @@ contains
      call NitrogenLeaching(bounds, num_soilc, filter_soilc, dt)
 
      call PhosphorusLeaching(bounds, num_soilc, filter_soilc, dt)
+
+     if (use_ew) then
+         call MineralLeaching(bounds, num_soilc, filter_soilc, dt)
+     end if
     end if !(.not. (pf_cmode .and. pf_hmode))
        !-----------------------------------------------------------------------
 
@@ -220,28 +232,28 @@ contains
     ! Only update the veg_ data structures if we are using cn
     if(.not.use_fates) then
        call veg_cf_summary_for_ch4(veg_cf,bounds, num_soilp, filter_soilp)
-       call veg_cf_Summary(veg_cf,bounds, num_soilp, filter_soilp, num_soilc, filter_soilc, 'bulk', col_cf)
+       call veg_cf_summary(veg_cf,bounds, num_soilp, filter_soilp, num_soilc, filter_soilc, 'bulk', col_cf)
        if ( use_c13 ) then
-          call veg_cf_Summary(veg_cf,bounds, num_soilp, filter_soilp, num_soilc, filter_soilc, 'c13', c13_col_cf)
-          call col_cf_Summary(col_cf,bounds, num_soilc, filter_soilc, 'c13')
+          call veg_cf_summary(veg_cf,bounds, num_soilp, filter_soilp, num_soilc, filter_soilc, 'c13', c13_col_cf)
+          call col_cf_summary(col_cf,bounds, num_soilc, filter_soilc, 'c13')
        end if
        if ( use_c14 ) then
-          call veg_cf_Summary(veg_cf,bounds, num_soilp, filter_soilp, num_soilc, filter_soilc, 'c14', c14_col_cf)
-          call col_cf_Summary(col_cf,bounds, num_soilc, filter_soilc, 'c14')
+          call veg_cf_summary(veg_cf,bounds, num_soilp, filter_soilp, num_soilc, filter_soilc, 'c14', c14_col_cf)
+          call col_cf_summary(col_cf,bounds, num_soilc, filter_soilc, 'c14')
        end if
-       call veg_cs_Summary(veg_cs,bounds, num_soilc, filter_soilc, num_soilp, filter_soilp, col_cs)
+       call veg_cs_summary(veg_cs,bounds, num_soilc, filter_soilc, num_soilp, filter_soilp, col_cs)
        if ( use_c13 ) then
-          call veg_cs_Summary(c13_veg_cs,bounds, num_soilc, filter_soilc, num_soilp, filter_soilp, c13_col_cs)
-          call col_cs_Summary(c13_col_cs,bounds, num_soilc, filter_soilc)
+          call veg_cs_summary(c13_veg_cs,bounds, num_soilc, filter_soilc, num_soilp, filter_soilp, c13_col_cs)
+          call col_cs_summary(c13_col_cs,bounds, num_soilc, filter_soilc)
        end if
        if ( use_c14 ) then
-          call veg_cs_Summary(c14_veg_cs,bounds, num_soilc, filter_soilc, num_soilp, filter_soilp, c14_col_cs)
-          call col_cs_Summary(c14_col_cs,bounds, num_soilc, filter_soilc)
+          call veg_cs_summary(c14_veg_cs,bounds, num_soilc, filter_soilc, num_soilp, filter_soilp, c14_col_cs)
+          call col_cs_summary(c14_col_cs,bounds, num_soilc, filter_soilc)
        end if
-       call veg_nf_Summary(veg_nf, bounds, num_soilc, filter_soilc, num_soilp, filter_soilp, col_nf)
-       call veg_ns_Summary(veg_ns, bounds, num_soilc, filter_soilc, num_soilp, filter_soilp, col_ns)
-       call veg_pf_Summary(veg_pf, bounds, num_soilc, filter_soilc, num_soilp, filter_soilp, col_pf)
-       call veg_ps_Summary(veg_ps, bounds, num_soilc, filter_soilc, num_soilp, filter_soilp, col_ps)
+       call veg_nf_summary(veg_nf, bounds, num_soilc, filter_soilc, num_soilp, filter_soilp, col_nf)
+       call veg_ns_summary(veg_ns, bounds, num_soilc, filter_soilc, num_soilp, filter_soilp, col_ns)
+       call veg_pf_summary(veg_pf, bounds, num_soilc, filter_soilc, num_soilp, filter_soilp, col_pf)
+       call veg_ps_summary(veg_ps, bounds, num_soilc, filter_soilc, num_soilp, filter_soilp, col_ps)
     else
        ! In this scenario, we simply zero all of the
        ! column level variables that would had been upscaled
@@ -254,14 +266,19 @@ contains
        call col_pf%ZeroForFates(bounds,num_soilc, filter_soilc)
     end if
 
-    call col_cf_Summary(col_cf,bounds, num_soilc, filter_soilc, 'bulk')
-    call col_cs_Summary(col_cs,bounds, num_soilc, filter_soilc)
+    call col_cf_summary(col_cf,bounds, num_soilc, filter_soilc, 'bulk')
+    call col_cs_summary(col_cs,bounds, num_soilc, filter_soilc)
 
-    call col_nf_Summary(col_nf,bounds, num_soilc, filter_soilc)
-    call col_ns_Summary(col_ns,bounds, num_soilc, filter_soilc)
+    call col_nf_summary(col_nf,bounds, num_soilc, filter_soilc)
+    call col_ns_summary(col_ns,bounds, num_soilc, filter_soilc)
 
-    call col_pf_Summary(col_pf,bounds, num_soilc, filter_soilc)
-    call col_ps_Summary(col_ps,bounds, num_soilc, filter_soilc)
+    call col_pf_summary(col_pf,bounds, num_soilc, filter_soilc)
+    call col_ps_summary(col_ps,bounds, num_soilc, filter_soilc)
+
+    if (use_ew) then
+     call col_mf_summary(col_mf, bounds, num_soilc, filter_soilc)
+     call col_ms_summary(col_ms, bounds, num_soilc, filter_soilc)
+    end if
 
     call t_stop_lnd(event)
 
@@ -504,16 +521,18 @@ contains
     use FireMod              , only: FireArea, FireFluxes
     use ErosionMod           , only: ErosionFluxes
     use CarbonStateUpdate3Mod     , only: CarbonStateUpdate3
-    use CarbonIsoFluxMod          , only: CarbonIsoFlux1, CarbonIsoFlux2, CarbonIsoFlux2h, CarbonIsoFlux3
-    use C14DecayMod          , only: C14Decay, C14BombSpike
-    use WoodProductsMod      , only: WoodProducts
-    use CropHarvestPoolsMod  , only: CropHarvestPools
-    use SoilLittVertTranspMod, only: SoilLittVertTransp
-    use CropType               , only: crop_type
-    use dynHarvestMod          , only: CNHarvest
-    use RootDynamicsMod        , only: RootDynamics
+    use CarbonIsoFluxMod             , only: CarbonIsoFlux1, CarbonIsoFlux2, CarbonIsoFlux2h, CarbonIsoFlux3
+    use C14DecayMod                  , only: C14Decay, C14BombSpike
+    use WoodProductsMod              , only: WoodProducts
+    use CropHarvestPoolsMod          , only: CropHarvestPools
+    use SoilLittVertTranspMod        , only: SoilLittVertTransp
+    use CropType                     , only: crop_type
+    use dynHarvestMod                , only: CNHarvest
+    use RootDynamicsMod              , only: RootDynamics
     use SoilLittDecompMod            , only: SoilLittDecompAlloc
     use SoilLittDecompMod            , only: SoilLittDecompAlloc2 !after SoilLittDecompAlloc
+    use EnhancedWeatheringMod        , only: MineralReaction
+    use MineralStateUpdateMod        , only: MineralStateUpdate
 
     !
     ! !ARGUMENTS:
@@ -541,6 +560,11 @@ contains
     character(len=64) :: event
     real(r8) :: dt
     integer :: c13, c14
+
+
+    integer :: c, fc
+
+
     c13 = 0
     c14 = 1
     !-----------------------------------------------------------------------
@@ -574,6 +598,23 @@ contains
              crop_vars, atm2lnd_vars,                 &
              dt )
     call t_stop_lnd(event)
+
+    !----------------------------------------------------------------
+    ! Enhanced weathering reactions
+    ! DEBUG
+    !write (iulog, *) 'Before reaction'
+    !do fc = 1,num_soilc
+    !  c = filter_soilc(fc)
+    !  write (iulog, *) col_ms%primary_mineral_vr(c,1,1)
+    !end do
+    if (use_ew) then
+         call MineralReaction(bounds, num_soilc, filter_soilc)
+    end if
+    !write (iulog, *) 'After reaction'
+    !do fc = 1,num_soilc
+    !  c = filter_soilc(fc)
+    !  write (iulog, *) col_ms%primary_mineral_vr(c,1,1)
+    !end do
 
     !----------------------------------------------------------------
 
@@ -711,6 +752,21 @@ contains
    call PhosphorusStateUpdate1(num_soilc, filter_soilc, num_soilp, filter_soilp, &
         cnstate_vars, dt)
 
+   !----------------------------------------------------------------
+   ! Enhanced weathering reactions
+   !write (iulog, *) 'Before update'
+   !do fc = 1,num_soilc
+   !  c = filter_soilc(fc)
+   !  write (iulog, *) col_ms%primary_mineral_vr(c,1,1)
+   !end do
+   if (use_ew) then
+        call MineralStateUpdate(num_soilc, filter_soilc, col_ms, col_mf, dt)
+   end if
+   !write (iulog, *) 'After update'
+   !do fc = 1,num_soilc
+   !  c = filter_soilc(fc)
+   !  write (iulog, *) col_ms%primary_mineral_vr(c,1,1)
+   !end do
 
    call t_stop_lnd(event)
 
@@ -779,8 +835,6 @@ contains
                cnstate_vars , &
                isotope=c14, isocol_cs=c14_col_cs, isoveg_cs=c14_veg_cs, isocol_cf=c14_col_cf, isoveg_cf=c14_veg_cf)
        end if
-
-
 
        call CarbonStateUpdate2h( num_soilc, filter_soilc,  num_soilp, filter_soilp, &
              col_cs, veg_cs, col_cf, veg_cf, dt)

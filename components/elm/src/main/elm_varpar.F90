@@ -51,6 +51,12 @@ module elm_varpar
   integer, parameter :: mxpft       =  50     ! maximum number of PFT's for any mode;
   ! FIX(RF,032414) might we set some of these automatically from reading pft-physiology?
   integer, parameter :: numveg      =  16     ! number of veg types (without specific crop)
+
+  integer, parameter :: nminerals   =  1      ! maximum allowed number of minerals that are contained in the rock in enhanced weathering (specify fraction = zero in the input file when <10 minerals are contained in the rock)
+  integer, parameter :: ncations    =  2      ! number of cations in chemical reactions for enhanced weathering
+  integer, parameter :: nminsec     =  1      ! number of secondary minerals formed in chemical reactions for enhanced weathering
+  real(r8), parameter:: mixing_depth = 0.3    ! assume enhanced weathering mineral is evenly mixed in the top 30cm of soil
+
   integer, parameter :: nlayer      =   3     ! number of VIC soil layer --Added by AWang
   integer            :: nlayert               ! number of VIC soil layer + 3 lower thermal layers
 
@@ -69,10 +75,10 @@ module elm_varpar
 
   ! constants for decomposition cascade
 
-  integer :: i_met_lit 
-  integer :: i_cel_lit 
-  integer :: i_lig_lit 
-  integer :: i_cwd 
+  integer :: i_met_lit
+  integer :: i_cel_lit
+  integer :: i_lig_lit
+  integer :: i_cwd
 
   integer :: ndecomp_pools
   integer :: ndecomp_cascade_transitions
@@ -93,7 +99,6 @@ module elm_varpar
                                 ! synonymous with natpft_lb for non-fates and fates-sp
   integer :: surfpft_ub         ! Upper bound of PFTs in the surface file
                                 ! synonymous with natpft_ub for non-fates and fates-sp
-
   
   integer :: maxpatch_glcmec    ! max number of elevation classes
   integer :: max_patch_per_col
@@ -216,7 +221,7 @@ contains
        nlevdecomp      = 1
        nlevdecomp_full = 1
     end if
-    
+
     nlevtrc_full   = nlevsoi
     if(use_betr) then
       nlevtrc_soil = nlevsoi
@@ -242,10 +247,7 @@ contains
        i_cel_lit = 2
        i_lig_lit = 3
        i_cwd = 4
-    end if
-
-    
-
+    end if    
 
   end subroutine elm_varpar_init
 
