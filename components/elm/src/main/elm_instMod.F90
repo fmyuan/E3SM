@@ -7,6 +7,7 @@ module elm_instMod
   use abortutils                 , only : endrun
   use decompMod                  , only : bounds_type, get_proc_bounds
   use elm_varctl                 , only : use_cn, use_voc, use_c13, use_c14, use_fates, use_betr
+  use elm_varctl                 , only: use_ew
   !-----------------------------------------
   ! Definition of component types
   !-----------------------------------------
@@ -63,6 +64,7 @@ module elm_instMod
   use ColumnDataType             , only : col_cf, c13_col_cf, c14_col_cf
   use ColumnDataType             , only : col_ns, col_nf
   use ColumnDataType             , only : col_ps, col_pf
+  use ColumnDataType             , only : col_ew, col_ms, col_mf
   use VegetationType             , only : veg_pp
   use VegetationDataType         , only : veg_es, veg_ef, veg_ws, veg_wf
   use VegetationDataType         , only : veg_cs, c13_veg_cs, c14_veg_cs
@@ -241,6 +243,13 @@ contains
 
        call crop_vars%Init(bounds_proc)
 
+    end if
+
+    ! Initialize the enhanced weathering module
+    if (use_ew) then
+      call col_ew%Init(begc, endc)
+      call col_ms%Init(begc, endc)
+      call col_mf%Init(begc, endc)
     end if
 
     ! Initialize the Functionaly Assembled Terrestrial Ecosystem Simulator (FATES)

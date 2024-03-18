@@ -51,6 +51,15 @@ module elm_varpar
   integer, parameter :: mxpft       =  50     ! maximum number of PFT's for any mode;
   ! FIX(RF,032414) might we set some of these automatically from reading pft-physiology?
   integer, parameter :: numveg      =  16     ! number of veg types (without specific crop)
+
+  integer, parameter :: nminerals   =  2      ! maximum allowed number of minerals that are contained in the rock in enhanced weathering (specify fraction = zero in the input file if < nminerals are contained in the rock powder)
+  integer, parameter :: ncations    =  5      ! number of cations in chemical reactions for enhanced weathering: Ca2+, Mg2+, Na+, K+, Al3+ (H+ is tracked in soil pH)
+  integer, parameter :: nminsec     =  1      ! number of secondary minerals formed in chemical reactions for enhanced weathering: CaCO3, MgCO3, Aluminum hydroxide
+  real(r8), parameter:: mixing_depth = 0.3    ! assume enhanced weathering mineral is evenly mixed in the top 30cm of soil
+  character(len=4)   :: cation_names  (1:ncations)
+  real(r8)           :: cation_mass(1:ncations) ! molar masses of the cation species, g/mol
+  real(r8)           :: cation_valence(1:ncations) ! valence of the cations
+
   integer, parameter :: nlayer      =   3     ! number of VIC soil layer --Added by AWang
   integer            :: nlayert               ! number of VIC soil layer + 3 lower thermal layers
 
@@ -244,8 +253,26 @@ contains
        i_cwd = 4
     end if
 
-    
+    ! constant array of cation names
+    cation_names(1) = 'Ca2+'
+    cation_names(2) = 'Mg2+'
+    cation_names(3) = 'Na+ '
+    cation_names(4) = 'K+  '
+    cation_names(5) = 'Al3+'
 
+    ! constant array of molar masses, g/mol
+    cation_mass(1) = 40.078
+    cation_mass(2) = 24.305
+    cation_mass(3) = 22.99
+    cation_mass(4) = 39.0983
+    cation_mass(5) = 26.98
+
+    ! constant array of cation valence
+    cation_valence(1) = 2
+    cation_valence(2) = 2
+    cation_valence(3) = 1
+    cation_valence(4) = 1
+    cation_valence(5) = 3
 
   end subroutine elm_varpar_init
 

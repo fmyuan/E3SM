@@ -222,6 +222,22 @@ module elm_varcon
   real(r8), public, parameter :: snw_rds_min = 54.526_r8    
   !-----------------------------------------------------------------------
 
+  !------------------------------------------------------------------
+  ! (Non-tunable) Constants in Enhanced Weathering submodule
+  !------------------------------------------------------------------
+  ! CO2 dissolution reaction's equilibrium constants, from llnl.dat
+  real(r8) :: log_keq_hco3 = -7.8136_r8 ! product is HCO3-
+  real(r8) :: log_keq_co3  = -10.3288_r8 ! product is CO3 2-
+  ! Calcite precipitation reaction's equilibrium constant, from phreeqc.dat
+  real(r8) :: log_keq_caco3 = -8.48_r8 ! product is CaCO3
+  ! molar mass of different molecules of interest, g/mol
+  real(r8) :: mass_caco3 = 100.0869_r8 ! Calcite
+  real(r8) :: mass_co3   = 60.0080_r8 ! carbonate anion
+  real(r8) :: mass_hco3  = 61.02_r8 ! bicarbonate anion
+  real(r8) :: mass_co2   = 44.01_r8 ! carbon dioxide
+  real(r8) :: mass_h2o   = 18.01_r8 ! water
+  real(r8) :: mass_sio2  = 60.0843_r8  ! SiO2 (silicon)
+  real(r8) :: mass_h     = 1.007_r8 ! proton H+
 contains
 
   !------------------------------------------------------------------------------

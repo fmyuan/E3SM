@@ -248,6 +248,13 @@ module elm_varctl
   !----------------------------------------------------------
 
   logical, public :: use_lai_streams = .false. ! true => use lai streams in SatellitePhenologyMod.F90
+
+  !----------------------------------------------------------
+  ! enhanced weathering streams switch
+  !----------------------------------------------------------
+
+  logical, public :: use_ew = .false. ! true => calculate enhanced weathering
+
   !----------------------------------------------------------
   ! plant hydraulic stress switch
   !----------------------------------------------------------

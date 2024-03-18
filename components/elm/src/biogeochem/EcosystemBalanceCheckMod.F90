@@ -14,6 +14,7 @@ module EcosystemBalanceCheckMod
   use elm_time_manager    , only : get_step_size,get_nstep
   use elm_varpar          , only : crop_prog
   use elm_varpar          , only : nlevdecomp
+  use elm_varpar          , only : nminerals, ncations, nminsec
   use elm_varcon          , only : dzsoi_decomp
   use elm_varctl          , only : nu_com
   use elm_varctl          , only : ECA_Pconst_RGspin
@@ -39,6 +40,7 @@ module EcosystemBalanceCheckMod
   use ColumnDataType      , only : column_carbon_state, column_carbon_flux
   use ColumnDataType      , only : column_nitrogen_state, column_nitrogen_flux
   use ColumnDataType      , only : column_phosphorus_state, column_phosphorus_flux
+  use ColumnDataType      , only : column_mineral_state, column_mineral_flux
   use VegetationType      , only : veg_pp
   use VegetationDataType  , only : veg_cf, veg_nf, veg_pf
 
@@ -54,9 +56,11 @@ module EcosystemBalanceCheckMod
   public :: BeginColCBalance
   public :: BeginColNBalance
   public :: BeginColPBalance
+  public :: BeginColMBalance
   public :: ColCBalanceCheck
   public :: ColNBalanceCheck
   public :: ColPBalanceCheck
+  public :: ColMBalanceCheck
   public :: BeginGridCBalance
   public :: GridCBalanceCheck
   public :: BeginGridNBalance
@@ -174,6 +178,63 @@ contains
     end associate
 
   end subroutine BeginColPBalance
+
+
+  !-----------------------------------------------------------------------
+  subroutine BeginColMBalance(bounds, num_soilc, filter_soilc, col_ms)
+    !
+    ! !DESCRIPTION:
+    ! On the radiation time step, calculate the beginning mineral balance for mass
+    ! conservation checks.
+    !
+    ! !ARGUMENTS:
+    type(bounds_type)          , intent(in)    :: bounds
+    integer                    , intent(in)    :: num_soilc       ! number of soil columns filter
+    integer                    , intent(in)    :: filter_soilc(:) ! filter for soil columns
+    type(column_mineral_state) , intent(inout) :: col_ms
+    
+    ! !LOCAL VARIABLES:
+    integer :: c,m  ! indices
+    integer :: fc   ! lake filter indices
+    !-----------------------------------------------------------------------
+
+    associate( &
+         beg_pm => col_ms%beg_pm     , & ! Output: [real(r8) (:)] total primary mineral mass, beginning of time step (kg/m2)
+         beg_in => col_ms%beg_in     , & ! Output: [real(r8) (:)] total cation and bicarbonate mass, beginning of time step (kg/m2)
+         beg_sm => col_ms%beg_sm     , & ! Output: [real(r8) (:)] total secondary mineral mass, beginning of time step (kg/m2)
+
+         primary_mineral    => col_ms%primary_mineral     , & ! Input: [real(r8) (:)]
+         cation        => col_ms%cation         , & ! Input: [real(r8) (:)]
+         bicarbonate   => col_ms%bicarbonate    , & ! Input: [real(r8) (:)]
+         secondary_mineral  => col_ms%secondary_mineral   , & ! Input: [real(r8) (:)]
+         silicate           => col_ms%silicate              & ! Input: [real(r8) (:)]
+    )
+
+    ! calculate beginning column-level phosphorus balance, for mass conservation check
+    do fc = 1,num_soilc
+      c = filter_soilc(fc)
+
+      beg_pm(c) = 0._r8
+      do m = 1, nminerals
+         beg_pm(c) = beg_pm(c) + primary_mineral(c,m)
+      end do
+
+      beg_in(c) = 0._r8
+      do m = 1, ncations
+         beg_in(c) = beg_in(c) + cation(c,m)
+      end do
+      beg_in(c) = beg_in(c) + bicarbonate(c)
+
+      beg_sm(c) = 0._r8
+      do m = 1, nminsec
+         beg_sm(c) = beg_sm(c) + secondary_mineral(c,m)
+      end do
+    end do
+
+    end associate
+
+  end subroutine BeginColMBalance
+
 
   !-----------------------------------------------------------------------
   subroutine ColCBalanceCheck(bounds, &
@@ -765,6 +826,176 @@ contains
     end associate
 
   end subroutine ColPBalanceCheck
+
+
+  !-----------------------------------------------------------------------
+  subroutine ColMBalanceCheck(bounds, num_soilc, filter_soilc, col_ms, col_mf)
+    !
+    ! !DESCRIPTION:
+    ! On the radiation time step, perform mineral mass conservation check
+    ! for column
+    !
+    ! !ARGUMENTS:
+    type(bounds_type)          , intent(in)    :: bounds
+    integer                    , intent(in)    :: num_soilc       ! number of soil columns in filter
+    integer                    , intent(in)    :: filter_soilc(:) ! filter for soil columns
+    type(column_mineral_state) , intent(inout) :: col_ms
+    type(column_mineral_flux)  , intent(inout) :: col_mf
+    !
+    ! !LOCAL VARIABLES:
+    integer :: c,err_index,j,k,p,m,a     ! indices
+    integer :: fc                        ! lake filter indices
+    logical :: iserr_pm, iserr_in, iserr_sm     ! error flag
+    real(r8):: dt                        ! radiation time step (seconds)
+    integer :: nstep
+    !-----------------------------------------------------------------------
+
+    associate(  &
+         beg_pm => col_ms%beg_pm          , & ! Output: [real(r8) (:)] total primary mineral mass, beginning of time step (kg/m2)
+         beg_in => col_ms%beg_in          , & ! Output: [real(r8) (:)] total cation and bicarbonate mass, beginning of time step (kg/m2)
+         beg_sm => col_ms%beg_sm          , & ! Output: [real(r8) (:)] total secondary mineral mass, beginning of time step (kg/m2)
+
+         primary_mineral       => col_ms%primary_mineral      , & ! Input: [real(r8) (:)]
+         cation                => col_ms%cation               , & ! Input: [real(r8) (:)]
+         bicarbonate           => col_ms%bicarbonate          , & ! Input: [real(r8) (:)]
+         secondary_mineral     => col_ms%secondary_mineral    , & ! Input: [real(r8) (:)]
+         silicate              => col_ms%silicate             , & ! Input: [real(r8) (:)]
+
+         primary_added         => col_mf%primary_added        , & ! Input: [real(r8) (:)]
+         primary_dissolve      => col_mf%primary_dissolve     , & ! Input: [real(r8) (:)]
+         primary_co2_flux      => col_mf%primary_co2_flux     , & ! Input: [real(r8) (:)]
+         primary_h2o_flux      => col_mf%primary_h2o_flux     , & ! Input: [real(r8) (:)]
+         primary_cation_flux   => col_mf%primary_cation_flux  , & ! Input: [real(r8) (:)]
+         primary_bicarbonate_flux   => col_mf%primary_bicarbonate_flux  , & ! Input: [real(r8) (:)]
+         primary_silicate_flux => col_mf%primary_silicate_flux, &
+
+         secondary_cation_flux => col_mf%secondary_cation_flux, &
+         secondary_bicarbonate_flux => col_mf%secondary_bicarbonate_flux, &
+         secondary_precip      => col_mf%secondary_precip, &
+         secondary_co2_flux    => col_mf%secondary_co2_flux, &
+         secondary_h2o_flux    => col_mf%secondary_h2o_flux, &
+         cation_leached        => col_mf%cation_leached, &
+         bicarbonate_leached   => col_mf%bicarbonate_leached, &
+
+         err_pm => col_ms%err_pm, &
+         err_in => col_ms%err_in, &
+         err_sm => col_ms%err_sm, &
+
+         end_pm => col_ms%end_pm, &
+         end_in => col_ms%end_in, &
+         end_sm => col_ms%end_sm, &
+
+         pm_add => col_mf%pm_add, &
+         pm_loss => col_mf%pm_loss, &
+         in_add => col_mf%in_add, &
+         in_loss => col_mf%in_loss, &
+         sm_add => col_mf%sm_add, &
+         sm_loss => col_mf%sm_loss &
+    )
+
+    ! set time steps
+    dt = dtime_mod
+    nstep = get_nstep()
+
+    iserr_pm = .false.
+    iserr_in = .false.
+    iserr_sm = .false. 
+
+    ! column loop
+    do fc = 1,num_soilc
+       c=filter_soilc(fc)
+
+       ! the column-level quantities after vertical integration
+       end_pm(c) = 0._r8
+       do m = 1, nminerals
+         end_pm(c) = end_pm(c) + primary_mineral(c,m)
+       end do
+
+       end_in(c) = 0._r8
+       do m = 1, ncations
+          end_in(c) = end_in(c) + cation(c,m)
+       end do
+       end_in(c) = end_in(c) + bicarbonate(c)
+
+       end_sm(c) = 0._r8
+       do m = 1, nminsec
+          end_sm(c) = end_sm(c) + secondary_mineral(c,m)
+       end do
+
+      ! mass integrated flux
+      pm_add (c) = 0._r8
+      pm_loss(c) = 0._r8
+      do a = 1, nminerals
+         pm_add(c)  = pm_add(c)  + primary_added   (c,a)
+         pm_loss(c) = pm_loss(c) + primary_dissolve(c,a)
+      end do
+
+      in_add  (c) = pm_loss(c) + primary_h2o_flux(c) + & 
+         primary_co2_flux(c) - primary_silicate_flux(c)
+
+      in_loss(c) = 0._r8
+      do a = 1, ncations
+         in_loss(c) = in_loss(c) + secondary_cation_flux(c,a) + &
+            cation_leached(c,a)
+      end do
+      in_loss(c) = in_loss(c) + secondary_bicarbonate_flux(c) + &
+         bicarbonate_leached(c)
+
+      sm_add(c) = in_loss(c) - secondary_co2_flux(c) - &
+         secondary_h2o_flux(c) - bicarbonate_leached(c)
+      do a = 1, ncations
+         sm_add(c) = sm_add(c) - cation_leached(c, a)
+      end do
+
+      sm_loss(c) = 0._r8
+
+      ! calculate the column-level balance error for this time step
+      err_sm(c) = (pm_add(c) - pm_loss(c)) * dt - (end_sm(c) - beg_sm(c))
+      err_in(c) = (in_add(c) - in_loss(c)) * dt - (end_in(c) - beg_in(c))
+      err_sm(c) = (sm_add(c) - sm_loss(c)) * dt - (end_sm(c) - beg_sm(c))
+
+      if (abs(err_sm(c)) > 1e-8_r8) then
+         iserr_pm = .true.
+         err_index = c
+      end if
+
+      if (abs(err_in(c)) > 1e-8_r8) then
+         iserr_in = .true.
+         err_index = c
+      end if
+
+      if (abs(err_sm(c)) > 1e-8_r8) then
+         iserr_sm = .true.
+         err_index = c
+      end if
+    end do ! end of columns loop
+
+   if ((iserr_pm .or. iserr_in .or. iserr_sm) .and. nstep>1) then
+#ifndef _OPENACC
+      c = err_index
+      write(iulog,*)'column primary mineral balance error = ', err_pm(c), c
+      write(iulog,*)'column cations + bicarbonates balance error = ', err_in(c), c
+      write(iulog,*)'column secondary mineral balance error = ', err_sm(c), c
+
+      write(iulog,*)'Latdeg,Londeg=',grc_pp%latdeg(col_pp%gridcell(c)),grc_pp%londeg(col_pp%gridcell(c))
+
+      write(iulog,*)'primary mineral: delta, begin, end',end_pm(c) - beg_pm(c), beg_pm(c), end_pm(c)
+      write(iulog,*)'primary mineral: flux, in, out',(pm_loss(c)-pm_add(c))*dt, pm_add(c)*dt, pm_loss(c)*dt
+
+      write(iulog,*)'cations and bicarbonate: delta, begin, end', end_in(c) - beg_in(c), beg_in(c), end_in(c)
+      write(iulog,*)'cations and bicarbonate: flux, in, out', (in_loss(c)-in_add(c))*dt, in_add(c)*dt, in_loss(c)*dt
+
+      write(iulog,*)'secondary mineral: delta, begin, end', end_sm(c) - beg_sm(c), beg_sm(c), end_sm(c)
+      write(iulog,*)'secondary mineral: flux, in, out', (sm_loss(c)-sm_add(c))*dt, sm_add(c)*dt, sm_loss(c)*dt
+
+      call endrun(msg=errMsg(__FILE__, __LINE__))
+#endif
+   end if
+
+    end associate
+
+  end subroutine ColMBalanceCheck
+
 
   !-----------------------------------------------------------------------
   subroutine BeginGridCBalance(bounds, col_cs, grc_cs)
