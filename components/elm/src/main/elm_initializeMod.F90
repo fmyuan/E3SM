@@ -463,6 +463,7 @@ contains
     use landunit_varcon       , only : istice, istice_mec, istsoil
     use elm_varctl            , only : finidat, finidat_interp_source, finidat_interp_dest, fsurdat
     use elm_varctl            , only : use_century_decomp, single_column, scmlat, scmlon, use_cn
+    use elm_varctl            , only : use_ew
     use elm_varorb            , only : eccen, mvelpp, lambm0, obliqr
     use elm_time_manager      , only : get_step_size, get_curr_calday
     use elm_time_manager      , only : get_curr_date, get_nstep, advance_timestep
@@ -488,6 +489,7 @@ contains
     use pdepStreamMod         , only : pdep_init, pdep_interp
     use DecompCascadeBGCMod , only : init_decompcascade_bgc
     use DecompCascadeCNMod  , only : init_decompcascade_cn
+    use ewStreamMod           , only : ew_init
     use CNDecompCascadeContype, only : init_decomp_cascade_constants
     use VegetationPropertiesType        , only : veg_vp
     use SoilorderConType      , only : soilorderconInit
@@ -916,6 +918,14 @@ contains
        call t_stopf('init_pdep')
     end if
 
+    ! ------------------------------------------------------------------------
+    ! Initialize enhanced weathering
+    ! ------------------------------------------------------------------------
+    if (use_ew) then
+       call t_startf('init_ew')
+       call ew_init(bounds_proc)
+       call t_stopf('init_ew')
+    end if
 
     ! ------------------------------------------------------------------------
     ! Initialize active history fields.

@@ -8,6 +8,7 @@ module EcosystemDynMod
   use shr_kind_mod        , only : r8 => shr_kind_r8
   use shr_sys_mod         , only : shr_sys_flush
   use elm_varctl          , only : use_c13, use_c14, use_fates, use_dynroot, use_fan
+  use elm_varctl          , only : use_ew
   use decompMod           , only : bounds_type
   use perf_mod            , only : t_startf, t_stopf
   use spmdMod             , only : masterproc
@@ -29,6 +30,7 @@ module EcosystemDynMod
   use ColumnDataType      , only : col_cf, c13_col_cf, c14_col_cf
   use ColumnDataType      , only : col_ns, col_nf
   use ColumnDataType      , only : col_ps, col_pf
+  use ColumnDataType      , only : col_ms, col_mf
   use VegetationDataType  , only : veg_cs, c13_veg_cs, c14_veg_cs
   use VegetationDataType  , only : veg_cf, c13_veg_cf, c14_veg_cf
   use VegetationDataType  , only : veg_ns, veg_nf
@@ -55,7 +57,8 @@ module EcosystemDynMod
   use ColumnDataType , only : col_cf_summary, col_nf_summary, col_pf_Summary
   use ColumnDataType , only : col_cs_summary, col_ns_summary, col_ps_summary
   use ColumnDataType , only : col_cf_summary_for_ch4
-  use ColumnDataType , only : col_cf_setvalues, col_nf_setvalues, col_pf_setvalues 
+  use ColumnDataType , only : col_cf_setvalues, col_nf_setvalues, col_pf_setvalues
+  use ColumnDataType , only : col_ms_summary, col_mf_summary
 
 
   !
@@ -140,6 +143,7 @@ contains
     use perf_mod             , only: t_startf, t_stopf
     use shr_sys_mod          , only: shr_sys_flush
     use PhosphorusDynamicsMod         , only: PhosphorusBiochemMin_balance
+    use EnhancedWeatheringMod         , only: MineralLeaching
 
     !
     ! !ARGUMENTS:
@@ -205,6 +209,10 @@ contains
      call NitrogenLeaching(bounds, num_soilc, filter_soilc, dt)
 
      call PhosphorusLeaching(bounds, num_soilc, filter_soilc, dt)
+
+     if (use_ew) then
+         call MineralLeaching(bounds, num_soilc, filter_soilc, dt)
+     end if
     end if !(.not. (pf_cmode .and. pf_hmode))
        !-----------------------------------------------------------------------
 
@@ -270,6 +278,10 @@ contains
 
     call col_pf_Summary(col_pf,bounds, num_soilc, filter_soilc)
     call col_ps_Summary(col_ps,bounds, num_soilc, filter_soilc)
+    if (use_ew) then
+     call col_mf_summary(col_mf, bounds, num_soilc, filter_soilc)
+     call col_ms_summary(col_ms, bounds, num_soilc, filter_soilc)
+    end if
 
     call t_stop_lnd(event)
 
@@ -529,6 +541,8 @@ contains
     use RootDynamicsMod        , only: RootDynamics
     use SoilLittDecompMod            , only: SoilLittDecompAlloc
     use SoilLittDecompMod            , only: SoilLittDecompAlloc2 !after SoilLittDecompAlloc
+    use EnhancedWeatheringMod        , only: MineralReaction
+    use MineralStateUpdateMod        , only: MineralStateUpdate
 
     !
     ! !ARGUMENTS:
@@ -590,6 +604,12 @@ contains
              crop_vars, atm2lnd_vars,                 &
              dt )
     call t_stop_lnd(event)
+
+    !----------------------------------------------------------------
+    ! Enhanced weathering reactions
+    if (use_ew) then
+         call MineralReaction(bounds, num_soilc, filter_soilc)
+    end if
 
     !----------------------------------------------------------------
 
@@ -727,6 +747,11 @@ contains
    call PhosphorusStateUpdate1(num_soilc, filter_soilc, num_soilp, filter_soilp, &
         cnstate_vars, dt)
 
+   !----------------------------------------------------------------
+   ! Enhanced weathering reactions
+   if (use_ew) then
+        call MineralStateUpdate(num_soilc, filter_soilc, col_ms, col_mf, dt)
+   end if
 
    call t_stop_lnd(event)
 

@@ -16,6 +16,7 @@ module restFileMod
   use histFileMod          , only : hist_restart_ncd
   use elm_varpar           , only : crop_prog
   use elm_varctl           , only : use_cn, use_c13, use_c14, use_lch4, use_fates, use_betr
+  use elm_varctl           , only : use_ew
   use elm_varctl           , only : use_erosion
   use elm_varctl           , only : create_glacier_mec_landunit, iulog 
   use elm_varcon           , only : c13ratio, c14ratio
@@ -58,6 +59,7 @@ module restFileMod
   use ColumnDataType       , only : col_cf, c13_col_cf, c14_col_cf
   use ColumnDataType       , only : col_ns, col_nf
   use ColumnDataType       , only : col_ps, col_pf
+  use ColumnDataType       , only : col_ew, col_ms, col_mf
   use VegetationDataType   , only : veg_es, veg_ef, veg_ws, veg_wf
   use VegetationDataType   , only : veg_cs, c13_veg_cs, c14_veg_cs
   use VegetationDataType   , only : veg_cf, c13_veg_cf, c14_veg_cf
@@ -272,6 +274,11 @@ contains
 
     end if
 
+    if (use_ew) then
+      call col_ew%Restart(bounds, ncid, flag = 'define')
+      call col_ms%Restart(bounds, ncid, flag = 'define')
+      call col_mf%Restart(bounds, ncid, flag = 'define')
+    end if
 
     if (use_fates) then
        call alm_fates%restart(bounds, ncid, flag='define',  &
@@ -409,6 +416,11 @@ contains
     end if
 
 
+    if (use_ew) then
+       call col_ew%Restart(bounds, ncid, flag='write')
+       call col_ms%Restart(bounds, ncid, flag='write')
+       call col_mf%Restart(bounds, ncid, flag='write')
+    end if
 
     if (use_fates) then
        call alm_fates%restart(bounds, ncid, flag='write',  &
@@ -604,6 +616,12 @@ contains
         call col_pf%Restart(bounds, ncid, flag='read')
     end if
    
+    if (use_ew) then
+        call col_ew%Restart(bounds, ncid, flag = 'read')
+        call col_ms%Restart(bounds, ncid, flag = 'read')
+        call col_mf%Restart(bounds, ncid, flag = 'read')
+    end if
+
     if (use_cn) then
        call veg_cs%restart(bounds, ncid, flag='read', &
             carbon_type='c12', cnstate_vars=cnstate_vars)
@@ -913,6 +931,7 @@ contains
     use elm_varctl           , only : caseid, ctitle, version, username, hostname, fsurdat
     use elm_varctl           , only : conventions, source, use_hydrstress
     use elm_varpar           , only : numrad, nlevlak, nlevsno, nlevgrnd, nlevurb, nlevcan, nlevtrc_full, nmonth, nvegwcs
+    use elm_varpar           , only : nminerals, ncations, nminsec
     use elm_varpar           , only : cft_lb, cft_ub, maxpatch_glcmec
     use dynSubgridControlMod , only : get_flanduse_timeseries
     use decompMod            , only : get_proc_global
@@ -960,6 +979,11 @@ contains
     call ncd_defdim(ncid , 'levtot'  , nlevsno+nlevgrnd, dimid)
     call ncd_defdim(ncid , 'numrad'  , numrad         ,  dimid)
     call ncd_defdim(ncid , 'levcan'  , nlevcan        ,  dimid)
+    if ( use_ew ) then
+      call ncd_defdim(ncid , 'minerals', nminerals    ,  dimid)
+      call ncd_defdim(ncid , 'cations' , ncations     ,  dimid)
+      call ncd_defdim(ncid , 'minsec'  , nminsec      ,  dimid)
+    end if
     if ( use_hydrstress ) then
       call ncd_defdim(ncid , 'vegwcs'  , nvegwcs        ,  dimid)
     end if

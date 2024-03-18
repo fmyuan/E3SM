@@ -88,6 +88,7 @@ contains
     use CNGapMortalityBeTRMod    , only : readCNGapMortBeTRParams
     use NitrifDenitrifMod      , only : readNitrifDenitrifParams
     use SoilLittVertTranspMod    , only : readSoilLittVertTranspParams
+    use EnhancedWeatheringMod    , only : readEnhancedWeatheringParams
     use CH4Mod                   , only : readCH4Params
     use elm_varctl               , only : paramfile, iulog, use_betr, use_hydrstress
     use spmdMod                  , only : masterproc
@@ -169,6 +170,16 @@ contains
     if(use_hydrstress)then
       call params_inst%readParams( ncid )
     endif
+
+    !
+    ! Read enhanced weathering parameters from the same file
+    !
+    if (masterproc) then
+       write(iulog,*) 'readParamsMod.F90::'//trim(subname)//&
+                      ' :: reading Enhanced Weathering parameter file'
+    end if
+
+    call readEnhancedWeatheringParams (ncid)
 
     !
     ! close CN params file
