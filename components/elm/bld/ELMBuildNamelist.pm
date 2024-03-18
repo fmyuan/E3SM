@@ -1886,6 +1886,11 @@ sub process_namelist_inline_logic {
   ###############################
   setup_logic_phosphorus_deposition($opts->{'test'}, $nl_flags, $definition, $defaults, $nl, $physv);
 
+  ###############################
+  # namelist group: ew_streams  #
+  ###############################
+  setup_logic_enhanced_weathering($opts->{'test'}, $nl_flags, $definition, $defaults, $nl, $physv);
+
   #################################
   # namelist group: popd_streams  #
   #################################
@@ -2940,6 +2945,50 @@ sub setup_logic_phosphorus_deposition {
 
 #-------------------------------------------------------------------------------
 
+sub setup_logic_enhanced_weathering {
+  my ($test_files, $nl_flags, $definition, $defaults, $nl, $physv) = @_;
+
+  #
+  # Enhanced weathering for bgc=CN,FATES
+  #
+  if ( $nl_flags->{'bgc_mode'} =~/cn|bgc|fates/ ) {
+    add_default($test_files, $nl_flags->{'inputdata_rootdir'}, $definition, $defaults, $nl,
+                'use_ew');
+    add_default($test_files, $nl_flags->{'inputdata_rootdir'}, $definition, $defaults, $nl, 
+                'ew_mapalgo');
+    add_default($test_files, $nl_flags->{'inputdata_rootdir'}, $definition, $defaults, $nl, 
+                'stream_year_first_ew', 'sim_year'=>$nl_flags->{'sim_year'},
+                'sim_year_range'=>$nl_flags->{'sim_year_range'});
+    add_default($test_files, $nl_flags->{'inputdata_rootdir'}, $definition, $defaults, $nl,
+                'stream_year_last_ew', 'sim_year'=>$nl_flags->{'sim_year'},
+                'sim_year_range'=>$nl_flags->{'sim_year_range'});
+    # Set align year, if first and last years are different
+    if ( $nl->get_value('stream_year_first_ew') != $nl->get_value('stream_year_last_ew') ) {
+      add_default($test_files, $nl_flags->{'inputdata_rootdir'}, $definition, $defaults, $nl, 
+                  'model_year_align_ew', 'sim_year'=>$nl_flags->{'sim_year'},
+                  'sim_year_range'=>$nl_flags->{'sim_year_range'});
+    }
+    add_default($test_files, $nl_flags->{'inputdata_rootdir'}, $definition, $defaults, $nl, 
+                'doy_application_ew');
+    add_default($test_files, $nl_flags->{'inputdata_rootdir'}, $definition, $defaults, $nl, 
+                'stream_fldFilename_ew');
+  } else {
+    # If bgc is NOT CN/CNDV then make sure none of the ndep settings are set!
+    if ( defined($nl->get_value('stream_year_first_ew')) ||
+         defined($nl->get_value('stream_year_last_ew'))  ||
+         defined($nl->get_value('model_year_align_ew'))  ||
+         defined($nl->get_value('doy_application_ew'))  ||
+         defined($nl->get_value('stream_fldfilename_ew'))
+       ) {
+      fatal_error("When bgc is NOT CN, FATES or CNDV none of: stream_year_first_ew," .
+                  "stream_year_last_ew, model_year_align_ew, doy_application_ew, nor doy_application_ew" .
+                  " can be set! $nl_flags->{'bgc_mode'} \n");
+    }
+  }
+}
+
+#-------------------------------------------------------------------------------
+
 sub setup_logic_popd_streams {
   # population density streams require elm and CN/BGC
   my ($test_files, $nl_flags, $definition, $defaults, $nl, $physv) = @_;
@@ -3198,7 +3247,7 @@ sub write_output_files {
   # CLM component
   my @groups;
   {
-    @groups = qw(elm_inparm ndepdyn_nml pdepdyn_nml popd_streams light_streams lai_streams elm_canopyhydrology_inparm
+    @groups = qw(elm_inparm ndepdyn_nml pdepdyn_nml ew_streams popd_streams light_streams lai_streams elm_canopyhydrology_inparm
                  elm_soilhydrology_inparm dynamic_subgrid finidat_consistency_checks dynpft_consistency_checks
                  elmu_inparm elm_soilstate_inparm elm_pflotran_inparm betr_inparm elm_mosart);
     #@groups = qw(elm_inparm elm_canopyhydrology_inparm elm_soilhydrology_inparm

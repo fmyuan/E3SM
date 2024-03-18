@@ -751,6 +751,16 @@ this mask will have smb calculated over the entire global land surface
 <lai_mapalgo  hgrid="1x1_tropicAtl"       >nn</lai_mapalgo>
 <lai_mapalgo  hgrid="5x5_amazon"          >nn</lai_mapalgo>
 
+<!-- Enhanced weathering streams namelist defaults -->
+<use_ew>.false.</use_ew>
+<stream_year_first_ew>1998</stream_year_first_ew>
+<stream_year_last_ew>2024</stream_year_last_ew>
+<model_year_align_ew>1998</model_year_align_ew>
+<ew_mapalgo>bilinear</ew_mapalgo>
+<!-- Hubbard Brook application: Oct 19, Oct 21 -->
+<doy_application_ew>292</doy_application_ew>
+<stream_fldFilename_ew>lnd/clm2/ewdata/ew_clm_hist_simyr1999_0.25x0.25_c150929.nc</stream_fldFilename_ew>
+
 <!-- lightning streams namelist defaults -->
 <stream_year_first_lightng use_cn=".true."   >0001</stream_year_first_lightng>
 <stream_year_last_lightng  use_cn=".true."   >0001</stream_year_last_lightng>
