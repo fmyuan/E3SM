@@ -13,6 +13,7 @@ module elm_driver
   use shr_log_mod            , only : errMsg => shr_log_errMsg
   use elm_varpar             , only : nlevtrc_soil, nlevsoi
   use elm_varctl             , only : wrtdia, iulog, create_glacier_mec_landunit, use_fates, use_betr, use_extrasnowlayers
+  use elm_varctl             , only : use_ew
   use elm_varctl             , only : use_cn, use_lch4, use_voc, use_noio, use_c13, use_c14
   use elm_varctl             , only : use_erosion, use_fates_sp, use_fan
   use elm_varctl             , only : mpi_sync_nstep_freq
@@ -74,6 +75,7 @@ module elm_driver
   use SatellitePhenologyMod  , only : SatellitePhenology, interpMonthlyVeg
   use ndepStreamMod          , only : ndep_interp
   use pdepStreamMod          , only : pdep_interp
+  use ewStreamMod            , only : ew_interp
   use ActiveLayerMod         , only : alt_calc
   use CH4Mod                 , only : CH4
   use DUSTMod                , only : DustDryDep, DustEmission
@@ -657,6 +659,15 @@ contains
 
     if (use_fan) then
        call fanstream_interp(bounds_proc, atm2lnd_vars)
+    end if
+
+    ! ============================================================================
+    ! ingest enhanced weathering drivers
+    ! ============================================================================
+    if (use_ew) then
+       call t_startf('ew_interp')
+       call ew_interp(bounds_proc)
+       call t_stopf('ew_interp')
     end if
 
     ! ============================================================================
