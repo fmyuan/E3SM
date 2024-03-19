@@ -94,8 +94,8 @@ contains
     wtcrop = dyn_var_time_uninterp_type( &
          dyn_file = dyncrop_file, varname=crop_varname, &
          dim1name=grlnd, conversion_factor=100._r8, &
-         do_check_sums_equal_1=.false., data_shape=wtcrop_shape)         
-        ! do_check_sums_equal_1=.false., data_shape=[num_points])        
+         do_check_sums_equal_1=.false., data_shape=wtcrop_shape)
+        ! do_check_sums_equal_1=.false., data_shape=[num_points])
     wtcft_shape = [num_points,max_topounits, cft_size]                   
     wtcft = dyn_var_time_uninterp_type( &
          dyn_file = dyncrop_file, varname=cft_varname, &

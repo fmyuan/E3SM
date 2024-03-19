@@ -79,9 +79,9 @@ contains
 
     logical :: lallow_nodata   ! Local version of allow_nodata which is by default FALSE
     !-----------------------------------------------------------------------
-    
+
     lallow_nodata = .false.
-    if ( present(allow_nodata) )then
+    if ( present(allow_nodata) ) then
        lallow_nodata = allow_nodata
     end if
     ! Set metadata common to all dyn_var_type objects

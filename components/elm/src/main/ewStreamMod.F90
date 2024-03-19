@@ -13,6 +13,8 @@ module ewStreamMod
   ! Below will be from parameter files
   ! - reaction equation stoichiometry for each of the minerals
 
+  ! landuse.timeseries_1x1_smallvilleIA_mp24_hist_simyr1850-1855_c141229.nc
+
   use shr_kind_mod, only: r8 => shr_kind_r8, CL => shr_kind_cl, CX => shr_kind_CXX
   use shr_strdata_mod
   use shr_stream_mod
@@ -80,7 +82,7 @@ contains
    integer            :: nml_error ! namelist i/o error flag
    type(mct_ggrid)    :: dom_elm   ! domain information 
    character(len=CL)  :: stream_fldFilename_ew
-   character(len=CL)  :: ew_mapalgo = 'bilinear'
+   character(len=CL)  :: ew_mapalgo = 'nn'
    character(*), parameter :: shr_strdata_unset = 'NOT_SET'
    character(*), parameter :: subName = "('ew_dyn_init')"
    character(*), parameter :: F00 = "('(ew_dyn_init) ',4a)"
@@ -99,7 +101,7 @@ contains
    stream_year_first_ew     = 1          ! first year in stream to use
    stream_year_last_ew      = 1          ! last  year in stream to use
    model_year_align_ew      = 1          ! align stream_year_first_ew with this model year
-   doy_application_ew       = 1          ! date of application of rock powder in each year (1-365)
+   doy_application_ew       = 1          ! day of year of application of rock powder in each year (1-365)
    stream_fldFileName_ew    = ' '
 
    ! Read ew_streams namelist
@@ -337,7 +339,7 @@ contains
    !-----------------------------------------------------------------------
    ! Application rate should be once a year, on doy_application_app
    !-----------------------------------------------------------------------
-   use elm_time_manager, only : get_curr_date, get_days_per_year
+   use elm_time_manager, only : get_curr_date, get_days_per_year, get_curr_calday
    use elm_varcon      , only : secspday
    use landunit_varcon , only : istsoil, istcrop
    use ColumnType      , only : col_pp
@@ -353,6 +355,7 @@ contains
    integer :: day     ! day of month (1, ..., 31) for nstep+1
    integer :: sec     ! seconds into current date for nstep+1
    integer :: mcdate  ! Current model date (yyyymmdd)
+   integer :: cdate   ! Calendar date
    integer :: dayspyr ! days per year
    real(r8):: pctcol  ! percent rock powder going to crop column or natural vegetated column (%)
    character(len=CL) :: mineral_index
@@ -360,6 +363,8 @@ contains
 
    call get_curr_date(year, mon, day, sec)
    mcdate = year*10000 + mon*100 + day
+
+   cdate = floor(get_curr_calday())
 
    call shr_strdata_advance(sdat_app, mcdate, sec, mpicom, 'ew_appdyn')
    call shr_strdata_advance(sdat_min, mcdate, sec, mpicom, 'ew_mindyn')
@@ -369,6 +374,13 @@ contains
    call shr_strdata_advance(sdat_pctcrop, mcdate, sec, mpicom, 'ew_pctcropdyn')
 
    do c = bounds%begc, bounds%endc
+
+      col_ew%forc_app(c) = 0._r8
+      do m = 1,nminerals
+         col_ew%forc_min(c,m) = 0._r8
+         col_ew%forc_gra(c,m) = 1.0e2_r8
+      end do
+      col_ew%forc_pho(c) = 0._r8
 
       ! limit to vegetated columns
       l = col_pp%landunit(c)
@@ -383,7 +395,7 @@ contains
          end do
 
          ! only fill in application rates one day per year
-         if ( mon*100 + day == doy_application_ew ) then
+         if ( cdate == doy_application_ew ) then
 
             ! Determine the percent rock powder given to this column (crop or natveg)
             pctcol = sdat_pctcrop%avs(1)%rAttr(1,ig)
@@ -405,20 +417,18 @@ contains
             ic = mct_aVect_indexRA(sdat_min%avs(1), trim(mineral_index))
 
             col_ew%forc_min(c,m) = sdat_min%avs(1)%rAttr(ic,ig)
+            col_ew%forc_gra(c,m) = sdat_gra%avs(1)%rAttr(1,ig)
          end do
 
          col_ew%forc_pho(c) = sdat_pho%avs(1)%rAttr(1,ig)
-         col_ew%forc_gra(c) = sdat_gra%avs(1)%rAttr(1,ig)
-         col_ew%forc_sph(c) = sdat_sph%avs(1)%rAttr(1,ig)
 
       else
          col_ew%forc_app(c) = 0._r8
          do m = 1, nminerals
-            col_ew%forc_min(c, m) = 0._r8
+            col_ew%forc_min(c,m) = 0._r8
+            col_ew%forc_gra(c,m) = 0._r8
          end do
          col_ew%forc_pho(c) = 0._r8
-         col_ew%forc_gra(c) = 0._r8
-         col_ew%forc_sph(c) = 0._r8
       end if
 
    end do

@@ -207,7 +207,7 @@ contains
             qflx_surf(c) =  fcov(c) * qflx_top_soil(c)
          else
             ! only send fast runoff directly to streams
-            qflx_surf(c) =   fsat(c) * qflx_top_soil(c)
+            qflx_surf(c) =  fsat(c) * qflx_top_soil(c)
          endif
       end do
 
@@ -377,7 +377,7 @@ contains
           h2osfcflag           =>    soilhydrology_vars%h2osfcflag           , & ! Input:  logical
           pc_grid              =>    soilhydrology_vars%pc                   , & ! Input:  [real(r8) (:)   ]  threshold for outflow from surface water storage
           icefrac              =>    soilhydrology_vars%icefrac_col            & ! Output: [real(r8) (:,:) ]  fraction of ice
-              )
+      )
 
 
        ! Infiltration into surface soil layer (minus the evaporation)
@@ -807,7 +807,7 @@ contains
              !-- water table within soil layers 1-9  -------------------------------------
              ! try to raise water table to account for qcharge
              qcharge_tot = qcharge(c) * dtime
-             if(qcharge_tot > 0.) then !rising water table
+             if (qcharge_tot > 0.) then !rising water table
                 do j = jwt(c)+1, 1,-1
                    !scs: use analytical expression for specific yield
                    s_y = watsat(c,j) &
@@ -821,7 +821,7 @@ contains
 
                    qcharge_tot = qcharge_tot - qcharge_layer
                    if (qcharge_tot <= 0.) exit
-                enddo
+                end do
              else ! deepening water table (negative qcharge)
                 do j = jwt(c)+1, nlevbed
                    !scs: use analytical expression for specific yield
@@ -839,7 +839,7 @@ contains
                       zwt(c) = zi(c,j)
                    endif
 
-                enddo
+                end do
                 if (qcharge_tot > 0.) zwt(c) = zwt(c) - qcharge_tot/1000._r8/rous
              endif
 

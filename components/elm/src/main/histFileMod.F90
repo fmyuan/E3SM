@@ -12,7 +12,7 @@ module histFileMod
   use shr_sys_mod    , only : shr_sys_flush
   use spmdMod        , only : masterproc
   use abortutils     , only : endrun
-  use elm_varctl     , only : iulog, use_vertsoilc, use_fates, use_extrasnowlayers
+  use elm_varctl     , only : iulog, use_vertsoilc, use_ew, use_fates, use_extrasnowlayers
   use elm_varcon     , only : spval, ispval, dzsoi_decomp 
   use elm_varcon     , only : grlnd, nameg, namet, namel, namec, namep
   use decompMod      , only : get_proc_bounds, get_proc_global, bounds_type
@@ -1744,6 +1744,7 @@ contains
     !
     ! !USES:
     use elm_varpar      , only : nlevgrnd, nlevsno, nlevlak, nlevurb, numrad, nmonth
+    use elm_varpar      , only : nminerals, ncations, nminsec
     use elm_varpar      , only : natpft_size, cft_size, maxpatch_glcmec, nlevdecomp_full, nlevtrc_full, nvegwcs
     use elm_varpar      , only : nlevsoi
     use landunit_varcon , only : max_lunit
@@ -1926,7 +1927,11 @@ contains
     call ncd_defdim(lnfid, 'string_length', hist_dim_name_length, strlen_dimid)
     call ncd_defdim( lnfid, 'levdcmp', nlevdecomp_full, dimid)
     call ncd_defdim( lnfid, 'levtrc', nlevtrc_full, dimid)    
-    
+    if (use_ew) then
+      call ncd_defdim( lnfid, 'minerals', nminerals, dimid)
+      call ncd_defdim( lnfid, 'cations', ncations, dimid)
+      call ncd_defdim( lnfid, 'minsec', nminsec, dimid)
+    end if   
     if(use_fates)then
        call ncd_defdim(lnfid, 'fates_levscag', nlevsclass_fates * nlevage_fates, dimid)
        call ncd_defdim(lnfid, 'fates_levscls', nlevsclass_fates, dimid)
@@ -2444,7 +2449,7 @@ contains
                dim1name='levsoi', &
                long_name='coordinate soil levels (equivalent to top nlevsoi levels of levgrnd)', &
                units='m', ncid=nfid(t))
-          
+
           if(use_fates)then
 
              call ncd_defvar(varname='fates_levscls', xtype=tape(t)%ncprec, dim1name='fates_levscls', &
@@ -4741,7 +4746,7 @@ contains
 !------------------------------------------------------------------------
 
     call get_proc_bounds(bounds)
-    
+
     ! Error-check no_snow_behavior optional argument: It should be present if and only if
     ! type2d is 'levsno', and its value should be one of the public no_snow_* parameters
     ! defined above.
@@ -4826,7 +4831,7 @@ contains
     case ('levsno')
        num2d = nlevsno
     case ('nvegwcs')
-        num2d = nvegwcs
+       num2d = nvegwcs
     case ('minerals')
        num2d = nminerals
     case ('cations')

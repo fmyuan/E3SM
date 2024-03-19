@@ -13,6 +13,7 @@ module initVerticalMod
   use decompMod      , only : bounds_type
   use spmdMod        , only : masterproc
   use elm_varpar     , only : more_vertlayers, nlevsno, nlevgrnd, nlevlak
+  use elm_varpar     , only : mixing_layer, mixing_depth
   use elm_varpar     , only : toplev_equalspace, nlev_equalspace
   use elm_varpar     , only : nlevsoi, nlevsoifl, nlevurb, nlevslp 
   use elm_varctl     , only : fsurdat, iulog, use_var_soil_thick
@@ -50,7 +51,7 @@ contains
     real(r8)            , intent(in)    :: thick_roof(bounds%begl:)
     !
     ! LOCAL VARAIBLES:
-    integer               :: c,l,t,ti,topi,g,i,j,lev     ! indices 
+    integer               :: c,l,t,ti,topi,g,i,j,lev,n    ! indices 
     type(file_desc_t)     :: ncid              ! netcdf id
     logical               :: readvar 
     integer               :: dimid             ! dimension id
@@ -618,10 +619,10 @@ contains
             write(iulog,*) 'aveDTB not in surfdata: reverting to default 10 layers.'
             do c = begc,endc
                col_pp%nlevbed(c) = nlevsoi
-	       col_pp%zibed(c) = zisoi(nlevsoi)
-	    end do
+               col_pp%zibed(c) = zisoi(nlevsoi)
+            end do
          else
-	    do c = begc,endc
+	         do c = begc,endc
                g = col_pp%gridcell(c)
                l = col_pp%landunit(c)               
                t = col_pp%topounit(c)
@@ -636,31 +637,31 @@ contains
                	  col_pp%nlevbed(c) = 5
                else
                   ! check for near zero DTBs, set minimum value
-	          beddep = max(dtb(g,ti), 0.2_r8)
-	          j = 0
-	          zimid = 0._r8
+                  beddep = max(dtb(g,ti), 0.2_r8)
+                  j = 0
+                  zimid = 0._r8
                   do while (zimid < beddep .and. j < nlevgrnd)
-	             zimid = 0.5_r8*(zisoi(j)+zisoi(j+1))
-	             if (beddep > zimid) then
-	                nlevbed = j + 1
-	             else
-	                nlevbed = j
+                     zimid = 0.5_r8*(zisoi(j)+zisoi(j+1))
+                     if (beddep > zimid) then
+                        nlevbed = j + 1
+                     else
+                        nlevbed = j
                      end if
-	             j = j + 1
+                     j = j + 1
                   enddo
-	          nlevbed = max(nlevbed, 5)
-	          nlevbed = min(nlevbed, nlevgrnd)
+                  nlevbed = max(nlevbed, 5)
+                  nlevbed = min(nlevbed, nlevgrnd)
                   col_pp%nlevbed(c) = nlevbed
-	          col_pp%zibed(c) = zisoi(nlevbed)
+                  col_pp%zibed(c) = zisoi(nlevbed)
                end if
             end do
-	 end if
+         end if
          deallocate(dtb)
       else
          do c = begc,endc
             col_pp%nlevbed(c) = nlevsoi
-	    col_pp%zibed(c) = zisoi(nlevsoi)
-	 end do
+            col_pp%zibed(c) = zisoi(nlevsoi)
+         end do
       end if
 
       !-----------------------------------------------
@@ -686,6 +687,17 @@ contains
          slopemax = 0.4_r8
          slope0 = slopemax**(-1._r8/slopebeta)
          col_pp%micro_sigma(c) = (col_pp%topo_slope(c) + slope0)**(-slopebeta)
+      end do
+
+      !-----------------------------------------------
+      ! After soil depth is initialized, calculate the 
+      ! maximum layer of enhanced weathering reaction
+      !-----------------------------------------------
+      mixing_layer = 1
+      do n = 2,nlevgrnd
+         if (zisoi(n-1) < mixing_depth) then
+            mixing_layer = n
+         end if
       end do
 
     call ncd_pio_closefile(ncid)

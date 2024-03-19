@@ -11,10 +11,11 @@ module EcosystemBalanceCheckMod
   use decompMod           , only : bounds_type
   use abortutils          , only : endrun
   use elm_varctl          , only : iulog, use_fates, use_fan
+  use elm_varctl          , only : spinup_state, nyears_before_ew
   use elm_time_manager    , only : get_step_size,get_nstep
   use elm_varpar          , only : crop_prog
   use elm_varpar          , only : nlevdecomp
-  use elm_varpar          , only : nminerals, ncations, nminsec
+  use elm_varpar          , only : nminerals, ncations, nminsec, mixing_layer
   use elm_varcon          , only : dzsoi_decomp
   use elm_varctl          , only : nu_com
   use elm_varctl          , only : ECA_Pconst_RGspin
@@ -199,15 +200,15 @@ contains
     !-----------------------------------------------------------------------
 
     associate( &
-         beg_pm => col_ms%beg_pm     , & ! Output: [real(r8) (:)] total primary mineral mass, beginning of time step (kg/m2)
-         beg_in => col_ms%beg_in     , & ! Output: [real(r8) (:)] total cation and bicarbonate mass, beginning of time step (kg/m2)
-         beg_sm => col_ms%beg_sm     , & ! Output: [real(r8) (:)] total secondary mineral mass, beginning of time step (kg/m2)
+         beg_pm => col_ms%beg_pm     , & ! Output: [real(r8) (:)] total primary mineral mass, beginning of time step (g/m2)
+         beg_in => col_ms%beg_in     , & ! Output: [real(r8) (:)] total cation mass, beginning of time step (g/m2)
+         beg_h  => col_ms%beg_h      , & ! Output: [real(r8) (:)] total H+ mass, beginning of time step (g/m2)
+         beg_sm => col_ms%beg_sm     , & ! Output: [real(r8) (:)] total secondary mineral mass, beginning of time step (g/m2)
 
-         primary_mineral    => col_ms%primary_mineral     , & ! Input: [real(r8) (:)]
-         cation        => col_ms%cation         , & ! Input: [real(r8) (:)]
-         bicarbonate   => col_ms%bicarbonate    , & ! Input: [real(r8) (:)]
-         secondary_mineral  => col_ms%secondary_mineral   , & ! Input: [real(r8) (:)]
-         silicate           => col_ms%silicate              & ! Input: [real(r8) (:)]
+         primary_mineral    => col_ms%primary_mineral     , & ! Input: [real(r8) (:,:)]
+         cation             => col_ms%cation              , & ! Input: [real(r8) (:,:)]
+         proton             => col_ms%proton              , & ! Input: [real(r8) (:)]
+         secondary_mineral  => col_ms%secondary_mineral     & ! Input: [real(r8) (:,:)]
     )
 
     ! calculate beginning column-level phosphorus balance, for mass conservation check
@@ -223,7 +224,8 @@ contains
       do m = 1, ncations
          beg_in(c) = beg_in(c) + cation(c,m)
       end do
-      beg_in(c) = beg_in(c) + bicarbonate(c)
+
+      beg_h(c) = proton(c)
 
       beg_sm(c) = 0._r8
       do m = 1, nminsec
@@ -857,60 +859,76 @@ contains
     ! !LOCAL VARIABLES:
     integer :: c,err_index,j,k,p,m,a     ! indices
     integer :: fc                        ! lake filter indices
-    logical :: iserr_pm, iserr_in, iserr_sm     ! error flag
+    logical :: iserr_pm, iserr_in, iserr_sm, iserr_h    ! error flag
     real(r8):: dt                        ! radiation time step (seconds)
-    integer :: nstep
+    integer :: year
     !-----------------------------------------------------------------------
 
     associate(  &
-         beg_pm => col_ms%beg_pm          , & ! Output: [real(r8) (:)] total primary mineral mass, beginning of time step (kg/m2)
-         beg_in => col_ms%beg_in          , & ! Output: [real(r8) (:)] total cation and bicarbonate mass, beginning of time step (kg/m2)
-         beg_sm => col_ms%beg_sm          , & ! Output: [real(r8) (:)] total secondary mineral mass, beginning of time step (kg/m2)
+         beg_pm => col_ms%beg_pm          , & ! Output: [real(r8) (:)] total primary mineral mass, beginning of time step (g/m2)
+         beg_in => col_ms%beg_in          , & ! Output: [real(r8) (:)] total cation mass, beginning of time step (g/m2)
+         beg_h  => col_ms%beg_h           , & ! Output: [real(r8) (:)] total H+ mass, beginning of time step (g/m2)
+         beg_sm => col_ms%beg_sm          , & ! Output: [real(r8) (:)] total secondary mineral mass, beginning of time step (g/m2)
 
-         primary_mineral       => col_ms%primary_mineral      , & ! Input: [real(r8) (:)]
-         cation                => col_ms%cation               , & ! Input: [real(r8) (:)]
-         bicarbonate           => col_ms%bicarbonate          , & ! Input: [real(r8) (:)]
-         secondary_mineral     => col_ms%secondary_mineral    , & ! Input: [real(r8) (:)]
-         silicate              => col_ms%silicate             , & ! Input: [real(r8) (:)]
+         dz     => col_pp%dz              , & ! Input:  [real(r8) (:,:) ]  layer thickness (m)
 
-         primary_added         => col_mf%primary_added        , & ! Input: [real(r8) (:)]
-         primary_dissolve      => col_mf%primary_dissolve     , & ! Input: [real(r8) (:)]
-         primary_co2_flux      => col_mf%primary_co2_flux     , & ! Input: [real(r8) (:)]
-         primary_h2o_flux      => col_mf%primary_h2o_flux     , & ! Input: [real(r8) (:)]
-         primary_cation_flux   => col_mf%primary_cation_flux  , & ! Input: [real(r8) (:)]
-         primary_bicarbonate_flux   => col_mf%primary_bicarbonate_flux  , & ! Input: [real(r8) (:)]
-         primary_silicate_flux => col_mf%primary_silicate_flux, &
+         primary_mineral       => col_ms%primary_mineral      , &
+         cation                => col_ms%cation               , &
+         proton                => col_ms%proton               , &
+         secondary_mineral     => col_ms%secondary_mineral    , &
 
-         secondary_cation_flux => col_mf%secondary_cation_flux, &
-         secondary_bicarbonate_flux => col_mf%secondary_bicarbonate_flux, &
-         secondary_precip      => col_mf%secondary_precip, &
-         secondary_co2_flux    => col_mf%secondary_co2_flux, &
-         secondary_h2o_flux    => col_mf%secondary_h2o_flux, &
+         primary_added         => col_mf%primary_added        , &
+         primary_dissolve      => col_mf%primary_dissolve     , &
+         primary_cation_flux   => col_mf%primary_cation_flux  , &
+         primary_proton_flux   => col_mf%primary_proton_flux  , &
+
+         background_weathering => col_mf%background_weathering, &
+
+         secondary_mineral_flux=> col_mf%secondary_mineral_flux, &
+         secondary_cation_flux => col_mf%secondary_cation_flux , &
+
+         cec_cation_flux       => col_mf%cec_cation_flux  , &
+         cec_proton_flux       => col_mf%cec_proton_flux  , &
+
+         cation_infl           => col_mf%cation_infl   , &
+         cation_oufl           => col_mf%cation_oufl   , &
+         cation_uptake         => col_mf%cation_uptake , &
          cation_leached        => col_mf%cation_leached, &
-         bicarbonate_leached   => col_mf%bicarbonate_leached, &
+         cation_runoff         => col_mf%cation_runoff , &
+
+         proton_infl           => col_mf%proton_infl   , &
+         proton_oufl           => col_mf%proton_oufl   , &
+         proton_uptake         => col_mf%proton_uptake , &
+         proton_leached        => col_mf%proton_leached, &
+         proton_runoff         => col_mf%proton_runoff , &
 
          err_pm => col_ms%err_pm, &
          err_in => col_ms%err_in, &
+         err_h  => col_ms%err_h , &
          err_sm => col_ms%err_sm, &
 
          end_pm => col_ms%end_pm, &
          end_in => col_ms%end_in, &
+         end_h  => col_ms%end_h,  &
          end_sm => col_ms%end_sm, &
 
-         pm_add => col_mf%pm_add, &
+         pm_add  => col_mf%pm_add,  &
          pm_loss => col_mf%pm_loss, &
-         in_add => col_mf%in_add, &
+         in_add  => col_mf%in_add,  &
          in_loss => col_mf%in_loss, &
-         sm_add => col_mf%sm_add, &
-         sm_loss => col_mf%sm_loss &
+         h_add   => col_mf%h_add,   &
+         h_loss  => col_mf%h_loss,  &
+         sm_add  => col_mf%sm_add,  &
+         sm_loss => col_mf%sm_loss  &
     )
 
     ! set time steps
     dt = dtime_mod
-    nstep = get_nstep()
+    year = year_curr
 
     iserr_pm = .false.
     iserr_in = .false.
+    iserr_h  = .false.
     iserr_sm = .false. 
 
     ! column loop
@@ -919,18 +937,19 @@ contains
 
        ! the column-level quantities after vertical integration
        end_pm(c) = 0._r8
-       do m = 1, nminerals
+       do m = 1,nminerals
          end_pm(c) = end_pm(c) + primary_mineral(c,m)
        end do
 
        end_in(c) = 0._r8
-       do m = 1, ncations
+       do m = 1,ncations
           end_in(c) = end_in(c) + cation(c,m)
        end do
-       end_in(c) = end_in(c) + bicarbonate(c)
+
+       end_h(c) = proton(c)
 
        end_sm(c) = 0._r8
-       do m = 1, nminsec
+       do m = 1,nminsec
           end_sm(c) = end_sm(c) + secondary_mineral(c,m)
        end do
 
@@ -942,21 +961,23 @@ contains
          pm_loss(c) = pm_loss(c) + primary_dissolve(c,a)
       end do
 
-      in_add  (c) = pm_loss(c) + primary_h2o_flux(c) + & 
-         primary_co2_flux(c) - primary_silicate_flux(c)
+      in_add(c) = 0._r8
+      do a = 1, ncations
+         in_add  (c) = in_add(c) + background_weathering(c,a) + primary_cation_flux(c,a) + cation_infl(c,a) + cec_cation_flux(c,a)
+      end do
 
       in_loss(c) = 0._r8
       do a = 1, ncations
          in_loss(c) = in_loss(c) + secondary_cation_flux(c,a) + &
-            cation_leached(c,a)
+            cation_leached(c,a) + cation_runoff(c,a) + cation_oufl(c,a) + cation_uptake(c,a)
       end do
-      in_loss(c) = in_loss(c) + secondary_bicarbonate_flux(c) + &
-         bicarbonate_leached(c)
 
-      sm_add(c) = in_loss(c) - secondary_co2_flux(c) - &
-         secondary_h2o_flux(c) - bicarbonate_leached(c)
-      do a = 1, ncations
-         sm_add(c) = sm_add(c) - cation_leached(c, a)
+      h_add(c) = proton_infl(c) + cec_proton_flux(c)
+      h_loss(c) = proton_oufl(c) + proton_uptake(c) + proton_leached(c) + proton_runoff(c) + primary_proton_flux(c)
+
+      sm_add(c) = 0._r8
+      do m = 1, nminsec
+         sm_add(c) = sm_add(c) + secondary_mineral_flux(c,m)
       end do
 
       sm_loss(c) = 0._r8
@@ -964,6 +985,7 @@ contains
       ! calculate the column-level balance error for this time step
       err_sm(c) = (pm_add(c) - pm_loss(c)) * dt - (end_sm(c) - beg_sm(c))
       err_in(c) = (in_add(c) - in_loss(c)) * dt - (end_in(c) - beg_in(c))
+      err_h (c) = (h_add (c) - h_loss (c)) * dt - (end_h (c) - beg_h (c))
       err_sm(c) = (sm_add(c) - sm_loss(c)) * dt - (end_sm(c) - beg_sm(c))
 
       if (abs(err_sm(c)) > 1e-8_r8) then
@@ -976,32 +998,45 @@ contains
          err_index = c
       end if
 
+      if (abs(err_h(c)) > 1e-8_r8) then
+         iserr_h = .true.
+         err_index = c
+      end if
+
       if (abs(err_sm(c)) > 1e-8_r8) then
          iserr_sm = .true.
          err_index = c
       end if
     end do ! end of columns loop
+   
+   if (spinup_state == 0 .or. year > nyears_before_ew) then
+      if (iserr_pm .or. iserr_in .or. iserr_sm .or. iserr_h) then
+         c = err_index
+         write(iulog,*)'column primary mineral balance error = ', err_pm(c), c
+         write(iulog,*)'column cations balance error = ', err_in(c), c
+         write(iulog,*)'column proton balance error = ', err_h(c), c
+         write(iulog,*)'column secondary mineral balance error = ', err_sm(c), c
 
-   if ((iserr_pm .or. iserr_in .or. iserr_sm) .and. nstep>1) then
-#ifndef _OPENACC
-      c = err_index
-      write(iulog,*)'column primary mineral balance error = ', err_pm(c), c
-      write(iulog,*)'column cations + bicarbonates balance error = ', err_in(c), c
-      write(iulog,*)'column secondary mineral balance error = ', err_sm(c), c
+         write(iulog,*)'Latdeg,Londeg=',grc_pp%latdeg(col_pp%gridcell(c)),grc_pp%londeg(col_pp%gridcell(c))
 
-      write(iulog,*)'Latdeg,Londeg=',grc_pp%latdeg(col_pp%gridcell(c)),grc_pp%londeg(col_pp%gridcell(c))
+         write(iulog,*)'primary mineral: delta, begin, end',end_pm(c) - beg_pm(c), beg_pm(c), end_pm(c)
+         write(iulog,*)'primary mineral: flux, in, out',(pm_add(c)-pm_loss(c))*dt, pm_add(c)*dt, pm_loss(c)*dt
 
-      write(iulog,*)'primary mineral: delta, begin, end',end_pm(c) - beg_pm(c), beg_pm(c), end_pm(c)
-      write(iulog,*)'primary mineral: flux, in, out',(pm_loss(c)-pm_add(c))*dt, pm_add(c)*dt, pm_loss(c)*dt
+         write(iulog,*)'cations: delta, begin, end', end_in(c) - beg_in(c), beg_in(c), end_in(c)
+         write(iulog,*)'cations: flux, in, out', (in_add(c)-in_loss(c))*dt, in_add(c)*dt, in_loss(c)*dt
 
-      write(iulog,*)'cations and bicarbonate: delta, begin, end', end_in(c) - beg_in(c), beg_in(c), end_in(c)
-      write(iulog,*)'cations and bicarbonate: flux, in, out', (in_loss(c)-in_add(c))*dt, in_add(c)*dt, in_loss(c)*dt
+         write(iulog,*)'proton: delta, begin, end', end_h(c) - beg_h(c), beg_h(c), end_h(c)
+         write(iulog,*)'proton: flux, in, out', (h_add(c)-h_loss(c))*dt, h_add(c)*dt, h_loss(c)*dt
 
-      write(iulog,*)'secondary mineral: delta, begin, end', end_sm(c) - beg_sm(c), beg_sm(c), end_sm(c)
-      write(iulog,*)'secondary mineral: flux, in, out', (sm_loss(c)-sm_add(c))*dt, sm_add(c)*dt, sm_loss(c)*dt
+         write(iulog,*)'secondary mineral: delta, begin, end', end_sm(c) - beg_sm(c), beg_sm(c), end_sm(c)
+         write(iulog,*)'secondary mineral: flux, in, out', (sm_add(c)-sm_loss(c))*dt, sm_add(c)*dt, sm_loss(c)*dt
 
-      call endrun(msg=errMsg(__FILE__, __LINE__))
-#endif
+         call endrun(msg=errMsg(__FILE__, __LINE__))
+      end if
+   else
+      if (masterproc) then
+         write(iulog,*) '--WARNING-- skipping mineral balance check for initialization'
+      end if
    end if
 
     end associate
