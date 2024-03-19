@@ -194,6 +194,8 @@ module elm_varctl
   !$acc declare create(carbon_only          )
   !$acc declare create(carbonnitrogen_only  )
   !$acc declare create(carbonphosphorus_only)
+
+  integer, public  :: nyears_before_ew = 1
   !----------------------------------------------------------
   ! Physics
   !----------------------------------------------------------

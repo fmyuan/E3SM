@@ -10,7 +10,7 @@ module SoilStateType
   use ncdio_pio       , only : file_desc_t, ncd_defvar, ncd_io, ncd_double, ncd_int, ncd_inqvdlen
   use ncdio_pio       , only : ncd_pio_openfile, ncd_inqfdims, ncd_pio_closefile, ncd_inqdid, ncd_inqdlen
   use elm_varpar      , only : more_vertlayers, numpft, numrad
-  use elm_varpar      , only : nlevsoi, nlevgrnd, nlevlak, nlevsoifl, nlayer, nlayert, nlevurb, nlevsno
+  use elm_varpar      , only : nlevsoi, nlevgrnd, nlevlak, nlevsoifl, nlayer, nlayert, nlevurb, nlevsno, ncations, mixing_layer, cation_valence
   use landunit_varcon , only : istice, istdlak, istwet, istsoil, istcrop, istice_mec
   use column_varcon   , only : icol_roof, icol_sunwall, icol_shadewall, icol_road_perv, icol_road_imperv 
   use elm_varcon      , only : zsoi, dzsoi, zisoi, spval, namet, grlnd
@@ -18,7 +18,7 @@ module SoilStateType
   use landunit_varcon , only : istice, istdlak, istwet, istsoil, istcrop, istice_mec
   use column_varcon   , only : icol_roof, icol_sunwall, icol_shadewall, icol_road_perv, icol_road_imperv
   use elm_varctl      , only : use_cn, use_lch4,use_dynroot, use_fates
-  use elm_varctl      , only : use_erosion
+  use elm_varctl      , only : use_erosion, use_ew
   use elm_varctl      , only : use_var_soil_thick
   use elm_varctl      , only : iulog, fsurdat, hist_wrtch4diag
   use CH4varcon       , only : allowlakeprod
@@ -92,15 +92,21 @@ module SoilStateType
      real(r8), pointer :: tillage_col          (:)    ! col soil conserved tillage fraction 
      real(r8), pointer :: litho_col            (:)    ! col soil lithology erodiblity index
 
+     ! cation exchange
+     real(r8), pointer :: sph                  (:,:)  ! initial soil pH
+     real(r8), pointer :: cect_col             (:,:)  ! col total cation exchange capacity (meq/100g dry soil)
+     real(r8), pointer :: cece_col             (:,:,:)! col "effective" cation exchange capacity = sum of base cations + aluminum (meq/100g dry soil)
+     real(r8), pointer :: ceca_col             (:,:)  ! col "acid" cation exchange capacity = H+ (meq/100g dry soil)
+     real(r8), pointer :: log_km_col           (:,:,:)! col Gaines-Thomas convention product for the exchange between each cation and H+ (H+ as the product) (1:ncations) (vertically resolved)
+
    contains
 
      procedure, public  :: Init
-     procedure, public :: InitAllocate
+     procedure, public  :: InitAllocate
      procedure, private :: InitHistory
      procedure, private :: InitCold
      procedure, public  :: Restart
      procedure, public  :: InitColdGhost
-
 
   end type soilstate_type
   !------------------------------------------------------------------------
@@ -190,8 +196,11 @@ contains
     allocate(this%root_conductance_patch(begp:endp,1:nlevsoi))          ; this%root_conductance_patch (:,:) = spval
     allocate(this%soil_conductance_patch(begp:endp,1:nlevsoi))          ; this%soil_conductance_patch (:,:) = spval
 
-    allocate(this%tillage_col          (begc:endc))                     ; this%tillage_col          (:)   = spval
-    allocate(this%litho_col            (begc:endc))                     ; this%litho_col            (:)   = spval
+    allocate(this%sph                  (begc:endc,1:nlevgrnd))          ; this%sph                 (:,:)   = spval
+    allocate(this%cect_col             (begc:endc,1:nlevgrnd))          ; this%cect_col           (:,:)   = spval
+    allocate(this%cece_col             (begc:endc,1:nlevgrnd,1:ncations)); this%cece_col          (:,:,:)   = spval
+    allocate(this%ceca_col             (begc:endc,1:nlevgrnd))          ; this%ceca_col             (:,:)   = spval
+    allocate(this%log_km_col           (begc:endc,1:nlevgrnd,1:ncations)); this%log_km_col         (:,:,:) = spval
 
   end subroutine InitAllocate
 
@@ -210,13 +219,15 @@ contains
     ! !LOCAL VARIABLES:
     integer :: begc, endc
     integer :: begp, endp
+    integer :: a
     character(10)     :: active
+    character(6)      :: a_str
+    character(24)     :: fieldname
     real(r8), pointer :: data2dptr(:,:), data1dptr(:) ! temp. pointers for slicing larger arrays
     !---------------------------------------------------------------------
 
     begp = bounds%begp; endp= bounds%endp
     begc = bounds%begc; endc= bounds%endc
-
 
     if (use_lch4) then
        if (hist_wrtch4diag) then
@@ -257,7 +268,6 @@ contains
        call hist_addfld2d (fname='ROOTR_COLUMN', units='proportion', type2d='levgrnd', &
             avgflag='A', long_name='effective fraction of roots in each soil layer', &
             ptr_col=this%rootr_col, default='inactive')
-
     end if
 
     if (use_dynroot) then
@@ -316,6 +326,37 @@ contains
             ptr_col=this%watfc_col, default='inactive')
     end if
 
+    if (use_ew) then
+      call hist_addfld2d(fname='cect_col', units='meq 100g-1 dry soil', type2d='levgrnd', &
+            avgflag='A', long_name='total cation exchange capacity', &
+            ptr_col=this%cect_col, default='inactive')
+
+      do a = 1,ncations
+         data2dptr => this%cece_col(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'cece_col_'//trim(a_str)
+         call hist_addfld2d(fname=fieldname, units='meq 100g-1 dry soil', type2d='levgrnd', &
+               avgflag='A', long_name='cation exchange capacity for individual base cations and Al3+', &
+               ptr_col=data2dptr, default='inactive')
+      end do
+
+      call hist_addfld2d(fname='ceca_col', units='meq 100g-1 dry soil', type2d='levgrnd', &
+            avgflag='A', long_name='acid exchange capacity', &
+            ptr_col=this%ceca_col, default='inactive')
+
+      this%log_km_col(begc:endc,:,:) = spval
+      do a = 1, ncations
+         data2dptr => this%log_km_col(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'log_km_col_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname, units='', type2d='levgrnd', &
+               avgflag='A', long_name='Gaines-Thomas convention product for the exchange between each cation and H+ (H+ as the product)', &
+               ptr_col=data2dptr, default='inactive')
+       end do
+    end if
+
   end subroutine InitHistory
 
   !-----------------------------------------------------------------------
@@ -335,8 +376,8 @@ contains
     class(soilstate_type) :: this
     type(bounds_type), intent(in) :: bounds
     !
-                                                        ! !LOCAL VARIABLES:
-    integer            :: p, lev, c, l, g, j,t,ti,topi            ! indices
+    ! !LOCAL VARIABLES:
+    integer            :: p, lev, c, l, g, a, j, t, ti, topi  ! indices
     real(r8)           :: om_frac                       ! organic matter fraction
     real(r8)           :: om_tkm         = 0.25_r8      ! thermal conductivity of organic soil (Farouki, 1986) [W/m/K]
     real(r8)           :: om_watsat_lake = 0.9_r8       ! porosity of organic soil
@@ -381,7 +422,12 @@ contains
     integer            :: ipedof
     integer            :: begc, endc
     integer            :: begg, endg
+    logical            :: calc_logkm
+    character(6)       :: a_str
+    character(24)      :: fieldname
     real(r8), parameter :: min_liquid_pressure = -10132500._r8 ! Minimum soil liquid water pressure [mm]
+    real(r8) ,pointer  :: sph_in(:,:,:), cect_in(:,:,:), cece_in(:,:,:), ceca_in(:,:,:), logkm_in(:,:,:) ! reac in - cation exchange capacity variables
+    real(r8), dimension(4) :: kex_ca, kex_mg, kex_na, kex_k, kex_al
     !-----------------------------------------------------------------------
     begc = bounds%begc; endc= bounds%endc
     begg = bounds%begg; endg= bounds%endg
@@ -398,7 +444,7 @@ contains
        if (lun_pp%urbpoi(l) .and. col_pp%itype(c) == icol_road_perv) then
           do lev = 1, nlevgrnd
              this%rootfr_road_perv_col(c,lev) = 0._r8
-          enddo
+          end do
           do lev = 1,nlevsoi
              this%rootfr_road_perv_col(c,lev) = 0.1_r8  ! uniform profile
           end do
@@ -417,7 +463,6 @@ contains
     end do
 
    ! Initialize root fraction
-
    call init_vegrootfr(bounds, nlevsoi, nlevgrnd, &
         col_pp%nlevbed(bounds%begc:bounds%endc)    , &
         this%rootfr_patch(bounds%begp:bounds%endp,1:nlevgrnd))
@@ -544,6 +589,80 @@ contains
        deallocate(tillage_in, litho_in)
     end if
 
+    ! Read cation exchange properties
+    if (use_ew) then
+       allocate(sph_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
+       allocate(cect_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
+       allocate(cece_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
+       allocate(ceca_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
+       allocate(logkm_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
+
+       call ncd_io(ncid=ncid, varname='SOIL_PH', flag='read', data=sph_in, dim1name=grlnd, readvar=readvar)
+       if (.not. readvar) then
+          call endrun(msg=' ERROR: SOIL_PH NOT on surfdata file'//errMsg(__FILE__, __LINE__))
+       end if
+
+       do a = 1,ncations
+          write (a_str, '(I6)') a
+          a_str = adjustl(a_str)  ! Remove leading spaces
+          fieldname = 'CEC_EFF_'//trim(a_str)
+
+          call ncd_io(ncid=ncid, varname=fieldname, flag='read', data=cece_in, dim1name=grlnd,  readvar=readvar)
+          if (.not. readvar) then
+             call endrun(msg=' ERROR: '//fieldname//' NOT on surfdata file'//errMsg(__FILE__, __LINE__))
+          end if
+
+          do c = bounds%begc, bounds%endc
+             do lev = 1,mixing_layer
+                this%cece_col(c,lev,a) = cece_in(g,ti,lev)
+             end do
+          end do
+       end do
+
+       ! Because the data is not measured at the same pH, use the difference to calculate CEC_ACID
+       call ncd_io(ncid=ncid, varname='CEC_TOT', flag='read', data=cect_in, dim1name=grlnd, readvar=readvar)
+       if (.not. readvar) then
+          call endrun(msg=' ERROR: CEC_TOT NOT on surfdata file'//errMsg(__FILE__, __LINE__))
+       end if
+       call ncd_io(ncid=ncid, varname='CEC_ACID', flag='read', data=ceca_in, dim1name=grlnd, readvar=readvar)
+       if (.not. readvar) then
+          call endrun(msg=' ERROR: CEC_ACID NOT on surfdata file'//errMsg(__FILE__, __LINE__))
+       end if
+
+       do c = bounds%begc, bounds%endc
+          g = col_pp%gridcell(c)
+          t = col_pp%topounit(c)
+          topi = grc_pp%topi(g)
+          ti = t - topi + 1
+          do lev = 1,mixing_layer
+            this%sph     (c, lev) =  sph_in(g,ti,lev)
+            this%cect_col(c, lev) = cect_in(g,ti,lev)
+            this%ceca_col(c, lev) = ceca_in(g,ti,lev)
+          end do
+       end do
+
+       calc_logkm = .false.
+       do a = 1,ncations
+          write (a_str, '(I6)') a
+          a_str = adjustl(a_str)  ! Remove leading spaces
+          fieldname = 'LOG_KM_'//trim(a_str)
+
+          call ncd_io(ncid=ncid, varname=fieldname, flag='read', data=logkm_in, dim1name=grlnd,  readvar=readvar)
+          if (.not. readvar) then
+            write (iulog, *) 'WARNING: LOG_KM_'//trim(a_str)//' NOT on surfdata file, use default values'
+            calc_logkm = .true.
+          else
+            do c = bounds%begc, bounds%endc
+               do lev = 1,mixing_layer
+                  this%log_km_col(c,lev,a) = logkm_in(g,ti,lev)
+               end do
+            end do
+          end if
+       end do
+
+       deallocate(sph_in, cect_in, cece_in, ceca_in, logkm_in)
+    end if
+
     ! Close file
 
     call ncd_pio_closefile(ncid)
@@ -578,7 +697,6 @@ contains
     !   value because thermal conductivity and heat capacity for urban
     !   roof, sunwall and shadewall are prescribed in SoilThermProp.F90
     !   in SoilPhysicsMod.F90
-
 
     do c = bounds%begc, bounds%endc
        g = col_pp%gridcell(c)
@@ -653,7 +771,7 @@ contains
 
           do lev = 1,nlevgrnd
              ! Number of soil layers in hydrologically active columns = NLEV2BED
-	     nlevbed = col_pp%nlevbed(c)
+             nlevbed = col_pp%nlevbed(c)
              if ( more_vertlayers )then ! duplicate clay and sand values from last soil layer
 
                 if (lev .eq. 1) then
@@ -785,6 +903,65 @@ contains
                 this%watmin_col(c,lev) = &
                      this%watsat_col(c,lev)*(-min_liquid_pressure/this%sucsat_col(c,lev))**(-1._r8/this%bsw_col(c,lev))
 
+                ! Fill in the cation exchange parameters using the default values from 0-10cm and 
+                ! 10-30cm, 30-60cm, 60-100cm of Table 28-Table 31 ("Gapon")
+                ! Vries, W. de, & Posch, M. (2003). Derivation of cation exchange constants for  sand, loess, clay and peat soils on the basis of field measurements in the Netherlands. Retrieved from https://research.wur.nl/en/publications/derivation-of-cation-exchange-constants-for-sand-loess-clay-and-p
+                ! Their "Gapon" equations are the "Gaines-Thomas" equation
+                if (use_ew) then
+                  if (calc_logkm) then
+                     if (zsoi(lev) <= 0.1_r8) then
+                        kex_ca = (/3.194, 3.238, 3.728, 2.778/)
+                        kex_mg = (/3.552, 3.567, 4.095, 3.134/)
+                        kex_k  = (/1.936, 1.612, 2.180, 1.828/)
+                        kex_na = (/2.713, 3.085, 3.603, 2.512/)
+                        kex_al = (/2.872, 2.948, 3.996, 3.191/)
+                     else if (zsoi(lev) <= 0.3_r8) then
+                        kex_ca = (/3.593, 3.424, 3.333, 2.724/)
+                        kex_mg = (/3.824, 3.688, 3.678, 3.134/)
+                        kex_k  = (/2.245, 1.675, 1.687, 1.911/)
+                        kex_na = (/3.320, 2.620, 3.152, 2.504/) 
+                        kex_al = (/2.834, 2.858, 3.750, 3.183/)
+                     else if (zsoi(lev) <= 0.6_r8) then
+                        kex_ca = (/3.769, 3.6625, 3.556, 2.947/)
+                        kex_mg = (/3.977, 3.9225, 3.868, 3.367/)
+                        kex_k  = (/2.227, 2.1975, 2.168, 2.263/)
+                        kex_na = (/3.223, 3.466 , 3.709, 2.866/)
+                        kex_al = (/2.843, 3.92  , 4.997, 3.683/)
+                     else
+                        kex_ca = (/4.199, 3.404, 3.640, 3.069/)
+                        kex_mg = (/4.342, 3.559, 4.241, 3.354/)
+                        kex_k  = (/1.714, 1.924, 2.518, 2.318/)
+                        kex_na = (/2.959, 2.230, 4.077, 2.825/)
+                        kex_al = (/2.752, 2.841, 5.471, 3.894/)
+                     end if
+
+                     ! Ca2+
+                     this%log_km_col(c,lev,1) = - ((kex_ca(1)*this%cellsand_col(c, lev) &
+                        + kex_ca(3)*this%cellclay_col(c,lev) &
+                        + kex_ca(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) &
+                     ) * (1 - om_frac) / 100._r8 + kex_ca(4)*om_frac)
+                     ! Mg2+
+                     this%log_km_col(c,lev,2) = - ((kex_mg(1)*this%cellsand_col(c, lev) &
+                        + kex_mg(3)*this%cellclay_col(c,lev) &
+                        + kex_mg(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) & 
+                     ) * (1 - om_frac) / 100._r8 + kex_mg(4)*om_frac)
+                     ! Na+
+                     this%log_km_col(c,lev,3) = - ((kex_na(1)*this%cellsand_col(c, lev) &
+                        + kex_na(3)*this%cellclay_col(c,lev) &
+                        + kex_na(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) & 
+                     ) * (1 - om_frac) / 100._r8 + kex_na(4)*om_frac)
+                     ! K+
+                     this%log_km_col(c,lev,4) = - ((kex_k(1)*this%cellsand_col(c, lev) &
+                        + kex_k(3)*this%cellclay_col(c,lev) &
+                        + kex_k(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) & 
+                     ) * (1 - om_frac) / 100._r8 + kex_k(4)*om_frac)
+                     ! Al3+
+                     this%log_km_col(c,lev,5) = - ((kex_al(1)*this%cellsand_col(c, lev) &
+                        + kex_al(3)*this%cellclay_col(c,lev) &
+                        + kex_al(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) & 
+                     ) * (1 - om_frac) / 100._r8 + kex_al(4)*om_frac)
+                  end if
+                end if
              end if
           end do
 
@@ -874,7 +1051,7 @@ contains
              this%watfc_col(c,lev) = this%watsat_col(c,lev) * (0.1_r8 / &
                                (this%hksat_col(c,lev)*secspday))**(1._r8/(2._r8*this%bsw_col(c,lev)+3._r8))
           end do
-       endif
+       end if
 
     end do
 
@@ -910,9 +1087,9 @@ contains
     use abortutils , only : endrun
     use restUtilMod
     use ncdio_pio
-    use elm_varctl,  only : use_dynroot
-    use elm_varctl,  only : use_hydrstress
-    use RootBiophysMod      , only : init_vegrootfr
+    use elm_varctl, only : use_dynroot
+    use elm_varctl, only : use_hydrstress
+    use RootBiophysMod, only : init_vegrootfr
     !
     ! !ARGUMENTS:
     class(soilstate_type) :: this
@@ -921,8 +1098,12 @@ contains
     character(len=*) , intent(in)    :: flag
     !
     ! !LOCAL VARIABLES:
-    logical          :: readvar   ! determine if variable is on initial file
-    logical          :: readrootfr = .false.
+    logical            :: readvar   ! determine if variable is on initial file
+    logical            :: readrootfr = .false.
+    integer            :: a ! index
+    character(len=6)   :: a_str
+    character(len=128) :: varname
+    real(r8), pointer  :: ptr2d(:,:) ! temp. pointers for slicing larger arrays
     !-----------------------------------------------------------------------
     if(use_hydrstress) then
        call restartvar(ncid=ncid, flag=flag, varname='SMP', xtype=ncd_double,  &
@@ -956,6 +1137,39 @@ contains
        call init_vegrootfr(bounds, nlevsoi, nlevgrnd, &
             col_pp%nlevbed(bounds%begc:bounds%endc), &
             this%rootfr_patch(bounds%begp:bounds%endp,1:nlevgrnd))
+    end if
+    if (use_ew) then
+      call restartvar(ncid=ncid, flag=flag, varname='cect_col', xtype=ncd_double,  &
+            dim1name='column', dim2name='levgrnd', switchdim=.true., &
+            long_name='total cation exchange capacity', units='meq 100g-1 dry soil', &
+            interpinic_flag='interp', readvar=readvar, data=this%cect_col)
+
+      do a = 1,ncations
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'cece_col_'//trim(a_str)
+         ptr2d => this%cece_col(:,:,a)
+         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double,  &
+               dim1name='column', dim2name='levgrnd', switchdim=.true., &
+               long_name='effective cation exchange capacity', units='meq 100g-1 dry soil', &
+               interpinic_flag='interp', readvar=readvar, data=ptr2d)
+      end do
+
+      call restartvar(ncid=ncid, flag=flag, varname='ceca_col', xtype=ncd_double,  &
+            dim1name='column', dim2name='levgrnd', switchdim=.true., &
+            long_name='acid exchange capacity', units='meq 100g-1 dry soil', &
+            interpinic_flag='interp', readvar=readvar, data=this%ceca_col)
+
+      do a = 1,ncations
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'log_km_col_'//trim(a_str)
+         ptr2d => this%log_km_col(:,:,a)
+         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double,  &
+               dim1name='column', dim2name='levgrnd', switchdim=.true., &
+               long_name='Gaines-Thomas convention product between adsorbed and dissolved ions', units='', &
+               interpinic_flag='interp', readvar=readvar, data=ptr2d)
+      end do
     end if
   end subroutine Restart
 

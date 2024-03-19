@@ -16,6 +16,7 @@ module SoilWaterMovementMod
   use ExternalModelInterfaceMod  , only : EMI_Driver
   use elm_instMod , only : waterflux_vars, waterstate_vars, temperature_vars
   use abortutils           , only : endrun
+  use elm_varctl           , only : iulog
 
   !
   implicit none
@@ -157,44 +158,45 @@ contains
     end select
 
     if(use_betr)then
-    !a work around of the negative liquid water embarrassment, which is
-    !critical for a meaningufl tracer transport in betr. Jinyun Tang, Jan 14, 2015
+      !a work around of the negative liquid water embarrassment, which is
+      !critical for a meaningufl tracer transport in betr. Jinyun Tang, Jan 14, 2015
 
-    do fc = 1, num_hydrologyc
-       c = filter_hydrologyc(fc)
-       nlevbed = nlev2bed(c)
-       do j = 1, nlevbed-1
-          if (h2osoi_liq(c,j) < 0._r8) then
-             xs(c) = watmin - h2osoi_liq(c,j)
-          else
-             xs(c) = 0._r8
-          end if
-          h2osoi_liq(c,j  ) = h2osoi_liq(c,j  ) + xs(c)
-          h2osoi_liq(c,j+1) = h2osoi_liq(c,j+1) - xs(c)
-       end do
-    end do
+      do fc = 1, num_hydrologyc
+         c = filter_hydrologyc(fc)
+         nlevbed = nlev2bed(c)
+         do j = 1, nlevbed-1
+            if (h2osoi_liq(c,j) < 0._r8) then
+               xs(c) = watmin - h2osoi_liq(c,j)
+            else
+               xs(c) = 0._r8
+            end if
+            h2osoi_liq(c,j  ) = h2osoi_liq(c,j  ) + xs(c)
+            h2osoi_liq(c,j+1) = h2osoi_liq(c,j+1) - xs(c)
+         end do
+      end do
 
-    do fc = 1, num_hydrologyc
-       c = filter_hydrologyc(fc)
-       j = nlev2bed(c)
-       if (h2osoi_liq(c,j) < watmin) then
-          xs(c) = watmin-h2osoi_liq(c,j)
-        else
-          xs(c) = 0._r8
-       end if
-       h2osoi_liq(c,j) = h2osoi_liq(c,j) + xs(c)
-       wa(c) = wa(c) - xs(c)
-    end do
+      do fc = 1, num_hydrologyc
+         c = filter_hydrologyc(fc)
+         j = nlev2bed(c)
+         if (h2osoi_liq(c,j) < watmin) then
+            xs(c) = watmin-h2osoi_liq(c,j)
+         else
+            xs(c) = 0._r8
+         end if
+         h2osoi_liq(c,j) = h2osoi_liq(c,j) + xs(c)
+         wa(c) = wa(c) - xs(c)
+      end do
 
-    !update volumetric soil moisture for bgc calculation
-    do fc = 1, num_hydrologyc
-       c = filter_hydrologyc(fc)
-       nlevbed = nlev2bed(c)
-       do j = 1, nlevbed
-          h2osoi_vol(c,j) = h2osoi_liq(c,j)/(dz(c,j)*denh2o) &
-                            + h2osoi_ice(c,j)/(dz(c,j)*denice)
-       enddo
-    enddo
+      !update volumetric soil moisture for bgc calculation
+      do fc = 1, num_hydrologyc
+         c = filter_hydrologyc(fc)
+         nlevbed = nlev2bed(c)
+         do j = 1, nlevbed
+            h2osoi_vol(c,j) = h2osoi_liq(c,j)/(dz(c,j)*denh2o) &
+                              + h2osoi_ice(c,j)/(dz(c,j)*denice)
+
+         enddo
+      enddo
     endif
   end associate
 
@@ -267,7 +269,7 @@ contains
     ! r_j = a_j [d wat_j-1] + b_j [d wat_j] + c_j [d wat_j+1]
     !
     ! !USES:
-      !$acc routine seq
+    !$acc routine seq
     use elm_varctl           , only : use_var_soil_thick
     use shr_kind_mod         , only : r8 => shr_kind_r8
     use shr_const_mod        , only : SHR_CONST_TKFRZ, SHR_CONST_LATICE, SHR_CONST_G
@@ -315,7 +317,7 @@ contains
     real(r8) :: dqodw1(bounds%begc:bounds%endc,1:nlevgrnd+1)  ! d(qout)/d(vol_liq(i))
     real(r8) :: dqodw2(bounds%begc:bounds%endc,1:nlevgrnd+1)  ! d(qout)/d(vol_liq(i+1))
     real(r8) :: dsmpdw(bounds%begc:bounds%endc,1:nlevgrnd+1)  ! d(smp)/d(vol_liq)
-    real(r8) :: num                                          ! used in calculating qin, qout
+    real(r8) :: num                                           ! used in calculating qin, qout
     real(r8) :: qin(bounds%begc:bounds%endc,1:nlevgrnd+1)     ! flux of water into soil layer [mm h2o/s]
     real(r8) :: qout(bounds%begc:bounds%endc,1:nlevgrnd+1)    ! flux of water out of soil layer [mm h2o/s]
     real(r8) :: s_node                                       ! soil wetness
@@ -378,9 +380,11 @@ contains
          qflx_infl         =>    col_wf%qflx_infl       , & ! Input:  [real(r8) (:)   ]  infiltration (mm H2O /s)
          qflx_net_vr       =>    col_wf%qflx_net_vr     , & ! Output:  [real(r8) (:)   ]  water flux vertically-resolved (mm H2O /s)
          qflx_rootsoi_col  =>    col_wf%qflx_rootsoi    , & ! Input: [real(r8) (:,:) ]  vegetation/soil water exchange (mm H2O/s) (+ = to atm)
-         t_soisno          =>    col_es%t_soisno        & ! Input:  [real(r8) (:,:) ]  soil temperature (Kelvin)
-         )
+         t_soisno          =>    col_es%t_soisno        , & ! Input:  [real(r8) (:,:) ]  soil temperature (Kelvin)
 
+         qin2              =>    col_wf%qin             , & ! Input: [real(r8) (:,:) ] flux of water into soil layer [mm h2o/s]
+         qout2             =>    col_wf%qout              & ! Input: [real(r8) (:,:) ] flux of water out of soil layer [mm h2o/s]
+      )
 
       ! Because the depths in this routine are in mm, use local
       ! variable arrays instead of pointers
@@ -405,8 +409,6 @@ contains
          zimm(c,0) = 0.0_r8
          zwtmm(c)  = zwt(c)*1.e3_r8
       end do
-
-
 
       !compute jwt index
       ! The layer index of the first unsaturated layer, i.e., the layer right above
@@ -849,6 +851,31 @@ contains
             endif
          enddo
       enddo
+
+      ! save the forward difference for input into enhanced weathering
+      ! The balance is
+      ! dwat2(c,j)*dzmm(c,j)/dtime = qin2(c,j) - (qout2(c,j) + qflx_rootsoi_col(c,j))
+      ! note the sign of the qflx term is flipped compared to CLM4.5 Tech Note
+      do fc = 1, num_hydrologyc
+         j = 1
+         qout2(c,j) = qout(c,j) + dqodw1(c,j)*dwat2(c,j) + dqodw2(c,j)*dwat2(c,j+1)
+         qin2(c,j) = qin(c,j)
+
+         nlevbed = nlev2bed(c)
+         do j = 2,nlevbed-1
+            qout2(c,j) = qout(c,j) + dqodw1(c,j)*dwat2(c,j) + dqodw2(c,j)*dwat2(c,j+1)
+            qin2(c,j) = qin(c,j) + dqidw0(c,j)*dwat2(c,j-1) + dqidw1(c,j)*dwat2(c,j)
+         end do
+
+         j = nlevbed
+         if (j > jwt(c)) then !water table is in soil column
+            qout2(c,j) = qout(c,j) + dqodw1(c,j)*dwat2(c,j)
+            qin2(c,j) = qin(c,j) + dqidw0(c,j)*dwat2(c,j-1) + dqidw1(c,j)*dwat2(c,j)
+         else
+            qout2(c,j) = qout(c,j) + dqodw1(c,j)*dwat2(c,j) + dqodw2(c,j)*dwat2(c,j+1)
+            qin2(c,j) = qin(c,j) + dqidw0(c,j)*dwat2(c,j-1) + dqidw1(c,j)*dwat2(c,j)
+         end if
+      end do
 
     end associate
 

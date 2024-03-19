@@ -14,7 +14,8 @@ module ColumnDataType
   use abortutils      , only : endrun
   use MathfuncMod     , only : dot_sum
   use elm_varpar      , only : nlevsoi, nlevsno, nlevgrnd, nlevlak, nlevurb
-  use elm_varpar      , only : nminerals, ncations, nminsec
+  use elm_varpar      , only : nminerals, ncations, nminsec, mixing_layer, cation_mass, cation_valence
+  use elm_varcon      , only : mass_h, mass_hco3, mass_co3, log_keq_hco3, log_keq_co3
   use elm_varpar      , only : ndecomp_cascade_transitions, ndecomp_pools, nlevcan
   use elm_varpar      , only : nlevdecomp_full, crop_prog, nlevdecomp
   use elm_varpar      , only : i_met_lit, i_cel_lit, i_lig_lit, i_cwd
@@ -50,6 +51,8 @@ module ColumnDataType
   use ColumnType      , only : col_pp
   use LandunitType    , only : lun_pp
   use timeInfoMod , only : nstep_mod 
+
+  use SoilStateType   , only : soilstate_type
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -74,8 +77,9 @@ module ColumnDataType
       real(r8), pointer :: forc_app         (:)   => null() ! application rate (kg m-2 s-1)
       real(r8), pointer :: forc_min       (:,:)   => null() ! weight percentage of minerals in rock (1:nminerals) (% as kg mineral kg-1 rock)
       real(r8), pointer :: forc_pho         (:)   => null() ! weight percentage of phosphorus content in rock (gP kg-1 rock)
-      real(r8), pointer :: forc_gra         (:)   => null() ! grain size (um diameter)
-      real(r8), pointer :: forc_sph         (:)   => null() ! soil pH
+      real(r8), pointer :: forc_gra       (:,:)   => null() ! grain size (um diameter) (1:nminerals)
+      real(r8), pointer :: rain_ph          (:)   => null() ! rain water pH
+      real(r8), pointer :: rain_chem      (:,:)   => null() ! rain chemistry, mg/L (1:ncations)
   contains
      procedure, public  :: Init    => col_ew_init
      procedure, public  :: Restart => col_ew_restart
@@ -425,36 +429,45 @@ module ColumnDataType
    ! Define the data structure that holds mineral state information at the column level.
    !-----------------------------------------------------------------------
    type, public :: column_mineral_state
-      ! reaction state variables
+      real(r8), pointer :: soil_ph                 (:,:)   => null() ! calculated soil pH (1:nlevgrnd)
+      real(r8), pointer :: proton_vr               (:,:)   => null() ! calculated soil H+ concentration in soil water each soil layer (1:nlevgrnd) (g m-3 soil [not water])
+      real(r8), pointer :: bicarbonate_vr          (:,:)   => null() ! calculated HCO3- concentration in soil water each soil layer (1:nlevgrnd) (g m-3 soil [not water])
+      real(r8), pointer :: carbonate_vr            (:,:)   => null() ! calculated CO3 2- concentration in soil water each soil layer (1:nlevgrnd) (g m-3 soil [not water])
+      real(r8), pointer :: primary_mineral_vr      (:,:,:) => null() ! primary mineral concentration in solid phase each soil layer (1:nlevgrnd,1:nminerals) (g m-3)
+      real(r8), pointer :: cation_vr               (:,:,:) => null() ! cation concentration in soil water in each soil layer (1:nlevgrnd,1:ncations) (g m-3 soil [not water])
+      real(r8), pointer :: silica_vr               (:,:)   => null() ! SiO2 concentration in soil water in each soil layer (1:nlevgrnd) (g m-3 soil [not water])
+      real(r8), pointer :: primary_residue_vr      (:,:,:) => null() ! non-SiO2 solids concentration in solid phase in each soil layer (1:nlevgrnd,1:nminerals) (g m-3)
+      real(r8), pointer :: armor_thickness_vr      (:,:)   => null() ! armoring layer thickness due to preferential release and formation of secondary mineral (1:nlevgrnd) (um)
+      real(r8), pointer :: ssa                     (:,:)   => null() ! specific surface area of the primary mineral (1:nminerals) (m2 g-1 mineral)
+      real(r8), pointer :: secondary_mineral_vr    (:,:,:) => null() ! secondary mineral concentration in solid phase in each soil layer (1:nlevgrnd,1:nminsec) (g m-3)
 
-      real(r8), pointer :: primary_mineral_vr      (:,:,:) => null() ! primary mineral (1:nlevgrnd,1:nminerals) (kg m-2)
-      real(r8), pointer :: cation_vr               (:,:,:) => null() ! cation in each soil layer (1:nlevgrnd,1:ncations) (kg m-2)
-      real(r8), pointer :: bicarbonate_vr          (:,:)   => null() ! bicarbonate in each soil layer (1:nlevgrnd) (kg m-2)
-      real(r8), pointer :: carbonate_vr            (:,:)   => null() ! carbonate in each soil layer (1:nlevgrnd) (kg m-2)
-      real(r8), pointer :: soil_ph                 (:,:)   => null() ! soil pH in each soil layer (1:nlevgrnd) (-)
-      real(r8), pointer :: silicate_vr             (:,:)   => null() ! H4SiO4 in each soil layer (1:nlevgrnd) (kg m-2)
-      real(r8), pointer :: secondary_mineral_vr    (:,:,:) => null() ! secondary mineral concentration in each soil layer (1:nlevgrnd,1:nminsec) (kg m-2)
-      real(r8), pointer :: armor_thickness_vr      (:,:)   => null() ! armoring layer thickness due to the secondary mineral (1:nlevgrnd) (um)
+      real(r8), pointer :: cec_cation_vr           (:,:,:) => null() ! adsorbed cation concentration each soil layer (1:nlevgrnd,1:ncations) (g m-3 soil [not dry soil])
+      real(r8), pointer :: cec_proton_vr           (:,:)   => null() ! adsorbed H+ concentration in each soil layer (1:nlevgrnd) (g m-3 soil [not dry soil])
+      real(r8), pointer :: net_charge_vr           (:,:)   => null() ! net charge balance of the tracked ions in each soil layer (1:nlevgrnd) (mol kg-1 water)
 
-      real(r8), pointer :: ssa                     (:)     => null() ! specific surface area of the primary mineral (m2 kg-1 mineral)
+      real(r8), pointer :: primary_mineral         (:,:)   => null() ! vertically integrated primary mineral (1:nminerals) (g m-2)
+      real(r8), pointer :: proton                  (:)     => null() ! vertically integrated soil H+ concentration in soil water (g m-2)
+      real(r8), pointer :: cation                  (:,:)   => null() ! vertically integrated cation in soil water (1:ncations) (g m-2)
+      real(r8), pointer :: silica                  (:)     => null() ! vertically integrated silicate in soil water (g m-2)
+      real(r8), pointer :: secondary_mineral       (:,:)   => null() ! vertically integrated secondary mineral (1:nminsec) (g m-2)
+      real(r8), pointer :: primary_residue         (:,:)   => null() ! vertically integrated non-SiO2 solids concentration (1:nminerals) (g m-2)
+      real(r8), pointer :: cec_cation              (:,:)   => null() ! vertically integrated adsorbed cation concentration (1:ncations) (g m-2)
+      real(r8), pointer :: cec_proton              (:)     => null() ! vertically integrated adsorbed proton concentration (g m-2)
 
-      real(r8), pointer :: primary_mineral         (:,:)   => null() ! primary mineral (1:nminerals) (kg m-2)
-      real(r8), pointer :: cation                  (:,:)   => null() ! cation concentrations (1:ncations) (kg m-2)
-      real(r8), pointer :: bicarbonate             (:)     => null() ! bicarbonate concentration (kg m-2)
-      real(r8), pointer :: secondary_mineral       (:,:)   => null() ! secondary mineral (1:nminsec) (kg m-2)
-      real(r8), pointer :: silicate                (:)     => null() ! silicate (kg m-2)
+      real(r8), pointer :: beg_pm                  (:)     => null() ! column total primary mineral mass at the beginning of time step (g m-2)
+      real(r8), pointer :: beg_in                  (:)     => null() ! column total dissolved cation mass concentration at the beginning of time step (g m-2)
+      real(r8), pointer :: beg_h                   (:)     => null() ! column total proton mass concentration at the beginning of time step (g m-2)
+      real(r8), pointer :: beg_sm                  (:)     => null() ! column total secondary mineral at the beginning of time step (g m-2)
 
-      real(r8), pointer :: beg_pm                  (:)     => null() ! total primary mineral mass (kg m-2)
-      real(r8), pointer :: beg_in                  (:)     => null() ! total dissolved cation and bicarbonate mass concentration (kg m-2)
-      real(r8), pointer :: beg_sm                  (:)     => null() ! total secondary mineral (kg m-2)
+      real(r8), pointer :: err_pm                  (:)     => null() ! mass conservation error in primary mineral (g m-2)
+      real(r8), pointer :: err_in                  (:)     => null() ! mass conservation error in cation concentration (g m-2)
+      real(r8), pointer :: err_h                   (:)     => null() ! mass conservation error in H+ concentration (g m-2)
+      real(r8), pointer :: err_sm                  (:)     => null() ! mass conservation error in secondary mineral (g m-2)
 
-      real(r8), pointer :: err_pm                  (:)     => null() ! total primary mineral dissolution mass balance conservation error (kg m-2)
-      real(r8), pointer :: err_in                  (:)     => null() ! total dissolved cation and bicarbonate anion mass balance conservation error (kg m-2)
-      real(r8), pointer :: err_sm                  (:)     => null() ! total secondary mineral mass balance conservation error (kg m-2)
-
-      real(r8), pointer :: end_pm                  (:)     => null() ! total primary mineral mass (kg m-2)
-      real(r8), pointer :: end_in                  (:)     => null() ! total dissolved cation and bicarbonate mass concentrations (kg m-2)
-      real(r8), pointer :: end_sm                  (:)     => null() ! total secondary mineral (kg m-2)
+      real(r8), pointer :: end_pm                  (:)     => null() ! column total primary mineral mass at the end of time step (g m-2)
+      real(r8), pointer :: end_in                  (:)     => null() ! column total dissolved cation mass concentration at the end of time step (g m-2)
+      real(r8), pointer :: end_h                   (:)     => null() ! column total H+ mass concentration at the end of time step (g m-2)
+      real(r8), pointer :: end_sm                  (:)     => null() ! column total secondary mineral at the end of time step (g m-2)
 
    contains
       procedure, public :: Init    => col_ms_init
@@ -591,6 +604,9 @@ module ColumnDataType
     real(r8), pointer :: mflx_et              (:,:) => null() ! evapotranspiration sink from all soil coontrol volumes (kg H2O /s)
     real(r8), pointer :: mflx_drain           (:,:) => null() ! drainage from groundwater table (kg H2O /s)
     real(r8), pointer :: mflx_recharge        (:)   => null() ! recharge from soil column to unconfined aquifer (kg H2O /s)
+
+    real(r8), pointer :: qin                  (:,:) => null() ! flux of water into soil layer [mm h2o/s]
+    real(r8), pointer :: qout                 (:,:) => null() ! flux of water out of soil layer [mm h2o/s]
 
   contains
     procedure, public :: Init    => col_wf_init
@@ -1103,61 +1119,72 @@ module ColumnDataType
    ! Define the data structure that holds mineral flux information at the column level.
    !-----------------------------------------------------------------------
    type, public :: column_mineral_flux
-      real(r8), pointer :: primary_added_vr             (:,:,:)   => null() ! rate at which primary mineral is added (1:nlevgrnd, 1:nminerals) (kg mineral m-2 s-1)
-      real(r8), pointer :: primary_dissolve_vr          (:,:,:)   => null() ! rate at which primary mineral is dissolved (1:nlevgrnd, 1:nminerals) (kg mineral m-2 s-1)
-      real(r8), pointer :: primary_co2_flux_vr          (:,:)     => null() ! rate at which the primary reaction takes up co2 (kg CO2 m-2 s-1)
-      real(r8), pointer :: primary_h2o_flux_vr          (:,:)     => null() ! rate at which the primary reaction uses up water (kg H2O m-2 s-1)
-      real(r8), pointer :: primary_proton_flux_vr       (:,:)     => null() ! rate at which the primary reaction product H+ (kg H2O m-2 s-1)
-      real(r8), pointer :: primary_cation_flux_vr       (:,:,:)   => null() ! rate at which cation is created by primary mineral dissolution (1:nlevgrnd, 1:ncations) (kg cation m-2 s-1)
-      real(r8), pointer :: primary_bicarbonate_flux_vr  (:,:)     => null() ! rate at which bicarbonate is generated by primary mineral dissolution (kg HCO3- m-2 s-1)
-      real(r8), pointer :: primary_silicate_flux_vr     (:,:)     => null() ! rate at which silicate is generated by primary mineral dissolution (kg H4SiO4 m-2 s-1)
-      real(r8), pointer :: r_dissolve_vr                (:,:,:)   => null() ! reaction rate of the dissolution of the primary mineral (1:nlevgrnd, 1:nminerals) (mol reaction kg-1 mineral s-1)
+      real(r8), pointer :: background_weathering_vr     (:,:,:)   => null() ! background weathering rate (1:nlevgrnd, 1:ncations) (g m-3 s-1)
 
-      ! only consider this secondary mineral, as a first approximation
-      ! Ca2++2HCO3−→CaCO3+CO2+H2O
-      ! the reaction outcome depends on temperature, moisture, and solution oversaturation
-      real(r8), pointer :: secondary_cation_flux_vr     (:,:,:)   => null() ! rate at which the precipitation reaction consumes cations (1:nlevgrnd,1:ncations) (kg cation m-2 s-1)
-      real(r8), pointer :: secondary_bicarbonate_flux_vr(:,:)     => null() ! rate at which the precipitation reaction consumes bicarbonates (kg bicarbonate m-2 s-1)
-      real(r8), pointer :: secondary_precip_vr          (:,:,:)   => null() ! rate at which the precipitation reaction forms secondary minerals (1:nlevgrnd,1:nminsec) (kg mineral m-2 s-1)
-      real(r8), pointer :: secondary_co2_flux_vr        (:,:)     => null() ! rate at which the precipitation reaction emits CO2 (kg CO2 m-2 s-1)
-      real(r8), pointer :: secondary_h2o_flux_vr        (:,:)     => null() ! rate at which the precipitation reaction creates water (kg H2O m-2 s-1)
-      real(r8), pointer :: r_precip_vr                  (:,:,:)   => null() ! reaction rate of the precipitation of the secondary mineral (1:nlevgrnd,1:nminsec) (mol reaction m-3 soil solution s-1)
-      real(r8), pointer :: mineral_prelease_vr          (:,:)     => null() ! solution phosphorus release (gP m-2 s-1) (1:nlevgrnd)
+      real(r8), pointer :: primary_added_vr             (:,:,:)   => null() ! rate at which primary mineral is added (1:nlevgrnd, 1:nminerals) (g m-3 s-1)
+      real(r8), pointer :: primary_dissolve_vr          (:,:,:)   => null() ! rate at which primary mineral is dissolved (1:nlevgrnd, 1:nminerals) (g m-3 s-1)
+      real(r8), pointer :: primary_proton_flux_vr       (:,:)     => null() ! rate at which the primary reaction consumes proton (g m-3 s-1)
+      real(r8), pointer :: primary_cation_flux_vr       (:,:,:)   => null() ! rate at which cation is created by primary mineral dissolution (1:nlevgrnd, 1:ncations) (g m-3 s-1)
+      real(r8), pointer :: primary_h2o_flux_vr          (:,:)     => null() ! rate at which the primary reaction creates (+) or consumes (-) water (1:nlevgrnd) (g m-3 s-1)
+      real(r8), pointer :: primary_silica_flux_vr       (:,:)     => null() ! rate at which SiO2 is generated by primary mineral dissolution (g m-3 s-1)
+      real(r8), pointer :: primary_residue_flux_vr      (:,:,:)   => null() ! rate of non-SiO2 solides being produced due to all the dissolution reaction (g m-3 s-1)
+      real(r8), pointer :: primary_prelease_vr          (:,:)     => null() ! release of soluble phosphorus with primary mineral dissolution (gP m-3 s-1) (1:nlevgrnd)
+      real(r8), pointer :: r_dissolve_vr                (:,:,:)   => null() ! reaction rate of the dissolution of the primary mineral (1:nlevgrnd, 1:nminerals) (mol reaction m-3 s-1)
+      real(r8), pointer :: log_omega_vr                 (:,:,:)   => null() ! Omega parameter in the dissolution equation (1:nlevgrnd, 1:nminerals)
+
+      real(r8), pointer :: secondary_mineral_flux_vr    (:,:,:)   => null() ! rate at which secondary mineral is formed (1:nlevgrnd,1:nminsec) (g m-3 s-1)
+      real(r8), pointer :: secondary_cation_flux_vr     (:,:,:)   => null() ! rate at which cations consumed due to precipitation of secondary minerals (1:nlevgrnd,1:ncations) (g m-3 s-1)
+      real(r8), pointer :: secondary_silica_flux_vr     (:,:)     => null() ! rate at which SiO2 is consumed by secondary mineral precipitation (1:nlevgrnd,1:ncations) (g m-3 s-1)
+      real(r8), pointer :: r_precip_vr                  (:,:,:)   => null() ! reaction rate of the precipitation of the secondary mineral (1:nlevgrnd,1:nminsec) (mol reaction m-3 s-1)
+
+      real(r8), pointer :: cec_cation_flux_vr           (:,:,:)   => null() ! rate at which cation is released into water (negative for adsorption into soil) (vertically resolved) (1:nlevgrnd, 1:ncations) (g m-3 s-1)
+      real(r8), pointer :: cec_proton_flux_vr           (:,:)     => null() ! soil proton flux for charge balance with the cations (positive for adsorbed, negative for released) (g m-3 s-1)
+
+      real(r8), pointer :: cation_infl_vr               (:,:,:)   => null() ! rate at which cations are infiltrated from above (1:nlevgrnd) (g m-3 s-1)
+      real(r8), pointer :: cation_oufl_vr               (:,:,:)   => null() ! rate at which cations are infiltrated to below (1:nlevgrnd,1:ncations) (g m-3 s-1)
+      real(r8), pointer :: cation_uptake_vr             (:,:,:)   => null() ! rate at which cations are uptaken by plants (1:nlevgrnd,1:ncations) (g m-3 s-1)
+      real(r8), pointer :: cation_leached_vr            (:,:,:)   => null() ! rate at which cations are lost to stream (1:nlevgrnd,1:ncations) (g m-3 s-1)
+      real(r8), pointer :: cation_runoff_vr             (:,:,:)   => null() ! rate at which cations are lost to stream (1:nlevgrnd,1:ncations) (g m-3 s-1)
+      real(r8), pointer :: proton_infl_vr               (:,:)     => null() ! rate at which H+ are infiltrated from above (1:nlevgrnd) (g m-3 s-1)
+      real(r8), pointer :: proton_oufl_vr               (:,:)     => null() ! rate at which H+ are infiltrated to below (1:nlevgrnd) (g m-3 s-1)
+      real(r8), pointer :: proton_uptake_vr             (:,:)     => null() ! rate at which H+ are uptaken by plants (1:nlevgrnd) (g m-3 s-1)
+      real(r8), pointer :: proton_leached_vr            (:,:)     => null() ! rate at which H+ are lost to stream (1:nlevgrnd) (g m-3 s-1)
+      real(r8), pointer :: proton_runoff_vr             (:,:)     => null() ! rate at which H+ are lost to stream (1:nlevgrnd) (g m-3 s-1)
+
+      real(r8), pointer :: background_weathering        (:,:)     => null() ! vertically integrated background weathering rate (1:ncations) (g m-2 s-1)
+
+      real(r8), pointer :: primary_added                (:,:)     => null() ! vertically integrated rate at which primary mineral is added (1:nminerals) (g m-2 s-1)
+      real(r8), pointer :: primary_dissolve             (:,:)     => null() ! vertically integrated rate at which primary mineral is dissolved (1:nminerals) (g m-2 s-1)
+      real(r8), pointer :: primary_proton_flux          (:)       => null() ! vertically integrated rate at which the primary reaction consumes proton (g m-2 s-1)
+      real(r8), pointer :: primary_cation_flux          (:,:)     => null() ! vertically integrated rate at which cation is created by primary mineral dissolution (1:ncations) (g m-2 s-1)
+      real(r8), pointer :: primary_h2o_flux             (:)       => null() ! vertically integrated rate at which the primary reaction creates (+) or consumes (-) water (g m-2 s-1)
+      real(r8), pointer :: primary_silica_flux          (:)       => null() ! vertically integrated rate at which SiO2 is generated by primary mineral dissolution (g m-2 s-1)
+      real(r8), pointer :: primary_residue_flux         (:,:)     => null() ! vertically integrated rate of non-SiO2 solides being produced due to all the dissolution reaction (g m-3 s-1)
+      real(r8), pointer :: secondary_mineral_flux       (:,:)     => null() ! vertically integrated rate at which secondary mineral is formed (1:nminsec) (g m-2 s-1)
+      real(r8), pointer :: secondary_cation_flux        (:,:)     => null() ! vertically integrated rate at which cations consumed due to precipitation of secondary minerals (1:nlevgrnd,1:ncations) (g m-2 s-1)
+      real(r8), pointer :: secondary_silica_flux        (:)       => null() ! vertically integrated rate at which SiO2 is consumed by secondary mineral precipitation (1:nlevgrnd,1:ncations) (g m-2 s-1)
+      real(r8), pointer :: cec_cation_flux              (:,:)     => null() ! rate at which cation is adsorbed to soil (negative for released into water) (subtract this from the net dissolution and precipitation flux) (1:ncations) (g m-2 s-1)
+      real(r8), pointer :: cec_proton_flux              (:)       => null() ! soil proton flux for charge balance with the cations (positive for adsorbed, negative for released) (g m-2 s-1)
+      real(r8), pointer :: cation_infl                  (:,:)     => null() ! rate at which cations are infiltrated from top of soil column (1:ncations) (g m-2 s-1)
+      real(r8), pointer :: cation_oufl                  (:,:)     => null() ! rate at which cations are infiltrated to below (1:ncations) (g m-2 s-1)
+      real(r8), pointer :: cation_uptake                (:,:)     => null() ! rate at which cations are uptaken by plants (1:ncations) (g m-2 s-1)
+      real(r8), pointer :: cation_leached               (:,:)     => null() ! vertically integrated rate at which cations are lost to stream (1:ncations) (g m-2 s-1)
+      real(r8), pointer :: cation_runoff                (:,:)     => null() ! rate at which cations are lost to stream (1:ncations) (g m-2 s-1)
+      real(r8), pointer :: proton_infl                  (:)       => null() ! rate at which H+ are infiltrated from top of soil column (g m-2 s-1)
+      real(r8), pointer :: proton_oufl                  (:)       => null() ! rate at which H+ are infiltrated to below (g m-2 s-1)
+      real(r8), pointer :: proton_uptake                (:)       => null() ! rate at which H+ are uptaken by plants (g m-2 s-1)
+      real(r8), pointer :: proton_leached               (:)       => null() ! rate at which H+ are lost to stream (1:nlevgrnd,1:ncations) (g m-2 s-1)
+      real(r8), pointer :: proton_runoff                (:)       => null() ! rate at which H+ are lost to stream (1:nlevgrnd,1:ncations) (g m-2 s-1)
       real(r8), pointer :: r_sequestration              (:)       => null() ! net sequestration rate of the dissolution and precipitation reactions (gC m-2 s-1)
 
-      ! leaching and surface runoff loss
-      real(r8), pointer :: cation_leached_vr            (:,:,:)   => null() ! rate at which cations are lost to stream (1:nlevgrnd,1:ncations) (kg m-2 s-1)
-      real(r8), pointer :: bicarbonate_leached_vr       (:,:)     => null() ! rate at which bicarbonates are lost to stream (1:nlevgrnd) (kg m-2 s-1)
-      real(r8), pointer :: cation_runoff_vr             (:,:,:)   => null() ! rate at which cations are lost to stream (1:nlevgrnd,1:ncations) (kg m-2 s-1)
-      real(r8), pointer :: bicarbonate_runoff_vr        (:,:)     => null() ! rate at which bicarbonates are lost to stream (1:nlevgrnd) (kg m-2 s-1)
-
-      ! column total summaries
-      real(r8), pointer :: primary_added                (:,:)     => null() ! rate at which primary mineral is added (1:nminerals) (kg m-2 s-1)
-      real(r8), pointer :: primary_dissolve             (:,:)     => null() ! rate at which primary mineral is dissolved (1:nminerals) (kg m-2 s-1)
-      real(r8), pointer :: primary_co2_flux             (:)       => null() ! rate at which the primary reaction takes up co2 (kg m-2 s-1)
-      real(r8), pointer :: primary_h2o_flux             (:)       => null() ! rate at which the primary reaction uses up water (kg m-2 s-1)
-      real(r8), pointer :: primary_proton_flux          (:)       => null() ! rate at which the primary reaction product H+ (kg m-2 s-1)
-      real(r8), pointer :: primary_cation_flux          (:,:)     => null() ! rate at which cation is created by primary mineral dissolution (1:ncations) (kg m-2 s-1)
-      real(r8), pointer :: primary_bicarbonate_flux     (:)       => null() ! rate at which bicarbonate is generated by primary mineral dissolution (kg m-2 s-1)
-      real(r8), pointer :: primary_silicate_flux        (:)       => null() ! rate at which silicate is generated by primary mineral dissolution (kg m-2 s-1)
-
-      real(r8), pointer :: secondary_cation_flux        (:,:)     => null() ! rate at which the precipitation reaction consumes cations (1:ncations) (kg m-2 s-1)
-      real(r8), pointer :: secondary_bicarbonate_flux   (:)       => null() ! rate at which the precipitation reaction consumes bicarbonates (kg m-2 s-1)
-      real(r8), pointer :: secondary_precip             (:,:)     => null() ! rate at which the precipitation reaction forms secondary minerals (1:nminsec) (kg m-2 s-1)
-      real(r8), pointer :: secondary_co2_flux           (:)       => null() ! rate at which the precipitation reaction emits CO2 (kg m-2 s-1)
-      real(r8), pointer :: secondary_h2o_flux           (:)       => null() ! rate at which the precipitation reaction creates water (kg m-2 s-1)
-
-      real(r8), pointer :: cation_leached               (:,:)     => null() ! rate at which cations are lost to stream (1:ncations) (kg m-2 s-1)
-      real(r8), pointer :: bicarbonate_leached          (:)       => null() ! rate at which bicarbonates are lost to stream (kg m-2 s-1)
-      real(r8), pointer :: cation_runoff                (:,:)     => null() ! rate at which cations are lost to stream (1:ncations) (kg m-2 s-1)
-      real(r8), pointer :: bicarbonate_runoff           (:)       => null() ! rate at which bicarbonates are lost to stream (kg m-2 s-1)
-
       ! summary variables for the column balance
-      real(r8), pointer :: pm_add                       (:)      => null() ! rate at which primary mineral is added (kg mineral m-2 s-1)
-      real(r8), pointer :: pm_loss                      (:)      => null() ! rate at which primary mineral is dissolved (kg mineral m-2 s-1)
-      real(r8), pointer :: in_add                       (:)      => null() ! rate at which dissolved primary mineral, CO2, and water, minus the formed silicate, are adding to cation and bicarbonates (kg m-2 s-1)
-      real(r8), pointer :: in_loss                      (:)      => null() ! rate at which cations and bicarbonates are losing to the formation of secondary mineral and leaching (kg m-2 s-1)
-      real(r8), pointer :: sm_add                       (:)      => null() ! rate at which secondary mineral is added from precipitation of cations and bicarbonates, minus lost co2 and water (kg mineral m-2 s-1)
+      real(r8), pointer :: pm_add                       (:)      => null() ! rate at which primary mineral is added (g m-2 s-1)
+      real(r8), pointer :: pm_loss                      (:)      => null() ! rate at which primary mineral is dissolved (g m-2 s-1)
+      real(r8), pointer :: in_add                       (:)      => null() ! rate at which cations are added to soil column (g m-2 s-1)
+      real(r8), pointer :: in_loss                      (:)      => null() ! rate at which cations are removed from soil column (g m-2 s-1)
+      real(r8), pointer :: h_add                        (:)      => null() ! rate at which protons are added to soil column (g m-2 s-1)
+      real(r8), pointer :: h_loss                       (:)      => null() ! rate at which protons are lost from soil column (g m-2 s-1)
+      real(r8), pointer :: sm_add                       (:)      => null() ! rate at which secondary mineral is added (g m-2 s-1)
       real(r8), pointer :: sm_loss                      (:)      => null() ! rate at which secondary mineral is lost (zero)
 
    contains
@@ -1230,51 +1257,60 @@ contains
       allocate(this%forc_app (begc:endc)) ; this%forc_app (:) = spval
       allocate(this%forc_min (begc:endc,1:nminerals)) ; this%forc_min (:,:) = spval
       allocate(this%forc_pho (begc:endc)) ; this%forc_pho (:) = spval
-      allocate(this%forc_gra (begc:endc)) ; this%forc_gra (:) = spval
-      allocate(this%forc_sph (begc:endc)) ; this%forc_sph (:) = spval
+      allocate(this%forc_gra (begc:endc,1:nminerals)) ; this%forc_gra (:,:) = spval
+      allocate(this%rain_ph  (begc:endc)) ; this%rain_ph (:) = spval
+      allocate(this%rain_chem(begc:endc,1:ncations)) ; this%rain_chem (:,:) = spval
 
       this%forc_app(begc:endc) = spval
-      call hist_addfld1d (fname='FORC_APP',  units='kg m-2 year-1', &
+      call hist_addfld1d (fname='forc_app',  units='kg m-2 year-1', &
          avgflag='A', long_name='enhanced weathering application rate', &
          ptr_col=this%forc_app)
 
       this%forc_min(begc:endc,1:nminerals) = spval
-      call hist_addfld2d (fname='FORC_MIN',  units='kg mineral/kg rock', &
+      call hist_addfld2d (fname='forc_min',  units='kg mineral/kg rock', &
          avgflag='A', type2d='minerals', &
          long_name='weight percentage of minerals in rock', &
          ptr_col=this%forc_min)
 
       this%forc_pho(begc:endc) = spval
-      call hist_addfld1d (fname='FORC_PHO',  units='gP/kg rock', &
+      call hist_addfld1d (fname='forc_pho',  units='gP/kg rock', &
          avgflag='A', long_name='weight percentage of phosphorus content in rock', &
          ptr_col=this%forc_pho)
 
-      this%forc_gra(begc:endc) = spval
-      call hist_addfld1d (fname='FORC_GRA',  units='um', &
-         avgflag='A', long_name='grain size', &
+      this%forc_gra(begc:endc,1:nminerals) = spval
+      call hist_addfld2d (fname='forc_gra',  units='um', &
+         avgflag='A', type2d='minerals', long_name='grain size of each mineral', &
          ptr_col=this%forc_gra)
 
-      this%forc_sph(begc:endc) = spval
-      call hist_addfld1d (fname='FORC_SPH', units='', &
-         avgflag='A', long_name='soil pH for enhanced weathering', &
-         ptr_col=this%forc_sph)
+      this%rain_ph(begc:endc) = spval
+      call hist_addfld1d (fname='rain_ph', units='', &
+         avgflag='A', long_name='rainfall pH', ptr_col=this%rain_ph)
 
-    !-----------------------------------------------------------------------
-    ! set cold-start initial values to zero
-    !-----------------------------------------------------------------------
-    do c = begc,endc
-      ! limit to vegetated columns
-      l = col_pp%landunit(c)
-      if (lun_pp%itype(l) == istsoil .or. lun_pp%itype(l) == istcrop) then
-         this%forc_app(c) = 0._r8
-         do j = 1,nminerals
-            this%forc_min(c,j) = 0._r8
-         end do
-         this%forc_pho(c) = 0._r8
-         this%forc_gra(c) = 0._r8
-         this%forc_sph(c) = 7._r8
-      end if
-    end do
+      this%rain_chem(begc:endc,1:ncations) = spval
+      call hist_addfld2d (fname='rain_chem', units='mg/L', &
+         avgflag='A', type2d='cations', &
+         long_name='concentration of cations in rain water', &
+         ptr_col=this%forc_min)
+
+      !-----------------------------------------------------------------------
+      ! set cold-start initial values to zero
+      !-----------------------------------------------------------------------
+      do c = begc,endc
+         ! limit to vegetated columns
+         l = col_pp%landunit(c)
+         if (lun_pp%itype(l) == istsoil .or. lun_pp%itype(l) == istcrop) then
+            this%forc_app(c) = 0._r8
+            do j = 1,nminerals
+               this%forc_min(c,j) = 0._r8
+               this%forc_gra(c,j) = 0._r8
+            end do
+            this%forc_pho(c) = 0._r8
+            this%rain_ph(c) = 5.6_r8
+            do j = 1,ncations
+               this%rain_chem(c,j) = 0._r8
+            end do
+         end if
+      end do
 
    end subroutine col_ew_init
 
@@ -1289,8 +1325,8 @@ contains
       ! !ARGUMENTS:
       class(column_ew_forcing) :: this
       type(bounds_type), intent(in)    :: bounds  
-      type(file_desc_t), intent(inout) :: ncid   
-      character(len=*) , intent(in)    :: flag   
+      type(file_desc_t), intent(inout) :: ncid
+      character(len=*) , intent(in)    :: flag
       !
       ! !LOCAL VARIABLES:
       logical :: readvar   ! determine if variable is on initial file
@@ -1318,10 +1354,15 @@ contains
          long_name='grain size', units='um', &
          interpinic_flag='interp', readvar=readvar, data=this%forc_gra)
 
-      call restartvar(ncid=ncid, flag=flag, varname='FORC_SPH', xtype=ncd_double, &
+      call restartvar(ncid=ncid, flag=flag, varname='RAIN_PH', xtype=ncd_double, &
          dim1name='column', &
-         long_name='soil pH for enhanced weathering', units='', &
-         interpinic_flag='interp', readvar=readvar, data=this%forc_sph)
+         long_name='rainfall pH', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%rain_ph)
+
+      call restartvar(ncid=ncid, flag=flag, varname='RAIN_CHEM', xtype=ncd_double,  &
+         dim1name='column', dim2name='cations', switchdim=.true., &
+         long_name='concentrations of cations in rain water', units='mg/L', &
+         interpinic_flag='interp', readvar=readvar, data=this%forc_min)
 
    end subroutine col_ew_restart
 
@@ -5777,7 +5818,7 @@ contains
    !------------------------------------------------------------------------
    ! Subroutines to initialize and clean column mineral state data structure
    !------------------------------------------------------------------------
-   subroutine col_ms_init(this, begc, endc)
+   subroutine col_ms_init(this, begc, endc, soilstate_vars)
       !
       ! !USES:
       use landunit_varcon, only : istice, istwet, istsoil, istdlak, istice_mec
@@ -5786,140 +5827,211 @@ contains
       ! !ARGUMENTS:
       class(column_mineral_state) :: this
       integer, intent(in) :: begc,endc
+      type(soilstate_type), intent(in) :: soilstate_vars
       !------------------------------------------------------------------------
       !
-      ! !LOCAL VARIABLES:
-      integer           :: c,l,j                        ! indices
+      ! !LOCAL VARIABLES: 
+      integer           :: c,l,j,a,n                    ! indices
       real(r8), pointer :: data2dptr(:,:), data1dptr(:) ! temp. pointers for slicing larger arrays
-      character(6)      :: l_str
+      character(6)      :: a_str
       character(24)     :: fieldname
 
       !-----------------------------------------------------------------------
       ! allocate for each member of col_ms
       !-----------------------------------------------------------------------
-      allocate(this%primary_mineral_vr  (begc:endc,1:nlevgrnd,1:nminerals))       ; this%primary_mineral_vr     (:,:,:) = spval
-      allocate(this%cation_vr           (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cation_vr              (:,:,:) = spval
+      allocate(this%soil_ph             (begc:endc,1:nlevgrnd            ))       ; this%soil_ph                (:,:) = spval
+      allocate(this%proton_vr           (begc:endc,1:nlevgrnd            ))       ; this%proton_vr              (:,:) = spval
       allocate(this%bicarbonate_vr      (begc:endc,1:nlevgrnd            ))       ; this%bicarbonate_vr         (:,:) = spval
       allocate(this%carbonate_vr        (begc:endc,1:nlevgrnd            ))       ; this%carbonate_vr           (:,:) = spval
-      allocate(this%soil_ph             (begc:endc,1:nlevgrnd            ))       ; this%soil_ph                (:,:) = spval
-      allocate(this%silicate_vr         (begc:endc,1:nlevgrnd            ))       ; this%silicate_vr            (:,:) = spval
+      allocate(this%primary_mineral_vr  (begc:endc,1:nlevgrnd,1:nminerals))       ; this%primary_mineral_vr     (:,:,:) = spval
+      allocate(this%cation_vr           (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cation_vr              (:,:,:) = spval
+      allocate(this%silica_vr           (begc:endc,1:nlevgrnd            ))       ; this%silica_vr              (:,:) = spval
+      allocate(this%primary_residue_vr  (begc:endc,1:nlevgrnd,1:nminerals))       ; this%primary_residue_vr     (:,:,:) = spval
+      allocate(this%armor_thickness_vr  (begc:endc,1:nlevgrnd            ))       ; this%armor_thickness_vr     (:,:) = spval
+      allocate(this%ssa                 (begc:endc,1:nminerals           ))       ; this%ssa                    (:,:) = spval
       allocate(this%secondary_mineral_vr(begc:endc,1:nlevgrnd,1:nminsec  ))       ; this%secondary_mineral_vr   (:,:,:) = spval
-      allocate(this%armor_thickness_vr  (begc:endc,1:nlevgrnd))                   ; this%armor_thickness_vr     (:,:) = spval
+      allocate(this%cec_cation_vr       (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cec_cation_vr          (:,:,:) = spval
+      allocate(this%cec_proton_vr       (begc:endc,1:nlevgrnd            ))       ; this%cec_proton_vr          (:,:) = spval
+      allocate(this%net_charge_vr       (begc:endc,1:nlevgrnd            ))       ; this%net_charge_vr          (:,:) = spval
       allocate(this%primary_mineral     (begc:endc,1:nminerals           ))       ; this%primary_mineral        (:,:) = spval
+      allocate(this%proton              (begc:endc                       ))       ; this%proton                 (:) = spval
       allocate(this%cation              (begc:endc,1:ncations            ))       ; this%cation                 (:,:) = spval
-      allocate(this%bicarbonate         (begc:endc                       ))       ; this%bicarbonate            (:) = spval
+      allocate(this%silica              (begc:endc                       ))       ; this%silica                 (:) = spval
       allocate(this%secondary_mineral   (begc:endc,1:nminsec             ))       ; this%secondary_mineral      (:,:) = spval
-      allocate(this%silicate            (begc:endc                       ))       ; this%silicate               (:) = spval
+      allocate(this%primary_residue     (begc:endc,1:nminerals           ))       ; this%primary_residue        (:,:) = spval
+      allocate(this%cec_cation          (begc:endc,1:ncations            ))       ; this%cec_cation             (:,:) = spval
+      allocate(this%cec_proton          (begc:endc                       ))       ; this%cec_proton             (:)   = spval
       allocate(this%beg_pm              (begc:endc                       ))       ; this%beg_pm                 (:) = spval
       allocate(this%beg_in              (begc:endc                       ))       ; this%beg_in                 (:) = spval
+      allocate(this%beg_h               (begc:endc                       ))       ; this%beg_h                  (:) = spval
       allocate(this%beg_sm              (begc:endc                       ))       ; this%beg_sm                 (:) = spval
       allocate(this%err_pm              (begc:endc                       ))       ; this%err_pm                 (:) = spval
       allocate(this%err_in              (begc:endc                       ))       ; this%err_in                 (:) = spval
+      allocate(this%err_h               (begc:endc                       ))       ; this%err_h                  (:) = spval
       allocate(this%err_sm              (begc:endc                       ))       ; this%err_sm                 (:) = spval
       allocate(this%end_pm              (begc:endc                       ))       ; this%end_pm                 (:) = spval
       allocate(this%end_in              (begc:endc                       ))       ; this%end_in                 (:) = spval
+      allocate(this%end_h               (begc:endc                       ))       ; this%end_h                  (:) = spval
       allocate(this%end_sm              (begc:endc                       ))       ; this%end_sm                 (:) = spval
-      allocate(this%ssa                 (begc:endc                       ))       ; this%ssa                    (:) = spval
 
       !-----------------------------------------------------------------------
       ! initialize history fields for select members of col_ms
       !-----------------------------------------------------------------------
-      this%primary_mineral_vr(begc:endc,1:nlevgrnd,1:nminerals) = spval
-      do l = 1, nminerals
-         data2dptr => this%primary_mineral_vr(:,:,l)
-         write (l_str, '(I6)') l
-         l_str = adjustl(l_str)  ! Remove leading spaces
-         fieldname = 'PRIMARY_MINERAL_vr_'//trim(l_str)
-         call hist_addfld2d (fname=fieldname, units='kg m-2', type2d='levgrnd', &
-            avgflag='A', long_name='amount of undissolved primary mineral in the soil (vertically resolved)', &
-            ptr_col=data2dptr, l2g_scale_type='ice')
-      end do
+      this%soil_ph(begc:endc,1:nlevgrnd) = spval
+      data2dptr => this%soil_ph(:,:)
+      call hist_addfld2d (fname='soil_pH', units='', type2d='levgrnd', &
+         avgflag='A', long_name='calculated soil pH (vertically resolved)', &
+         ptr_col=data2dptr, l2g_scale_type='veg')
 
-      this%cation_vr(begc:endc,1:nlevgrnd,1:ncations) = spval
-      do l = 1, ncations
-         data2dptr => this%cation_vr(:,:,l)
-         write (l_str, '(I6)') l
-         l_str = adjustl(l_str)  ! Remove leading spaces
-         fieldname = 'CATION_vr_'//trim(l_str)
-         call hist_addfld2d (fname=fieldname,  units='kg m-2', type2d='levgrnd', &
-            avgflag='A', long_name='amount of dissolved cation in the soil (vertically resolved)', &
-            ptr_col=data2dptr, l2g_scale_type='ice')
-      end do
+      this%proton_vr(begc:endc,1:nlevgrnd) = spval
+      data2dptr => this%proton_vr(:,:)
+      call hist_addfld2d (fname='proton_vr', units='g m-3', type2d='levgrnd', &
+         avgflag='A', long_name='dissolved H+ concentration (vertically resolved)', &
+         ptr_col=data2dptr, l2g_scale_type='veg')
 
       this%bicarbonate_vr(begc:endc,1:nlevgrnd) = spval
       data2dptr => this%bicarbonate_vr(:,:)
-      call hist_addfld2d (fname='BICARBONATE_vr',  units='kg m-2', type2d='levgrnd', &
-         avgflag='A', long_name='amount of dissolved bicarbonate in the soil (vertically resolved)', &
-         ptr_col=data2dptr, l2g_scale_type='ice')
+      call hist_addfld2d (fname='bicarbonate_vr',  units='g m-3', type2d='levgrnd', &
+         avgflag='A', long_name='dissolved HCO3- concentration (vertically resolved)', &
+         ptr_col=data2dptr, l2g_scale_type='veg')
 
       this%carbonate_vr(begc:endc,1:nlevgrnd) = spval
       data2dptr => this%carbonate_vr(:,:)
-      call hist_addfld2d (fname='CARBONATE_vr',  units='kg m-2', type2d='levgrnd', &
-         avgflag='A', long_name='amount of dissolved carbonate in the soil (vertically resolved)', &
-         ptr_col=data2dptr, l2g_scale_type='ice')
+      call hist_addfld2d (fname='carbonate_vr',  units='g m-3', type2d='levgrnd', &
+         avgflag='A', long_name='dissolved CO3 2- concentration (vertically resolved)', &
+         ptr_col=data2dptr, l2g_scale_type='veg')
 
-      this%soil_ph(begc:endc,1:nlevgrnd) = spval
-      data2dptr => this%soil_ph(:,:)
-      call hist_addfld2d (fname='SOIL_PH',  units='-', type2d='levgrnd', &
-         avgflag='A', long_name='soil ph in the soil (vertically resolved)', &
-         ptr_col=data2dptr, l2g_scale_type='ice')
-
-      this%silicate_vr(begc:endc,1:nlevgrnd) = spval
-      data2dptr => this%silicate_vr(:,:)
-      call hist_addfld2d (fname='SILICATE_vr',  units='kg m-2', type2d='levgrnd', &
-         avgflag='A', long_name='amount of H4SiO4 in the soil (vertically resolved)', &
-         ptr_col=data2dptr, l2g_scale_type='ice')
-
-      this%secondary_mineral_vr(begc:endc,1:nlevgrnd,1:nminsec) = spval
-      do l = 1, nminsec
-         data2dptr => this%secondary_mineral_vr(:,:,l)
-         write (l_str, '(I6)') l
-         l_str = adjustl(l_str)  ! Remove leading spaces
-         fieldname = 'SECONDARY_MINERAL_vr_'//trim(l_str)
-         call hist_addfld2d (fname=fieldname,  units='kg m-2', type2d='levgrnd', &
-            avgflag='A', long_name='amount of precipitated secondary mineral in the soil (vertically resolved)', &
-            ptr_col=data2dptr, l2g_scale_type='ice')
+      this%primary_mineral_vr(begc:endc,1:nlevgrnd,1:nminerals) = spval
+      do a = 1,nminerals
+         data2dptr => this%primary_mineral_vr(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'primary_mineral_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname, units='g m-3', type2d='levgrnd', &
+            avgflag='A', long_name='undissolved primary mineral concentration in the soil (vertically resolved)', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
       end do
 
-      call hist_addfld2d (fname='ARMOR_THICKNESS_vr', units='um', type2d='levgrnd', &
-         avgflag='A', long_name='thickness of the armoring layer on the rock powder (vertically resolved)', &
-         ptr_col=this%armor_thickness_vr, l2g_scale_type='ice')
+      this%cation_vr(begc:endc,1:nlevgrnd,1:ncations) = spval
+      do a = 1, ncations
+         data2dptr => this%cation_vr(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'cation_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname,  units='g m-3', type2d='levgrnd', &
+            avgflag='A', long_name='dissolved cation concentration in the soil (vertically resolved)', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
+      end do
 
-      this%ssa(begc:endc) = spval
-      data1dptr => this%ssa(:)
-      call hist_addfld1d (fname='SSA',  units='m2 kg-1 mineral', &
+      this%silica_vr(begc:endc,1:nlevgrnd) = spval
+      data2dptr => this%silica_vr(:,:)
+      call hist_addfld2d (fname='silica_vr',  units='g m-3', type2d='levgrnd', &
+         avgflag='A', long_name='SiO2 concentration in the soil (vertically resolved)', &
+         ptr_col=data2dptr, l2g_scale_type='veg')
+
+      this%primary_residue_vr(begc:endc,1:nlevgrnd,1:nminerals) = spval
+      do a = 1,nminerals
+         data2dptr => this%primary_residue_vr(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'primary_residue_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname, units='g m-3', type2d='levgrnd', &
+            avgflag='A', long_name='non-SiO2 solids concentration in the soil (vertically resolved', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
+      end do
+
+      this%armor_thickness_vr(begc:endc,1:nlevgrnd) = spval
+      data2dptr => this%armor_thickness_vr(:,:)
+      call hist_addfld2d (fname='armor_thickness_vr',  units='um', type2d='levgrnd', &
+         avgflag='A', long_name='thickness of armoring layer on primary mineral (vertically resolved)', &
+         ptr_col=data2dptr, l2g_scale_type='veg')
+
+      this%ssa(begc:endc,1:nminerals) = spval
+      call hist_addfld2d (fname='ssa',  units='m2 g-1', type2d='minerals', &
          avgflag='A', long_name='specific surface area of the primary mineral', &
-         ptr_col=data1dptr, l2g_scale_type='ice')
+         ptr_col=this%ssa, l2g_scale_type='veg')
+
+      this%secondary_mineral_vr(begc:endc,1:nlevgrnd,1:nminsec) = spval
+      do a = 1,nminsec
+         data2dptr => this%secondary_mineral_vr(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'secondary_mineral_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname,  units='g m-3', type2d='levgrnd', &
+            avgflag='A', long_name='secondary mineral concentration in the soil (vertically resolved)', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
+      end do
+
+      this%cec_cation_vr(begc:endc,1:nlevgrnd,1:ncations) = spval
+      do a = 1, ncations
+         data2dptr => this%cec_cation_vr(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'cec_cation_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname,  units='g m-3', type2d='levgrnd', &
+            avgflag='A', long_name='adsorbed cation concentration in the soil (vertically resolved)', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
+      end do
+
+      this%cec_proton_vr(begc:endc,1:nlevgrnd) = spval
+      data2dptr => this%cec_proton_vr(:,:)
+      call hist_addfld2d (fname='cec_proton_vr',  units='g m-3', type2d='levgrnd', &
+         avgflag='A', long_name='adsorbed proton concentration in the soil (vertically resolved)', &
+         ptr_col=data2dptr, l2g_scale_type='veg')
+
+      this%net_charge_vr(begc:endc,1:nlevgrnd) = spval
+      data2dptr => this%net_charge_vr(:,:)
+      call hist_addfld2d (fname='net_charge_vr',  units='mol kg-1', type2d='levgrnd', &
+         avgflag='A', long_name='net charge balance of the tracked ions in each soil laye (vertically resolved)', &
+         ptr_col=data2dptr, l2g_scale_type='veg')
 
       this%primary_mineral(begc:endc,1:nminerals) = spval
       data2dptr => this%primary_mineral(:,:)
-      call hist_addfld2d (fname='PRIMARY_MINERAL',  units='kg m-2', type2d='minerals', &
+      call hist_addfld2d (fname='primary_mineral',  units='g m-2', type2d='minerals', &
          avgflag='A', long_name='amount of undissolved primary mineral in the soil', &
-         ptr_col=data2dptr, l2g_scale_type='ice')
+         ptr_col=data2dptr, l2g_scale_type='veg')
+
+      this%proton(begc:endc) = spval
+      data1dptr => this%proton(:)
+      call hist_addfld1d (fname='proton',  units='g m-2', &
+         avgflag='A', long_name='amount of H+ in the soil', &
+         ptr_col=data1dptr, l2g_scale_type='veg')
 
       this%cation(begc:endc,1:ncations) = spval
       data2dptr => this%cation(:,:)
-      call hist_addfld2d (fname='CATION',  units='kg m-2', type2d='cations', &
+      call hist_addfld2d (fname='cation',  units='g m-2', type2d='cations', &
          avgflag='A', long_name='amount of dissolved cations in the soil', &
-         ptr_col=data2dptr, l2g_scale_type='ice')
+         ptr_col=data2dptr, l2g_scale_type='veg')
 
-      this%bicarbonate(begc:endc) = spval
-      data1dptr => this%bicarbonate(:)
-      call hist_addfld1d (fname='BICARBONATE',  units='kg m-2', &
-         avgflag='A', long_name='amount of dissolved bicarbonate in the soil', &
-         ptr_col=data1dptr, l2g_scale_type='ice')
-
-      this%silicate(begc:endc) = spval
-      data1dptr => this%silicate(:)
-      call hist_addfld1d (fname='SILICATE',  units='kg m-2', &
-         avgflag='A', long_name='amount of H4SiO4 in the soil', &
-         ptr_col=data1dptr, l2g_scale_type='ice')
+      this%silica(begc:endc) = spval
+      data1dptr => this%silica(:)
+      call hist_addfld1d (fname='silica',  units='g m-2', &
+         avgflag='A', long_name='amount of SiO2 in the soil', &
+         ptr_col=data1dptr, l2g_scale_type='veg')
 
       this%secondary_mineral(begc:endc,1:nminsec) = spval
       data2dptr => this%secondary_mineral(:,:)
-      call hist_addfld2d (fname='SECONDARY_MINERAL',  units='kg m-2', type2d='minsec', &
+      call hist_addfld2d (fname='secondary_mineral',  units='g m-2', type2d='minsec', &
          avgflag='A', long_name='amount of precipitated secondary mineral in the soil', &
-         ptr_col=data2dptr, l2g_scale_type='ice')
+         ptr_col=data2dptr, l2g_scale_type='veg')
+
+      this%primary_residue(begc:endc,1:nminerals) = spval
+      data2dptr => this%primary_residue(:,:)
+      call hist_addfld2d (fname='primary_residue',  units='g m-2', type2d='minerals', &
+         avgflag='A', long_name='amount of non-SiO2 solids in the soil', &
+         ptr_col=data2dptr, l2g_scale_type='veg')
+
+      this%cec_cation(begc:endc,1:ncations) = spval
+      data2dptr => this%cec_cation(:,:)
+      call hist_addfld2d (fname='cec_cation',  units='g m-2', type2d='cations', &
+         avgflag='A', long_name='amount of adsorbed cations in the soil', &
+         ptr_col=data2dptr, l2g_scale_type='veg')
+
+      this%cec_proton(begc:endc) = spval
+      data1dptr => this%silica(:)
+      call hist_addfld1d (fname='cec_proton',  units='g m-2', &
+         avgflag='A', long_name='amount of adsorbed proton in the soil', &
+         ptr_col=data1dptr, l2g_scale_type='veg')
 
       !-----------------------------------------------------------------------
       ! set cold-start initial values for select members of col_ms
@@ -5929,30 +6041,47 @@ contains
 
          ! must be vegetated/bare land or crop
          if (lun_pp%itype(l)==istsoil .or. lun_pp%itype(l)==istcrop) then
-            this%primary_mineral_vr      (c,1:nlevgrnd,1:nminerals ) = 0._r8
-            this%cation_vr               (c,1:nlevgrnd,1:ncations  ) = 0._r8
-            this%bicarbonate_vr          (c,1:nlevgrnd             ) = 0._r8
-            this%carbonate_vr            (c,1:nlevgrnd             ) = 0._r8
-            this%soil_ph                 (c,1:nlevgrnd             ) = 7._r8
-            this%silicate_vr             (c,1:nlevgrnd             ) = 0._r8
-            this%secondary_mineral_vr    (c,1:nlevgrnd,1:nminsec   ) = 0._r8
-            this%armor_thickness_vr      (c,1:nlevgrnd             ) = 0._r8
-            this%ssa                     (c                        ) = 0._r8
+            ! 
+            do n = 1,mixing_layer
+               this%soil_ph(c,n) = soilstate_vars%sph(c,n)
+
+               ! will be re-initialized after hydrology reaches equilibrium
+               this%proton_vr(c,n) = 0._r8
+               this%bicarbonate_vr(c,n) = 0._r8
+               this%carbonate_vr(c,n) = 0._r8
+            end do
+
+            this%primary_mineral_vr      (c,1:mixing_layer,1:nminerals ) = 0._r8
+            this%silica_vr               (c,1:mixing_layer             ) = 1e-10_r8 ! need a small nonzero number to avoid initializing to infinity
+            this%primary_residue_vr      (c,1:mixing_layer,1:nminerals ) = 0._r8
+            this%armor_thickness_vr      (c,1:mixing_layer             ) = 0._r8
+            this%ssa                     (c,1:nminerals            ) = 0._r8
+            this%secondary_mineral_vr    (c,1:mixing_layer,1:nminsec   ) = 0._r8
+
+            ! will be re-initialized after hydrology reaches equilibrium
+            this%cec_proton_vr           (c,1:mixing_layer             ) = 0._r8
+            this%cec_cation_vr           (c,1:mixing_layer,1:ncations  ) = 0._r8
+            this%cation_vr               (c,1:mixing_layer,1:ncations  ) = 0._r8
+            this%net_charge_vr           (c,1:mixing_layer             ) = 0._r8
 
             this%primary_mineral         (c,1:nminerals            ) = 0._r8
+            this%proton                  (c                        ) = 0._r8
             this%cation                  (c,1:ncations             ) = 0._r8
-            this%bicarbonate             (c                        ) = 0._r8
-            this%silicate                (c                        ) = 0._r8
+            this%silica                  (c                        ) = 0._r8
             this%secondary_mineral       (c,1:nminsec              ) = 0._r8
+            this%primary_residue         (c,1:nminerals            ) = 0._r8
+
+            this%cec_cation              (c,1:ncations             ) = 0._r8
+            this%cec_proton              (c                        ) = 0._r8
 
             this%err_pm                  (c                        ) = 0._r8
             this%err_in                  (c                        ) = 0._r8
+            this%err_h                   (c                        ) = 0._r8
             this%err_sm                  (c                        ) = 0._r8
          end if
       end do ! columns loop
 
    end subroutine col_ms_init
-
 
    !------------------------------------------------------------------------
    subroutine col_ms_restart(this, bounds, ncid, flag)
@@ -5970,104 +6099,169 @@ contains
       !
       ! !LOCAL VARIABLES:
       logical           :: readvar   ! determine if variable is on initial file
-      integer           :: c,l,j                        ! indices
+      integer           :: c,l,j,a              ! indices
       real(r8), pointer :: ptr2d(:,:), ptr1d(:) ! temp. pointers for slicing larger arrays
-      character(6)      :: l_str
+      character(6)      :: a_str
       character(24)     :: varname
 
       !-----------------------------------------------------------------------
-      do l = 1, nminerals
-         write (l_str, '(I6)') l
-         l_str = adjustl(l_str)  ! Remove leading spaces
-         varname = 'PRIMARY_MINERAL_vr_'//trim(l_str)
-         ptr2d => this%primary_mineral_vr(:,:,l)
-         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double,   &
-            dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='amount of undissolved primary mineral in the soil (vertically resolved)s', units='kg m-2', fill_value=spval, &
-            interpinic_flag='interp', readvar=readvar, data=ptr2d)
-      end do
+      ptr2d => this%soil_ph(:,:)
+      call restartvar(ncid=ncid, flag=flag, varname='soil_pH', xtype=ncd_double, &
+         dim1name='column', dim2name='levgrnd', switchdim=.true., &
+         long_name='calculated soil pH (vertically resolved)', units='', &
+         interpinic_flag='interp', readvar=readvar, data=ptr2d)
 
-      do l = 1, ncations
-         write (l_str, '(I6)') l
-         l_str = adjustl(l_str)  ! Remove leading spaces
-         varname = 'CATION_vr_'//trim(l_str)
-         ptr2d => this%cation_vr(:,:,l)
-         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
-            dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='amount of dissolved cation in the soil (vertically resolved)', units='kg m-2', &
-            interpinic_flag='interp', readvar=readvar, data=ptr2d)
-      end do
+      ptr2d => this%proton_vr(:,:)
+      call restartvar(ncid=ncid, flag=flag, varname='proton_vr', xtype=ncd_double, &
+         dim1name='column', dim2name='levgrnd', switchdim=.true., &
+         long_name='calculated H+ concentration (vertically resolved)', units='g m-3', &
+         interpinic_flag='interp', readvar=readvar, data=ptr2d)
 
       ptr2d => this%bicarbonate_vr(:,:)
-      call restartvar(ncid=ncid, flag=flag, varname='BICARBONATE_vr', xtype=ncd_double, &
+      call restartvar(ncid=ncid, flag=flag, varname='bicarbonate_vr', xtype=ncd_double, &
          dim1name='column', dim2name='levgrnd', switchdim=.true., &
-         long_name='amount of dissolved bicarbonate in the soil (vertically resolved)', units='kg m-2', &
+         long_name='calculated HCO3- concentration (vertically resolved)', units='g m-3', &
          interpinic_flag='interp', readvar=readvar, data=ptr2d)
 
-      ptr2d => this%soil_ph(:,:)
-      call restartvar(ncid=ncid, flag=flag, varname='SOIL_PH', xtype=ncd_double, &
+      ptr2d => this%carbonate_vr(:,:)
+      call restartvar(ncid=ncid, flag=flag, varname='carbonate_vr', xtype=ncd_double, &
          dim1name='column', dim2name='levgrnd', switchdim=.true., &
-         long_name='soil pH in the soil (vertically resolved)', units='-', &
+         long_name='calculated CO3 2- concentration (vertically resolved)', units='g m-3', &
          interpinic_flag='interp', readvar=readvar, data=ptr2d)
 
-      ptr2d => this%silicate_vr(:,:)
-      call restartvar(ncid=ncid, flag=flag, varname='SILICATE_vr', xtype=ncd_double, &
-         dim1name='column', dim2name='levgrnd', switchdim=.true., &
-         long_name='amount of H4SiO4 in the soil (vertically resolved)', units='kg m-2', &
-         interpinic_flag='interp', readvar=readvar, data=ptr2d)
-
-      do l = 1, nminsec
-         write (l_str, '(I6)') l
-         l_str = adjustl(l_str)  ! Remove leading spaces
-         varname = 'SECONDARY_MINERAL_vr_'//trim(l_str)
-         ptr2d => this%secondary_mineral_vr(:,:,l)
-         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double,  &
+      do a = 1, nminerals
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'primary_mineral_vr_'//trim(a_str)
+         ptr2d => this%primary_mineral_vr(:,:,a)
+         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double,   &
             dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='amount of precipitated secondary mineral in the soil (vertically resolved)', units='kg m-2', &
+            long_name='undissolved primary mineral concentration in the soil (vertically resolved)', units='g m-3', fill_value=spval, &
+            interpinic_flag='interp', readvar=readvar, data=ptr2d)
+      end do
+
+      do a = 1, ncations
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'cation_vr_'//trim(a_str)
+         ptr2d => this%cation_vr(:,:,a)
+         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
+            dim1name='column', dim2name='levgrnd', switchdim=.true., &
+            long_name='dissolved cation concentration in the soil (vertically resolved)', units='g m-3', &
+            interpinic_flag='interp', readvar=readvar, data=ptr2d)
+      end do
+
+      ptr2d => this%silica_vr(:,:)
+      call restartvar(ncid=ncid, flag=flag, varname='silica_vr', xtype=ncd_double, &
+         dim1name='column', dim2name='levgrnd', switchdim=.true., &
+         long_name='SiO2 concentration in the soil (vertically resolved)', units='g m-3', &
+         interpinic_flag='interp', readvar=readvar, data=ptr2d)
+
+      do a = 1, nminerals
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'primary_residue_vr_'//trim(a_str)
+         ptr2d => this%primary_residue_vr(:,:,a)
+         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double,   &
+            dim1name='column', dim2name='levgrnd', switchdim=.true., &
+            long_name='non-SiO2 solids concentration in the soil (vertically resolved)', units='g m-3', fill_value=spval, &
             interpinic_flag='interp', readvar=readvar, data=ptr2d)
       end do
 
       ptr2d => this%armor_thickness_vr(:,:)
-      call restartvar(ncid=ncid, flag=flag, varname='ARMOR_THICKNESS_vr', xtype=ncd_double,  &
+      call restartvar(ncid=ncid, flag=flag, varname='armor_thickness_vr', xtype=ncd_double,  &
          dim1name='column', dim2name='levgrnd', switchdim=.true., &
          long_name='thickness of the armoring layer on the rock powder (vertically resolved)', units='um', &
          interpinic_flag='interp', readvar=readvar, data=ptr2d)
 
-      ptr1d => this%ssa(:)
-      call restartvar(ncid=ncid, flag=flag, varname='SSA', xtype=ncd_double, &
-         dim1name='column', &
-         long_name='specific surface area of the primary mineral', units='m2 kg-1 mineral', &
-         interpinic_flag='interp', readvar=readvar, data=ptr1d)
+      ptr2d => this%ssa(:,:)
+      call restartvar(ncid=ncid, flag=flag, varname='ssa', xtype=ncd_double, &
+         dim1name='column', dim2name='minerals', switchdim=.true., &
+         long_name='specific surface area of the primary mineral', units='m2 g-1', &
+         interpinic_flag='interp', readvar=readvar, data=ptr2d)
+
+      do a = 1, nminsec
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'secondary_mineral_vr_'//trim(a_str)
+         ptr2d => this%secondary_mineral_vr(:,:,a)
+         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double,  &
+            dim1name='column', dim2name='levgrnd', switchdim=.true., &
+            long_name='secondary mineral concentration in the soil (vertically resolved)', &
+            units='g m-3', &
+            interpinic_flag='interp', readvar=readvar, data=ptr2d)
+      end do
+
+      do a = 1, ncations
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'cec_cation_vr_'//trim(a_str)
+         ptr2d => this%cec_cation_vr(:,:,a)
+         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
+            dim1name='column', dim2name='levgrnd', switchdim=.true., &
+            long_name='adsorbed cation concentration in the soil (vertically resolved)', units='g m-3', &
+            interpinic_flag='interp', readvar=readvar, data=ptr2d)
+      end do
+
+      ptr2d => this%cec_proton_vr(:,:)
+      call restartvar(ncid=ncid, flag=flag, varname='cec_proton_vr', xtype=ncd_double, &
+         dim1name='column', dim2name='levgrnd', switchdim=.true., &
+         long_name='adsorbed proton concentration in the soil (vertically resolved)', units='g m-3', &
+         interpinic_flag='interp', readvar=readvar, data=ptr2d)
+
+      ptr2d => this%net_charge_vr(:,:)
+      call restartvar(ncid=ncid, flag=flag, varname='net_charge_vr', xtype=ncd_double, &
+         dim1name='column', dim2name='levgrnd', switchdim=.true., &
+         long_name='net charge balance of the tracked ions in each soil laye (vertically resolved)', units='mol kg-1', &
+         interpinic_flag='interp', readvar=readvar, data=ptr2d)
 
       ptr2d => this%primary_mineral(:,:)
-      call restartvar(ncid=ncid, flag=flag, varname='PRIMARY_MINERAL', xtype=ncd_double, &
+      call restartvar(ncid=ncid, flag=flag, varname='primary_mineral', xtype=ncd_double, &
          dim1name='column', dim2name='minerals', switchdim=.true., &
-         long_name='amount of undissolved primary mineral in the soil', units='kg m-2', &
+         long_name='amount of undissolved primary mineral in the soil', units='g m-2', &
          interpinic_flag='interp', readvar=readvar, data=ptr2d)
 
-      ptr2d => this%cation(:,:)
-      call restartvar(ncid=ncid, flag=flag, varname='CATION', xtype=ncd_double, &
-         dim1name='column', dim2name='cations', switchdim=.true., &
-         long_name='amount of dissolved cations in the soil', units='kg m-2', &
-         interpinic_flag='interp', readvar=readvar, data=ptr2d)
-
-      ptr1d => this%bicarbonate(:)
-      call restartvar(ncid=ncid, flag=flag, varname='BICARBONATE', xtype=ncd_double, &
+      ptr1d => this%proton(:)
+      call restartvar(ncid=ncid, flag=flag, varname='proton', xtype=ncd_double, &
          dim1name='column', &
-         long_name='amount of dissolved bicarbonate in the soil', units='kg m-2', &
+         long_name='amount of H+ in the soil', units='g m-2', &
          interpinic_flag='interp', readvar=readvar, data=ptr1d)
 
-      ptr1d => this%silicate(:)
-      call restartvar(ncid=ncid, flag=flag, varname='SILICATE', xtype=ncd_double, &
+      ptr2d => this%cation(:,:)
+      call restartvar(ncid=ncid, flag=flag, varname='cation', xtype=ncd_double, &
+         dim1name='column', dim2name='cations', switchdim=.true., &
+         long_name='amount of dissolved cations in the soil', units='g m-2', &
+         interpinic_flag='interp', readvar=readvar, data=ptr2d)
+
+      ptr1d => this%silica(:)
+      call restartvar(ncid=ncid, flag=flag, varname='silica', xtype=ncd_double, &
          dim1name='column', &
-         long_name='amount of H4SiO4 in the soil', units='kg m-2', &
+         long_name='amount of SiO2 in the soil', units='g m-2', &
          interpinic_flag='interp', readvar=readvar, data=ptr1d)
 
       ptr2d => this%secondary_mineral(:,:)
-      call restartvar(ncid=ncid, flag=flag, varname='SECONDARY_MINERAL', xtype=ncd_double, &
+      call restartvar(ncid=ncid, flag=flag, varname='secondary_mineral', xtype=ncd_double, &
          dim1name='column', dim2name='minsec', switchdim=.true., &
-         long_name='amount of precipitated secondary mineral in the soil', units='kg m-2', &
+         long_name='amount of precipitated secondary mineral in the soil', units='g m-2', &
          interpinic_flag='interp', readvar=readvar, data=ptr2d)
+
+      ptr2d => this%primary_residue(:,:)
+      call restartvar(ncid=ncid, flag=flag, varname='primary_residue', xtype=ncd_double, &
+         dim1name='column', dim2name='minerals', switchdim=.true., &
+         long_name='amount of non-SiO2 solids in the soil', units='g m-2', &
+         interpinic_flag='interp', readvar=readvar, data=ptr2d)
+
+      ptr2d => this%cec_cation(:,:)
+      call restartvar(ncid=ncid, flag=flag, varname='cec_cation', xtype=ncd_double, &
+         dim1name='column', dim2name='cations', switchdim=.true., &
+         long_name='amount of adsorbed cations in the soil', units='g m-2', &
+         interpinic_flag='interp', readvar=readvar, data=ptr2d)
+
+      ptr1d => this%cec_proton(:)
+      call restartvar(ncid=ncid, flag=flag, varname='cec_proton', xtype=ncd_double, &
+         dim1name='column', &
+         long_name='amount of adsorbed protons in the soil', units='g m-2', &
+         interpinic_flag='interp', readvar=readvar, data=ptr1d)
 
    end subroutine col_ms_restart
 
@@ -6094,33 +6288,41 @@ contains
          c = filter_soilc(fc)
 
          this%primary_mineral(:,:)   = 0._r8
+         this%proton(:)              = 0._r8
          this%cation(:,:)            = 0._r8
-         this%bicarbonate(:)         = 0._r8
-         this%silicate(:)            = 0._r8
+         this%silica(:)              = 0._r8
          this%secondary_mineral(:,:) = 0._r8
+         this%primary_residue(:,:)   = 0._r8
+         this%cec_cation(:,:)        = 0._r8
+         this%cec_proton(:)          = 0._r8
       end do
 
       do fc = 1,num_soilc
          c = filter_soilc(fc)
 
-         do j = 1, nlevgrnd
+         do j = 1, mixing_layer
             do a = 1, nminerals
                this%primary_mineral(c,a) = &
-                  this%primary_mineral(c,a) + this%primary_mineral_vr(c,j,a)
+                  this%primary_mineral(c,a) + this%primary_mineral_vr(c,j,a) * col_pp%dz(c,j)
+               this%primary_residue(c,a) = &
+                  this%primary_residue(c,a) + this%primary_residue_vr(c,j,a) * col_pp%dz(c,j)
             end do
 
             do a = 1, ncations
                this%cation(c,a) = &
-                  this%cation(c,a) + this%cation_vr(c,j,a)
+                  this%cation(c,a) + this%cation_vr(c,j,a) * col_pp%dz(c,j)
+               this%cec_cation(c,a) = &
+                  this%cec_cation(c,a) + this%cec_cation_vr(c,j,a) * col_pp%dz(c,j)
             end do
 
-            this%bicarbonate(c) = this%bicarbonate(c) + this%bicarbonate_vr(c,j)
+            this%proton(c) = this%proton(c) + this%proton_vr(c,j) * col_pp%dz(c,j)
 
-            this%silicate(c) = this%silicate(c) + this%silicate_vr(c,j)
+            this%silica(c) = this%silica(c) + this%silica_vr(c,j) * col_pp%dz(c,j)
+            this%cec_proton(c) = this%cec_proton(c) + this%cec_proton_vr(c,j) * col_pp%dz(c,j)
 
             do a = 1, nminsec
                this%secondary_mineral(c,a) = &
-                  this%secondary_mineral(c,a) + this%secondary_mineral_vr(c,j,a)
+                  this%secondary_mineral(c,a) + this%secondary_mineral_vr(c,j,a) * col_pp%dz(c,j)
             end do
          end do
       end do
@@ -6292,6 +6494,7 @@ contains
     ! !LOCAL VARIABLES:
     integer  :: l,c
     integer  :: ncells
+    real(r8), pointer :: ptr2d(:,:) ! temp. pointers for slicing larger arrays
     !-----------------------------------------------------------------------
 
     !-----------------------------------------------------------------------
@@ -6382,6 +6585,9 @@ contains
     allocate(this%mflx_drain             (begc:endc,1:nlevgrnd))  ; this%mflx_drain           (:,:) = spval
     allocate(this%mflx_recharge          (begc:endc))             ; this%mflx_recharge        (:)   = spval
 
+    allocate(this%qin                    (begc:endc,1:nlevgrnd+1)); this%qin                  (:,:) = spval
+    allocate(this%qout                   (begc:endc,1:nlevgrnd+1)); this%qout                 (:,:) = spval
+
     !-----------------------------------------------------------------------
     ! initialize history fields for select members of col_wf
     !-----------------------------------------------------------------------
@@ -6470,10 +6676,29 @@ contains
           avgflag='A', long_name='column-integrated snow freezing rate', &
            ptr_col=this%qflx_snofrz, set_lake=spval, c2l_scale_type='urbanf', default='inactive')
 
-    this%qflx_glcice(begc:endc) = spval
-     call hist_addfld1d (fname='QICE',  units='mm/s',  &
-          avgflag='A', long_name='ice growth/melt', &
-           ptr_col=this%qflx_glcice, l2g_scale_type='ice')
+    this%qin(begc:endc,1:nlevgrnd+1) = spval
+    ptr2d => this%qin(:,1:nlevgrnd)
+    call hist_addfld2d (fname='QIN',  units='mm/s', type2d='levgrnd', &
+          avgflag='A', long_name='infiltration into the layer', &
+          ptr_col=ptr2d, c2l_scale_type='urbanf')
+
+    this%qout(begc:endc,1:nlevgrnd+1) = spval
+    ptr2d => this%qout(:,1:nlevgrnd)
+    call hist_addfld2d (fname='QOUT',  units='mm/s', type2d='levgrnd', &
+          avgflag='A', long_name='infiltration out of the layer', &
+          ptr_col=ptr2d, c2l_scale_type='urbanf')
+
+    this%qflx_rootsoi(begc:endc,1:nlevgrnd) = spval
+    call hist_addfld2d (fname='QLFX_ROOTSOI',  units='mm/s', type2d='levgrnd', &
+          avgflag='A', long_name='plant water uptake from the layer', &
+          ptr_col=this%qflx_rootsoi, c2l_scale_type='urbanf')
+
+    if (create_glacier_mec_landunit) then
+       this%qflx_glcice(begc:endc) = spval
+        call hist_addfld1d (fname='QICE',  units='mm/s',  &
+             avgflag='A', long_name='ice growth/melt', &
+              ptr_col=this%qflx_glcice, l2g_scale_type='ice')
+    end if
 
     this%qflx_glcice_frz(begc:endc) = spval
      call hist_addfld1d (fname='QICE_FRZ',  units='mm/s',  &
@@ -12192,103 +12417,126 @@ contains
       !------------------------------------------------------------------------
       !
       ! !LOCAL VARIABLES:
-      integer           :: c,l,j                        ! indices
+      integer           :: c,l,j,a                      ! indices
       real(r8), pointer :: data2dptr(:,:), data1dptr(:) ! temp. pointers for slicing larger arrays
-      character(6)      :: l_str
+      character(6)      :: a_str
       character(30)     :: fieldname
 
       !-----------------------------------------------------------------------
       ! allocate for each member of col_mf
       !-----------------------------------------------------------------------
+      allocate(this%background_weathering_vr       (begc:endc,1:nlevgrnd,1:ncations ))       ; this%background_weathering_vr    (:,:,:) = spval
+
       allocate(this%primary_added_vr               (begc:endc,1:nlevgrnd,1:nminerals))       ; this%primary_added_vr            (:,:,:) = spval
       allocate(this%primary_dissolve_vr            (begc:endc,1:nlevgrnd,1:nminerals))       ; this%primary_dissolve_vr         (:,:,:) = spval
-      allocate(this%primary_co2_flux_vr            (begc:endc,1:nlevgrnd            ))       ; this%primary_co2_flux_vr         (:,:)   = spval
-      allocate(this%primary_h2o_flux_vr            (begc:endc,1:nlevgrnd            ))       ; this%primary_h2o_flux_vr         (:,:)   = spval
       allocate(this%primary_proton_flux_vr         (begc:endc,1:nlevgrnd            ))       ; this%primary_proton_flux_vr      (:,:)   = spval
       allocate(this%primary_cation_flux_vr         (begc:endc,1:nlevgrnd,1:ncations ))       ; this%primary_cation_flux_vr      (:,:,:) = spval
-      allocate(this%primary_bicarbonate_flux_vr    (begc:endc,1:nlevgrnd            ))       ; this%primary_bicarbonate_flux_vr (:,:)   = spval
-      allocate(this%primary_silicate_flux_vr       (begc:endc,1:nlevgrnd            ))       ; this%primary_silicate_flux_vr    (:,:)   = spval
+      allocate(this%primary_h2o_flux_vr            (begc:endc,1:nlevgrnd            ))       ; this%primary_h2o_flux_vr         (:,:)   = spval
+      allocate(this%primary_silica_flux_vr         (begc:endc,1:nlevgrnd            ))       ; this%primary_silica_flux_vr      (:,:)   = spval
+      allocate(this%primary_residue_flux_vr        (begc:endc,1:nlevgrnd,1:nminerals))       ; this%primary_residue_flux_vr     (:,:,:) = spval
+
+      allocate(this%primary_prelease_vr            (begc:endc,1:nlevgrnd            ))       ; this%primary_prelease_vr         (:,:)   = spval
 
       allocate(this%r_dissolve_vr                  (begc:endc,1:nlevgrnd,1:nminerals))       ; this%r_dissolve_vr               (:,:,:) = spval
+      allocate(this%log_omega_vr                   (begc:endc,1:nlevgrnd,1:nminerals))       ; this%log_omega_vr                (:,:,:) = spval
 
+      allocate(this%secondary_mineral_flux_vr      (begc:endc,1:nlevgrnd,1:nminsec  ))       ; this%secondary_mineral_flux_vr     (:,:,:) = spval
       allocate(this%secondary_cation_flux_vr       (begc:endc,1:nlevgrnd,1:ncations ))       ; this%secondary_cation_flux_vr      (:,:,:) = spval
-      allocate(this%secondary_bicarbonate_flux_vr  (begc:endc,1:nlevgrnd            ))       ; this%secondary_bicarbonate_flux_vr (:,:)   = spval
-      allocate(this%secondary_precip_vr            (begc:endc,1:nlevgrnd,1:nminsec  ))       ; this%secondary_precip_vr           (:,:,:) = spval
-      allocate(this%secondary_co2_flux_vr          (begc:endc,1:nlevgrnd            ))       ; this%secondary_co2_flux_vr         (:,:)   = spval
-      allocate(this%secondary_h2o_flux_vr          (begc:endc,1:nlevgrnd            ))       ; this%secondary_h2o_flux_vr         (:,:)   = spval
+      allocate(this%secondary_silica_flux_vr       (begc:endc,1:nlevgrnd            ))       ; this%secondary_silica_flux_vr      (:,:)   = spval
 
       allocate(this%r_precip_vr                    (begc:endc,1:nlevgrnd,1:nminsec  ))       ; this%r_precip_vr                   (:,:,:) = spval
 
-      allocate(this%mineral_prelease_vr            (begc:endc,1:nlevgrnd            ))       ; this%mineral_prelease_vr           (:,:)   = spval
+      allocate(this%cec_cation_flux_vr             (begc:endc,1:nlevgrnd,1:ncations ))       ; this%r_precip_vr                   (:,:,:) = spval
+      allocate(this%cec_proton_flux_vr             (begc:endc,1:nlevgrnd            ))       ; this%r_precip_vr                   (:,:,:) = spval
 
-      allocate(this%r_sequestration                (begc:endc                       ))       ; this%r_sequestration               (:)     = spval
-
+      allocate(this%cation_infl_vr                 (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cation_infl_vr               (:,:,:) = spval
+      allocate(this%cation_oufl_vr                 (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cation_oufl_vr               (:,:,:) = spval
+      allocate(this%cation_uptake_vr               (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cation_uptake_vr             (:,:,:) = spval
       allocate(this%cation_leached_vr             (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cation_leached_vr            (:,:,:) = spval
-      allocate(this%bicarbonate_leached_vr        (begc:endc,1:nlevgrnd            ))       ; this%bicarbonate_leached_vr       (:,:)   = spval
       allocate(this%cation_runoff_vr              (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cation_runoff_vr             (:,:,:) = spval
-      allocate(this%bicarbonate_runoff_vr         (begc:endc,1:nlevgrnd            ))       ; this%bicarbonate_runoff_vr        (:,:)   = spval
+
+      allocate(this%proton_infl_vr                (begc:endc,1:nlevgrnd            ))       ; this%proton_infl_vr               (:,:)   = spval
+      allocate(this%proton_oufl_vr                (begc:endc,1:nlevgrnd            ))       ; this%proton_oufl_vr               (:,:)   = spval
+      allocate(this%proton_uptake_vr              (begc:endc,1:nlevgrnd            ))       ; this%proton_uptake_vr             (:,:)   = spval
+      allocate(this%proton_leached_vr             (begc:endc,1:nlevgrnd            ))       ; this%proton_leached_vr            (:,:)   = spval
+      allocate(this%proton_runoff_vr              (begc:endc,1:nlevgrnd            ))       ; this%proton_runoff_vr             (:,:)   = spval
+
+      allocate(this%background_weathering          (begc:endc,1:ncations            ))       ; this%background_weathering       (:,:)   = spval
 
       allocate(this%primary_added                  (begc:endc,1:nminerals           ))       ; this%primary_added                 (:,:)   = spval
       allocate(this%primary_dissolve               (begc:endc,1:nminerals           ))       ; this%primary_dissolve              (:,:)   = spval
-      allocate(this%primary_co2_flux               (begc:endc                       ))       ; this%primary_co2_flux              (:)     = spval
-      allocate(this%primary_h2o_flux               (begc:endc                       ))       ; this%primary_h2o_flux              (:)     = spval
       allocate(this%primary_proton_flux            (begc:endc                       ))       ; this%primary_proton_flux           (:)     = spval
       allocate(this%primary_cation_flux            (begc:endc,1:ncations            ))       ; this%primary_cation_flux           (:,:)   = spval
-      allocate(this%primary_bicarbonate_flux       (begc:endc                       ))       ; this%primary_bicarbonate_flux      (:)     = spval
-      allocate(this%primary_silicate_flux          (begc:endc                       ))       ; this%primary_silicate_flux         (:)     = spval
-
+      allocate(this%primary_h2o_flux               (begc:endc                       ))       ; this%primary_h2o_flux              (:)     = spval
+      allocate(this%primary_silica_flux            (begc:endc                       ))       ; this%primary_silica_flux           (:)     = spval
+      allocate(this%primary_residue_flux           (begc:endc,1:nminerals           ))       ; this%primary_residue_flux          (:,:)   = spval
+      allocate(this%secondary_mineral_flux         (begc:endc,1:nminsec             ))       ; this%secondary_mineral_flux        (:,:)   = spval
       allocate(this%secondary_cation_flux          (begc:endc,1:ncations            ))       ; this%secondary_cation_flux         (:,:)   = spval
-      allocate(this%secondary_bicarbonate_flux     (begc:endc                       ))       ; this%secondary_bicarbonate_flux    (:)     = spval
-      allocate(this%secondary_precip               (begc:endc,1:nminsec             ))       ; this%secondary_precip              (:,:)   = spval
-      allocate(this%secondary_co2_flux             (begc:endc                       ))       ; this%secondary_co2_flux            (:)     = spval
-      allocate(this%secondary_h2o_flux             (begc:endc                       ))       ; this%secondary_h2o_flux            (:)     = spval
+      allocate(this%secondary_silica_flux          (begc:endc                       ))       ; this%secondary_silica_flux         (:)     = spval
+      allocate(this%cec_cation_flux                (begc:endc,1:ncations            ))       ; this%cec_cation_flux               (:,:)   = spval
+      allocate(this%cec_proton_flux                (begc:endc                       ))       ; this%cec_proton_flux               (:)     = spval
+      allocate(this%cation_infl                    (begc:endc,1:ncations             ))       ; this%cation_infl                (:,:)     = spval
+      allocate(this%cation_oufl                    (begc:endc,1:ncations             ))       ; this%cation_oufl                (:,:)     = spval
+      allocate(this%cation_uptake                  (begc:endc,1:ncations             ))       ; this%cation_uptake              (:,:)     = spval
+      allocate(this%cation_leached                (begc:endc,1:ncations             ))       ; this%cation_leached             (:,:)     = spval
+      allocate(this%cation_runoff                 (begc:endc,1:ncations             ))       ; this%cation_runoff              (:,:)     = spval
+      allocate(this%proton_infl                   (begc:endc                        ))       ; this%proton_infl                (:)       = spval
+      allocate(this%proton_oufl                   (begc:endc                        ))       ; this%proton_oufl                (:)       = spval
+      allocate(this%proton_uptake                 (begc:endc                        ))       ; this%proton_uptake              (:)       = spval
+      allocate(this%proton_leached                (begc:endc                        ))       ; this%proton_leached             (:)       = spval
+      allocate(this%proton_runoff                 (begc:endc                        ))       ; this%proton_runoff              (:)       = spval
 
-      allocate(this%cation_leached                (begc:endc,1:ncations            ))       ; this%cation_leached             (:,:)     = spval
-      allocate(this%bicarbonate_leached           (begc:endc                       ))       ; this%bicarbonate_leached          (:)     = spval
-      allocate(this%cation_runoff                 (begc:endc,1:ncations            ))       ; this%cation_runoff              (:,:)     = spval
-      allocate(this%bicarbonate_runoff            (begc:endc                       ))       ; this%bicarbonate_runoff           (:)     = spval
+      allocate(this%r_sequestration               (begc:endc                       ))       ; this%r_sequestration               (:)     = spval
 
       allocate(this%pm_add                         (begc:endc                       ))       ; this%pm_add                        (:)     = spval
       allocate(this%pm_loss                        (begc:endc                       ))       ; this%pm_loss                       (:)     = spval
       allocate(this%in_add                         (begc:endc                       ))       ; this%in_add                        (:)     = spval
       allocate(this%in_loss                        (begc:endc                       ))       ; this%in_loss                       (:)     = spval
+      allocate(this%h_add                          (begc:endc                       ))       ; this%h_add                         (:)     = spval
+      allocate(this%h_loss                         (begc:endc                       ))       ; this%h_loss                        (:)     = spval
       allocate(this%sm_add                         (begc:endc                       ))       ; this%sm_add                        (:)     = spval
       allocate(this%sm_loss                        (begc:endc                       ))       ; this%sm_loss                       (:)     = spval
 
       !-----------------------------------------------------------------------
       ! initialize history fields for select members of col_ms
       !-----------------------------------------------------------------------
+      this%background_weathering_vr(begc:endc,:,:) = spval
+      do a = 1,ncations
+         data2dptr => this%background_weathering_vr(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'background_weathering_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname,  units='g m-3 s-1', type2d='levgrnd', &
+            avgflag='A', long_name='rate at which background weathering produces cations (vertically resolved)', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
+      end do
+
       this%primary_added_vr(begc:endc,:,:) = spval
-      do l = 1,nminerals
-         data2dptr => this%primary_added_vr(:,:,l)
-         write (l_str, '(I6)') l
-         l_str = adjustl(l_str)  ! Remove leading spaces
-         fieldname = 'PRIMARY_ADDED_vr_'//trim(l_str)
-         call hist_addfld2d (fname=fieldname,  units='kg m-2 s-1', type2d='levgrnd', &
+      do a = 1,nminerals
+         data2dptr => this%primary_added_vr(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'primary_added_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname,  units='g m-3 s-1', type2d='levgrnd', &
             avgflag='A', long_name='rate at which primary mineral is added (vertically resolved)', &
-            ptr_col=data2dptr, l2g_scale_type='ice')
+            ptr_col=data2dptr, l2g_scale_type='veg')
       end do
 
       this%primary_dissolve_vr(begc:endc,:,:) = spval
-      do l = 1,nminerals
-         data2dptr => this%primary_dissolve_vr(:,:,l)
-         write (l_str, '(I6)') l
-         l_str = adjustl(l_str)  ! Remove leading spaces
-         fieldname = 'PRIMARY_DISSOLVE_vr_'//trim(l_str)
-         call hist_addfld2d (fname=fieldname,  units='kg m-2 s-1', type2d='levgrnd', &
+      do a = 1,nminerals
+         data2dptr => this%primary_dissolve_vr(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'primary_dissolve_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname,  units='g m-3 s-1', type2d='levgrnd', &
             avgflag='A', long_name='rate at which primary mineral is dissolved (vertically resolved)', &
-            ptr_col=data2dptr, l2g_scale_type='ice')
+            ptr_col=data2dptr, l2g_scale_type='veg')
       end do
 
-      this%primary_co2_flux_vr(begc:endc,:) = spval
-      call hist_addfld2d (fname='PRIMARY_CO2_FLUX_vr',  units='kg m-2 s-1', type2d='levgrnd', &
-         avgflag='A', long_name='rate at which the primary reaction takes up co2 (vertically resolved)', &
-         ptr_col=this%primary_co2_flux_vr, l2g_scale_type='ice')
-
-      this%primary_h2o_flux_vr(begc:endc,:) = spval
-      call hist_addfld2d (fname='PRIMARY_H2O_FLUX_vr',  units='kg m-2 s-1', type2d='levgrnd', &
-         avgflag='A', long_name='rate at which the primary reaction uses up water (vertically resolved)', &
-         ptr_col=this%primary_h2o_flux_vr, l2g_scale_type='ice')
+      this%primary_proton_flux_vr(begc:endc,:) = spval
+      call hist_addfld2d (fname='primary_proton_flux_vr',  units='g m-3 s-1', type2d='levgrnd', &
+         avgflag='A', long_name='rate at which the primary reaction consumes proton (vertically resolved)', &
+         ptr_col=this%primary_proton_flux_vr, l2g_scale_type='veg')
 
       this%primary_proton_flux_vr(begc:endc,:) = spval
       call hist_addfld2d (fname='PRIMARY_PROTON_FLUX_vr',  units='kg m-2 s-1', type2d='levgrnd', &
@@ -12296,146 +12544,217 @@ contains
          ptr_col=this%primary_proton_flux_vr, l2g_scale_type='ice')
 
       this%primary_cation_flux_vr(begc:endc,:,:) = spval
-      do l = 1,ncations
-         data2dptr => this%primary_cation_flux_vr(:,:,l)
-         write (l_str, '(I6)') l
-         l_str = adjustl(l_str)  ! Remove leading spaces
-         fieldname = 'PRIMARY_CATION_FLUX_vr_'//trim(l_str)
-         call hist_addfld2d (fname=fieldname,  units='kg m-2 s-1', type2d='levgrnd', &
+      do a = 1,ncations
+         data2dptr => this%primary_cation_flux_vr(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'primary_cation_flux_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname,  units='g m-3 s-1', type2d='levgrnd', &
             avgflag='A', long_name='rate at which cation is created by primary mineral dissolution (vertically resolved)', &
-            ptr_col=data2dptr, l2g_scale_type='ice')
+            ptr_col=data2dptr, l2g_scale_type='veg')
       end do
 
-      this%primary_bicarbonate_flux_vr(begc:endc,:) = spval
-      call hist_addfld2d (fname='PRIMARY_BICARBONATE_FLUX_vr',  units='kg m-2 s-1', type2d='levgrnd', &
-         avgflag='A', long_name='rate at which bicarbonate is generated by primary mineral dissolution (vertically resolved)', &
-         ptr_col=this%primary_bicarbonate_flux_vr, l2g_scale_type='ice')
+      this%primary_h2o_flux_vr(begc:endc,:) = spval
+      call hist_addfld2d (fname='primary_h2o_flux_vr',  units='g m-3 s-1', type2d='levgrnd', &
+         avgflag='A', long_name='rate at which the primary reaction creates (+) or consumes (-) water (vertically resolved)', &
+         ptr_col=this%primary_h2o_flux_vr, l2g_scale_type='veg')
 
-      this%primary_silicate_flux_vr(begc:endc,:) = spval
-      call hist_addfld2d (fname='PRIMARY_SILICATE_FLUX_vr',  units='kg m-2 s-1', type2d='levgrnd', &
-         avgflag='A', long_name='rate at which silicate is generated by primary mineral dissolution (vertically resolved)', &
-         ptr_col=this%primary_silicate_flux_vr, l2g_scale_type='ice')
+      this%primary_silica_flux_vr(begc:endc,:) = spval
+      call hist_addfld2d (fname='primary_silicate_flux_vr',  units='g m-3 s-1', type2d='levgrnd', &
+         avgflag='A', long_name='rate at which SiO2 is generated by primary mineral dissolution (vertically resolved)', &
+         ptr_col=this%primary_silica_flux_vr, l2g_scale_type='veg')
+
+      this%primary_residue_flux_vr(begc:endc,:,:) = spval
+      do a = 1,nminerals
+         data2dptr => this%primary_residue_flux_vr(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'primary_residue_flux_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname,  units='g m-3 s-1', type2d='levgrnd', &
+            avgflag='A', long_name='rate at which non-SiO2 solids is generated by primary mineral dissolution (vertically resolved)', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
+      end do
+
+      this%primary_prelease_vr(begc:endc,:) = spval
+      call hist_addfld2d (fname='primary_prelease_vr',  units='gP m-3 s-1', type2d='levgrnd', &
+         avgflag='A', long_name='release of soluble phosphorus with primary mineral dissolution (vertically resolved)', &
+         ptr_col=this%primary_prelease_vr, l2g_scale_type='veg')
 
       this%r_dissolve_vr(begc:endc,:,:) = spval
-      do l = 1, nminerals
-         data2dptr => this%r_dissolve_vr(:,:,l)
-         write (l_str, '(I6)') l
-         l_str = adjustl(l_str)  ! Remove leading spaces
-         fieldname = 'R_DISSOLVE_vr_'//trim(l_str)
-         call hist_addfld2d (fname=fieldname,  units='mol reaction kg-1 mineral s-1',  type2d='levgrnd', &
-            avgflag='A', long_name='reaction rate of the dissolution of the primary mineral (vertically resolved)', &
-            ptr_col=data2dptr)
+      do a = 1, nminerals
+         data2dptr => this%r_dissolve_vr(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'r_dissolve_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname,  units='mol m-3 s-1',  type2d='levgrnd', &
+            avgflag='A', long_name='reaction rate of the dissolution of the primary mineral(vertically resolved)', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
+      end do
+
+      this%log_omega_vr(begc:endc,:,:) = spval
+      do a = 1,nminerals
+         data2dptr => this%log_omega_vr(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'log_omega_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname,  units='',  type2d='levgrnd', &
+            avgflag='A', long_name='omega parameter in the dissolution  equation (vertically resolved)', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
+      end do
+
+      this%secondary_mineral_flux_vr(begc:endc,:,:) = spval
+      do a = 1,nminsec
+         data2dptr => this%secondary_mineral_flux_vr(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading sp+aces
+         fieldname = 'secondary_mineral_flux_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname,  units='g m-3 s-1', type2d='levgrnd', &
+            avgflag='A', long_name='rate at which secondary mineral is formed (vertically resolved)', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
       end do
 
       this%secondary_cation_flux_vr(begc:endc,:,:) = spval
-      do l = 1,ncations
-         data2dptr => this%secondary_cation_flux_vr(:,:,l)
-         write (l_str, '(I6)') l
-         l_str = adjustl(l_str)  ! Remove leading spaces
-         fieldname = 'SECONDARY_CATION_FLUX_vr_'//trim(l_str)
-         call hist_addfld2d (fname=fieldname,  units='kg m-2 s-1', type2d='levgrnd', &
-            avgflag='A', long_name='rate at which the precipitation reaction consumes cations (vertically resolved)', &
-            ptr_col=data2dptr)
+      do a = 1,ncations
+         data2dptr => this%secondary_cation_flux_vr(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'secondary_cation_flux_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname,  units='g m-3 s-1', type2d='levgrnd', &
+            avgflag='A', long_name='rate at which cations consumed due to precipitation of secondary minerals (vertically resolved)', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
       end do
 
-      this%secondary_bicarbonate_flux_vr(begc:endc,:) = spval
-      call hist_addfld2d (fname='SECONDARY_BICARBONATE_FLUX_vr',  units='kg m-2 s-1', type2d='levgrnd', &
-         avgflag='A', long_name='rate at which the precipitation reaction consumes bicarbonates (vertically resolved)', &
-         ptr_col=this%secondary_bicarbonate_flux_vr)
-
-      this%secondary_precip_vr(begc:endc,:,:) = spval
-      do l = 1,nminsec
-         data2dptr => this%secondary_precip_vr(:,:,l)
-         write (l_str, '(I6)') l
-         l_str = adjustl(l_str)  ! Remove leading spaces
-         fieldname = 'SECONDARY_PRECIP_vr_'//trim(l_str)
-         call hist_addfld2d (fname=fieldname, units='kg m-2 s-1', type2d='levgrnd', &
-            avgflag='A', long_name='rate at which the precipitation reaction forms secondary minerals (vertically resolved)', &
-            ptr_col=data2dptr)
-      end do
-
-      this%secondary_co2_flux_vr(begc:endc,:) = spval
-      call hist_addfld2d (fname='SECONDARY_CO2_FLUX_vr', units='kg CO2 m-2 s-1', type2d='levgrnd', &
-         avgflag='A', long_name='rate at which the precipitation reaction emits CO2 (vertically resolved)', &
-         ptr_col=this%secondary_co2_flux_vr)
-
-      this%secondary_h2o_flux_vr(begc:endc,:) = spval
-      call hist_addfld2d (fname='SECONDARY_H2O_FLUX_vr',  units='kg H2O m-2 s-1', type2d='levgrnd', &
-         avgflag='A', long_name='rate at which the precipitation reaction creates water (vertically resolved)', &
-         ptr_col=this%secondary_h2o_flux_vr)
+      this%secondary_silica_flux_vr(begc:endc,:) = spval
+      call hist_addfld2d (fname='secondary_silica_flux_vr',  units='g m-3 s-1', type2d='levgrnd', &
+         avgflag='A', long_name='rate at which silica is consumed due to precipitation of secondary minerals (vertically resolved)', &
+         ptr_col=this%secondary_silica_flux_vr, l2g_scale_type='veg')
 
       this%r_precip_vr(begc:endc,:,:) = spval
-      do l = 1,nminsec
-         data2dptr => this%r_precip_vr(:,:,l)
-         write (l_str, '(I6)') l
-         l_str = adjustl(l_str)  ! Remove leading spaces
-         fieldname = 'R_PRECIP_vr_'//trim(l_str)
-         call hist_addfld2d (fname=fieldname,  units='mol reaction m-2 s-1', type2d='levgrnd', &
+      do a = 1,nminsec
+         data2dptr => this%r_precip_vr(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'r_precip_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname, units='mol m-3 s-1', type2d='levgrnd', &
             avgflag='A', long_name='reaction rate of the precipitation of the secondary mineral (vertically resolved)', &
-            ptr_col=data2dptr)
+            ptr_col=data2dptr, l2g_scale_type='veg')
       end do
 
-      this%mineral_prelease_vr(begc:endc,:) = spval
-      call hist_addfld2d (fname='MINERAL_PRELEASE_vr',  units='gP m-2 s-1', type2d='levgrnd', &
-         avgflag='A', long_name='mineral release of phosphorus during dissolution (vertically resolved)', &
-         ptr_col=this%mineral_prelease_vr)
+      this%cec_cation_flux_vr(begc:endc,:,:) = spval
+      do a = 1,ncations
+         data2dptr => this%cec_cation_flux_vr(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'cec_cation_flux_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname,  units='g m-3 s-1', type2d='levgrnd', &
+            avgflag='A', long_name='rate at which cation is adsorbed to soil (negative for released into water) (vertically resolved)', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
+      end do
 
-      this%r_sequestration(begc:endc) = spval
-      call hist_addfld1d (fname='R_SEQUESTRATION',  units='gC m-2 s-1', &
-         avgflag='A', long_name='net sequestration rate of the dissolution and precipitation reactions', &
-         ptr_col=this%r_sequestration)
+      this%cec_proton_flux_vr(begc:endc,:) = spval
+      call hist_addfld2d (fname='cec_proton_flux_vr',  units='g m-3 s-1', type2d='levgrnd', &
+         avgflag='A', long_name='soil proton flux for charge balance with the cations (positive for adsorbed, negative for released)', &
+         ptr_col=this%cec_proton_flux_vr, l2g_scale_type='veg')
+
+      this%cation_infl_vr(begc:endc,:,:) = spval
+      do a = 1,ncations
+         data2dptr => this%cation_infl_vr(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'cation_infl_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname,  units='g m-3 s-1', type2d='levgrnd', &
+            avgflag='A', long_name='rate at which cations are infiltrated from above (vertically resolved)', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
+      end do
+
+      this%cation_oufl_vr(begc:endc,:,:) = spval
+      do a = 1,ncations
+         data2dptr => this%cation_oufl_vr(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'cation_oufl_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname,  units='g m-3 s-1', type2d='levgrnd', &
+            avgflag='A', long_name='rate at which cations are infiltrated to below (vertically resolved)', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
+      end do
+
+      this%cation_uptake_vr(begc:endc,:,:) = spval
+      do a = 1,ncations
+         data2dptr => this%cation_uptake_vr(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'cation_uptake_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname,  units='g m-3 s-1', type2d='levgrnd', &
+            avgflag='A', long_name='rate at which cations are uptaken by plants (vertically resolved)', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
+      end do
 
       this%cation_leached_vr(begc:endc,:,:) = spval
-      do l = 1,ncations
-         data2dptr => this%cation_leached_vr(:,:,l)
-         write (l_str, '(I6)') l
-         l_str = adjustl(l_str)  ! Remove leading spaces
-         fieldname = 'CATION_LEACHED_vr_'//trim(l_str)
-         call hist_addfld2d (fname=fieldname,  units='kg m-2 s-1', type2d='levgrnd', &
-            avgflag='A', long_name='rate which cations are lost to stream (vertically resolved)', &
-            ptr_col=data2dptr)
+      do a = 1,ncations
+         data2dptr => this%cation_leached_vr(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'cation_leached_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname,  units='g m-3 s-1', type2d='levgrnd', &
+            avgflag='A', long_name='rate at which cations are lost to stream (vertically resolved)', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
       end do
-
-      this%bicarbonate_leached_vr(begc:endc,:) = spval
-      call hist_addfld2d (fname='BICARBONATE_LEACHED_vr',  units='kg m-2 s-1', type2d='levgrnd', &
-            avgflag='A', long_name='rate which bicarbonates are lost to stream (vertically resolved)', &
-            ptr_col=this%bicarbonate_leached_vr)
 
       this%cation_runoff_vr(begc:endc,:,:) = spval
-      do l = 1,ncations
-         data2dptr => this%cation_runoff_vr(:,:,l)
-         write (l_str, '(I6)') l
-         l_str = adjustl(l_str)  ! Remove leading spaces
-         fieldname = 'CATION_RUNOFF_vr_'//trim(l_str)
-         call hist_addfld2d (fname=fieldname,  units='kg m-2 s-1', type2d='levgrnd', &
-            avgflag='A', long_name='rate which cations are lost to stream (vertically resolved)', &
-            ptr_col=data2dptr)
+      do a = 1,ncations
+         data2dptr => this%cation_runoff_vr(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'cation_runoff_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname,  units='g m-3 s-1', type2d='levgrnd', &
+            avgflag='A', long_name='rate at which cations are lost to stream (vertically resolved)', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
       end do
 
-      this%bicarbonate_runoff_vr(begc:endc,:) = spval
-      call hist_addfld2d (fname='BICARBONATE_RUNOFF_vr',  units='kg m-2 s-1', type2d='levgrnd', &
-            avgflag='A', long_name='rate which bicarbonates are lost to stream (vertically resolved)', &
-            ptr_col=this%bicarbonate_runoff_vr)
+      this%proton_infl_vr(begc:endc,:) = spval
+      call hist_addfld2d (fname='proton_infl_vr',  units='g m-3 s-1', type2d='levgrnd', &
+         avgflag='A', long_name='rate at which protons are infiltrated from above (vertically resolved)', &
+         ptr_col=this%proton_infl_vr, l2g_scale_type='veg')
+
+      this%proton_oufl_vr(begc:endc,:) = spval
+      call hist_addfld2d (fname='proton_oufl_vr',  units='g m-3 s-1', type2d='levgrnd', &
+         avgflag='A', long_name='rate at which protons are infiltrated to below (vertically resolved)', &
+         ptr_col=this%proton_oufl_vr, l2g_scale_type='veg')
+
+      this%proton_uptake_vr(begc:endc,:) = spval
+      call hist_addfld2d (fname='proton_uptake_vr',  units='g m-3 s-1', type2d='levgrnd', &
+         avgflag='A', long_name='rate at which protons are uptaken by plants (vertically resolved)', &
+         ptr_col=this%proton_uptake_vr, l2g_scale_type='veg')
+
+      this%proton_leached_vr(begc:endc,:) = spval
+      call hist_addfld2d (fname='proton_leached_vr',  units='g m-3 s-1', type2d='levgrnd', &
+         avgflag='A', long_name='rate at which protons are lost to stream (vertically resolved)', &
+         ptr_col=this%proton_leached_vr, l2g_scale_type='veg')
+
+      this%proton_runoff_vr(begc:endc,:) = spval
+      call hist_addfld2d (fname='proton_runoff_vr',  units='g m-3 s-1', type2d='levgrnd', &
+         avgflag='A', long_name='rate at which protons are lost to stream (vertically resolved)', &
+         ptr_col=this%proton_runoff_vr, l2g_scale_type='veg')
+
+      this%background_weathering(begc:endc,:) = spval
+      call hist_addfld2d (fname='background_weathering',  units='g m-2 s-1', type2d='cations', &
+         avgflag='A', long_name='vertically integrated rate at which background weathering produces cations', &
+         ptr_col=this%background_weathering, l2g_scale_type='veg')
 
       this%primary_added(begc:endc,:) = spval
-      call hist_addfld2d (fname='PRIMARY_ADDED',  units='kg m-2 s-1', type2d='minerals', &
+      call hist_addfld2d (fname='primary_added',  units='g m-2 s-1', type2d='minerals', &
          avgflag='A', long_name='rate at which primary mineral is added', &
-         ptr_col=this%primary_added)
+         ptr_col=this%primary_added, l2g_scale_type='veg')
 
       this%primary_dissolve(begc:endc,:) = spval
-      call hist_addfld2d (fname='PRIMARY_DISSOLVE',  units='kg m-2 s-1', type2d='minerals', &
+      call hist_addfld2d (fname='primary_dissolve',  units='g m-2 s-1', type2d='minerals', &
          avgflag='A', long_name='rate at which primary mineral is dissolved', &
-         ptr_col=this%primary_dissolve)
+         ptr_col=this%primary_dissolve, l2g_scale_type='veg')
 
-      this%primary_co2_flux(begc:endc) = spval
-      call hist_addfld1d (fname='PRIMARY_CO2_FLUX',  units='kg m-2 s-1', &
-         avgflag='A', long_name='rate at which the primary reaction takes up co2', &
-         ptr_col=this%primary_co2_flux)
-
-      this%primary_h2o_flux(begc:endc) = spval
-      call hist_addfld1d (fname='PRIMARY_H2O_FLUX',  units='kg m-2 s-1', &
-         avgflag='A', long_name='rate at which the primary reaction uses up water', &
-         ptr_col=this%primary_h2o_flux)
+      this%primary_proton_flux(begc:endc) = spval
+      call hist_addfld1d (fname='primary_proton_flux',  units='g m-2 s-1', &
+         avgflag='A', long_name='rate at which the primary reaction consumes proton', &
+         ptr_col=this%primary_proton_flux, l2g_scale_type='veg')
 
       this%primary_proton_flux(begc:endc) = spval
       call hist_addfld1d (fname='PRIMARY_PROTON_FLUX',  units='kg m-2 s-1', &
@@ -12443,64 +12762,104 @@ contains
          ptr_col=this%primary_proton_flux)
 
       this%primary_cation_flux(begc:endc,:) = spval
-      call hist_addfld2d (fname='PRIMARY_CATION_FLUX',  units='kg m-2 s-1', type2d='cations', &
+      call hist_addfld2d (fname='primary_cation_flux',  units='g m-2 s-1', type2d='cations', &
          avgflag='A', long_name='rate at which cation is created by primary mineral dissolution', &
-         ptr_col=this%primary_cation_flux)
+         ptr_col=this%primary_cation_flux, l2g_scale_type='veg')
 
-      this%primary_bicarbonate_flux(begc:endc) = spval
-      call hist_addfld1d (fname='PRIMARY_BICARBONATE_FLUX',  units='kg m-2 s-1',  &
-         avgflag='A', long_name='rate at which bicarbonate is generated by primary mineral dissolution', &
-         ptr_col=this%primary_bicarbonate_flux)
+      this%primary_h2o_flux(begc:endc) = spval
+      call hist_addfld1d (fname='primary_h2o_flux',  units='g m-2 s-1', &
+         avgflag='A', long_name='rate at which the primary reaction creates (+) or consumes (-) water', &
+         ptr_col=this%primary_h2o_flux, l2g_scale_type='veg')
 
-      this%primary_silicate_flux(begc:endc) = spval
-      call hist_addfld1d (fname='PRIMARY_SILICATE_FLUX',  units='kg m-2 s-1',  &
-         avgflag='A', long_name='rate at which silicate is generated by primary mineral dissolution', &
-         ptr_col=this%primary_silicate_flux)
+      this%primary_silica_flux(begc:endc) = spval
+      call hist_addfld1d (fname='primary_silica_flux',  units='g m-2 s-1',  &
+         avgflag='A', long_name='rate at which SiO2 is generated by primary mineral dissolution', &
+         ptr_col=this%primary_silica_flux, l2g_scale_type='veg')
+
+      this%primary_residue_flux(begc:endc,:) = spval
+      call hist_addfld2d (fname='primary_residue_flux',  units='g m-2 s-1', type2d='minerals', &
+         avgflag='A', long_name='rate at which non-SiO2 solids is generated by primary mineral dissolution', &
+         ptr_col=this%primary_residue_flux, l2g_scale_type='veg')
+
+      this%secondary_mineral_flux(begc:endc,:) = spval
+      call hist_addfld2d (fname='secondary_mineral_flux',  units='g m-2 s-1', type2d='minsec', &
+            avgflag='A', long_name='vertically integrated rate at which secondary mineral is formed', &
+            ptr_col=this%secondary_mineral_flux, l2g_scale_type='veg')
 
       this%secondary_cation_flux(begc:endc,:) = spval
-      call hist_addfld2d (fname='SECONDARY_CATION_FLUX',  units='kg m-2 s-1', type2d='cations', &
-         avgflag='A', long_name='rate at which the precipitation reaction consumes cations', &
-         ptr_col=this%secondary_cation_flux)
+      call hist_addfld2d (fname='secondary_cation_flux',  units='g m-2 s-1', type2d='cations', &
+            avgflag='A', long_name='vertically integrated rate at which cations consumed due to precipitation of secondary minerals', &
+            ptr_col=this%secondary_cation_flux, l2g_scale_type='veg')
 
-      this%secondary_bicarbonate_flux(begc:endc) = spval
-      call hist_addfld1d (fname='SECONDARY_BICARBONATE_FLUX',  units='kg m-2 s-1', &
-         avgflag='A', long_name='rate at which the precipitation reaction consumes bicarbonates', &
-         ptr_col=this%secondary_bicarbonate_flux)
+      this%secondary_silica_flux(begc:endc) = spval
+      call hist_addfld1d (fname='secondary_silica_flux',  units='g m-2 s-1', &
+            avgflag='A', long_name='vertically integrated rate at which silica consumed due to precipitation of secondary minerals', &
+            ptr_col=this%secondary_silica_flux, l2g_scale_type='veg')
 
-      this%secondary_precip(begc:endc,:) = spval
-      call hist_addfld2d (fname='SECONDARY_PRECIP',  units='kg m-2 s-1', type2d='minsec', &
-         avgflag='A', long_name='rate at which the precipitation reaction forms secondary minerals', &
-         ptr_col=this%secondary_precip)
+      this%cec_cation_flux(begc:endc,:) = spval
+      call hist_addfld2d (fname='cec_cation_flux',  units='g m-2 s-1', type2d='cations', &
+            avgflag='A', long_name='rate at which cation is adsorbed to soil (negative for released into water) (subtract this from the net dissolution and precipitation flux) (vertically resolved)', &
+            ptr_col=this%secondary_cation_flux, l2g_scale_type='veg')
 
-      this%secondary_co2_flux(begc:endc) = spval
-      call hist_addfld1d (fname='SECONDARY_CO2_FLUX',  units='kg m-2 s-1', &
-         avgflag='A', long_name='rate at which the precipitation reaction emits CO2', &
-         ptr_col=this%secondary_co2_flux)
+      this%cec_proton_flux(begc:endc) = spval
+      call hist_addfld1d (fname='cec_proton_flux',  units='g m-2 s-1', &
+            avgflag='A', long_name='soil proton flux for charge balance with the cations (positive for adsorbed, negative for released)', &
+            ptr_col=this%cec_proton_flux, l2g_scale_type='veg')
 
-      this%secondary_h2o_flux(begc:endc) = spval
-      call hist_addfld1d (fname='SECONDARY_H2O_FLUX',  units='kg m-2 s-1', &
-         avgflag='A', long_name='rate at which the precipitation reaction creates water', &
-         ptr_col=this%secondary_h2o_flux)
+      this%cation_infl(begc:endc,:) = spval
+      call hist_addfld2d (fname='cation_infl',  units='g m-2 s-1', type2d='cations', &
+            avgflag='A', long_name='rate at which cations are infiltrated from above', &
+            ptr_col=this%cation_infl, l2g_scale_type='veg')
+
+      this%cation_oufl(begc:endc,:) = spval
+      call hist_addfld2d (fname='cation_oufl',  units='g m-2 s-1', type2d='cations', &
+            avgflag='A', long_name='rate at which cations are infiltrated to below', &
+            ptr_col=this%cation_oufl, l2g_scale_type='veg')
+
+      this%cation_uptake(begc:endc,:) = spval
+      call hist_addfld2d (fname='cation_uptake',  units='g m-2 s-1', type2d='cations', &
+            avgflag='A', long_name='rate at which cations are taken up by plants', &
+            ptr_col=this%cation_oufl, l2g_scale_type='veg')
 
       this%cation_leached(begc:endc,:) = spval
-      call hist_addfld2d (fname='CATION_LEACHED',  units='kg m-2 s-1', type2d='cations', &
-         avgflag='A', long_name='rate which cations are lost to stream', &
-         ptr_col=this%cation_leached)
-
-      this%bicarbonate_leached(begc:endc) = spval
-      call hist_addfld1d (fname='BICARBONATE_LEACHED',  units='kg m-2 s-1', &
-         avgflag='A', long_name='rate which bicarbonates are lost to stream', &
-         ptr_col=this%bicarbonate_leached)
+      call hist_addfld2d (fname='cation_leached',  units='g m-2 s-1', type2d='cations', &
+            avgflag='A', long_name='rate at which cations are lost to stream', &
+            ptr_col=this%cation_leached, l2g_scale_type='veg')
 
       this%cation_runoff(begc:endc,:) = spval
-      call hist_addfld2d (fname='CATION_RUNOFF',  units='kg m-2 s-1', type2d='cations', &
-         avgflag='A', long_name='rate which cations are lost to stream', &
-         ptr_col=this%cation_runoff)
+      call hist_addfld2d (fname='cation_runoff',  units='g m-2 s-1', type2d='cations', &
+            avgflag='A', long_name='rate at which cations are lost to stream', &
+            ptr_col=this%cation_leached, l2g_scale_type='veg')
 
-      this%bicarbonate_runoff(begc:endc) = spval
-      call hist_addfld1d (fname='BICARBONATE_RUNOFF',  units='kg m-2 s-1', &
-         avgflag='A', long_name='rate which bicarbonates are lost to stream', &
-         ptr_col=this%bicarbonate_runoff)
+      this%proton_infl(begc:endc) = spval
+      call hist_addfld1d (fname='proton_infl',  units='g m-2 s-1', &
+            avgflag='A', long_name='rate at which protons are infiltrated from above', &
+            ptr_col=this%proton_infl, l2g_scale_type='veg')
+
+      this%proton_oufl(begc:endc) = spval
+      call hist_addfld1d (fname='proton_oufl',  units='g m-2 s-1', &
+            avgflag='A', long_name='rate at which protons are infiltrated to below', &
+            ptr_col=this%proton_oufl, l2g_scale_type='veg')
+
+      this%proton_uptake(begc:endc) = spval
+      call hist_addfld1d (fname='proton_uptake',  units='g m-2 s-1', &
+            avgflag='A', long_name='rate at which protons are taken up by plants', &
+            ptr_col=this%proton_uptake, l2g_scale_type='veg')
+
+      this%proton_leached(begc:endc) = spval
+      call hist_addfld1d (fname='proton_leached',  units='g m-2 s-1', &
+            avgflag='A', long_name='rate at which protons are lost to stream', &
+            ptr_col=this%proton_leached, l2g_scale_type='veg')
+
+      this%proton_runoff(begc:endc) = spval
+      call hist_addfld1d (fname='proton_runoff',  units='g m-2 s-1', &
+            avgflag='A', long_name='rate at which protons are lost to stream', &
+            ptr_col=this%proton_runoff, l2g_scale_type='veg')
+
+      this%r_sequestration(begc:endc) = spval
+      call hist_addfld1d (fname='r_sequestration',  units='gC m-2 s-1', &
+            avgflag='A', long_name='net sequestration rate of the dissolution and precipitation reactions', &
+            ptr_col=this%r_sequestration, l2g_scale_type='veg')
 
       !-----------------------------------------------------------------------
       ! set cold-start initial values for select members of col_mf
@@ -12510,51 +12869,64 @@ contains
 
          ! must be vegetated/bare land or crop
          if (lun_pp%itype(l)==istsoil .or. lun_pp%itype(l)==istcrop) then
-            this%primary_added_vr                (c,1:nlevgrnd,1:nminerals) = 0._r8
-            this%primary_dissolve_vr             (c,1:nlevgrnd,1:nminerals) = 0._r8
-            this%primary_co2_flux_vr             (c,1:nlevgrnd            ) = 0._r8
-            this%primary_h2o_flux_vr             (c,1:nlevgrnd            ) = 0._r8
-            this%primary_proton_flux_vr          (c,1:nlevgrnd            ) = 0._r8
-            this%primary_cation_flux_vr          (c,1:nlevgrnd,1:ncations ) = 0._r8
-            this%primary_bicarbonate_flux_vr     (c,1:nlevgrnd            ) = 0._r8
-            this%primary_silicate_flux_vr        (c,1:nlevgrnd            ) = 0._r8
+            this%background_weathering_vr        (c,1:mixing_layer,1:ncations ) = 0._r8
+            this%primary_added_vr                (c,1:mixing_layer,1:nminerals) = 0._r8
+            this%primary_dissolve_vr             (c,1:mixing_layer,1:nminerals) = 0._r8
+            this%primary_proton_flux_vr          (c,1:mixing_layer            ) = 0._r8
+            this%primary_cation_flux_vr          (c,1:mixing_layer,1:ncations ) = 0._r8
+            this%primary_h2o_flux_vr             (c,1:mixing_layer            ) = 0._r8
+            this%primary_silica_flux_vr          (c,1:mixing_layer            ) = 0._r8
+            this%primary_residue_flux_vr         (c,1:mixing_layer,1:nminerals) = 0._r8
+            this%primary_prelease_vr             (c,1:mixing_layer            ) = 0._r8
 
-            this%r_dissolve_vr                   (c,1:nlevgrnd,1:nminerals) = 0._r8
+            this%r_dissolve_vr                   (c,1:mixing_layer,1:nminerals) = 0._r8
+            this%log_omega_vr                    (c,1:mixing_layer,1:nminerals) = 0._r8
 
-            this%secondary_cation_flux_vr        (c,1:nlevgrnd,1:ncations ) = 0._r8
-            this%secondary_bicarbonate_flux_vr   (c,1:nlevgrnd            ) = 0._r8
-            this%secondary_precip_vr             (c,1:nlevgrnd,1:nminsec  ) = 0._r8
-            this%secondary_co2_flux_vr           (c,1:nlevgrnd            ) = 0._r8
-            this%secondary_h2o_flux_vr           (c,1:nlevgrnd            ) = 0._r8
+            this%secondary_mineral_flux_vr       (c,1:mixing_layer,1:nminsec  ) = 0._r8
+            this%secondary_cation_flux_vr        (c,1:mixing_layer,1:ncations ) = 0._r8
+            this%secondary_silica_flux_vr        (c,1:mixing_layer            ) = 0._r8
+            this%r_precip_vr                     (c,1:mixing_layer,1:nminsec  ) = 0._r8
 
-            this%r_precip_vr                     (c,1:nlevgrnd,1:nminsec  ) = 0._r8
-            this%mineral_prelease_vr             (c,1:nlevgrnd            ) = 0._r8
-            this%r_sequestration                 (c                       ) = 0._r8
+            this%cec_cation_flux_vr              (c,1:mixing_layer,1:ncations ) = 0._r8
+            this%cec_proton_flux_vr              (c,1:mixing_layer            ) = 0._r8
 
-            this%cation_leached_vr              (c,1:nlevgrnd,1:ncations ) = 0._r8
-            this%bicarbonate_leached_vr         (c,1:nlevgrnd            ) = 0._r8
-            this%cation_runoff_vr               (c,1:nlevgrnd,1:ncations ) = 0._r8
-            this%bicarbonate_runoff_vr          (c,1:nlevgrnd            ) = 0._r8
+            this%cation_infl_vr                  (c,1:mixing_layer,1:ncations ) = 0._r8
+            this%cation_oufl_vr                  (c,1:mixing_layer,1:ncations ) = 0._r8
+            this%cation_uptake_vr                (c,1:mixing_layer,1:ncations ) = 0._r8
+            this%cation_leached_vr               (c,1:mixing_layer,1:ncations ) = 0._r8
+            this%cation_runoff_vr                (c,1:mixing_layer,1:ncations ) = 0._r8
+            this%proton_infl_vr                  (c,1:mixing_layer            ) = 0._r8
+            this%proton_oufl_vr                  (c,1:mixing_layer            ) = 0._r8
+            this%proton_uptake_vr                (c,1:mixing_layer            ) = 0._r8
+            this%proton_leached_vr               (c,1:mixing_layer            ) = 0._r8
+            this%proton_runoff_vr                (c,1:mixing_layer            ) = 0._r8
+
+            this%background_weathering           (c,1:ncations            ) = 0._r8
 
             this%primary_added                   (c,1:nminerals           ) = 0._r8
             this%primary_dissolve                (c,1:nminerals           ) = 0._r8
-            this%primary_co2_flux                (c                       ) = 0._r8
-            this%primary_h2o_flux                (c                       ) = 0._r8
             this%primary_proton_flux             (c                       ) = 0._r8
             this%primary_cation_flux             (c,1:ncations            ) = 0._r8
-            this%primary_bicarbonate_flux        (c                       ) = 0._r8
-            this%primary_silicate_flux           (c                       ) = 0._r8
-
+            this%primary_h2o_flux                (c                       ) = 0._r8
+            this%primary_silica_flux             (c                       ) = 0._r8
+            this%primary_residue_flux            (c,1:nminerals           ) = 0._r8
+            this%secondary_mineral_flux          (c,1:nminsec             ) = 0._r8
             this%secondary_cation_flux           (c,1:ncations            ) = 0._r8
-            this%secondary_bicarbonate_flux      (c                       ) = 0._r8
-            this%secondary_precip                (c,1:nminsec             ) = 0._r8
-            this%secondary_co2_flux              (c                       ) = 0._r8
-            this%secondary_h2o_flux              (c                       ) = 0._r8
-
+            this%secondary_silica_flux           (c                       ) = 0._r8
+            this%cec_cation_flux                 (c,1:ncations            ) = 0._r8
+            this%cec_proton_flux                 (c                       ) = 0._r8
+            this%cation_infl                     (c,1:ncations            ) = 0._r8
+            this%cation_oufl                     (c,1:ncations            ) = 0._r8
+            this%cation_uptake                   (c,1:ncations            ) = 0._r8
             this%cation_leached                  (c,1:ncations            ) = 0._r8
-            this%bicarbonate_leached             (c                       ) = 0._r8
             this%cation_runoff                   (c,1:ncations            ) = 0._r8
-            this%bicarbonate_runoff              (c                       ) = 0._r8
+            this%proton_infl                     (c                       ) = 0._r8
+            this%proton_oufl                     (c                       ) = 0._r8
+            this%proton_uptake                   (c                       ) = 0._r8
+            this%proton_leached                  (c                       ) = 0._r8
+            this%proton_runoff                   (c                       ) = 0._r8
+
+            this%r_sequestration                 (c                       ) = 0._r8
 
             this%pm_add                          (c                       ) = 0._r8
             this%pm_loss                         (c                       ) = 0._r8
@@ -12584,249 +12956,361 @@ contains
       !
       ! !LOCAL VARIABLES:
       logical :: readvar   ! determine if variable is on initial file
-      integer           :: c,l,j                        ! indices
+      integer           :: c,l,j,a                     ! indices
       real(r8), pointer :: ptr2d(:,:), ptr1d(:) ! temp. pointers for slicing larger arrays
-      character(6)      :: l_str
+      character(6)      :: a_str
       character(30)     :: varname
       !-----------------------------------------------------------------------
-      do l = 1,nminerals
-         write (l_str, '(I6)') l
-         l_str = adjustl(l_str)  ! Remove leading spaces
-         varname = 'PRIMARY_ADDED_vr_'//trim(l_str)
-         ptr2d => this%primary_added_vr(:,:,l)
+      do a = 1,ncations
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'background_weathering_vr_'//trim(a_str)
+         ptr2d => this%background_weathering_vr(:,:,a)
          call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double,   &
             dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='rate at which primary mineral is added (vertically resolved)', units='kg m-2 s-1', &
+            long_name='rate at which background weathering produces cations (vertically resolved)', units='g m-3 s-1', &
             interpinic_flag='interp', readvar=readvar, data=ptr2d)
       end do
 
-      do l = 1,nminerals
-         write (l_str, '(I6)') l
-         l_str = adjustl(l_str)  ! Remove leading spaces
-         varname = 'PRIMARY_DISSOLVE_vr_'//trim(l_str)
-         ptr2d => this%primary_dissolve_vr(:,:,l)
+      do a = 1,nminerals
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'primary_added_vr_'//trim(a_str)
+         ptr2d => this%primary_added_vr(:,:,a)
          call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double,   &
             dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='rate at which primary mineral is dissolved (vertically resolved)', units='kg m-2 s-1', &
+            long_name='rate at which primary mineral is added (vertically resolved)', units='g m-3 s-1', &
             interpinic_flag='interp', readvar=readvar, data=ptr2d)
       end do
 
-      call restartvar(ncid=ncid, flag=flag, varname='PRIMARY_CO2_FLUX_vr', xtype=ncd_double,  &
-         dim1name='column', dim2name='levgrnd', switchdim=.true., &
-         long_name='rate at which the primary reaction takes up co2 (vertically resolved)', units='kg m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%primary_co2_flux_vr)
+      do a = 1,nminerals
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'primary_dissolve_vr_'//trim(a_str)
+         ptr2d => this%primary_dissolve_vr(:,:,a)
+         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double,   &
+            dim1name='column', dim2name='levgrnd', switchdim=.true., &
+            long_name='rate at which primary mineral is dissolved (vertically resolved)', units='g m-3 s-1', &
+            interpinic_flag='interp', readvar=readvar, data=ptr2d)
+      end do
 
-      call restartvar(ncid=ncid, flag=flag, varname='PRIMARY_H2O_FLUX_vr', xtype=ncd_double,  &
+      call restartvar(ncid=ncid, flag=flag, varname='primary_proton_flux_vr', xtype=ncd_double,  &
          dim1name='column', dim2name='levgrnd', switchdim=.true., &
-         long_name='rate at which the primary reaction uses up water (vertically resolved)', units='kg m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%primary_h2o_flux_vr)
-
-      call restartvar(ncid=ncid, flag=flag, varname='PRIMARY_PROTON_FLUX_vr', xtype=ncd_double,  &
-         dim1name='column', dim2name='levgrnd', switchdim=.true., &
-         long_name='rate at which the primary reaction product H+ (vertically resolved)', units='kg m-2 s-1', &
+         long_name='rate at which the primary reaction consumes proton (vertically resolved)', units='g m-3 s-1', &
          interpinic_flag='interp', readvar=readvar, data=this%primary_proton_flux_vr)
 
-      do l = 1,ncations
-         write (l_str, '(I6)') l
-         l_str = adjustl(l_str)  ! Remove leading spaces
-         varname = 'PRIMARY_CATION_FLUX_vr_'//trim(l_str)
-         ptr2d => this%primary_cation_flux_vr(:,:,l)
+      do a = 1,ncations
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'primary_cation_flux_vr_'//trim(a_str)
+         ptr2d => this%primary_cation_flux_vr(:,:,a)
          call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double,  &
             dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='rate at which cation is created by primary mineral dissolution (vertically resolved)', units='kg m-2 s-1', &
+            long_name='rate at which cation is created by primary mineral dissolution (vertically resolved)', units='g m-3 s-1', &
             interpinic_flag='interp', readvar=readvar, data=ptr2d)
       end do
 
-      call restartvar(ncid=ncid, flag=flag, varname='PRIMARY_BICARBONATE_FLUX_vr', xtype=ncd_double, &
+      call restartvar(ncid=ncid, flag=flag, varname='primary_h2o_flux_vr', xtype=ncd_double,  &
          dim1name='column', dim2name='levgrnd', switchdim=.true., &
-         long_name='rate at which bicarbonate is generated by primary mineral dissolution (vertically resolved)', units='kg m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%primary_bicarbonate_flux_vr)
+         long_name='rate at which the primary reaction creates (+) or consumes (-) water (vertically resolved)', units='g m-3 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%primary_h2o_flux_vr)
 
-      call restartvar(ncid=ncid, flag=flag, varname='PRIMARY_SILICATE_FLUX_vr', xtype=ncd_double, &
+      call restartvar(ncid=ncid, flag=flag, varname='primary_silica_flux_vr', xtype=ncd_double, &
          dim1name='column', dim2name='levgrnd', switchdim=.true., &
-         long_name='rate at which silicate is generated by primary mineral dissolution (vertically resolved)', units='kg m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%primary_silicate_flux_vr)
+         long_name='rate at which SiO2 is generated by primary mineral dissolution (vertically resolved)', units='g m-3 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%primary_silica_flux_vr)
 
-      do l = 1,nminerals
-         write (l_str, '(I6)') l
-         l_str = adjustl(l_str)  ! Remove leading spaces
-         varname = 'R_DISSOLVE_vr_'//trim(l_str)
-         ptr2d => this%r_dissolve_vr(:,:,l)
+      do a = 1,nminerals
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'primary_residue_flux_vr_'//trim(a_str)
+         ptr2d => this%primary_residue_flux_vr(:,:,a)
          call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
             dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='reaction rate of the dissolution of the primary mineral (vertically resolved)', units='mol reaction kg-1 mineral s-1', &
+            long_name='rate at which non-SiO2 solid is generated by primary mineral dissolution (vertically resolved)', units='g m-3 s-1', &
             interpinic_flag='interp', readvar=readvar, data=ptr2d)
       end do
 
-      do l = 1,ncations
-         write (l_str, '(I6)') l
-         l_str = adjustl(l_str)  ! Remove leading spaces
-         varname = 'SECONDARY_CATION_FLUX_vr_'//trim(l_str)
-         ptr2d => this%secondary_cation_flux_vr(:,:,l)
+      call restartvar(ncid=ncid, flag=flag, varname='primary_prelease_vr', xtype=ncd_double, &
+         dim1name='column', dim2name='levgrnd', switchdim=.true., &
+         long_name='release of soluble phosphorus with primary mineral dissolution (vertically resolved)', units='gP m-3 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%primary_prelease_vr)
+
+      do a = 1,nminerals
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'r_dissolve_vr_'//trim(a_str)
+         ptr2d => this%r_dissolve_vr(:,:,a)
          call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
             dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='rate at which the precipitation reaction consumes cations (vertically resolved)', units='kg m-2 s-1', &
+            long_name='reaction rate of the dissolution of the primary mineral (vertically resolved)', units='mol m-3 s-1', &
             interpinic_flag='interp', readvar=readvar, data=ptr2d)
       end do
 
-      call restartvar(ncid=ncid, flag=flag, varname='SECONDARY_BICARBONATE_FLUX_vr', xtype=ncd_double, &
-         dim1name='column', dim2name='levgrnd', switchdim=.true., &
-         long_name='rate at which the precipitation reaction consumes bicarbonates (vertically resolved)', units='kg m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%secondary_bicarbonate_flux_vr)
-
-      do l = 1,nminsec
-         write (l_str, '(I6)') l
-         l_str = adjustl(l_str)  ! Remove leading spaces
-         varname = 'SECONDARY_PRECIP_vr_'//trim(l_str)
-         ptr2d => this%secondary_precip_vr(:,:,l)
+      do a = 1,nminerals
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'log_omega_vr_'//trim(a_str)
+         ptr2d => this%log_omega_vr(:,:,a)
          call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
             dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='rate at which the precipitation reaction forms secondary minerals (vertically resolved)', units='kg m-2 s-1', &
+            long_name='omega parameter in the dissolution equation (vertically resolved)', units='', &
             interpinic_flag='interp', readvar=readvar, data=ptr2d)
       end do
 
-      call restartvar(ncid=ncid, flag=flag, varname='SECONDARY_CO2_FLUX_vr', xtype=ncd_double, &
-         dim1name='column', dim2name='levgrnd', switchdim=.true., &
-         long_name='rate at which the precipitation reaction emits CO2', units='kg m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%secondary_co2_flux_vr)
-
-      call restartvar(ncid=ncid, flag=flag, varname='SECONDARY_H2O_FLUX_vr', xtype=ncd_double, &
-         dim1name='column', dim2name='levgrnd', switchdim=.true., &
-         long_name='rate at which the precipitation reaction creates water', units='kg m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%secondary_h2o_flux_vr)
-
-      do l = 1,nminsec
-         write (l_str, '(I6)') l
-         l_str = adjustl(l_str)  ! Remove leading spaces
-         varname = 'R_PRECIP_vr_'//trim(l_str)
-         ptr2d => this%r_precip_vr(:,:,l)
+      do a = 1,nminsec
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'secondary_mineral_flux_vr_'//trim(a_str)
+         ptr2d => this%secondary_mineral_flux_vr(:,:,a)
          call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
             dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='reaction rate of the precipitation of the secondary mineral', units='mol reaction m-2 s-1', &
+            long_name='rate at which secondary mineral is formed (vertically resolved)', units='g m-3 s-1', &
             interpinic_flag='interp', readvar=readvar, data=ptr2d)
       end do
 
-      call restartvar(ncid=ncid, flag=flag, varname='MINERAL_PRELEASE_vr', xtype=ncd_double, &
-         dim1name='column', dim2name='levgrnd', switchdim=.true., &
-         long_name='mineral release of phosphorus during dissolution (vertically resolved)', units='gP m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%mineral_prelease_vr)
+      do a = 1,ncations
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'secondary_cation_flux_vr_'//trim(a_str)
+         ptr2d => this%secondary_cation_flux_vr(:,:,a)
+         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
+            dim1name='column', dim2name='levgrnd', switchdim=.true., &
+            long_name='rate at which cations consumed due to precipitation of secondary minerals (vertically resolved)', units='g m-3 s-1', &
+            interpinic_flag='interp', readvar=readvar, data=ptr2d)
+      end do
 
-      call restartvar(ncid=ncid, flag=flag, varname='R_SEQUESTRATION', xtype=ncd_double, &
+      call restartvar(ncid=ncid, flag=flag, varname='secondary_silica_flux_vr', xtype=ncd_double, &
+         dim1name='column', dim2name='levgrnd', switchdim=.true., &
+         long_name='rate at which SiO2 is consumed due to precipitation of secondary minerals vertically resolved)', units='g m-3 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%secondary_silica_flux_vr)
+
+      do a = 1,nminsec
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'r_precip_vr_'//trim(a_str)
+         ptr2d => this%r_precip_vr(:,:,a)
+         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
+            dim1name='column', dim2name='levgrnd', switchdim=.true., &
+            long_name='reaction rate of the precipitation of the secondary mineral (vertically resolved)', units='mol m-3 s-1', &
+            interpinic_flag='interp', readvar=readvar, data=ptr2d)
+      end do
+
+      do a = 1,ncations
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'cec_cation_flux_vr_'//trim(a_str)
+         ptr2d => this%cec_cation_flux_vr(:,:,a)
+         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
+            dim1name='column', dim2name='levgrnd', switchdim=.true., &
+            long_name='rate at which cation is released into water (negative for adsorption into soil) (vertically resolved)', units='g m-3 s-1', &
+            interpinic_flag='interp', readvar=readvar, data=ptr2d)
+      end do
+
+      call restartvar(ncid=ncid, flag=flag, varname='cec_proton_flux_vr', xtype=ncd_double, &
+         dim1name='column', dim2name='levgrnd', switchdim=.true., &
+         long_name='soil proton flux for charge balance with the cations (positive for adsorbed, negative for released)', units='g m-3 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%cec_proton_flux_vr)
+
+      do a = 1,ncations
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'cation_infl_vr_'//trim(a_str)
+         ptr2d => this%cation_infl_vr(:,:,a)
+         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
+            dim1name='column', dim2name='levgrnd', switchdim=.true., &
+            long_name='rate which cations are infiltrated from above (vertically resolved)', units='g m-3 s-1', &
+            interpinic_flag='interp', readvar=readvar, data=ptr2d)
+      end do
+
+      do a = 1,ncations
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'cation_oufl_vr_'//trim(a_str)
+         ptr2d => this%cation_oufl_vr(:,:,a)
+         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
+            dim1name='column', dim2name='levgrnd', switchdim=.true., &
+            long_name='rate which cations are infiltrated to below (vertically resolved)', units='g m-3 s-1', &
+            interpinic_flag='interp', readvar=readvar, data=ptr2d)
+      end do
+
+      do a = 1,ncations
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'cation_uptake_vr_'//trim(a_str)
+         ptr2d => this%cation_uptake_vr(:,:,a)
+         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
+            dim1name='column', dim2name='levgrnd', switchdim=.true., &
+            long_name='rate which cations are uptaken by plants (vertically resolved)', units='g m-3 s-1', &
+            interpinic_flag='interp', readvar=readvar, data=ptr2d)
+      end do
+
+      do a = 1,ncations
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'cation_leached_vr_'//trim(a_str)
+         ptr2d => this%cation_leached_vr(:,:,a)
+         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
+            dim1name='column', dim2name='levgrnd', switchdim=.true., &
+            long_name='rate which cations are lost to stream (vertically resolved)', units='g m-3 s-1', &
+            interpinic_flag='interp', readvar=readvar, data=ptr2d)
+      end do
+
+      do a = 1,ncations
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'cation_runoff_vr_'//trim(a_str)
+         ptr2d => this%cation_runoff_vr(:,:,a)
+         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
+            dim1name='column', dim2name='levgrnd', switchdim=.true., &
+            long_name='rate which cations are lost to stream (vertically resolved)', units='g m-3 s-1', &
+            interpinic_flag='interp', readvar=readvar, data=ptr2d)
+      end do
+
+      call restartvar(ncid=ncid, flag=flag, varname='proton_infl_vr', xtype=ncd_double,  &
+         dim1name='column', dim2name='levgrnd', switchdim=.true., &
+         long_name='rate at which protons are infiltrated from above (vertically resolved)', units='g m-3 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%proton_infl_vr)
+
+      call restartvar(ncid=ncid, flag=flag, varname='proton_oufl_vr', xtype=ncd_double,  &
+         dim1name='column', dim2name='levgrnd', switchdim=.true., &
+         long_name='rate at which protons are infiltrated to below (vertically resolved)', units='g m-3 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%proton_oufl_vr)
+
+      call restartvar(ncid=ncid, flag=flag, varname='proton_uptake_vr', xtype=ncd_double,  &
+         dim1name='column', dim2name='levgrnd', switchdim=.true., &
+         long_name='rate at which protons are uptaken by plants (vertically resolved)', units='g m-3 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%proton_uptake_vr)
+
+      call restartvar(ncid=ncid, flag=flag, varname='proton_leached_vr', xtype=ncd_double,  &
+         dim1name='column', dim2name='levgrnd', switchdim=.true., &
+         long_name='rate at which protons are lost to stream (vertically resolved)', units='g m-3 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%proton_leached_vr)
+
+      call restartvar(ncid=ncid, flag=flag, varname='proton_runoff_vr', xtype=ncd_double,  &
+         dim1name='column', dim2name='levgrnd', switchdim=.true., &
+         long_name='rate at which protons are lost to stream (vertically resolved)', units='g m-3 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%proton_runoff_vr)
+
+      call restartvar(ncid=ncid, flag=flag, varname='background_weathering', xtype=ncd_double,  &
+         dim1name='column', dim2name='cations', switchdim=.true., &
+         long_name='vertically integrated rate at which background weathering produces cations', units='g m-3 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%background_weathering)
+
+      call restartvar(ncid=ncid, flag=flag, varname='primary_added', xtype=ncd_double, &
+         dim1name='column', dim2name='minerals', switchdim=.true., &
+         long_name='rate at which primary mineral is added', units='g m-2 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%primary_added)
+
+      call restartvar(ncid=ncid, flag=flag, varname='primary_dissolve', xtype=ncd_double, &
+         dim1name='column', dim2name='minerals', switchdim=.true., &
+         long_name='rate at which primary mineral is dissolved', units='g m-2 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%primary_dissolve)
+
+      call restartvar(ncid=ncid, flag=flag, varname='primary_proton_flux', xtype=ncd_double, &
+         dim1name='column', &
+         long_name='rate at which the primary reaction takes up co2', units='g m-2 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%primary_proton_flux)
+
+      call restartvar(ncid=ncid, flag=flag, varname='primary_cation_flux', xtype=ncd_double, &
+         dim1name='column', dim2name='cations', switchdim=.true., &
+         long_name='rate at which cation is created by primary mineral dissolution', units='g m-2 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%primary_cation_flux)
+
+      call restartvar(ncid=ncid, flag=flag, varname='primary_h2o_flux', xtype=ncd_double, &
+         dim1name='column', &
+         long_name='rate at which the primary reaction uses up water', units='g m-2 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%primary_h2o_flux)
+
+      call restartvar(ncid=ncid, flag=flag, varname='primary_silica_flux', xtype=ncd_double, &
+         dim1name='column', &
+         long_name='rate at which SiO2 is generated by primary mineral dissolution', units='g m-2 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%primary_silica_flux)
+
+      call restartvar(ncid=ncid, flag=flag, varname='primary_residue_flux', xtype=ncd_double, &
+         dim1name='column', &
+         long_name='rate at which non-SiO2  solids is generated by primary mineral dissolution', units='g m-2 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%primary_silica_flux)
+
+      call restartvar(ncid=ncid, flag=flag, varname='secondary_mineral_flux', xtype=ncd_double, &
+         dim1name='column', dim2name='minsec', switchdim=.true., &
+         long_name='vertically integrated rate at which secondary mineral is formed', units='g m-2 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%secondary_mineral_flux)
+
+      call restartvar(ncid=ncid, flag=flag, varname='secondary_cation_flux', xtype=ncd_double, &
+         dim1name='column', dim2name='cations', switchdim=.true., &
+         long_name='vertically integrated rate at which cations consumed due to precipitation of secondary minerals', units='g m-2 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%secondary_cation_flux)
+
+      call restartvar(ncid=ncid, flag=flag, varname='secondary_silica_flux', xtype=ncd_double, &
+         dim1name='column', &
+         long_name='rate at which SiO2 is consumed due to precipitation of secondary minerals', units='g m-2 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%secondary_silica_flux)
+
+      call restartvar(ncid=ncid, flag=flag, varname='cec_cation_flux', xtype=ncd_double, &
+         dim1name='column', dim2name='cations', switchdim=.true., &
+         long_name='rate at which cation is adsorbed to soil (negative for released into water) (subtract this from the net dissolution and precipitation flux)', units='g m-2 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%cec_proton_flux_vr)
+
+      call restartvar(ncid=ncid, flag=flag, varname='cec_proton_flux', xtype=ncd_double, &
+         dim1name='column', &
+         long_name='soil proton flux for charge balance with the cations (positive for adsorbed, negative for released)', units='g m-2 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%cec_proton_flux_vr)
+
+      call restartvar(ncid=ncid, flag=flag, varname='cation_infl', xtype=ncd_double, &
+         dim1name='column', dim2name='cations', switchdim=.true., &
+         long_name='rate which cations are infiltrated from above', units='g m-2 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%cation_infl)
+
+      call restartvar(ncid=ncid, flag=flag, varname='cation_oufl', xtype=ncd_double, &
+         dim1name='column', dim2name='cations', switchdim=.true., &
+         long_name='rate which cations are infiltrated to below', units='g m-2 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%cation_oufl)
+
+      call restartvar(ncid=ncid, flag=flag, varname='cation_uptake', xtype=ncd_double, &
+         dim1name='column', dim2name='cations', switchdim=.true., &
+         long_name='rate which cations are taken up by plants', units='g m-2 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%cation_uptake)
+
+      call restartvar(ncid=ncid, flag=flag, varname='cation_leached', xtype=ncd_double, &
+         dim1name='column', dim2name='cations', switchdim=.true., &
+         long_name='rate which cations are lost to stream', units='g m-2 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%cation_leached)
+
+      call restartvar(ncid=ncid, flag=flag, varname='cation_runoff', xtype=ncd_double, &
+         dim1name='column', dim2name='cations', switchdim=.true., &
+         long_name='rate which cations are lost to stream', units='g m-2 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%cation_runoff)
+
+      call restartvar(ncid=ncid, flag=flag, varname='proton_infl', xtype=ncd_double, &
+         dim1name='column', &
+         long_name='rate at which protons are infiltrated from above', units='g m-2 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%proton_infl)
+
+      call restartvar(ncid=ncid, flag=flag, varname='proton_oufl', xtype=ncd_double, &
+         dim1name='column', &
+         long_name='rate at which protons are infiltrated from below', units='g m-2 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%proton_oufl)
+
+      call restartvar(ncid=ncid, flag=flag, varname='proton_uptake', xtype=ncd_double, &
+         dim1name='column', &
+         long_name='rate at which protons are uptaken by plants', units='g m-2 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%proton_uptake)
+
+      call restartvar(ncid=ncid, flag=flag, varname='proton_leached', xtype=ncd_double, &
+         dim1name='column', &
+         long_name='rate at which protons are lost to stream', units='g m-2 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%proton_leached)
+
+      call restartvar(ncid=ncid, flag=flag, varname='proton_runoff', xtype=ncd_double, &
+         dim1name='column', &
+         long_name='rate at which protons are lost to stream', units='g m-2 s-1', &
+         interpinic_flag='interp', readvar=readvar, data=this%proton_runoff)
+
+      call restartvar(ncid=ncid, flag=flag, varname='r_sequestration', xtype=ncd_double, &
          dim1name='column', &
          long_name='net sequestration rate of the dissolution and precipitation reactions', units='gC m-2 s-1', &
          interpinic_flag='interp', readvar=readvar, data=this%r_sequestration)
-
-      do l = 1,ncations
-         write (l_str, '(I6)') l
-         l_str = adjustl(l_str)  ! Remove leading spaces
-         varname = 'CATION_LEACHED_vr_'//trim(l_str)
-         ptr2d => this%cation_leached_vr(:,:,l)
-         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
-            dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='rate which cations are lost to stream (vertically resolved)', units='kg m-2 s-1', &
-            interpinic_flag='interp', readvar=readvar, data=ptr2d)
-      end do
-
-      call restartvar(ncid=ncid, flag=flag, varname='BICARBONATE_LEACHED_vr', xtype=ncd_double, &
-         dim1name='column', dim2name='levgrnd', switchdim=.true., &
-         long_name='rate which bicarbonates are lost to stream (vertically resolved)', units='kg m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%bicarbonate_leached_vr)
-
-      do l = 1,ncations
-         write (l_str, '(I6)') l
-         l_str = adjustl(l_str)  ! Remove leading spaces
-         varname = 'CATION_RUNOFF_vr_'//trim(l_str)
-         ptr2d => this%cation_runoff_vr(:,:,l)
-         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
-            dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='rate which cations are lost to stream (vertically resolved)', units='kg m-2 s-1', &
-            interpinic_flag='interp', readvar=readvar, data=ptr2d)
-      end do
-
-      call restartvar(ncid=ncid, flag=flag, varname='BICARBONATE_RUNOFF_vr', xtype=ncd_double, &
-         dim1name='column', dim2name='levgrnd', switchdim=.true., &
-         long_name='rate which bicarbonates are lost to stream (vertically resolved)', units='kg m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%bicarbonate_runoff_vr)
-
-      call restartvar(ncid=ncid, flag=flag, varname='PRIMARY_ADDED', xtype=ncd_double, &
-         dim1name='column', dim2name='minerals', switchdim=.true., &
-         long_name='rate at which primary mineral is added', units='kg m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%primary_added)
-
-      call restartvar(ncid=ncid, flag=flag, varname='PRIMARY_DISSOLVE', xtype=ncd_double, &
-         dim1name='column', dim2name='minerals', switchdim=.true., &
-         long_name='rate at which primary mineral is dissolved', units='kg m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%primary_dissolve)
-
-      call restartvar(ncid=ncid, flag=flag, varname='PRIMARY_CO2_FLUX', xtype=ncd_double, &
-         dim1name='column', &
-         long_name='rate at which the primary reaction takes up co2', units='kg m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%primary_co2_flux)
-
-      call restartvar(ncid=ncid, flag=flag, varname='PRIMARY_H2O_FLUX', xtype=ncd_double, &
-         dim1name='column', &
-         long_name='rate at which the primary reaction uses up water', units='kg m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%primary_h2o_flux)
-
-      call restartvar(ncid=ncid, flag=flag, varname='PRIMARY_CATION_FLUX', xtype=ncd_double, &
-         dim1name='column', dim2name='cations', switchdim=.true., &
-         long_name='rate at which cation is created by primary mineral dissolution', units='kg m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%primary_cation_flux)
-
-      call restartvar(ncid=ncid, flag=flag, varname='PRIMARY_BICARBONATE_FLUX', xtype=ncd_double, &
-         dim1name='column', &
-         long_name='rate at which bicarbonate is generated by primary mineral dissolution', units='kg m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%primary_bicarbonate_flux)
-
-      call restartvar(ncid=ncid, flag=flag, varname='PRIMARY_SILICATE_FLUX', xtype=ncd_double, &
-         dim1name='column', &
-         long_name='rate at which silicate is generated by primary mineral dissolution', units='kg m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%primary_silicate_flux)
-
-      call restartvar(ncid=ncid, flag=flag, varname='SECONDARY_CATION_FLUX', xtype=ncd_double, &
-         dim1name='column', dim2name='cations', switchdim=.true., &
-         long_name='rate at which the precipitation reaction consumes cations', units='kg m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%secondary_cation_flux)
-
-      call restartvar(ncid=ncid, flag=flag, varname='SECONDARY_BICARBONATE_FLUX', xtype=ncd_double, &
-         dim1name='column', &
-         long_name='rate at which the precipitation reaction consumes bicarbonates', units='kg m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%secondary_bicarbonate_flux)
-
-      call restartvar(ncid=ncid, flag=flag, varname='SECONDARY_PRECIP', xtype=ncd_double, &
-         dim1name='column', dim2name='minsec', switchdim=.true., &
-         long_name='rate at which the precipitation reaction forms secondary minerals', units='kg m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%secondary_precip)
-
-      call restartvar(ncid=ncid, flag=flag, varname='SECONDARY_CO2_FLUX', xtype=ncd_double, &
-         dim1name='column', &
-         long_name='rate at which the precipitation reaction emits CO2', units='kg m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%secondary_co2_flux)
-
-      call restartvar(ncid=ncid, flag=flag, varname='SECONDARY_H2O_FLUX', xtype=ncd_double, &
-         dim1name='column', &
-         long_name='rate at which the precipitation reaction creates water', units='kg m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%secondary_h2o_flux)
-
-      call restartvar(ncid=ncid, flag=flag, varname='CATION_LEACHED', xtype=ncd_double, &
-         dim1name='column', dim2name='cations', switchdim=.true., &
-         long_name='rate which cations are lost to stream', units='kg m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%cation_leached)
-
-      call restartvar(ncid=ncid, flag=flag, varname='BICARBONATE_LEACHED', xtype=ncd_double, &
-         dim1name='column', &
-         long_name='rate which bicarbonates are lost to stream', units='kg m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%bicarbonate_leached)
-
-      call restartvar(ncid=ncid, flag=flag, varname='CATION_RUNOFF', xtype=ncd_double, &
-         dim1name='column', dim2name='cations', switchdim=.true., &
-         long_name='rate which cations are lost to stream', units='kg m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%cation_runoff)
-
-      call restartvar(ncid=ncid, flag=flag, varname='BICARBONATE_RUNOFF', xtype=ncd_double, &
-         dim1name='column', &
-         long_name='rate which bicarbonates are lost to stream', units='kg m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%bicarbonate_runoff)
 
    end subroutine col_mf_restart
 
@@ -12847,94 +13331,103 @@ contains
       do fc = 1,num_soilc
          c = filter_soilc(fc)
 
+         this%background_weathering(c,:)       = 0._r8
          this%primary_added(c,:)               = 0._r8
          this%primary_dissolve(c,:)            = 0._r8
-         this%primary_co2_flux(c)              = 0._r8
-         this%primary_h2o_flux(c)              = 0._r8
+         this%primary_proton_flux(c)           = 0._r8
          this%primary_cation_flux(c,:)         = 0._r8
-         this%primary_bicarbonate_flux(c)      = 0._r8
-         this%primary_silicate_flux(c)         = 0._r8
+         this%primary_h2o_flux(c)              = 0._r8
+         this%primary_silica_flux(c)           = 0._r8
+         this%primary_residue_flux(c,:)        = 0._r8
+
+         this%secondary_mineral_flux(c,:)      = 0._r8
 
          this%secondary_cation_flux(c,:)       = 0._r8
-         this%secondary_bicarbonate_flux(c)    = 0._r8
-         this%secondary_precip(c,:)            = 0._r8
-         this%secondary_co2_flux(c)            = 0._r8
-         this%secondary_h2o_flux(c)            = 0._r8
+         this%secondary_silica_flux(c)         = 0._r8
 
-         this%cation_leached(c,:)    = 0._r8
-         this%bicarbonate_leached(c) = 0._r8
-         this%cation_runoff(c,:)    = 0._r8
-         this%bicarbonate_runoff(c) = 0._r8
+         this%cec_cation_flux(c,:)             = 0._r8
+         this%cec_proton_flux(c)               = 0._r8
+
+         this%cation_infl(c,:)                 = 0._r8
+         this%cation_oufl(c,:)                 = 0._r8
+         this%cation_uptake(c,:)               = 0._r8
+         this%cation_leached(c,:)              = 0._r8
+         this%cation_runoff(c,:)               = 0._r8
+
+         this%proton_infl(c)                   = 0._r8
+         this%proton_oufl(c)                   = 0._r8
+         this%proton_uptake(c)                 = 0._r8
+         this%proton_leached(c)                = 0._r8
+         this%proton_runoff(c)                 = 0._r8
       end do
 
       do fc = 1,num_soilc
          c = filter_soilc(fc)
 
+         do a = 1,ncations
+            this%cation_infl(c,a) = this%cation_infl_vr(c,1,a) * col_pp%dz(c,1)
+            this%cation_oufl(c,a) = this%cation_oufl_vr(c,mixing_layer,a) * col_pp%dz(c,mixing_layer)
+         end do
+         this%proton_infl(c) = this%proton_infl_vr(c,1) * col_pp%dz(c,1)
+         this%proton_oufl(c) = this%proton_oufl_vr(c,mixing_layer) * col_pp%dz(c,mixing_layer)
+
          ! vertical integrated flux
-         do j = 1,nlevgrnd
+         do j = 1,mixing_layer
             do a = 1,nminerals
                this%primary_added(c,a) = &
-                  this%primary_added(c,a) + this%primary_added_vr(c,j,a)
-
+                  this%primary_added(c,a) + this%primary_added_vr(c,j,a) * col_pp%dz(c,j)
                this%primary_dissolve(c,a) = &
-                  this%primary_dissolve(c,a) + this%primary_dissolve_vr(c,j,a)
+                  this%primary_dissolve(c,a) + this%primary_dissolve_vr(c,j,a) * col_pp%dz(c,j)
+               this%primary_residue_flux(c,a) = &
+                  this%primary_residue_flux(c,a) + this%primary_residue_flux_vr(c,j,a) * col_pp%dz(c,j)
             end do
 
-            this%primary_co2_flux(c) = &
-               this%primary_co2_flux(c) + this%primary_co2_flux_vr(c,j)
-
-            this%primary_h2o_flux(c) = &
-               this%primary_h2o_flux(c) + this%primary_h2o_flux_vr(c,j)
+            do a = 1,ncations
+               this%background_weathering(c,a) = this%background_weathering(c,a) + &
+                  this%background_weathering_vr(c,j,a) * col_pp%dz(c,j)
+               this%primary_cation_flux(c,a) = &
+                  this%primary_cation_flux(c,a) + this%primary_cation_flux_vr(c,j,a) * col_pp%dz(c,j)
+               this%secondary_cation_flux(c,a) = &
+                  this%secondary_cation_flux(c,a) + this%secondary_cation_flux_vr(c,j,a) * col_pp%dz(c,j)
+               this%cec_cation_flux(c,a) = &
+                  this%cec_cation_flux(c,a) + this%cec_cation_flux_vr(c,j,a) * col_pp%dz(c,j)
+               this%cation_uptake(c,a) = &
+                  this%cation_uptake(c,a) + this%cation_uptake_vr(c,j,a) * col_pp%dz(c,j)
+               this%cation_leached(c,a) = &
+                  this%cation_leached(c,a) + this%cation_leached_vr(c,j,a) * col_pp%dz(c,j)
+               this%cation_runoff(c,a) = &
+                  this%cation_runoff(c,a) + this%cation_runoff_vr(c,j,a) * col_pp%dz(c,j)
+            end do
 
             this%primary_proton_flux(c) = &
-               this%primary_proton_flux(c) + this%primary_proton_flux_vr(c,j)
+               this%primary_proton_flux(c) + this%primary_proton_flux_vr(c,j) * col_pp%dz(c,j)
 
-            do a = 1,ncations
-               this%primary_cation_flux(c,a) = &
-                  this%primary_cation_flux(c,a) + this%primary_cation_flux_vr(c,j,a)
-            end do
+            this%primary_h2o_flux(c) = &
+               this%primary_h2o_flux(c) + this%primary_h2o_flux_vr(c,j) * col_pp%dz(c,j)
 
-            this%primary_bicarbonate_flux(c) = &
-               this%primary_bicarbonate_flux(c) + this%primary_bicarbonate_flux_vr(c,j)
+            this%primary_silica_flux(c) = &
+               this%primary_silica_flux(c) + this%primary_silica_flux_vr(c,j) * col_pp%dz(c,j)
 
-            this%primary_silicate_flux(c) = &
-               this%primary_silicate_flux(c) + this%primary_silicate_flux_vr(c,j)
-
-            do a = 1,ncations
-               this%secondary_cation_flux(c,a) = &
-                  this%secondary_cation_flux(c,a) + this%secondary_cation_flux_vr(c,j,a)
-            end do
-
-            this%secondary_bicarbonate_flux(c) = &
-               this%secondary_bicarbonate_flux(c) + this%secondary_bicarbonate_flux_vr(c,j)
+            this%secondary_silica_flux(c) = &
+               this%secondary_silica_flux(c) + this%secondary_silica_flux_vr(c,j) * col_pp%dz(c,j)
 
             do a = 1,nminsec
-               this%secondary_precip(c,a) = &
-                  this%secondary_precip(c,a) + this%secondary_precip_vr(c,j,a)
+               this%secondary_mineral_flux(c,a) = &
+                  this%secondary_mineral_flux(c,a) + this%secondary_mineral_flux_vr(c,j,a) * col_pp%dz(c,j)
             end do
 
-            this%secondary_co2_flux(c) = &
-               this%secondary_co2_flux(c) + this%secondary_co2_flux_vr(c,j)
+            this%cec_proton_flux(c) = &
+               this%cec_proton_flux(c) + this%cec_proton_flux_vr(c,j) * col_pp%dz(c,j)
 
-            this%secondary_h2o_flux(c) = &
-               this%secondary_h2o_flux(c) + this%secondary_h2o_flux_vr(c,j)
+            this%proton_uptake(c) = this%proton_uptake(c) + this%proton_uptake_vr(c,j) * col_pp%dz(c,j)
 
-            do a = 1,ncations
-               this%cation_leached(c,a) = &
-                  this%cation_leached(c,a) + this%cation_leached_vr(c,j,a)
-               this%cation_runoff(c,a) = &
-                  this%cation_runoff(c,a) + this%cation_runoff_vr(c,j,a)
-            end do
-
-            this%bicarbonate_leached(c) = &
-               this%bicarbonate_leached(c) + this%bicarbonate_leached_vr(c,j)
-            this%bicarbonate_runoff(c) = &
-               this%bicarbonate_runoff(c) + this%bicarbonate_runoff_vr(c,j)
+            this%proton_leached(c) = &
+               this%proton_leached(c) + this%proton_leached_vr(c,j) * col_pp%dz(c,j)
+            this%proton_runoff(c) = &
+               this%proton_runoff(c) + this%proton_runoff_vr(c,j) * col_pp%dz(c,j)
          end do
-
       end do
    end subroutine col_mf_summary
-
 
    !------------------------------------------------------------------------
    subroutine col_mf_clean(this)
