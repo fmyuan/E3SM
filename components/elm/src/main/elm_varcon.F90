@@ -75,9 +75,9 @@ module elm_varcon
   real(r8) :: re = SHR_CONST_REARTH*0.001_r8                ! radius of earth (km)
 
   real(r8), public, parameter :: degpsec = 15._r8/3600.0_r8 ! Degree's earth rotates per second
-  real(r8), public, parameter ::  secspday= SHR_CONST_CDAY  ! Seconds per day
+  real(r8), public, parameter :: secspday= SHR_CONST_CDAY   ! Seconds per day
   integer,  public, parameter :: isecspday= secspday        ! Integer seconds per day
-  real(r8), public, parameter ::  spval = 1.e36_r8          ! special value for real data
+  real(r8), public, parameter :: spval = 1.e36_r8           ! special value for real data
   integer , public, parameter :: ispval = -9999             ! special value for int data 
                                                             ! (keep this negative to avoid conflicts with possible valid values)
 
@@ -222,6 +222,28 @@ module elm_varcon
   real(r8), public, parameter :: snw_rds_min = 54.526_r8    
   !-----------------------------------------------------------------------
 
+  !------------------------------------------------------------------
+  ! (Non-tunable) Constants in Enhanced Weathering submodule
+  !------------------------------------------------------------------
+  ! CO2 dissolution reaction's equilibrium constants, from llnl.dat
+  real(r8) :: log_keq_hco3 = -7.8136_r8 ! product is HCO3-
+  real(r8) :: log_keq_co3  = -10.3288_r8 ! product is CO3 2-
+  ! molar mass of different molecules of interest, g/mol
+  real(r8) :: mass_co3   = 60.0080_r8 ! carbonate anion
+  real(r8) :: mass_hco3  = 61.02_r8 ! bicarbonate anion
+  real(r8) :: mass_co2   = 44.01_r8 ! carbon dioxide
+  real(r8) :: mass_h2o   = 18.01_r8 ! water
+  real(r8) :: mass_sio2  = 60.0843_r8  ! SiO2 (silicon)
+  real(r8) :: mass_h     = 1.007_r8 ! proton H+
+  ! secondary mineral precipitation reaction's equilibrium constant
+  real(r8) :: log_keq_minsec(2)
+  real(r8) :: log_keq_sio2am = -2.71_r8 ! SiO2(am), Taylor et al. (2016) DOI: 10.1038/NCLIMATE2882
+  ! reaction constant
+  real(r8) :: alpha_minsec(2) ! mol kg-1 s-1
+  ! molar mass of secondary minerals
+  ! order is calcite | kaolinite
+  real(r8) :: mass_minsec(2)
+
 contains
 
   !------------------------------------------------------------------------------
@@ -251,6 +273,21 @@ contains
     if (use_extrasnowlayers) then
        h2osno_max = 10000._r8
     end if
+
+    log_keq_minsec(1) = -8.48_r8 ! CaCO3, phreeqc.dat
+    log_keq_minsec(2) = 6.8101_r8 ! Al2Si2O5(OH)4, llnl.dat
+    mass_minsec(1) = 100.0869 ! CaCO3
+    mass_minsec(2) = 258.1604 ! Al2Si2O5(OH)4
+
+    ! Set equal to CaCO3 rate in
+    ! Kirk, G. J. D., Versteegen, A., Ritz, K. & Milodowski, A. E. A simple reactive-transport model of calcite precipitation in soils and other porous media. Geochimica et Cosmochimica Acta 165, 108–122 (2015).
+    alpha_minsec(1) = 9e-10_r8 ! mol kg-1 s-1
+
+    ! Set to kaolinite precipitation rate
+    ! Perez-Fodich, A., & Derry, L. A. (2020). A model for germanium-silicon equilibrium fractionation in kaolinite. Geochimica et Cosmochimica Acta, 288, 199–213. https://doi.org/10.1016/j.gca.2020.07.046
+    ! calculated as per gram seeding mineral surface 
+    ! 1e-13 [mol m-2 surface area s-1] * 0.64 [m2 surface area g-1]
+    alpha_minsec(2) = 6.4e-14_r8 ! mol g-1 s-1
 
   end subroutine elm_varcon_init
 

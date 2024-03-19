@@ -6,8 +6,8 @@ module EcosystemDynMod
   ! !USES:
   use dynSubgridControlMod, only : get_do_harvest
   use shr_kind_mod        , only : r8 => shr_kind_r8
-  use shr_sys_mod         , only : shr_sys_flush
   use elm_varctl          , only : use_c13, use_c14, use_fates, use_dynroot, use_ew
+  use elm_varctl          , only : spinup_state, nyears_before_ew
   use decompMod           , only : bounds_type
   use perf_mod            , only : t_startf, t_stopf
   use spmdMod             , only : masterproc
@@ -120,7 +120,7 @@ contains
   subroutine EcosystemDynLeaching(bounds, num_soilc, filter_soilc, &
        num_soilp, filter_soilp, num_pcropp, filter_pcropp, doalb, &
        cnstate_vars,  &
-       frictionvel_vars, canopystate_vars )
+       frictionvel_vars, canopystate_vars, soilstate_vars )
     !
     ! !DESCRIPTION:
     ! The core CN code is executed here. Calculates fluxes for maintenance
@@ -137,9 +137,9 @@ contains
     use PhosphorusStateUpdate3Mod     , only: PhosphorusStateUpdate3
     use PrecisionControlMod  , only: PrecisionControl
     use perf_mod             , only: t_startf, t_stopf
-    use shr_sys_mod          , only: shr_sys_flush
     use PhosphorusDynamicsMod         , only: PhosphorusBiochemMin_balance
     use EnhancedWeatheringMod         , only: MineralLeaching
+    use MineralStateUpdateMod         , only: MineralStateUpdate, MineralFluxLimit
 
     !
     ! !ARGUMENTS:
@@ -155,10 +155,15 @@ contains
     type(frictionvel_type)   , intent(in)    :: frictionvel_vars
     type(canopystate_type)   , intent(inout) :: canopystate_vars
 
+    ! DEBUG
+    type(soilstate_type), intent(in) :: soilstate_vars
+
     character(len=64) :: event
     real(r8) :: dt
+    integer  :: year
     !-----------------------------------------------------------------------
     dt = dtime_mod;
+    year = year_curr
 
     ! only do if ed is off
     event = 'PhosphorusWeathering'
@@ -207,10 +212,12 @@ contains
      call PhosphorusLeaching(bounds, num_soilc, filter_soilc, dt)
 
      if (use_ew) then
-         call MineralLeaching(bounds, num_soilc, filter_soilc, dt)
+       if (spinup_state == 0 .or. year > nyears_before_ew) then
+          call MineralLeaching(bounds, num_soilc, filter_soilc, dt)
+       end if
      end if
     end if !(.not. (pf_cmode .and. pf_hmode))
-       !-----------------------------------------------------------------------
+    !-----------------------------------------------------------------------
 
     event = 'CNUpdate3'
     call t_start_lnd(event)
@@ -222,6 +229,16 @@ contains
     call PhosphorusStateUpdate3(bounds,num_soilc, filter_soilc, num_soilp, filter_soilp, &
         cnstate_vars, dt)
     call t_stop_lnd(event)
+
+    if (use_ew) then
+       if (spinup_state == 0 .or. year > nyears_before_ew) then
+          event = 'MUpdateLeaching'
+          call t_start_lnd(event)
+          call MineralFluxLimit(num_soilc, filter_soilc, col_ms, col_mf, dt)
+          call MineralStateUpdate(num_soilc, filter_soilc, col_ms, col_mf, dt, soilstate_vars)
+          call t_stop_lnd(event)
+       end if
+    end if
 
     event = 'CNPsum'
     call t_start_lnd(event)
@@ -531,8 +548,7 @@ contains
     use RootDynamicsMod              , only: RootDynamics
     use SoilLittDecompMod            , only: SoilLittDecompAlloc
     use SoilLittDecompMod            , only: SoilLittDecompAlloc2 !after SoilLittDecompAlloc
-    use EnhancedWeatheringMod        , only: MineralReaction
-    use MineralStateUpdateMod        , only: MineralStateUpdate
+    use EnhancedWeatheringMod        , only: MineralInit, MineralEquilibria, MineralDynamics, MineralLeaching
 
     !
     ! !ARGUMENTS:
@@ -560,8 +576,7 @@ contains
     character(len=64) :: event
     real(r8) :: dt
     integer :: c13, c14
-
-
+    integer  :: year
     integer :: c, fc
 
 
@@ -569,6 +584,8 @@ contains
     c14 = 1
     !-----------------------------------------------------------------------
     dt = dtime_mod
+    year = year_curr
+
     ! Call the main CN routines
 
     event = 'SoilLittDecompAlloc'
@@ -601,20 +618,15 @@ contains
 
     !----------------------------------------------------------------
     ! Enhanced weathering reactions
-    ! DEBUG
-    !write (iulog, *) 'Before reaction'
-    !do fc = 1,num_soilc
-    !  c = filter_soilc(fc)
-    !  write (iulog, *) col_ms%primary_mineral_vr(c,1,1)
-    !end do
     if (use_ew) then
-         call MineralReaction(bounds, num_soilc, filter_soilc)
+      if (spinup_state == 1 .and. year == nyears_before_ew) then
+         call MineralInit(bounds, num_soilc, filter_soilc, soilstate_vars)
+      end if
+      if (spinup_state == 0 .or. year > nyears_before_ew) then
+         call MineralDynamics(bounds, num_soilc, filter_soilc, soilstate_vars)
+         call MineralEquilibria(bounds, num_soilc, filter_soilc, soilstate_vars)
+      end if
     end if
-    !write (iulog, *) 'After reaction'
-    !do fc = 1,num_soilc
-    !  c = filter_soilc(fc)
-    !  write (iulog, *) col_ms%primary_mineral_vr(c,1,1)
-    !end do
 
     !----------------------------------------------------------------
 
@@ -754,19 +766,8 @@ contains
 
    !----------------------------------------------------------------
    ! Enhanced weathering reactions
-   !write (iulog, *) 'Before update'
-   !do fc = 1,num_soilc
-   !  c = filter_soilc(fc)
-   !  write (iulog, *) col_ms%primary_mineral_vr(c,1,1)
-   !end do
    if (use_ew) then
-        call MineralStateUpdate(num_soilc, filter_soilc, col_ms, col_mf, dt)
    end if
-   !write (iulog, *) 'After update'
-   !do fc = 1,num_soilc
-   !  c = filter_soilc(fc)
-   !  write (iulog, *) col_ms%primary_mineral_vr(c,1,1)
-   !end do
 
    call t_stop_lnd(event)
 

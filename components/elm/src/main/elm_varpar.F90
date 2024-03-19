@@ -52,10 +52,16 @@ module elm_varpar
   ! FIX(RF,032414) might we set some of these automatically from reading pft-physiology?
   integer, parameter :: numveg      =  16     ! number of veg types (without specific crop)
 
-  integer, parameter :: nminerals   =  1      ! maximum allowed number of minerals that are contained in the rock in enhanced weathering (specify fraction = zero in the input file when <10 minerals are contained in the rock)
-  integer, parameter :: ncations    =  2      ! number of cations in chemical reactions for enhanced weathering
-  integer, parameter :: nminsec     =  1      ! number of secondary minerals formed in chemical reactions for enhanced weathering
+  integer, parameter :: nminerals   =  5      ! maximum allowed number of minerals that are contained in the rock in enhanced weathering (specify fraction = zero in the input file if < nminerals are contained in the rock powder)
+  integer, parameter :: ncations    =  5      ! number of cations in chemical reactions for enhanced weathering: Ca2+, Mg2+, Na+, K+, Al3+ (H+ is tracked in soil pH)
+  integer, parameter :: nminsec     =  2      ! number of secondary minerals formed in chemical reactions for enhanced weathering: CaCO3, kaolinite
+  integer, parameter :: nks         =  3      ! number of dissolution mechanisms (H+, H2O, OH-) for primary minerals
   real(r8), parameter:: mixing_depth = 0.3    ! assume enhanced weathering mineral is evenly mixed in the top 30cm of soil
+  integer            :: mixing_layer          ! calculate the maximum layer of reaction above 30cm
+  character(len=4)   :: cation_names  (1:ncations)
+  real(r8)           :: cation_mass   (1:ncations) ! molar masses of the cation species, g/mol
+  real(r8)           :: cation_valence(1:ncations) ! valence of the cations
+  character(len=30)  :: minsec_names  (1:nminsec) ! names of the secondary minerals for the record
 
   integer, parameter :: nlayer      =   3     ! number of VIC soil layer --Added by AWang
   integer            :: nlayert               ! number of VIC soil layer + 3 lower thermal layers
@@ -142,6 +148,7 @@ contains
     !
     character(len=32) :: subname = 'elm_varpar_init'  ! subroutine name
     integer           :: max_fates_veg ! temporary over-writes natpft_size w/ FATES
+    integer           :: n ! temporary index
     !------------------------------------------------------------------------------
 
     ! Crop settings and consistency checks
@@ -248,6 +255,31 @@ contains
        i_lig_lit = 3
        i_cwd = 4
     end if    
+
+    ! constant array of cation names
+    cation_names(1) = 'Ca2+'
+    cation_names(2) = 'Mg2+'
+    cation_names(3) = 'Na+ '
+    cation_names(4) = 'K+  '
+    cation_names(5) = 'Al3+'
+
+    ! constant array of molar masses, g/mol
+    cation_mass(1) = 40.078
+    cation_mass(2) = 24.305
+    cation_mass(3) = 22.99
+    cation_mass(4) = 39.0983
+    cation_mass(5) = 26.98
+
+    ! constant array of cation valence
+    cation_valence(1) = 2
+    cation_valence(2) = 2
+    cation_valence(3) = 1
+    cation_valence(4) = 1
+    cation_valence(5) = 3
+
+    ! constant array of secondary mineral names
+    minsec_names(1) = 'CaCO3'
+    minsec_names(2) = 'Al2Si2O5(OH)4'
 
   end subroutine elm_varpar_init
 

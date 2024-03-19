@@ -248,7 +248,7 @@ contains
     ! Initialize the enhanced weathering module
     if (use_ew) then
       call col_ew%Init(begc, endc)
-      call col_ms%Init(begc, endc)
+      call col_ms%Init(begc, endc, soilstate_vars)
       call col_mf%Init(begc, endc)
     end if
 

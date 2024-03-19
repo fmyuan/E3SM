@@ -63,6 +63,7 @@ module elm_driver
   use AnnualUpdateMod      , only : AnnualUpdate
   use EcosystemBalanceCheckMod      , only : BeginColCBalance, BeginColNBalance, ColCBalanceCheck, ColNBalanceCheck
   use EcosystemBalanceCheckMod      , only : BeginColPBalance, ColPBalanceCheck
+  use EcosystemBalanceCheckMod      , only : BeginColMBalance, ColMBalanceCheck
   use EcosystemBalanceCheckMod      , only : BeginGridCBalance, GridCBalanceCheck
   use EcosystemBalanceCheckMod      , only : BeginGridNBalance
   use EcosystemBalanceCheckMod      , only : BeginGridPBalance
@@ -148,6 +149,7 @@ module elm_driver
   use ColumnDataType         , only : col_cf, c13_col_cf, c14_col_cf
   use ColumnDataType         , only : col_ns, col_nf
   use ColumnDataType         , only : col_ps, col_pf
+  use ColumnDataType         , only : col_ms, col_mf
   use VegetationType         , only : veg_pp
   use VegetationDataType     , only : veg_es, veg_ws, veg_wf, veg_cf
   use VegetationDataType     , only : veg_cs, c13_veg_cs, c14_veg_cs
@@ -592,6 +594,14 @@ contains
           call BeginColPBalance(bounds_clump, &
                filter(nc)%num_soilc, filter(nc)%soilc, &
                col_ps)
+
+          if (use_ew) then
+            call col_ms%Summary(bounds_clump, &
+                  filter(nc)%num_soilc, filter(nc)%soilc)
+            call BeginColMBalance(bounds_clump, &
+                  filter(nc)%num_soilc, filter(nc)%soilc, &
+                  col_ms)
+          end if
 
           call t_stopf('begcnpbalwf')
        end if
@@ -1275,7 +1285,7 @@ contains
                filter(nc)%num_soilc, filter(nc)%soilc,             &
                filter(nc)%num_soilp, filter(nc)%soilp,             &
                filter(nc)%num_pcropp, filter(nc)%pcropp, doalb,    &
-               cnstate_vars,  frictionvel_vars, canopystate_vars )
+               cnstate_vars,  frictionvel_vars, canopystate_vars, soilstate_vars )
          end if
        end if
 
@@ -1349,6 +1359,12 @@ contains
           call ColPBalanceCheck(bounds_clump, &
                filter(nc)%num_soilc, filter(nc)%soilc, &
                col_ps, col_pf)
+
+          if (use_ew) then
+            call ColMBalanceCheck(bounds_clump, &
+                  filter(nc)%num_soilc, filter(nc)%soilc, &
+                  col_ms, col_mf)
+          end if
 
           call GridCBalanceCheck(bounds_clump, col_cs, col_cf, grc_cs, grc_cf)
 

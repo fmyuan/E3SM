@@ -6,15 +6,22 @@ module MineralStateUpdateMod
   ! !USES:
   use shr_kind_mod            , only : r8 => shr_kind_r8
   use decompMod               , only : bounds_type
-  use elm_varpar              , only : nminerals, ncations, nminsec, nlevgrnd, mixing_depth
-  use elm_varcon              , only : zisoi, dzsoi
+  use elm_varpar              , only : nminerals, ncations, nminsec, nlevgrnd, mixing_layer, cation_mass, cation_valence, cation_names
+  use elm_varcon              , only : zisoi, dzsoi, mass_h
   !use elm_varctl              , only : nu_com
   !use elm_varctl              , only : use_pflotran, pf_cmode, use_fates
+  use elm_varctl              , only : iulog
+  use abortutils              , only : endrun
+
+  ! DEBUG
+  use ewutils                 , only : mass_to_mol, mass_to_meq
+  use ColumnDataType          , only : col_ws
 
   !use GridcellDataType        , only : grc_cs, c13_grc_cs, c14_grc_cs
   !use GridcellDataType        , only : grc_cf, c13_grc_cf, c14_grc_cf
   use ColumnDataType          , only : col_ms, col_mf, col_pp
   use ColumnDataType          , only : column_mineral_state, column_mineral_flux
+  use SoilStateType           , only : soilstate_type
   !
   implicit none
   save
@@ -22,16 +29,16 @@ module MineralStateUpdateMod
   !
   ! !PUBLIC MEMBER FUNCTIONS:
   public :: MineralStateUpdate
+  public :: MineralFluxLimit
   !-----------------------------------------------------------------------
 
 contains
 
   !-----------------------------------------------------------------------
-  subroutine MineralStateUpdate(num_soilc, filter_soilc, col_ms, col_mf, dt)
+  subroutine MineralStateUpdate(num_soilc, filter_soilc, col_ms, col_mf, dt, soilstate_vars)
     !
     ! !DESCRIPTION:
-    ! On the radiation time step, update all the prognostic carbon state
-    ! variables (except for gap-phase mortality and fire fluxes)
+    ! On the radiation time step, update all the prognostic mineral state variables
     !
     !$acc routine seq
     ! !ARGUMENTS:
@@ -41,61 +48,230 @@ contains
     type(column_mineral_flux)    , intent(inout) :: col_mf
     real(r8)                     , intent(in)    :: dt              ! radiation time step (seconds)
 
+    ! DEBUG
+    type(soilstate_type)         , intent(in)    :: soilstate_vars
+
     !
     ! !LOCAL VARIABLES:
-    integer  :: c,p,j,k,l,a,m ! indices
+    integer  :: c,p,j,k,a,m ! indices
     integer  :: fp,fc         ! lake filter indices
-    integer  :: maxlayer      ! deepest layer for mineral reactions
+    real(r8) :: flux_limit
+    real(r8) :: temp_solution_balance
     !-----------------------------------------------------------------------
 
     ! Update mineral state
     do fc = 1,num_soilc
       c = filter_soilc(fc)
 
-      ! find the maximum layer of reaction
-      maxlayer = 1
-      do l = 2,nlevgrnd
-        if (zisoi(l-1) < mixing_depth) then
-          maxlayer = l
-        end if
+      col_mf%r_sequestration(c) = 0._r8
+
+      do j = 1,mixing_layer
+
+        ! -----------------------------------------------------------------------------------
+        ! Balance update
+        ! -----------------------------------------------------------------------------------
+
+        ! cations
+        do a = 1,ncations
+          col_ms%cation_vr(c,j,a) = col_ms%cation_vr(c,j,a) + &
+            col_mf%background_weathering_vr(c,j,a)*dt + col_mf%primary_cation_flux_vr(c,j,a)*dt - &
+            col_mf%secondary_cation_flux_vr(c,j,a)*dt + col_mf%cec_cation_flux_vr(c,j,a)*dt + &
+            col_mf%cation_infl_vr(c,j,a)*dt - col_mf%cation_oufl_vr(c,j,a)*dt - &
+            col_mf%cation_uptake_vr(c,j,a)*dt - col_mf%cation_leached_vr(c,j,a)*dt - col_mf%cation_runoff_vr(c,j,a)*dt
+
+          col_ms%cec_cation_vr(c,j,a) = col_ms%cec_cation_vr(c,j,a) - col_mf%cec_cation_flux_vr(c,j,a)*dt
+        end do
+
+        ! soil H+ concentration (g m-3 soil)
+        col_ms%proton_vr(c,j) = col_ms%proton_vr(c,j) - col_mf%primary_proton_flux_vr(c,j)*dt + col_mf%cec_proton_flux_vr(c,j)*dt + col_mf%proton_infl_vr(c,j)*dt - col_mf%proton_oufl_vr(c,j)*dt - col_mf%proton_uptake_vr(c,j)*dt - col_mf%proton_leached_vr(c,j)*dt - col_mf%proton_runoff_vr(c,j)*dt
+
+        col_ms%soil_ph(c,j) = - log10(mass_to_mol(col_ms%proton_vr(c,j), 1._r8, col_ws%h2osoi_vol(c,j)))
+
+        ! primary mineral
+        do m = 1,nminerals
+          col_ms%primary_mineral_vr(c,j,m) = col_ms%primary_mineral_vr(c,j,m) + &
+            col_mf%primary_added_vr(c,j,m)*dt - col_mf%primary_dissolve_vr(c,j,m)*dt
+          ! non-SiO2 minerals
+          col_ms%primary_residue_vr(c,j,m) = col_ms%primary_residue_vr(c,j,m) + &
+            col_mf%primary_residue_flux_vr(c,j,m)*dt
+        end do
+
+        ! note "cec_proton_flux_vr" integrates the impacts from CO2 reactions
+        ! instead, use charge balance on the mineral surface to get the change in adsorped H+
+        do a = 1,ncations
+          col_ms%cec_proton_vr(c,j) = col_ms%cec_proton_vr(c,j) + col_mf%cec_cation_flux_vr(c,j,a)*dt/cation_mass(a)*mass_h*cation_valence(a)
+        end do
+
+        ! silicate
+        col_ms%silica_vr(c,j) = col_ms%silica_vr(c,j) + col_mf%primary_silica_flux_vr(c,j) * dt - col_mf%secondary_silica_flux_vr(c,j) * dt
+
+        ! secondary mineral
+        do m = 1,nminsec
+            col_ms%secondary_mineral_vr(c,j,m) = col_ms%secondary_mineral_vr(c,j,m) + col_mf%secondary_mineral_flux_vr(c,j,m) * dt
+        end do
+
+        ! TODO: ignore the effect on soil water for now
+
+        ! Calculate the total CO2 sequestration rate in mol m-2 s-1
+        ! precipitated by calcite: 1 mol CO2 per mol Ca2+
+        col_mf%r_sequestration(c) = col_mf%r_sequestration(c) + col_mf%secondary_cation_flux_vr(c,j,1) / cation_mass(1)
+        ! transported to ocean: 2x for 2+ cations, 1x for 1+ cations
+        do a = 1,ncations
+          col_mf%r_sequestration(c) = col_mf%r_sequestration(c) + & 
+              (col_mf%cation_leached_vr(c,j,a) + col_mf%cation_leached_vr(c,j,a)) / &
+              cation_mass(a) * cation_valence(a)
+        end do
       end do
 
-      do l = 1,maxlayer
-          ! primary mineral
-          do m = 1,nminerals
-              col_ms%primary_mineral_vr(c,l,m) = col_ms%primary_mineral_vr(c,l,m) + &
-                (col_mf%primary_added_vr(c,l,m) - col_mf%primary_dissolve_vr(c,l,m)) * dt
-          end do
+      ! convert from mol m-2 s-1 to gC m-2 s-1
+      col_mf%r_sequestration(c) = col_mf%r_sequestration(c) * 12._r8
+      ! multiply by oceanic efficiency
+      col_mf%r_sequestration(c) = col_mf%r_sequestration(c) * 0.86
 
-          ! cations
-          do a = 1,ncations
-              col_ms%cation_vr(c,l,a) = col_ms%cation_vr(c,l,a) + &
-                (col_mf%primary_cation_flux_vr(c,l,a) - &
-                 col_mf%secondary_cation_flux_vr(c,l,a) - &
-                 col_mf%cation_leached_vr(c,l,a) - &
-                 col_mf%cation_runoff_vr(c,l,a)) * dt
-          end do
+      !write (iulog, *) 'Post-reaction H+'
+      !do j = 1,mixing_layer
+      !  write (iulog, *) c, j, col_ms%soil_ph(c,j), col_ms%proton_vr(c,j), mass_to_mol(col_ms%proton_vr(c,j), mass_h, col_ws%h2osoi_vol(c,j)), - col_mf%primary_proton_flux_vr(c,j)*dt, col_mf%cec_proton_flux_vr(c,j)*dt, col_mf%proton_infl_vr(c,j)*dt, - col_mf%proton_oufl_vr(c,j)*dt, -col_mf%proton_uptake_vr(c,j)*dt, -col_mf%proton_leached_vr(c,j)*dt, -col_mf%proton_runoff_vr(c,j)*dt
+      !end do
 
-          ! bicarbonate
-          col_ms%bicarbonate_vr(c,l) = col_ms%bicarbonate_vr(c,l) + &
-            (col_mf%primary_bicarbonate_flux_vr(c,l) - &
-             col_mf%secondary_bicarbonate_flux_vr(c,l) - &
-             col_mf%bicarbonate_leached_vr(c,l) - &
-             col_mf%bicarbonate_runoff_vr(c,l)) * dt
+      !write (iulog, *) 'Post-reaction cation'
+      !do j = 1,mixing_layer
+      !  do a = 1, ncations
+      !    write (iulog, *) c, j, a, col_ms%cation_vr(c,j,a), mass_to_mol(col_ms%cation_vr(c,j,a), cation_mass(a), col_ws%h2osoi_vol(c,j)), col_mf%background_weathering_vr(c,j,a)*dt, col_mf%primary_cation_flux_vr(c,j,a)*dt, - col_mf%secondary_cation_flux_vr(c,j,a)*dt, col_mf%cec_cation_flux_vr(c,j,a)*dt, col_mf%cation_infl_vr(c,j,a)*dt, -col_mf%cation_oufl_vr(c,j,a)*dt, - col_mf%cation_uptake_vr(c,j,a)*dt, - col_mf%cation_leached_vr(c,j,a)*dt, - col_mf%cation_runoff_vr(c,j,a)*dt
+      !  end do
+      !end do
 
-          ! silicate
-          col_ms%silicate_vr(c,l) = col_ms%silicate_vr(c,l) + &
-            col_mf%primary_silicate_flux_vr(c,l) * dt
+      !write (iulog, *) 'Post-reaction cec H+'
+      !do j = 1,mixing_layer
+      !  write (iulog, *) c, j, col_ms%cec_proton_vr(c,j), mass_to_meq(col_ms%cec_proton_vr(c,j), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), mass_to_meq(col_mf%cec_cation_flux_vr(c,j,1)*dt/cation_mass(1)*mass_h*cation_valence(1) + col_mf%cec_cation_flux_vr(c,j,2)*dt/cation_mass(2)*mass_h*cation_valence(2) + col_mf%cec_cation_flux_vr(c,j,3)*dt/cation_mass(3)*mass_h*cation_valence(3) + col_mf%cec_cation_flux_vr(c,j,4)*dt/cation_mass(4)*mass_h*cation_valence(4) + col_mf%cec_cation_flux_vr(c,j,5)*dt/cation_mass(5)*mass_h*cation_valence(5), 1._r8, mass_h, soilstate_vars%bd_col(c,j))
+      !end do
 
-          ! secondary mineral
-          do m = 1,nminsec
-              col_ms%secondary_mineral_vr(c,l,m) = col_ms%secondary_mineral_vr(c,l,m) + col_mf%secondary_precip_vr(c,l,m) * dt
-          end do
+      !write (iulog, *) 'Post-reaction cec cation'
+      !do j = 1,mixing_layer
+      !  do a = 1, ncations
+      !    write (iulog, *) c, j, a, col_ms%cec_cation_vr(c,j,a), mass_to_meq(col_ms%cec_cation_vr(c,j,a), cation_valence(a), cation_mass(a), soilstate_vars%bd_col(c,j)), -col_mf%cec_cation_flux_vr(c,j,a)*dt
+      !  end do
+      !end do
 
-          ! TODO: ignore the effect on soil water for now
+      !do j = 1,mixing_layer
+      !  do a = 1,ncations
+      !    if (col_ms%cation_vr(c,j,a) < 0) then
+      !      write (iulog, *) c, j, a, col_mf%cec_cation_flux_vr(c,j,a)*dt
+      !      call endrun(msg='cation_vr < 0')
+      !    end if
+      !  end do
+      !end do
+
+    end do
+  end subroutine MineralStateUpdate
+
+
+  !-----------------------------------------------------------------------
+  subroutine MineralFluxLimit(num_soilc, filter_soilc, col_ms, col_mf, dt)
+    !
+    ! !DESCRIPTION:
+    ! Scale down secondary mineral precipitation and CEC flux rate, if they cause negative
+    ! cation balance
+    !
+    !$acc routine seq
+    ! !ARGUMENTS:
+    integer                      , intent(in)    :: num_soilc       ! number of soil columns filter
+    integer                      , intent(in)    :: filter_soilc(:) ! filter for soil columns
+    type(column_mineral_state)   , intent(inout) :: col_ms
+    type(column_mineral_flux)    , intent(inout) :: col_mf
+    real(r8)                     , intent(in)    :: dt              ! radiation time step (seconds)
+    !
+    ! !LOCAL VARIABLES:
+    integer  :: c,j,a,m ! indices
+    integer  :: fc      ! lake filter indices
+    real(r8) :: flux_limit
+    real(r8) :: temp_solution_balance
+    !-----------------------------------------------------------------------
+
+    do fc = 1,num_soilc
+      c = filter_soilc(fc)
+      do j = 1,mixing_layer
+
+        ! check secondary mineral precipitation
+        do m = 1,nminsec
+          if (m == 1) then
+            a = 1
+          else
+            a = 5
+          end if
+
+          if (col_mf%r_precip_vr(c,j,m) > 0._r8) then
+
+            temp_solution_balance = col_ms%cation_vr(c,j,a) + &
+                col_mf%background_weathering_vr(c,j,a)*dt + &
+                col_mf%primary_cation_flux_vr(c,j,a)*dt + &
+                col_mf%cation_infl_vr(c,j,a)*dt - col_mf%cation_oufl_vr(c,j,a)*dt - &
+                col_mf%cation_uptake_vr(c,j,a)*dt - col_mf%cation_leached_vr(c,j,a)*dt - &
+                col_mf%cation_runoff_vr(c,j,a)*dt
+
+            if (col_mf%cec_cation_flux_vr(c,j,a) < 0._r8) then
+              ! precipitation in conjunction with CEC consumption
+              flux_limit = temp_solution_balance / (col_mf%secondary_cation_flux_vr(c,j,a)*dt - col_mf%cec_cation_flux_vr(c,j,a)*dt)
+            else
+              ! precipitation-only
+              temp_solution_balance = temp_solution_balance + col_mf%cec_cation_flux_vr(c,j,a)*dt
+              flux_limit = temp_solution_balance / (col_mf%secondary_cation_flux_vr(c,j,a)*dt)
+            end if
+
+            ! ensure a tiny bit of cation is left due to numerical accuracy reasons
+            flux_limit = flux_limit * 0.999_r8
+
+            if (temp_solution_balance < 0._r8) then
+              write (iulog, *) 'Problematic!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+            end if
+
+            if (flux_limit < 1._r8) then
+              col_mf%r_precip_vr(c,j,m) = col_mf%r_precip_vr(c,j,m) * flux_limit
+              col_mf%secondary_cation_flux_vr(c,j,a) = col_mf%secondary_cation_flux_vr(c,j,a) * flux_limit
+              col_mf%secondary_silica_flux_vr(c,j) = col_mf%secondary_silica_flux_vr(c,j) * flux_limit
+              col_mf%secondary_mineral_flux_vr(c,j,m) = col_mf%secondary_mineral_flux_vr(c,j,m) * flux_limit
+
+              if (col_mf%cec_cation_flux_vr(c,j,a) < 0._r8) then
+                col_mf%cec_cation_flux_vr(c,j,a) = col_mf%cec_cation_flux_vr(c,j,a) * flux_limit
+              end if
+            end if
+          end if
+        end do
+
+        ! check CEC-only
+        do a = 1,5
+          if ((a == 1) .and. (col_mf%r_precip_vr(c,j,1) > 0._r8)) then
+            continue ! already dealt above
+          end if
+          if ((a == 5) .and. (col_mf%r_precip_vr(c,j,2) > 0._r8)) then
+            continue ! already dealt above
+          end if
+
+          if (col_mf%cec_cation_flux_vr(c,j,a) < 0._r8) then
+
+            temp_solution_balance = col_ms%cation_vr(c,j,a) + &
+                col_mf%background_weathering_vr(c,j,a)*dt - & 
+                col_mf%secondary_cation_flux_vr(c,j,a)*dt + &
+                col_mf%primary_cation_flux_vr(c,j,a)*dt + &
+                col_mf%cation_infl_vr(c,j,a)*dt - col_mf%cation_oufl_vr(c,j,a)*dt - &
+                col_mf%cation_uptake_vr(c,j,a)*dt - col_mf%cation_leached_vr(c,j,a)*dt - &
+                col_mf%cation_runoff_vr(c,j,a)*dt
+
+            if (temp_solution_balance < 0._r8) then
+              write (iulog, *) 'Problematic!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
+            end if
+
+            flux_limit = temp_solution_balance / (- col_mf%cec_cation_flux_vr(c,j,a)*dt)
+
+            ! ensure a tiny bit of cation is left due to numerical accuracy reasons
+            flux_limit = flux_limit * 0.999_r8
+
+            if (flux_limit < 1._r8) then
+              col_mf%cec_cation_flux_vr(c,j,a) = col_mf%cec_cation_flux_vr(c,j,a) * flux_limit
+            end if
+          end if
+        end do
       end do
     end do
-
-  end subroutine MineralStateUpdate
+  end subroutine MineralFluxLimit
 
 end module MineralStateUpdateMod

@@ -26,7 +26,7 @@ module dynFileMod
   end interface dyn_file_type
 
 contains
-  
+
   ! ======================================================================
   ! Constructors
   ! ======================================================================
@@ -66,7 +66,7 @@ contains
 
     call getfil(filename, locfn, 0)
     call ncd_pio_openfile(constructor, locfn, 0)
-    
+
     ! Obtain years
 
     call ncd_inqdid(constructor, 'time', varid)
@@ -76,7 +76,7 @@ contains
        call endrun(msg=' allocation error for years'//errMsg(__FILE__, __LINE__))
     end if
     call ncd_io(ncid=constructor, varname='YEAR', flag='read', data=years)
-    
+
     ! Initialize object containing time information for the file
 
     constructor%time_info = time_info_type(years, year_position)

@@ -117,13 +117,13 @@ contains
     ! Initialize run control variables, timestep
     ! ------------------------------------------------------------------------
 
-    if ( masterproc )then
+    if ( masterproc ) then
        write(iulog,*) trim(version)
        write(iulog,*)
        write(iulog,*) 'Attempting to initialize the land model .....'
        write(iulog,*)
        call shr_sys_flush(iulog)
-    endif
+    end if
 
     call control_init()
     call elm_varpar_init()
@@ -139,7 +139,7 @@ contains
        call ELMFatesGlobals1()
        call update_pft_array_bounds()
     end if    
-    
+
     call elm_petsc_init()
     call init_soil_temperature()
 
@@ -194,7 +194,7 @@ contains
     case ("simple")
       call decompInit_lnd_simple(ni, nj, amask)
       deallocate(amask)
-   case default
+    case default
        call endrun(msg='ERROR elm_initializeMod: '//&
             'Unsupported domain_decomp_type = ' // trim(domain_decomp_type))
     end select
@@ -249,13 +249,13 @@ contains
        call surfrd_get_topo_for_solar_rad(ldomain, fsurdat)  
 
     endif
-    
+
     !-------------------------------------------------------------------------
     ! Topounit
     !-------------------------------------------------------------------------
     call topounit_varcon_init(begg, endg,fsurdat,ldomain)  ! Topounits
     !-------------------------------------------------------------------------
-    
+
     !-------------------------------------------------------------------------
     ! Initialize urban model input (initialize urbinp data structure)
     ! This needs to be called BEFORE the call to surfrd_get_data since
