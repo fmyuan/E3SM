@@ -822,7 +822,7 @@ contains
                ka_hu = max(ka_hu, 1e-5_r8)
 
                !DMR 12/4/2015
-               if (icefrac(c,min(jwt(c)+1,nlevbed)) .ge. 1.90_r8) then
+               if (icefrac(c,min(jwt(c)+1,nlevbed)) .ge. .90_r8) then
                   !turn off lateral transport if any ice is present at or below,
                   qflx_lat_aqu(c) = 0._r8
                else
@@ -831,11 +831,17 @@ contains
              
                 ! If flooded water surface of one column is higher than the other, add faster flow since aquifer transfer (ka parameters) is slow
                ! Maybe this should be going into qflx_surf instead of qflx_lat_aqu? 
-               if(h2osfc_tide(c)>0 .and. h2osfc_tide(c)>h2osfc(c)) then
+               ! Skip this if there is snow on the ground in case it messes things up?
+               if(snow_depth(c) < 0.01_r8) then
+                if(h2osfc_tide(c)>0 .and. h2osfc_tide(c)>h2osfc(c)) then
                   qflx_lat_aqu(c) = qflx_lat_aqu(c) + min((h2osfc_tide(c)-h2osfc(c))*sfcflow_ratescale,h2osfc_tide(c)*0.5/dtime)
                 elseif(h2osfc(c)>0 .and. h2osfc(c) > h2osfc_tide(c)) then
                   qflx_lat_aqu(c) = qflx_lat_aqu(c) - min((h2osfc(c)-h2osfc_tide(c))*sfcflow_ratescale,h2osfc(c)*0.5/dtime)
                 endif
+               else
+                  ! Get rid of surface water when there's snow
+                  qflx_lat_aqu(c) = - min((h2osfc(c))*sfcflow_ratescale,h2osfc(c)*0.5/dtime)
+               endif
                !  write(iulog,*), 'qflx_lat_aqu(c) after', qflx_lat_aqu(c)               
                !  write(iulog,*), 'h2osfc(c) after', h2osfc(c) 
 #endif
