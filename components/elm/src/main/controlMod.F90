@@ -131,6 +131,7 @@ contains
     integer :: dtime                ! Integer time-step
     integer :: override_nsrest      ! If want to override the startup type sent from driver
     character(len=32) :: subname = 'control_init'  ! subroutine name
+    character(len=256):: ioreadMsg
     !------------------------------------------------------------------------
 
     ! ----------------------------------------------------------------------
@@ -366,8 +367,9 @@ contains
        open( unitn, file=trim(NLFilename), status='old' )
        call shr_nl_find_group_name(unitn, 'elm_inparm', status=ierr)
        if (ierr == 0) then
-          read(unitn, elm_inparm, iostat=ierr)
+          read(unitn, elm_inparm, iostat=ierr, iomsg=ioreadMsg)
           if (ierr /= 0) then
+             print *, 'ERROR reading elm_inparm namelist: ', ierr, ioreadMsg
              call endrun(msg='ERROR reading elm_inparm namelist'//errMsg(__FILE__, __LINE__))
           end if
        end if
