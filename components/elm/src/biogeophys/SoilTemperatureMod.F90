@@ -858,6 +858,10 @@ contains
     use landunit_varcon , only : istice, istice_mec, istwet
     use column_varcon   , only : icol_roof, icol_sunwall, icol_shadewall, icol_road_perv, icol_road_imperv
     use elm_varctl      , only : iulog
+#ifdef WrPMIP
+    use elm_varsur      , only : sf_yr_onset
+#endif
+
     !
     ! !ARGUMENTS:
     type(bounds_type)      , intent(in)    :: bounds
@@ -972,6 +976,13 @@ contains
             if (snl(c)+1 < 1 .AND. (j >= snl(c)+1) .AND. (j <= 0)) then
                bw(c,j) = (h2osoi_ice(c,j)+h2osoi_liq(c,j))/(frac_sno(c)*dz(c,j))
                thk(c,j) = tkair + (7.75e-5_r8 *bw(c,j) + 1.105e-6_r8*bw(c,j)*bw(c,j))*(tkice-tkair)
+
+#ifdef WrPMIP
+               if (year_curr>=sf_yr_onset(col_pp%gridcell(c),1) .and. (mon_curr<=4 .or. mon_curr>=10)) then
+                  thk(c,j) = thk(c,j)*1.0_r8
+               end if
+#endif
+
             end if
 
          end do

@@ -699,6 +699,7 @@ contains
     use elm_varpar      , only : maxpatch_glcmec, nlevurb
     use landunit_varcon , only : isturb_MIN, isturb_MAX, istdlak, istwet, istice, istice_mec
     use elm_varsur      , only : wt_lunit, urban_valid, wt_glc_mec, topo_glc_mec, firrig, f_surf, f_grd
+    use elm_varsur      , only : sf_yr_onset, otc_yr_onset
     use UrbanParamsType , only : CheckUrban
     use topounit_varcon , only : max_topounits, has_topounit
     !
@@ -733,7 +734,7 @@ contains
     integer ,pointer :: urban_region_id(:,:) 
     real(r8),pointer :: pctglc_mec_tot(:,:) ! percent of grid cell is glacier (sum over classes)
     real(r8),pointer :: pcturb_tot(:,:)  ! percent of grid cell is urban (sum over density classes)
-    real(r8),pointer :: pctspec(:,:)     ! percent of spec lunits wrt gcell    
+    real(r8),pointer :: pctspec(:,:)     ! percent of spec lunits wrt gcell  
     integer  :: dens_index             ! urban density index
     character(len=32) :: subname = 'surfrd_special'  ! subroutine name
     real(r8) closelat,closelon
@@ -748,7 +749,11 @@ contains
     allocate(urban_region_id(begg:endg,1:max_topounits))
     allocate(pctglc_mec_tot(begg:endg,1:max_topounits))
     allocate(pctspec(begg:endg,1:max_topounits))
-    
+#ifdef WrPMIP
+    allocate(sf_yr_onset(begg:endg,1:max_topounits))
+    allocate(otc_yr_onset(begg:endg,1:max_topounits))
+#endif
+
     call check_dim(ncid, 'nlevsoi', nlevsoifl)
 
        ! Obtain non-grid surface properties of surface dataset other than percent pft
@@ -899,6 +904,17 @@ contains
     call CheckUrban(begg, endg, pcturb(begg:endg,:,:), subname,ntpu)
 
     deallocate(pctgla,pctlak,pctwet,pcturb,pcturb_tot,urban_region_id,pctglc_mec_tot,pctspec)
+
+#ifdef WrPMIP
+    call ncd_io(ncid=ncid, varname='warming_onset_sf', flag='read', data=sf_yr_onset, &
+          dim1name=grlnd, readvar=readvar)
+    if (.not. readvar) sf_yr_onset=9999
+
+    call ncd_io(ncid=ncid, varname='warming_onset_otc', flag='read', data=otc_yr_onset, &
+          dim1name=grlnd, readvar=readvar)
+    if (.not. readvar) otc_yr_onset=9999
+
+#endif
 
   end subroutine surfrd_special
 
