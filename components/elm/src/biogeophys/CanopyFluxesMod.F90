@@ -107,6 +107,10 @@ contains
     use SoilWaterRetentionCurveMod, only : soil_water_retention_curve_type
     use SurfaceResistanceMod, only : getlblcef
     use PhotosynthesisType, only : photosyns_vars_TimeStepInit
+#ifdef WrPMIP
+    use elm_varsur        , only : otc_yr_onset
+#endif
+
     !
     ! !ARGUMENTS:
     type(bounds_type)         , intent(in)    :: bounds
@@ -786,6 +790,14 @@ contains
             ram1(p)  = 1._r8/(ustar(p)*ustar(p)/um(p))
             rah(p,1) = 1._r8/(temp1(p)*ustar(p))
             raw(p,1) = 1._r8/(temp2(p)*ustar(p))
+
+#ifdef WrPMIP
+            if (year_curr>=otc_yr_onset(g,1) .and. (mon_curr>=5 .and. mon_curr<=9)) then
+               rah(p,1) = rah(p,1)*1.0_r8
+               raw(p,1) = raw(p,1)*1.0_r8
+            end if
+#endif
+
 
             ! Forbid removing more than 99% of wind speed in a time step.
             ! This is mainly to avoid convergence issues since this is such a

@@ -51,6 +51,11 @@ module elm_varsur
   real(r8),pointer :: firrig(:,:) 
   real(r8),pointer :: f_surf(:,:)  ! fraction of water withdraws from surfacewater
   real(r8),pointer :: f_grd(:,:)   ! fraction of water withdraws from groundwater
+
+#ifdef WrPMIP
+  integer,pointer :: sf_yr_onset(:,:)     ! starting year to mimic Snow Fencing effect 
+  integer,pointer :: otc_yr_onset(:,:)    ! starting year to mimic Over Top Chamber Warming effect
+#endif
   !-----------------------------------------------------------------------
 
 end module elm_varsur
