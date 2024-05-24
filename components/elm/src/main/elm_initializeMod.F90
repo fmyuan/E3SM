@@ -12,7 +12,7 @@ module elm_initializeMod
   use elm_varctl       , only : nsrest, nsrStartup, nsrContinue, nsrBranch
   use elm_varctl       , only : create_glacier_mec_landunit, iulog
   use elm_varctl       , only : use_lch4, use_cn, use_voc, use_c13, use_c14
-  use elm_varctl       , only : use_fates, use_betr, use_fates_sp, use_fan, use_fates_luh
+  use elm_varctl       , only : use_fates, use_betr, use_fates_sp, use_fan, use_fates_luh, use_alquimia
   use elm_varsur       , only : wt_lunit, urban_valid, wt_nat_patch, wt_cft, wt_glc_mec, topo_glc_mec,firrig,f_surf,f_grd
   use elm_varsur       , only : fert_cft, fert_p_cft, wt_polygon
   use elm_varsur       , only : wt_tunit, elv_tunit, slp_tunit,asp_tunit,num_tunit_per_grd
@@ -33,9 +33,10 @@ module elm_initializeMod
   use TopounitDataType       , only : top_as, top_af, top_es, top_ws
   use LandunitType           , only : lun_pp
   use ColumnType             , only : col_pp
-  use ColumnDataType         , only : col_es
+  use ColumnDataType         , only : col_es , col_ws 
   use VegetationType         , only : veg_pp
-  use VegetationDataType     , only : veg_es
+  use VegetationDataType     , only : veg_es  
+  use ColumnDataType         , only : col_chem
 
   use elm_instMod
   use WaterBudgetMod         , only : WaterBudget_Reset
@@ -526,6 +527,8 @@ contains
     use FATESFireFactoryMod   , only : scalar_lightning
     use FanStreamMod          , only : fanstream_init, fanstream_interp
     use dynFATESLandUseChangeMod, only : dynFatesLandUseInit
+    use ExternalModelConstants   , only : EM_ID_ALQUIMIA, EM_ALQUIMIA_COLDSTART_STAGE
+    use ExternalModelInterfaceMod, only : EMI_Driver, EMI_Init_EM
     !
     ! !ARGUMENTS
     implicit none
@@ -665,6 +668,11 @@ contains
     call hist_addfld1d (fname='ZII', units='m', &
          avgflag='A', long_name='convective boundary height', &
          ptr_col=col_pp%zii, default='inactive')
+
+    ! Alquimia initialization reads sizes for chemical arrays so it must be done before clm_inst_biogeophys (which initializes ChemStateType)
+    if (use_alquimia) then
+      call EMI_Init_EM(EM_ID_ALQUIMIA)
+    endif
 
     call elm_inst_biogeophys(bounds_proc)
 
@@ -1050,6 +1058,28 @@ contains
        end if
        call alm_fates%init_coldstart(canopystate_vars, soilstate_vars, frictionvel_vars)
     end if
+
+    ! Through alquimia, equilibrate initial conditions and initialize data structure
+    if (use_alquimia .and. finidat == ' ') then
+      !$OMP PARALLEL DO PRIVATE (nc, bounds_clump)
+      do nc = 1,nclumps
+         call get_clump_bounds(nc, bounds_clump)
+         call EMI_Driver(                                    &
+            em_id             = EM_ID_ALQUIMIA            , &
+            em_stage          = EM_ALQUIMIA_COLDSTART_STAGE   , &
+            clump_rank        = bounds_clump%clump_index        , &
+            dt                = dtime      , &
+            soilstate_vars    = soilstate_vars            , &
+            waterstate_vars   = waterstate_vars           , &
+            col_chem          = col_chem            , &
+            num_soilc         = filter(nc)%num_soilc                 , &
+            filter_soilc      = filter(nc)%soilc              , &
+            col_es            = col_es               , &
+            col_ws            = col_ws        )
+         end do
+         !$OMP END PARALLEL DO
+    endif
+
 
     ! topo_glc_mec was allocated in initialize1, but needed to be kept around through
     ! initialize2 because it is used to initialize other variables; now it can be
