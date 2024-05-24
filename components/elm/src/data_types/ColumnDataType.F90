@@ -9501,6 +9501,20 @@ contains
        end do 
      end if 
 
+    if(use_alquimia) then
+      do j = 1, nlevdecomp_full
+        do fi = 1,num_column 
+         i = filter_column(fi)
+            this%f_nit_vr(i,j)                      = value_column
+            this%f_denit_vr(i,j)                    = value_column
+            this%smin_no3_leached_vr(i,j)           = value_column
+            this%smin_no3_runoff_vr(i,j)            = value_column
+            this%f_n2o_denit_vr(i,j)                = value_column
+            this%f_n2o_nit_vr(i,j)                  = value_column
+        end do
+      end do
+    end if
+
     do fi = 1,num_column
        i = filter_column(fi)
 
