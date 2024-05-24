@@ -1,4 +1,4 @@
-module EMI_EnergyFluxType_ExchangeMod
+module EMI_ColumnWaterStateType_ExchangeMod
   !
   use shr_kind_mod                          , only : r8 => shr_kind_r8
   use shr_log_mod                           , only : errMsg => shr_log_errMsg
@@ -6,7 +6,7 @@ module EMI_EnergyFluxType_ExchangeMod
   use elm_varctl                            , only : iulog
   use EMI_DataMod                           , only : emi_data_list, emi_data
   use EMI_DataDimensionMod                  , only : emi_data_dimension_list_type
-  use EnergyFluxType       , only : energyflux_type
+  use ColumnDataType       , only : column_water_state
   use EMI_Atm2LndType_Constants
   use EMI_CanopyStateType_Constants
   use EMI_ChemStateType_Constants
@@ -30,28 +30,28 @@ module EMI_EnergyFluxType_ExchangeMod
   implicit none
   !
   !
-  public :: EMI_Pack_EnergyFluxType_at_Column_Level_for_EM
+  public :: EMI_Pack_ColumnWaterStateType_at_Column_Level_for_EM
 
 contains
   
 !-----------------------------------------------------------------------
-  subroutine EMI_Pack_EnergyFluxType_at_Column_Level_for_EM(data_list, em_stage, &
-        num_filter, filter, energyflux_vars)
+  subroutine EMI_Pack_ColumnWaterStateType_at_Column_Level_for_EM(data_list, em_stage, &
+        num_filter, filter, col_ws)
     !
     ! !DESCRIPTION:
-    ! Pack data from ALM energyflux_vars for EM
+    ! Pack data from ALM col_ws for EM
     !
     ! !USES:
-    use elm_varpar             , only : nlevsno
+    use elm_varpar             , only : nlevgrnd
     !
     implicit none
     !
     ! !ARGUMENTS:
-    class(emi_data_list)   , intent(in) :: data_list
-    integer                , intent(in) :: em_stage
-    integer                , intent(in) :: num_filter
-    integer                , intent(in) :: filter(:)
-    type(energyflux_type)  , intent(in) :: energyflux_vars
+    class(emi_data_list)     , intent(in) :: data_list
+    integer                  , intent(in) :: em_stage
+    integer                  , intent(in) :: num_filter
+    integer                  , intent(in) :: filter(:)
+    type(column_water_state) , intent(in) :: col_ws
     !
     ! !LOCAL_VARIABLES:
     integer                             :: fc,c,j,k
@@ -61,11 +61,9 @@ contains
     integer                             :: count
 
     associate(& 
-         eflx_sabg_lyr_col    => energyflux_vars%eflx_sabg_lyr_col    , &
-         eflx_hs_soil_col     => energyflux_vars%eflx_hs_soil_col     , &
-         eflx_hs_top_snow_col => energyflux_vars%eflx_hs_top_snow_col , &
-         eflx_hs_h2osfc_col   => energyflux_vars%eflx_hs_h2osfc_col   , &
-         eflx_dhsdT_col       => energyflux_vars%eflx_dhsdT_col         &
+         h2osoi_liqvol => col_ws%h2osoi_liqvol , &
+         h2osoi_icevol => col_ws%h2osoi_icevol , &
+         h2osfc        => col_ws%h2osfc          &
          )
 
     count = 0
@@ -86,40 +84,28 @@ contains
 
           select case (cur_data%id)
 
-          case (L2E_FLUX_ABSORBED_SOLAR_RADIATION)
+          case (L2E_STATE_SOIL_LIQ_VOL_COL)
              do fc = 1, num_filter
                 c = filter(fc)
-                do j = -nlevsno+1, 1
-                   cur_data%data_real_2d(c,j) = eflx_sabg_lyr_col(c,j)
+                do j = 1, nlevgrnd
+                   cur_data%data_real_2d(c,j) = h2osoi_liqvol(c,j)
                 enddo
              enddo
              cur_data%is_set = .true.
 
-          case (L2E_FLUX_SOIL_HEAT_FLUX)
+          case (L2E_STATE_SOIL_ICE_VOL_COL)
              do fc = 1, num_filter
                 c = filter(fc)
-                cur_data%data_real_1d(c) = eflx_hs_soil_col(c)
+                do j = 1, nlevgrnd
+                   cur_data%data_real_2d(c,j) = h2osoi_icevol(c,j)
+                enddo
              enddo
              cur_data%is_set = .true.
 
-          case (L2E_FLUX_SNOW_HEAT_FLUX)
+          case (L2E_STATE_H2OSFC_COL)
              do fc = 1, num_filter
                 c = filter(fc)
-                cur_data%data_real_1d(c) = eflx_hs_top_snow_col(c)
-             enddo
-             cur_data%is_set = .true.
-
-          case (L2E_FLUX_H2OSFC_HEAT_FLUX)
-             do fc = 1, num_filter
-                c = filter(fc)
-                cur_data%data_real_1d(c) = eflx_hs_h2osfc_col(c)
-             enddo
-             cur_data%is_set = .true.
-
-          case (L2E_FLUX_DERIVATIVE_OF_HEAT_FLUX)
-             do fc = 1, num_filter
-                c = filter(fc)
-                cur_data%data_real_1d(c) = eflx_dhsdT_col(c)
+                cur_data%data_real_1d(c) = h2osfc(c)
              enddo
              cur_data%is_set = .true.
 
@@ -132,7 +118,7 @@ contains
 
     end associate
 
-  end subroutine EMI_Pack_EnergyFluxType_at_Column_Level_for_EM
+  end subroutine EMI_Pack_ColumnWaterStateType_at_Column_Level_for_EM
 
 
-end module EMI_EnergyFluxType_ExchangeMod
+end module EMI_ColumnWaterStateType_ExchangeMod
