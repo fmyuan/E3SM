@@ -1,4 +1,4 @@
-module EMI_SoilHydrologyType_ExchangeMod
+module EMI_CNCarbonFluxType_ExchangeMod
   !
   use shr_kind_mod                          , only : r8 => shr_kind_r8
   use shr_log_mod                           , only : errMsg => shr_log_errMsg
@@ -6,7 +6,7 @@ module EMI_SoilHydrologyType_ExchangeMod
   use elm_varctl                            , only : iulog
   use EMI_DataMod                           , only : emi_data_list, emi_data
   use EMI_DataDimensionMod                  , only : emi_data_dimension_list_type
-  use SoilHydrologyType    , only : soilhydrology_type
+  use ColumnDataType       , only : column_carbon_flux
   use EMI_Atm2LndType_Constants
   use EMI_CanopyStateType_Constants
   use EMI_ChemStateType_Constants
@@ -30,20 +30,21 @@ module EMI_SoilHydrologyType_ExchangeMod
   implicit none
   !
   !
-  public :: EMI_Pack_SoilHydrologyType_at_Column_Level_for_EM
-  public :: EMI_Unpack_SoilHydrologyType_at_Column_Level_from_EM
+  public :: EMI_Pack_CNCarbonFluxType_at_Column_Level_for_EM
+  public :: EMI_Unpack_CNCarbonFluxType_at_Column_Level_from_EM
 
 contains
   
 !-----------------------------------------------------------------------
-  subroutine EMI_Pack_SoilHydrologyType_at_Column_Level_for_EM(data_list, em_stage, &
-        num_filter, filter, soilhydrology_vars)
+  subroutine EMI_Pack_CNCarbonFluxType_at_Column_Level_for_EM(data_list, em_stage, &
+        num_filter, filter, col_cf)
     !
     ! !DESCRIPTION:
-    ! Pack data from ALM soilhydrology_vars for EM
+    ! Pack data from ALM col_cf for EM
     !
     ! !USES:
-    use elm_varpar             , only : nlevgrnd
+    use elm_varpar             , only : nlevdecomp_full
+    use elm_varpar             , only : ndecomp_pools
     !
     implicit none
     !
@@ -52,7 +53,7 @@ contains
     integer                  , intent(in) :: em_stage
     integer                  , intent(in) :: num_filter
     integer                  , intent(in) :: filter(:)
-    type(soilhydrology_type) , intent(in) :: soilhydrology_vars
+    type(column_carbon_flux) , intent(in) :: col_cf
     !
     ! !LOCAL_VARIABLES:
     integer                             :: fc,c,j,k
@@ -62,9 +63,9 @@ contains
     integer                             :: count
 
     associate(& 
-         zwt_col      => soilhydrology_vars%zwt_col      , &
-         qflx_bot_col => soilhydrology_vars%qflx_bot_col , &
-         fracice_col  => soilhydrology_vars%fracice_col    &
+         decomp_cascade_hr_vr => col_cf%decomp_cascade_hr_vr , &
+         hr_vr                => col_cf%hr_vr                , &
+         decomp_k             => col_cf%decomp_k               &
          )
 
     count = 0
@@ -85,25 +86,33 @@ contains
 
           select case (cur_data%id)
 
-          case (L2E_STATE_WTD)
+          case (L2E_FLUX_HETEROTROPHIC_RESP_POOLS_VERTICALLY_RESOLVED)
              do fc = 1, num_filter
                 c = filter(fc)
-                cur_data%data_real_1d(c) = zwt_col(c)
+                do j = 1, nlevdecomp_full
+                   do k = 1, ndecomp_pools
+                      cur_data%data_real_3d(c,j,k) = decomp_cascade_hr_vr(c,j,k)
+                   enddo
+                enddo
              enddo
              cur_data%is_set = .true.
 
-          case (L2E_STATE_QCHARGE)
+          case (L2E_FLUX_HETEROTROPHIC_RESP_VERTICALLY_RESOLVED)
              do fc = 1, num_filter
                 c = filter(fc)
-                cur_data%data_real_1d(c) = qflx_bot_col(c)
+                do j = 1, nlevdecomp_full
+                   cur_data%data_real_2d(c,j) = hr_vr(c,j)
+                enddo
              enddo
              cur_data%is_set = .true.
 
-          case (L2E_STATE_FRACICE)
+          case (L2E_FLUX_SOIL_POOL_DECOMP_K)
              do fc = 1, num_filter
                 c = filter(fc)
-                do j = 1, nlevgrnd
-                   cur_data%data_real_2d(c,j) = fracice_col(c,j)
+                do j = 1, nlevdecomp_full
+                   do k = 1, ndecomp_pools
+                      cur_data%data_real_3d(c,j,k) = decomp_k(c,j,k)
+                   enddo
                 enddo
              enddo
              cur_data%is_set = .true.
@@ -117,16 +126,18 @@ contains
 
     end associate
 
-  end subroutine EMI_Pack_SoilHydrologyType_at_Column_Level_for_EM
+  end subroutine EMI_Pack_CNCarbonFluxType_at_Column_Level_for_EM
 
 !-----------------------------------------------------------------------
-  subroutine EMI_Unpack_SoilHydrologyType_at_Column_Level_from_EM(data_list, em_stage, &
-        num_filter, filter, soilhydrology_vars)
+  subroutine EMI_Unpack_CNCarbonFluxType_at_Column_Level_from_EM(data_list, em_stage, &
+        num_filter, filter, col_cf)
     !
     ! !DESCRIPTION:
-    ! Unpack data for ALM soilhydrology_vars from EM
+    ! Unpack data for ALM col_cf from EM
     !
     ! !USES:
+    use elm_varpar             , only : nlevdecomp_full
+    use elm_varpar             , only : ndecomp_pools
     !
     implicit none
     !
@@ -135,7 +146,7 @@ contains
     integer                  , intent(in) :: em_stage
     integer                  , intent(in) :: num_filter
     integer                  , intent(in) :: filter(:)
-    type(soilhydrology_type) , intent(in) :: soilhydrology_vars
+    type(column_carbon_flux) , intent(in) :: col_cf
     !
     ! !LOCAL_VARIABLES:
     integer                             :: fc,c,j,k
@@ -145,8 +156,12 @@ contains
     integer                             :: count
 
     associate(& 
-         zwt_col     => soilhydrology_vars%zwt_col     , &
-         qcharge_col => soilhydrology_vars%qcharge_col   &
+         decomp_cascade_hr_vr => col_cf%decomp_cascade_hr_vr , &
+         hr_vr                => col_cf%hr_vr                , &
+         hr                   => col_cf%hr                   , &
+         ch4flux              => col_cf%ch4flux              , &
+         DIC_runoff           => col_cf%DIC_runoff           , &
+         DOC_runoff           => col_cf%DOC_runoff             &
          )
 
     count = 0
@@ -167,17 +182,51 @@ contains
 
           select case (cur_data%id)
 
-          case (E2L_STATE_WTD)
+          case (E2L_FLUX_HETEROTROPHIC_RESP_POOLS_VERTICALLY_RESOLVED)
              do fc = 1, num_filter
                 c = filter(fc)
-                zwt_col(c) = cur_data%data_real_1d(c)
+                do j = 1, nlevdecomp_full
+                   do k = 1, ndecomp_pools
+                      decomp_cascade_hr_vr(c,j,k) = cur_data%data_real_3d(c,j,k)
+                   enddo
+                enddo
              enddo
              cur_data%is_set = .true.
 
-          case (E2L_FLUX_AQUIFER_RECHARGE)
+          case (E2L_FLUX_HETEROTROPHIC_RESP_VERTICALLY_RESOLVED)
              do fc = 1, num_filter
                 c = filter(fc)
-                qcharge_col(c) = cur_data%data_real_1d(c)
+                do j = 1, nlevdecomp_full
+                   hr_vr(c,j) = cur_data%data_real_2d(c,j)
+                enddo
+             enddo
+             cur_data%is_set = .true.
+
+          case (E2L_FLUX_HETEROTROPHIC_RESP)
+             do fc = 1, num_filter
+                c = filter(fc)
+                hr(c) = cur_data%data_real_1d(c)
+             enddo
+             cur_data%is_set = .true.
+
+          case (E2L_FLUX_METHANE)
+             do fc = 1, num_filter
+                c = filter(fc)
+                ch4flux(c) = cur_data%data_real_1d(c)
+             enddo
+             cur_data%is_set = .true.
+
+          case (E2L_FLUX_DIC_RUNOFF)
+             do fc = 1, num_filter
+                c = filter(fc)
+                DIC_runoff(c) = cur_data%data_real_1d(c)
+             enddo
+             cur_data%is_set = .true.
+
+          case (E2L_FLUX_DOC_RUNOFF)
+             do fc = 1, num_filter
+                c = filter(fc)
+                DOC_runoff(c) = cur_data%data_real_1d(c)
              enddo
              cur_data%is_set = .true.
 
@@ -190,7 +239,7 @@ contains
 
     end associate
 
-  end subroutine EMI_Unpack_SoilHydrologyType_at_Column_Level_from_EM
+  end subroutine EMI_Unpack_CNCarbonFluxType_at_Column_Level_from_EM
 
 
-end module EMI_SoilHydrologyType_ExchangeMod
+end module EMI_CNCarbonFluxType_ExchangeMod
