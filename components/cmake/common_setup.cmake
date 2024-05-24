@@ -100,6 +100,20 @@ else()
   endif()
 endif()
 
+# Set Alquimia info if it is being used
+if (ELM_USE_ALQUIMIA)
+  if (NOT ALQUIMIA_PATH)
+    message(FATAL_ERROR "ALQUIMIA_PATH must be defined when ELM_USE_ALQUIMIA is TRUE")
+  else()
+    if (NOT ALQUIMIA_INC)
+      set(ALQUIMIA_INC ${ALQUIMIA_PATH})
+    endif()
+    if (NOT ALQUIMIA_LIB)
+      set(ALQUIMIA_LIB ${ALQUIMIA_PATH})
+    endif()
+  endif()
+endif()
+
 # Set HAVE_SLASHPROC on LINUX systems which are not bluegene or Darwin (OSx)
 string(FIND "${CPPDEFS}" "-DLINUX" HAS_DLINUX)
 string(FIND "${CPPDEFS}" "DBG" HAS_DBG)
@@ -122,8 +136,16 @@ endif()
 #===============================================================================
 list(APPEND INCLDIR "${INSTALL_SHAREDPATH}/include" "${INSTALL_SHAREDPATH}/${COMP_INTERFACE}/${ESMFDIR}/${NINST_VALUE}/include")
 
+  if (ALQUIMIA_INC)
+    list(APPEND INCLDIR "${ALQUIMIA_INC}")
+  endif()
+
 string(FIND "${CAM_CONFIG_OPTS}" "-cosp" HAS_COSP)
 if (NOT HAS_COSP EQUAL -1)
   # The following is for the COSP simulator code:
   set(USE_COSP TRUE)
+endif()
+
+if (ELM_USE_ALQUIMIA)
+  set(SLIBS "${SLIBS} -L${ALQUIMIA_LIB} -lalquimia -Wl,-rpath,${ALQUIMIA_LIB}")
 endif()
