@@ -120,6 +120,10 @@ endif()
 #===============================================================================
 list(APPEND INCLDIR "${INSTALL_SHAREDPATH}/include" "${INSTALL_SHAREDPATH}/${COMP_INTERFACE}/${ESMFDIR}/${NINST_VALUE}/include")
 
+  if (ALQUIMIA_INC)
+    list(APPEND INCLDIR "${ALQUIMIA_INC}")
+  endif()
+
 string(FIND "${CAM_CONFIG_OPTS}" "-cosp" HAS_COSP)
 if (NOT HAS_COSP EQUAL -1)
   # The following is for the COSP simulator code:
