@@ -32,6 +32,7 @@ module AllocationMod
   ! bgc interface & pflotran module switches
   use elm_varctl          , only: use_elm_interface,use_elm_bgc, use_pflotran, pf_cmode
   use elm_varctl          , only : nu_com
+  use elm_varctl          , only : use_alquimia
   use SoilStatetype       , only : soilstate_type
   use elm_varctl          , only : NFIX_PTASE_plant
   use ELMFatesInterfaceMod  , only : hlm_fates_interface_type
@@ -464,6 +465,16 @@ contains
                c = filter_soilc(fc)
                plant_ndemand_vr_col(c,j) = plant_ndemand_col(c) * nuptake_prof(fc,j)
                plant_pdemand_vr_col(c,j) = plant_pdemand_col(c) * puptake_prof(fc,j)
+            end do
+         end do
+      endif
+
+      if ( use_alquimia) then
+         do j = 1, nlevdecomp
+            do fc=1, num_soilc
+               c = filter_soilc(fc)
+               plant_ndemand_vr_col(c,j) = plant_ndemand_col(c) * nuptake_prof(c,j)
+               plant_pdemand_vr_col(c,j) = plant_pdemand_col(c) * puptake_prof(c,j)
             end do
          end do
       endif
