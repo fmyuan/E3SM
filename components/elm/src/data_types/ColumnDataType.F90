@@ -31,6 +31,7 @@ module ColumnDataType
   use elm_varctl      , only : use_extrasnowlayers, use_polygonal_tundra
   use elm_varctl      , only : use_fan
   use elm_varctl      , only : use_ocn_lnd_one_way
+  use elm_varctl      , only : use_alquimia
   use ch4varcon       , only : allowlakeprod
   use pftvarcon       , only : VMAX_MINSURF_P_vr, KM_MINSURF_P_vr, pinit_beta1, pinit_beta2
   use soilorder_varcon, only : smax, ks_sorption
@@ -9614,6 +9615,20 @@ contains
          end do 
        end do 
      end if 
+
+    if(use_alquimia) then
+      do j = 1, nlevdecomp_full
+        do fi = 1,num_column 
+         i = filter_column(fi)
+            this%f_nit_vr(i,j)                      = value_column
+            this%f_denit_vr(i,j)                    = value_column
+            this%smin_no3_leached_vr(i,j)           = value_column
+            this%smin_no3_runoff_vr(i,j)            = value_column
+            this%f_n2o_denit_vr(i,j)                = value_column
+            this%f_n2o_nit_vr(i,j)                  = value_column
+        end do
+      end do
+    end if
 
     do fi = 1,num_column
        i = filter_column(fi)
