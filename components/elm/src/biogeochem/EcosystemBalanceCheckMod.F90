@@ -481,6 +481,8 @@ contains
          col_noutputs(c) = col_noutputs(c) + &
                col_prod1n_loss(c) + col_prod10n_loss(c) + col_prod100n_loss(c)
 
+         if(use_alquimia) col_noutputs(c) = col_noutputs(c) + col_nf%DON_runoff(c)
+         
          col_noutputs(c) = col_noutputs(c) - som_n_leached(c)
 
          if (use_fan) col_noutputs(c) = col_noutputs(c) + fan_totnout(c)
