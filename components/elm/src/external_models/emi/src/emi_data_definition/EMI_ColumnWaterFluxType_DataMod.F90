@@ -1,15 +1,15 @@
-module EMI_Atm2LndType_DataMod
+module EMI_ColumnWaterFluxType_DataMod
   !
-  use EMI_Atm2LndType_Constants
+  use EMI_ColumnWaterFluxType_Constants
   !
   implicit none
   !
-  public :: EMI_Atm2LndType_DataInfoByID
+  public :: EMI_ColumnWaterFluxType_DataInfoByID
 
 contains
   
 !-----------------------------------------------------------------------
-  subroutine EMI_Atm2LndType_DataInfoByID(data_id, id_val, name_val, long_name_val,&
+  subroutine EMI_ColumnWaterFluxType_DataInfoByID(data_id, id_val, name_val, long_name_val,&
         units_val, is_int_type, is_real_type, ndim, &
         dim1_beg_name, dim1_end_name, dim2_beg_name, dim2_end_name, &
         dim3_beg_name, dim3_end_name, dim4_beg_name, dim4_end_name, &
@@ -54,55 +54,44 @@ contains
 
     select case(data_id)
 
-    case(L2E_STATE_FORC_PBOT_DOWNSCALED)
-       id_val         =  L2E_STATE_FORC_PBOT_DOWNSCALED
-       name_val       =  'Downscaled atm pressure'
-       long_name_val  =  'Downscaled atm pressure: ELM to EM'
-       units_val      =  '[Pa]'
+    case(L2E_FLUX_SOIL_QFLX_ADV_COL)
+       id_val         =  L2E_FLUX_SOIL_QFLX_ADV_COL
+       name_val       =  'Vertical water flow'
+       long_name_val  =  'Vertical water flow: ELM to EM'
+       units_val      =  'mm H2O/s'
+       is_real_type   =  .true.
+       ndim           =  2
+       dim1_beg_name  =  dimname_begc
+       dim1_end_name  =  dimname_endc
+       dim2_beg_name  =  dimname_zero
+       dim2_end_name  =  dimname_nlevgrnd
+       data_found   =  .true.
+
+    case(L2E_FLUX_SOIL_QFLX_DRAIN)
+       id_val         =  L2E_FLUX_SOIL_QFLX_DRAIN
+       name_val       =  'Subsurface drainage water flow'
+       long_name_val  =  'Subsurface drainage water flow: ELM to EM'
+       units_val      =  'mm H2O/s'
        is_real_type   =  .true.
        ndim           =  1
        dim1_beg_name  =  dimname_begc
        dim1_end_name  =  dimname_endc
        data_found   =  .true.
 
-    case(L2E_STATE_FORC_T_DOWNSCALED)
-       id_val         =  L2E_STATE_FORC_T_DOWNSCALED
-       name_val       =  'Downscaled atm temperature'
-       long_name_val  =  'Downscaled atm temperature: ELM to EM'
-       units_val      =  '[K]'
+    case(L2E_FLUX_SOIL_QFLX_DRAIN_VR)
+       id_val         =  L2E_FLUX_SOIL_QFLX_DRAIN_VR
+       name_val       =  'Subsurface drainage water flow vr'
+       long_name_val  =  'Subsurface drainage water flow vr: ELM to EM'
+       units_val      =  'mm H2O/time step'
        is_real_type   =  .true.
-       ndim           =  1
+       ndim           =  2
        dim1_beg_name  =  dimname_begc
        dim1_end_name  =  dimname_endc
-       data_found   =  .true.
-
-    case(L2E_FLUX_SOLAR_DIRECT_RADDIATION)
-       id_val         =  L2E_FLUX_SOLAR_DIRECT_RADDIATION
-       name_val       =  'Incident direct solar radiation'
-       long_name_val  =  'Incident direct solar radiation: ELM to EM'
-       units_val      =  '[W/m2]'
-       is_real_type   =  .true.
-       ndim           =  2
-       dim1_beg_name  =  dimname_begg
-       dim1_end_name  =  dimname_endg
        dim2_beg_name  =  dimname_one
-       dim2_end_name  =  dimname_two
-       data_found   =  .true.
-
-    case(L2E_FLUX_SOLAR_DIFFUSE_RADDIATION)
-       id_val         =  L2E_FLUX_SOLAR_DIFFUSE_RADDIATION
-       name_val       =  'Incident diffuse solar radiation'
-       long_name_val  =  'Incident diffuse solar radiation: ELM to EM'
-       units_val      =  '[W/m2]'
-       is_real_type   =  .true.
-       ndim           =  2
-       dim1_beg_name  =  dimname_begg
-       dim1_end_name  =  dimname_endg
-       dim2_beg_name  =  dimname_one
-       dim2_end_name  =  dimname_two
+       dim2_end_name  =  dimname_nlevgrnd
        data_found   =  .true.
     end select
     
-  end subroutine EMI_Atm2LndType_DataInfoByID
+  end subroutine EMI_ColumnWaterFluxType_DataInfoByID
     
-end module EMI_Atm2LndType_DataMod
+end module EMI_ColumnWaterFluxType_DataMod
