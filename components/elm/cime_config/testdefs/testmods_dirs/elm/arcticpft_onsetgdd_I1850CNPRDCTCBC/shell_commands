@@ -10,6 +10,7 @@
 echo "
  taxmode = 'cycle','extend','extend'
 ">>user_nl_datm
-# a long run of test for onset_gdd summation ending in arctic
+# a long run of test for onset_gdd summation ending in arctic,
+# but have to xmlchange the following after ./case.setup called
 # ./xmlchange --file env_test.xml STOP_N=200
 # ./xmlchange --file env_test.xml STOP_OPTION=nyears
