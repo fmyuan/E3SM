@@ -3,7 +3,10 @@
 ./xmlchange LND_DOMAIN_PATH="\$DIN_LOC_ROOT/share/domains/domain.clm"
 ./xmlchange ATM_DOMAIN_PATH="\$DIN_LOC_ROOT/share/domains/domain.clm"
 ./xmlchange DATM_MODE=CLM1PT
-./xmlchange DATM_CLMNCEP_YR_START=2000
-./xmlchange DATM_CLMNCEP_YR_END=2000
+./xmlchange DATM_CLMNCEP_YR_START=1980
+./xmlchange DATM_CLMNCEP_YR_END=2015
 ./xmlchange ELM_USRDAT_NAME=42_FLUXNETSITES
-./xmlchange NTASKS=21
+./xmlchange NTASKS=6
+echo "
+ taxmode = 'cycle','extend','extend'
+">>user_nl_datm
