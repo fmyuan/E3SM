@@ -88,7 +88,9 @@ _TESTS = {
         "tests" : (
             "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_default_I1850CNPRDCTCBC",
             "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_codetest_I1850CNPRDCTCBC",
-            "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_arctic_I1850CNPRDCTCBC"
+            "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_arctic_I1850CNPRDCTCBC",
+            "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-arcticpft_codetest_I1850CNPRDCTCBC",
+            "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-arcticpft_onsetgdd_I1850CNPRDCTCBC"
             )
         },
 
@@ -112,6 +114,7 @@ _TESTS = {
             "ERS.ELM_USRDAT.I1850ELM.elm-usrdat",
             "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_default_I1850CNPRDCTCBC",
             "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_codetest_I1850CNPRDCTCBC",
+            "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-arcticpft_codetest_I1850CNPRDCTCBC",
             "ERS.r05_r05.IELM.elm-lnd_rof_2way",
             "ERS.r05_r05.IELM.elm-V2_ELM_MOSART_features",
             "ERS.ELM_USRDAT.IELM.elm-surface_water_dynamics",
