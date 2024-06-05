@@ -177,6 +177,7 @@ contains
     integer :: unitn                ! unit for namelist file
     integer :: dtime                ! Integer time-step
     integer :: override_nsrest      ! If want to override the startup type sent from driver
+    character(len=256):: errline
     character(len=32) :: subname = 'control_init'  ! subroutine name
     ! DEBUG variables
     integer :: unitd, iosd
@@ -467,6 +468,12 @@ contains
           if (ierr /= 0) then
              write(iulog,*) 'DEBUG elm_inparm read iostat=', ierr
              write(iulog,*) 'DEBUG elm_inparm iomsg: ', trim(nl_errmsg)
+
+             ! get the error line of namelist
+             backspace(unitn)
+             read(unitn,fmt='(A)') errline
+             print *, 'Invalid line: ', trim(errline), ' in namelist file: ', trim(NLFilename)
+
              call endrun(msg='ERROR reading elm_inparm namelist'//errMsg(__FILE__, __LINE__))
           end if
        end if
@@ -480,6 +487,11 @@ contains
        if (ierr == 0) then
           read(unitn, elm_mosart, iostat=ierr)
           if (ierr /= 0) then
+             ! get the error line of namelist
+             backspace(unitn)
+             read(unitn,fmt='(A)') errline
+             print *, 'Invalid line: ', trim(errline), ' in namelist file: ', trim(NLFilename)
+
              call endrun(msg='ERROR reading elm_mosart namelist'//errMsg(__FILE__, __LINE__))
           end if
        end if
