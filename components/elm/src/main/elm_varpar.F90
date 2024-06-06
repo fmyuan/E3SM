@@ -52,7 +52,7 @@ module elm_varpar
   ! FIX(RF,032414) might we set some of these automatically from reading pft-physiology?
   integer, parameter :: numveg      =  16     ! number of veg types (without specific crop)
 
-  integer, parameter :: nminerals   =  2      ! maximum allowed number of minerals that are contained in the rock in enhanced weathering (specify fraction = zero in the input file if < nminerals are contained in the rock powder)
+  integer, parameter :: nminerals   =  7      ! maximum allowed number of minerals that are contained in the rock in enhanced weathering (specify fraction = zero in the input file if < nminerals are contained in the rock powder)
   integer, parameter :: ncations    =  5      ! number of cations in chemical reactions for enhanced weathering: Ca2+, Mg2+, Na+, K+, Al3+ (H+ is tracked in soil pH)
   integer, parameter :: nminsec     =  1      ! number of secondary minerals formed in chemical reactions for enhanced weathering: CaCO3, MgCO3, Aluminum hydroxide
   real(r8), parameter:: mixing_depth = 0.3    ! assume enhanced weathering mineral is evenly mixed in the top 30cm of soil

@@ -28,6 +28,7 @@ module dynSubgridDriverMod
   use dynLandunitAreaMod  , only : update_landunit_weights
   use CropType            , only : crop_type
   use dyncropFileMod      , only : dyncrop_init, dyncrop_interp
+  use dynSoilAmendmentsMod, only : dynsoilamendments_init, dynsoilamendments_appl
   use filterMod           , only : filter, filter_inactive_and_active
 
   use GridcellDataType    , only : gridcell_carbon_state, gridcell_carbon_flux
@@ -76,6 +77,8 @@ contains
     use dynpftFileMod     , only : dynpft_init
     use dynHarvestMod     , only : dynHarvest_init
     use dynpftFileMod     , only : dynpft_interp
+    use elm_varctl        , only : use_ew
+    use elm_varpar        , only : nminerals
     !
     ! !ARGUMENTS:
     type(bounds_type) , intent(in)    :: bounds  ! processor-level bounds
@@ -123,6 +126,14 @@ contains
 
     if (get_do_transient_crops()) then
        call dyncrop_interp(bounds, crop_vars)
+    end if
+
+    ! soil amendments application, e.g. basalt rock powder
+    if (use_ew) then
+       ! currently rocky powder application data is with flanduse_timeseries
+       ! can be separated if needed.
+       call dynsoilamendments_init(bounds, dynsoilamendments_filename=get_flanduse_timeseries(), &
+           namendspec=nminerals)
     end if
 
     !$OMP PARALLEL DO PRIVATE (nc, bounds_clump)
@@ -175,6 +186,11 @@ contains
     use dynColumnStateUpdaterMod  , only : set_old_column_weights, set_new_column_weights
     use dynPriorWeightsMod        , only : set_prior_weights
     use elm_time_manager , only : get_step_size
+
+    ! rocky powder application for enhanced rock weathering modules
+    ! here application is one type of soil amendments
+    use elm_varctl           , only : use_ew
+    use ColumnDataType       , only : col_ew
     !
     ! !ARGUMENTS:
     type(bounds_type)        , intent(in)    :: bounds_proc  ! processor-level bounds
@@ -250,6 +266,11 @@ contains
 
     if (use_fates_luh) then
        call dynFatesLandUseInterp(bounds_proc)
+    end if
+
+    ! soil amendments application, e.g. basalt rock powder
+    if (use_ew) then
+       call dynsoilamendments_appl(bounds_proc, col_ew%forc_app, col_ew%forc_gra, col_ew%forc_min)
     end if
 
     ! ==========================================================================
