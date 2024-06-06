@@ -75,7 +75,7 @@ module elm_driver
   use SatellitePhenologyMod  , only : SatellitePhenology, interpMonthlyVeg
   use ndepStreamMod          , only : ndep_interp
   use pdepStreamMod          , only : pdep_interp
-  use ewStreamMod            , only : ew_interp
+  !use ewStreamMod            , only : ew_interp
   use ActiveLayerMod         , only : alt_calc
   use CH4Mod                 , only : CH4
   use DUSTMod                , only : DustDryDep, DustEmission
@@ -659,15 +659,6 @@ contains
 
     if (use_fan) then
        call fanstream_interp(bounds_proc, atm2lnd_vars)
-    end if
-
-    ! ============================================================================
-    ! ingest enhanced weathering drivers
-    ! ============================================================================
-    if (use_ew) then
-       call t_startf('ew_interp')
-       call ew_interp(bounds_proc)
-       call t_stopf('ew_interp')
     end if
 
     ! ============================================================================
