@@ -164,6 +164,8 @@ contains
     use shr_string_mod            , only : shr_string_getParentDir
     use elm_interface_pflotranMod , only : elm_pf_readnl
     
+    use elm_varctl                , only : elm_ctl_set_nls
+
     implicit none
     
     ! !LOCAL VARIABLES:
@@ -173,7 +175,13 @@ contains
     integer :: unitn                ! unit for namelist file
     integer :: dtime                ! Integer time-step
     integer :: override_nsrest      ! If want to override the startup type sent from driver
+
     character(len=256):: errline
+    character(len=15) :: nu_com = 'RD'               ! note this is local only, don't mess up with that in 'elm_varctl'
+    logical           :: use_dynroot = .false.       ! note this is local only, don't mess up with that in 'elm_varctl'
+    logical           :: use_var_soil_thick= .false. ! note this is local only, don't mess up with that in 'elm_varctl'
+    logical           :: use_top_solar_rad = .false. ! note this is local only, don't mess up with that in 'elm_varctl'
+
     character(len=32) :: subname = 'control_init'  ! subroutine name
     !------------------------------------------------------------------------
 
@@ -625,6 +633,45 @@ contains
                    errMsg(__FILE__, __LINE__))     
           endif
        endif
+
+       ! Soil layer structure selection (ported from CTSM):
+       ! predefined and user-defined structures are mutually exclusive,
+       ! and the user-defined vector requires its companion nlevsoi.
+       if ( trim(soil_layerstruct_predefined) /= 'UNSET' .and. &
+            soil_layerstruct_userdefined(1) /= rundef ) then
+          call endrun(msg=' ERROR: soil_layerstruct_predefined and'// &
+               ' soil_layerstruct_userdefined cannot both be set.'//&
+               errMsg(__FILE__, __LINE__))
+       end if
+       if ( (soil_layerstruct_userdefined(1) /= rundef) .neqv. &
+            (soil_layerstruct_userdefined_nlevsoi /= iundef) ) then
+          call endrun(msg=' ERROR: soil_layerstruct_userdefined and'// &
+               ' soil_layerstruct_userdefined_nlevsoi must be set together.'//&
+               errMsg(__FILE__, __LINE__))
+       end if
+       ! Handle legacy more_vertlayers flag: automatically set soil_layerstruct_predefined
+       ! if not already set, or error if set to an inconsistent value
+       if ( more_vertlayers ) then
+          if ( trim(soil_layerstruct_predefined) == 'UNSET' ) then
+             soil_layerstruct_predefined = '23SL_3.5m'
+             if (masterproc) then
+                write(iulog,*) 'more_vertlayers=.true. detected; automatically setting'// &
+                     ' soil_layerstruct_predefined = 23SL_3.5m'
+             end if
+          else if ( trim(soil_layerstruct_predefined) /= '23SL_3.5m' ) then
+             call endrun(msg=' ERROR: more_vertlayers=.true. requires'// &
+                  ' soil_layerstruct_predefined=23SL_3.5m (or leave it unset),'// &
+                  ' but found '//trim(soil_layerstruct_predefined)//'.'// &
+                  errMsg(__FILE__, __LINE__))
+          end if
+       end if
+
+       ! a temporary solution for namelist reading issues with Mac clang based gfortran compiler
+       ! (TODO) need to check elm_varctl:nu_com after control_spmd() calling below
+       call elm_ctl_set_nls(nu_com_in            = nu_com,                 &
+                            use_dynroot_in       = use_dynroot,            &
+                            use_var_soil_thick_in= use_var_soil_thick,     &
+                            use_top_solar_rad_in = use_top_solar_rad)
 
     endif   ! end of if-masterproc if-block
 
