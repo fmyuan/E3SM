@@ -123,6 +123,8 @@ contains
     use elm_interface_pflotranMod , only : elm_pf_readnl
     use ELMBeTRNLMod              , only : betr_readNL
     
+    use elm_varctl                , only : elm_ctl_set_nls
+
     implicit none
     
     ! !LOCAL VARIABLES:
@@ -132,7 +134,13 @@ contains
     integer :: unitn                ! unit for namelist file
     integer :: dtime                ! Integer time-step
     integer :: override_nsrest      ! If want to override the startup type sent from driver
+
     character(len=256):: errline
+    character(len=15) :: nu_com = 'RD'               ! note this is local only, don't mess up with that in 'elm_varctl'
+    logical           :: use_dynroot = .false.       ! note this is local only, don't mess up with that in 'elm_varctl'
+    logical           :: use_var_soil_thick= .false. ! note this is local only, don't mess up with that in 'elm_varctl'
+    logical           :: use_top_solar_rad = .false. ! note this is local only, don't mess up with that in 'elm_varctl'
+
     character(len=32) :: subname = 'control_init'  ! subroutine name
     !------------------------------------------------------------------------
 
@@ -583,6 +591,13 @@ contains
                    errMsg(__FILE__, __LINE__))     
           endif
        endif
+
+       ! a temporary solution for namelist reading issues with Mac clang based gfortran compiler
+       ! (TODO) need to check elm_varctl:nu_com after control_spmd() calling below
+       call elm_ctl_set_nls(nu_com_in            = nu_com,                 &
+                            use_dynroot_in       = use_dynroot,            &
+                            use_var_soil_thick_in= use_var_soil_thick,     &
+                            use_top_solar_rad_in = use_top_solar_rad)
 
     endif   ! end of if-masterproc if-block
 
