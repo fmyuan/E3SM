@@ -75,6 +75,15 @@ _TESTS = {
             )
         },
 
+    "e3sm_land_mydebugs" : {
+        "share" : True,
+        "time"  : "0:45:00",
+        "tests" : (
+            "SMS_Ly2_P1x1_D.1x1_smallvilleIA.IELMCNCROP.elm-lulcc_sville",
+            "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-mydebug_I1850CNPRDCTCBC"
+            )
+        },
+
     "e3sm_land_mytests" : {
         "share" : True,
         "time"  : "0:45:00",
