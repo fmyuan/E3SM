@@ -3359,7 +3359,7 @@ sub write_output_files {
   {
     @groups = qw(elm_inparm ndepdyn_nml pdepdyn_nml popd_streams light_streams lai_streams elm_canopyhydrology_inparm
                  elm_soilhydrology_inparm dynamic_subgrid finidat_consistency_checks dynpft_consistency_checks
-                 elmu_inparm elm_soilstate_inparm elm_pflotran_inparm betr_inparm elm_mosart);
+                 elmu_inparm elm_soilstate_inparm elm_pflotran_inparm elm_erw_inparm betr_inparm elm_mosart);
     #@groups = qw(elm_inparm elm_canopyhydrology_inparm elm_soilhydrology_inparm
     #             finidat_consistency_checks dynpft_consistency_checks);
     # Eventually only list namelists that are actually used when CN on

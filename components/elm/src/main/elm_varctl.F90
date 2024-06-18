@@ -263,6 +263,8 @@ module elm_varctl
 
   logical, public :: use_ew = .false. ! true => calculate enhanced weathering
 
+  character(len=fname_len), public :: elm_erw_paramfile  = ' '        ! ASCII data file with minerals' constants in rocky powder appl.
+
   !----------------------------------------------------------
   ! plant hydraulic stress switch
   !----------------------------------------------------------

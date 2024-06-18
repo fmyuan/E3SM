@@ -1914,6 +1914,17 @@ Specifies the method for decomposing CLM grids across processors.
     pflotran file prefix.
 </entry>
 
+<!-- Namelist options for Enhanced Rock Weathering (ERW) module                          -->
+<entry id="use_ew" type="logical" category="default_settings"
+    group="elm_inparm" valid_values="">
+    Runtime flag to turn on/off Enhanced Rock Weathering (ERW) modules.
+</entry>
+
+<entry id="elm_erw_paramfile" type="char*256" category="datasets"
+    input_pathname="abs" group="elm_erw_inparm" valid_values="" >
+    Full pathname datafile with rock powder composition of minerals and their constants for dissolution/precipitation in soil for ERW modules
+</entry>
+
 <!-- ========================================================================================  -->
 <!-- Namelist options related to Variably Saturated Flow Model (VSFM)                          -->
 <!-- ========================================================================================  -->
