@@ -88,7 +88,6 @@ contains
     use CNGapMortalityBeTRMod    , only : readCNGapMortBeTRParams
     use NitrifDenitrifMod      , only : readNitrifDenitrifParams
     use SoilLittVertTranspMod    , only : readSoilLittVertTranspParams
-    use EnhancedWeatheringMod    , only : readEnhancedWeatheringParams
     use CH4Mod                   , only : readCH4Params
     use elm_varctl               , only : paramfile, iulog, use_betr, use_hydrstress
     use spmdMod                  , only : masterproc
@@ -98,6 +97,9 @@ contains
     use tracer_varcon            , only : is_active_betr_bgc                                         
     use PhotosynthesisMod        , only : params_inst
     
+    ! elm ERW parameters
+    use elm_varctl               , only : use_ew, elm_erw_paramfile
+    use EnhancedWeatheringMod    , only : readEnhancedWeatheringParams
     !
     ! !ARGUMENTS:
     implicit none
@@ -172,20 +174,25 @@ contains
     endif
 
     !
-    ! Read enhanced weathering parameters from the same file
-    !
-    if (masterproc) then
-       write(iulog,*) 'readParamsMod.F90::'//trim(subname)//&
-                      ' :: reading Enhanced Weathering parameter file'
-    end if
-
-    call readEnhancedWeatheringParams (ncid)
-
-    !
     ! close CN params file
     !
     call ncd_pio_closefile(ncid)
 
+
+    ! Read enhanced weathering parameters from a separated file
+    !
+    if (use_ew) then
+       if (masterproc) then
+          write(iulog,*) 'readParamsMod.F90::'//trim(subname)//&
+                      ' :: reading Enhanced Weathering parameter file'//&
+                      trim(elm_erw_paramfile)
+       end if
+
+       call getfil (elm_erw_paramfile, locfn, 0)
+       call ncd_pio_openfile (ncid, trim(locfn), 0)
+       call readEnhancedWeatheringParams (ncid)
+       call ncd_pio_closefile(ncid)
+    end if
 
  end subroutine readPrivateParameters
 end module readParamsMod

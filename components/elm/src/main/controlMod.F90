@@ -121,6 +121,7 @@ contains
     use shr_string_mod            , only : shr_string_getParentDir
     use elm_interface_pflotranMod , only : elm_pf_readnl
     use ELMBeTRNLMod              , only : betr_readNL
+    use EnhancedWeatheringMod     , only : elm_erw_readnl
     
     use elm_varctl                , only : elm_ctl_set_nls
 
@@ -703,6 +704,11 @@ contains
        write(iulog,*)'fan_mode = ',trim(fan_mode), ' is not supported'
        call endrun(msg=' ERROR:: choices are none fan_offline, fan_soil, fan_atm, or fan_full ' // &
             errMsg(__FILE__, __LINE__))
+    endif
+
+    ! elm ERW parameter file
+    if (use_ew) then
+       call elm_erw_readnl(NLFilename)
     endif
 
     if (masterproc) then

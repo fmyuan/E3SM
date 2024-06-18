@@ -13,7 +13,7 @@ module EnhancedWeatheringMod
   use elm_varpar          , only : cation_mass, cation_valence
   use elm_varcon          , only : log_keq_co3, log_keq_hco3, log_keq_caco3
   use elm_varcon          , only : mass_caco3, mass_co3, mass_hco3, mass_co2, mass_h2o, mass_sio2, mass_h
-  use elm_varpar          , only : nminerals, ncations, nminsec, nlevgrnd, mixing_depth
+  use elm_varpar          , only : nminerals, nks, ncations, nminsec, nlevgrnd, mixing_depth
   use decompMod           , only : bounds_type
   use ColumnDataType      , only : col_ew, col_ms, col_mf, col_es, col_ws, col_wf
   use ColumnType          , only : col_pp
@@ -26,30 +26,105 @@ module EnhancedWeatheringMod
   ! !PUBLIC MEMBER FUNCTIONS:
   public :: MineralReaction
   public :: MineralLeaching
+  public :: elm_erw_readnl
   public :: readEnhancedWeatheringParams
 
   type, public :: EWParamsType
-     real(r8) :: log_k_primary               (1:nminerals, 1:3)    ! log10 of primary mineral reaction rate constant at 298.15K (mol m-2 mineral surface area s-1), 1:nminerals x [H+, H2O, OH-]
-     real(r8) :: e_primary                   (1:nminerals, 1:3)    ! primary mineral reaction activation energy constant (KJ mol-1), 1:nminerals x [H+, H2O, OH-]
-     real(r8) :: n_primary                   (1:nminerals, 1:2)    ! reaction order of H+ and OH- catalyzed weathering, 1:nminerals x [H+, OH-]
-     real(r8) :: log_keq_primary             (1:nminerals)         ! log10 of equilibrium constants for primary mineral dissolution 
+     character(len=40), pointer  :: minerals_name      (:)      => null()
+     real(r8), pointer  :: log_k_primary               (:, :)   => null()   ! log10 of primary mineral reaction rate constant at 298.15K (mol m-2 mineral surface area s-1), 1:nminerals x [H+, H2O, OH-]
+     real(r8), pointer  :: e_primary                   (:, :)   => null()   ! primary mineral reaction activation energy constant (KJ mol-1), 1:nminerals x [H+, H2O, OH-]
+     real(r8), pointer  :: n_primary                   (:, :)   => null()   ! reaction order of H+ and OH- catalyzed weathering, 1:nminerals x [H+, OH-]
+     real(r8), pointer  :: log_keq_primary             (:)      => null()   ! log10 of equilibrium constants for primary mineral dissolution
 
      ! reaction stoichiometry: suppose the equation is 
      ! primary mineral + proton + (water) = cations + SiO2 + (water)
      ! coefficient before the mineral is always 1
-     real(r8) :: primary_stoi_proton         (1:nminerals)    ! reaction stoichiometry coefficient in front of H+, 1:nminerals
-     real(r8) :: primary_stoi_h2o_in         (1:nminerals)    ! reaction stoichiometry coefficient in front of water consumed, 1:nminerals
-     real(r8) :: primary_stoi_cations        (1:nminerals, 1:ncations)    ! reaction stoichiometry coefficient in front of cations, 1:nminerals x 1:ncations
-     real(r8) :: primary_stoi_silicate       (1:nminerals)    ! reaction stoichiometry coefficient in front of SiO2, 1:nminerals
-     real(r8) :: primary_stoi_h2o_out        (1:nminerals)    ! reaction stoichiometry coefficient in front of water produced, 1:nminerals
+     character(len=40), pointer  :: cations_name       (:)      => null()
+     real(r8), pointer  :: primary_stoi_proton         (:)      => null()   ! reaction stoichiometry coefficient in front of H+, 1:nminerals
+     real(r8), pointer  :: primary_stoi_h2o_in         (:)      => null()   ! reaction stoichiometry coefficient in front of water consumed, 1:nminerals
+     real(r8), pointer  :: primary_stoi_cations        (:, :)   => null()   ! reaction stoichiometry coefficient in front of cations, 1:nminerals x 1:ncations
+     real(r8), pointer  :: primary_stoi_silicate       (:)      => null()   ! reaction stoichiometry coefficient in front of SiO2, 1:nminerals
+     real(r8), pointer  :: primary_stoi_h2o_out        (:)      => null()   ! reaction stoichiometry coefficient in front of water produced, 1:nminerals
 
-     real(r8) :: primary_mass                (1:nminerals)    ! molar mass of the primary mineral, g/mol, 1:nminerals (e.g. Mg2SiO4 = 140.6931 g/mol)
+     real(r8), pointer  :: primary_mass                (:)      => null()   ! molar mass of the primary mineral, g/mol, 1:nminerals (e.g. Mg2SiO4 = 140.6931 g/mol)
   end type EWParamsType
 
   type(EWParamsType), public ::  EWParamsInst
   !$acc declare create(EWParamsInst)
 
 contains
+
+  !-----------------------------------------------------------------------
+  !
+  ! !IROUTINE: elm_erw_readnl
+  !
+  ! !INTERFACE:
+  subroutine elm_erw_readnl( NLFilename )
+  !
+  ! !DESCRIPTION:
+  ! Read namelist for elm-pflotran interface
+  !
+  ! !USES:
+    use elm_varctl    , only : iulog
+    use elm_varctl    , only : elm_erw_paramfile
+    use spmdMod       , only : masterproc, mpicom, MPI_CHARACTER
+    use shr_log_mod   , only : errMsg => shr_log_errMsg
+    use fileutils     , only : getavu, relavu, opnfil
+    use abortutils    , only : endrun
+    use elm_nlUtilsMod, only : find_nlgroup_name
+    use shr_nl_mod    , only : shr_nl_find_group_name
+    use shr_mpi_mod   , only : shr_mpi_bcast
+    use fileutils     , only : getfil
+    use ncdio_pio     , only : ncd_pio_closefile, ncd_pio_openfile, &
+                               file_desc_t, ncd_inqdid, ncd_inqdlen
+
+    implicit none
+
+  ! !ARGUMENTS:
+    character(len=*), intent(IN) :: NLFilename ! Namelist filename
+
+  ! !LOCAL VARIABLES:
+    character(len=256) :: locfn     ! local file name
+    type(file_desc_t)  :: ncid      ! pio netCDF file id
+    integer :: ierr                 ! error code
+    integer :: unitn                ! unit for namelist file
+    character(len=256):: errline
+    character(len=32) :: subname = 'elm_erw_readnl'  ! subroutine name
+  !EOP
+  !-----------------------------------------------------------------------
+    namelist / elm_erw_inparm / elm_erw_paramfile
+
+    ! ----------------------------------------------------------------------
+    ! Read namelist from standard namelist file.
+    ! ----------------------------------------------------------------------
+
+    if ( masterproc)then
+
+       unitn = getavu()
+       write(iulog,*) 'Read in elm-erw namelist'
+       call opnfil (NLFilename, unitn, 'F')
+       call shr_nl_find_group_name(unitn, 'elm_erw_inparm', status=ierr)
+       if (ierr == 0) then
+          read(unitn, elm_erw_inparm, iostat=ierr)
+          if (ierr /= 0) then
+             ! get the error line of namelist
+             backspace(unitn)
+             read(unitn,fmt='(A)') errline
+             print *, 'Invalid line: ', trim(errline), ' in namelist file: ', trim(NLFilename)
+
+             call endrun(msg=subname //':: ERROR: reading elm_erw_inparm namelist.'//&
+                         errMsg(__FILE__, __LINE__))
+          end if
+       end if
+       call relavu( unitn )
+       write(iulog, '(/, A)') " elm-erw namelist:"
+       write(iulog, '(A, " : ", A,/)') "   elm-erw parameter file ", trim(elm_erw_paramfile)
+    end if
+
+    ! Broadcast namelist variables read in
+    call mpi_bcast (elm_erw_paramfile, len(elm_erw_paramfile) , MPI_CHARACTER, 0, mpicom, ierr)
+    !
+  end subroutine elm_erw_readnl
 
   !-----------------------------------------------------------------------
   subroutine readEnhancedWeatheringParams ( ncid )
@@ -73,6 +148,24 @@ contains
     character(len=100) :: tString ! temp. var for reading
     !-----------------------------------------------------------------------
 
+    allocate(character(40) :: EWParamsInst%minerals_name(1:nminerals))
+    allocate(EWParamsInst%log_k_primary(1:nminerals, 1:nks))
+    allocate(EWParamsInst%e_primary(1:nminerals, 1:nks))
+    allocate(EWParamsInst%n_primary(1:nminerals, 1:nks))
+    allocate(EWParamsInst%log_keq_primary(1:nminerals))
+
+    allocate(EWParamsInst%primary_stoi_proton(1:nminerals))
+    allocate(EWParamsInst%primary_stoi_h2o_in(1:nminerals))
+    allocate(EWParamsInst%primary_stoi_h2o_out(1:nminerals))
+    allocate(EWParamsInst%primary_stoi_silicate(1:nminerals))
+    allocate(character(40) :: EWParamsInst%cations_name(ncations))
+    allocate(EWParamsInst%primary_stoi_cations(1:nminerals,1:ncations))
+
+    !
+    tString='minerals_name'
+    call ncd_io(varname=trim(tString),data=EWParamsInst%minerals_name, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+
     tString='log_k_primary'
     call ncd_io(varname=trim(tString),data=EWParamsInst%log_k_primary, flag='read', ncid=ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
@@ -89,6 +182,10 @@ contains
     call ncd_io(varname=trim(tString),data=EWParamsInst%log_keq_primary, flag='read', ncid=ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
 
+    tString='cations_name'
+    call ncd_io(varname=trim(tString),data=EWParamsInst%cations_name, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+
     tString='primary_stoi_proton'
     call ncd_io(varname=trim(tString),data=EWParamsInst%primary_stoi_proton, flag='read', ncid=ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
@@ -101,7 +198,7 @@ contains
     call ncd_io(varname=trim(tString),data=EWParamsInst%primary_stoi_cations, flag='read', ncid=ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
 
-    tString='primary_stoi_silicate'
+    tString='primary_stoi_silica'
     call ncd_io(varname=trim(tString),data=EWParamsInst%primary_stoi_silicate, flag='read', ncid=ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
 
