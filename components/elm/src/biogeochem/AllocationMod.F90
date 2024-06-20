@@ -832,7 +832,7 @@ contains
                  (f3*(1._r8-f4)*(1._r8+f2))/cpdw
 
          else
-            c_allometry(p) = (1._r8+g1)*(1._r8+f1+f3) ! B Sulman: Let graminoids allocate rhizomes (all livecroot) using stem_leaf parameter
+            c_allometry(p) = 1._r8+g1+f1+f1*g1+f3+f3*g1  ! B Sulman: Let graminoids allocate rhizomes (all livecroot) using stem_leaf parameter
             n_allometry(p) = 1._r8/cnl + f1/cnfr
             if(cnlw>0) n_allometry(p) = n_allometry(p) + f3/cnlw ! Rhizomes
             p_allometry(p) = 1._r8/cpl + f1/cpfr
