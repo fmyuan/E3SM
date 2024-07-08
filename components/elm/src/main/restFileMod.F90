@@ -931,7 +931,7 @@ contains
     use elm_varctl           , only : caseid, ctitle, version, username, hostname, fsurdat
     use elm_varctl           , only : conventions, source, use_hydrstress
     use elm_varpar           , only : numrad, nlevlak, nlevsno, nlevgrnd, nlevurb, nlevcan, nlevtrc_full, nmonth, nvegwcs
-    use elm_varpar           , only : nminerals, ncations, nminsec
+    use elm_varpar           , only : nminerals, ncations, nminsecs
     use elm_varpar           , only : cft_lb, cft_ub, maxpatch_glcmec
     use dynSubgridControlMod , only : get_flanduse_timeseries
     use decompMod            , only : get_proc_global
@@ -982,7 +982,7 @@ contains
     if ( use_ew ) then
       call ncd_defdim(ncid , 'minerals', nminerals    ,  dimid)
       call ncd_defdim(ncid , 'cations' , ncations     ,  dimid)
-      call ncd_defdim(ncid , 'minsec'  , nminsec      ,  dimid)
+      call ncd_defdim(ncid , 'minsec'  , nminsecs      ,  dimid)
     end if
     if ( use_hydrstress ) then
       call ncd_defdim(ncid , 'vegwcs'  , nvegwcs        ,  dimid)

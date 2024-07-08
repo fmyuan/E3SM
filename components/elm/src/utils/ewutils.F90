@@ -6,7 +6,7 @@ module ewutils
   ! !USES:
   use shr_kind_mod, only: r8 => shr_kind_r8
   use elm_varcon  , only: log_keq_hco3, log_keq_co3
-  use elm_varpar  , only: cation_valence, ncations
+  use elm_varpar  , only: ncations
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -175,7 +175,7 @@ contains
   ! Functions related to the solution of dynamic pH
   !-----------------------------------------------------------------------
 
-  function objective_solveq(soil_ph, b0, co2_atm, beta_list, kex_list) result (pcterr)
+  function objective_solveq(soil_ph, b0, co2_atm, beta_list, kex_list, cation_valence) result (pcterr)
     !
     ! !DESCRIPTION:
     ! Calculate whether a given pH value satisfies the following set of equations
@@ -196,15 +196,29 @@ contains
     real(r8), intent(in) :: co2_atm ! atmospheric CO2 partial pressure (unit: atm)
     real(r8), intent(in) :: beta_list(1:ncations) ! fraction of cation exchange locations occupied by Ca2+, Mg2+, Na+, K+, Al3+
     real(r8), intent(in) :: kex_list(1:ncations)  ! exchange coefficient between H+ and Ca2+, Mg2+, Na+, K+, Al3+
+    real(r8), intent(in) :: cation_valence(1:ncations)  ! valence of Ca2+, Mg2+, Na+, K+, Al3+
     real(r8) :: pcterr ! percentage error
+
     ! 
     ! !LOCAL VARIABLES:
     real(r8) :: h, beta_h, al_RHS, al_LHS
 
-    h = 10**(-soil_ph)
-    beta_h = 1 - beta_list(1) - beta_list(2) - beta_list(3) - beta_list(4) - beta_list(5)
+    !--------------------------------------------------------------
 
-    al_RHS = 0.333333333333333*b0 - 0.666666666666667*beta_list(1)/(beta_h*kex_list(1)/h)**cation_valence(1) - 0.666666666666667*beta_list(2)/(beta_h*kex_list(2)/h)**cation_valence(2) - 0.333333333333333*beta_list(3)/(beta_h*kex_list(3)/h)**cation_valence(3) - 0.333333333333333*beta_list(4)/(beta_h*kex_list(4)/h)**cation_valence(4) + (10**log_keq_hco3)/3._r8*co2_atm/h + 0.666666666666667*(10**(log_keq_co3+log_keq_hco3))*co2_atm/h**2 - 0.333333333333333*h + 3.33333333333333e-15/h
+    h = 10**(-soil_ph)
+    beta_h = 1.0_r8
+    beta_h = beta_h - beta_list(1) - beta_list(2) - beta_list(3) - beta_list(4) - beta_list(5)
+
+    al_RHS =  0.333333333333333*b0 &
+            - 0.666666666666667*beta_list(1)/(beta_h*kex_list(1)/h)**cation_valence(1) &
+            - 0.666666666666667*beta_list(2)/(beta_h*kex_list(2)/h)**cation_valence(2) &
+            - 0.333333333333333*beta_list(3)/(beta_h*kex_list(3)/h)**cation_valence(3) &
+            - 0.333333333333333*beta_list(4)/(beta_h*kex_list(4)/h)**cation_valence(4) &
+            + (10**log_keq_hco3)/3._r8*co2_atm/h &
+            + 0.666666666666667*(10**(log_keq_co3+log_keq_hco3))*co2_atm/h**2 &
+            - 0.333333333333333*h &
+            + 3.33333333333333e-15/h
+
     al_LHS = beta_list(5)/(beta_h*kex_list(5)/h)**(cation_valence(5))
 
     ! al_RHS = 0.333333333333333*b0 - 0.666666666666667*beta1/(0.000398107170553497*10.0**(3.4*beta_h)*beta_h*kex1/h)**valence['Ca2+'] - 0.666666666666667*beta2/(0.000398107170553497*10.0**(3.4*beta_h)*beta_h*kex2/h)**valence['Mg2+'] - 0.333333333333333*beta3/(0.000398107170553497*10.0**(3.4*beta_h)*beta_h*kex3/h)**valence['Na+'] - 0.333333333333333*beta4/(0.000398107170553497*10.0**(3.4*beta_h)*beta_h*kex4/h)**valence['K+'] + 5.12010356128343e-9*co2_atm/h + 4.80295746943524e-19*co2_atm/h**2 - 0.333333333333333*h + 3.33333333333333e-15/h
@@ -215,7 +229,8 @@ contains
   end function objective_solveq
 
 
-  function solve_eq(b0, co2_atm, beta_list, kex_list) result (best_ph)
+  !-----------------------------------------------------------------------
+  function solve_eq(b0, co2_atm, beta_list, kex_list, valence) result (best_ph)
     !
     ! !DESCRIPTION:
     ! Calculate whether a given pH value satisfies the following set of equations
@@ -235,6 +250,7 @@ contains
     real(r8), intent(in) :: co2_atm ! atmospheric CO2 partial pressure (unit: atm)
     real(r8), intent(in) :: beta_list(1:ncations) ! fraction of cation exchange locations occupied by Ca2+, Mg2+, Na+, K+, Al3+
     real(r8), intent(in) :: kex_list(1:ncations)  ! exchange coefficient between H+ and Ca2+, Mg2+, Na+, K+, Al3+
+    real(r8), intent(in) :: valence(1:ncations)   ! valence of Ca2+, Mg2+, Na+, K+, Al3+
     real(r8) :: pcterr ! percentage error
     ! 
     ! !LOCAL VARIABLES:
@@ -255,7 +271,7 @@ contains
       search_step = (search_end - search_start) / (search_n - 1)
       do i = 1, search_n
         curr_ph = search_start + search_step * (i-1)
-        curr_err = objective_solveq(curr_ph, b0, co2_atm, beta_list, kex_list)
+        curr_err = objective_solveq(curr_ph, b0, co2_atm, beta_list, kex_list, valence)
         if (curr_err < min_err) then
           best_i = i
           best_ph = curr_ph

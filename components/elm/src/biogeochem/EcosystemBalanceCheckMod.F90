@@ -15,7 +15,7 @@ module EcosystemBalanceCheckMod
   use elm_time_manager    , only : get_step_size,get_nstep
   use elm_varpar          , only : crop_prog
   use elm_varpar          , only : nlevdecomp
-  use elm_varpar          , only : nminerals, ncations, nminsec, mixing_layer
+  use elm_varpar          , only : nminerals, ncations, nminsecs, mixing_layer
   use elm_varcon          , only : dzsoi_decomp
   use elm_varctl          , only : nu_com
   use elm_varctl          , only : ECA_Pconst_RGspin
@@ -228,7 +228,7 @@ contains
       beg_h(c) = proton(c)
 
       beg_sm(c) = 0._r8
-      do m = 1, nminsec
+      do m = 1, nminsecs
          beg_sm(c) = beg_sm(c) + secondary_mineral(c,m)
       end do
     end do
@@ -949,7 +949,7 @@ contains
        end_h(c) = proton(c)
 
        end_sm(c) = 0._r8
-       do m = 1,nminsec
+       do m = 1,nminsecs
           end_sm(c) = end_sm(c) + secondary_mineral(c,m)
        end do
 
@@ -976,7 +976,7 @@ contains
       h_loss(c) = proton_oufl(c) + proton_uptake(c) + proton_leached(c) + proton_runoff(c) + primary_proton_flux(c)
 
       sm_add(c) = 0._r8
-      do m = 1, nminsec
+      do m = 1, nminsecs
          sm_add(c) = sm_add(c) + secondary_mineral_flux(c,m)
       end do
 

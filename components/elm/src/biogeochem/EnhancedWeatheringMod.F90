@@ -10,10 +10,10 @@ module EnhancedWeatheringMod
   ! !USES:
   use shr_kind_mod        , only : r8 => shr_kind_r8
   use elm_varctl          , only : iulog, spinup_state, nyears_before_ew
-  use elm_varcon          , only : log_keq_co3, log_keq_hco3, log_keq_minsec, log_keq_sio2am, alpha_minsec
-  use elm_varcon          , only : mass_co3, mass_hco3, mass_co2, mass_h2o, mass_sio2, mass_h, mass_minsec
-  use elm_varpar          , only : cation_mass, cation_valence, mixing_layer, mixing_depth, cation_names
-  use elm_varpar          , only : nminerals, ncations, nminsec, nks
+  use elm_varcon          , only : log_keq_co3, log_keq_hco3, log_keq_sio2am
+  use elm_varcon          , only : mass_co3, mass_hco3, mass_co2, mass_h2o, mass_sio2, mass_h
+  use elm_varpar          , only : mixing_layer, mixing_depth
+  use elm_varpar          , only : nminerals, ncations, nminsecs, nks
   use decompMod           , only : bounds_type
   use ColumnDataType      , only : col_ew, col_ms, col_mf, col_es, col_ws, col_wf
   use ColumnType          , only : col_pp
@@ -40,18 +40,28 @@ module EnhancedWeatheringMod
      real(r8), pointer  :: e_primary                   (:, :)   => null()   ! primary mineral reaction activation energy constant (KJ mol-1), 1:nminerals x [H+, H2O, OH-]
      real(r8), pointer  :: n_primary                   (:, :)   => null()   ! reaction order of H+ and OH- catalyzed weathering, 1:nminerals x [H+, OH-]
      real(r8), pointer  :: log_keq_primary             (:)      => null()   ! log10 of equilibrium constants for primary mineral dissolution
+     real(r8), pointer  :: primary_mass                (:)      => null()   ! molar mass of the primary mineral, g/mol, 1:nminerals (e.g. Mg2SiO4 = 140.6931 g/mol)
+
+     character(len=40), pointer  :: cations_name       (:)      => null()
+     real(r8), pointer  :: cations_mass                (:)      => null()   ! molar masses of the cation species, g/mol
+     real(r8), pointer  :: cations_valence             (:)      => null()   ! valence of the cations
+
+     character(len=40), pointer  :: minsecs_name       (:)      => null()   ! names of the secondary minerals for the record
+     real(r8), pointer  :: minsecs_mass                (:)      => null()   ! molar mass of the secondary mineral, g/mol, 1:nminsecss (e.g. Mg2SiO4 = 140.6931 g/mol)
+     real(r8), pointer  :: log_keq_minsecs             (:)      => null()   ! log10 of equilibrium constants for secondary mineral precipitation
+     real(r8), pointer  :: alpha_minsecs               (:)      => null()   ! alpha constants for secondary mineral precipitation
 
      ! reaction stoichiometry: suppose the equation is 
      ! primary mineral + proton + (water) = cations + SiO2 + (water)
      ! coefficient before the mineral is always 1
-     character(len=40), pointer  :: cations_name       (:)      => null()
+
+
      real(r8), pointer  :: primary_stoi_proton         (:)      => null()   ! reaction stoichiometry coefficient in front of H+, 1:nminerals
      real(r8), pointer  :: primary_stoi_h2o_in         (:)      => null()   ! reaction stoichiometry coefficient in front of water consumed, 1:nminerals
      real(r8), pointer  :: primary_stoi_cations        (:, :)   => null()   ! reaction stoichiometry coefficient in front of cations, 1:nminerals x 1:ncations
      real(r8), pointer  :: primary_stoi_silica         (:)      => null()   ! reaction stoichiometry coefficient in front of SiO2, 1:nminerals
      real(r8), pointer  :: primary_stoi_h2o_out        (:)      => null()   ! reaction stoichiometry coefficient in front of water produced, 1:nminerals
 
-     real(r8), pointer  :: primary_mass                (:)      => null()   ! molar mass of the primary mineral, g/mol, 1:nminerals (e.g. Mg2SiO4 = 140.6931 g/mol)
   end type EWParamsType
 
   type(EWParamsType), public ::  EWParamsInst
@@ -79,9 +89,6 @@ contains
     use elm_nlUtilsMod, only : find_nlgroup_name
     use shr_nl_mod    , only : shr_nl_find_group_name
     use shr_mpi_mod   , only : shr_mpi_bcast
-    use fileutils     , only : getfil
-    use ncdio_pio     , only : ncd_pio_closefile, ncd_pio_openfile, &
-                               file_desc_t, ncd_inqdid, ncd_inqdlen
 
     implicit none
 
@@ -90,7 +97,6 @@ contains
 
   ! !LOCAL VARIABLES:
     character(len=256) :: locfn     ! local file name
-    type(file_desc_t)  :: ncid      ! pio netCDF file id
     integer :: ierr                 ! error code
     integer :: unitn                ! unit for namelist file
     character(len=256):: errline
@@ -132,45 +138,76 @@ contains
   end subroutine elm_erw_readnl
 
   !-----------------------------------------------------------------------
-  subroutine readEnhancedWeatheringParams ( ncid )
+  subroutine readEnhancedWeatheringParams ( elm_erw_paramfile )
     !
     ! !DESCRIPTION:
     ! Read in parameters
     !
     ! !USES:
-    use ncdio_pio   , only : file_desc_t,ncd_io
+    use fileutils   , only : getfil
+    use ncdio_pio   , only : ncd_pio_closefile, ncd_pio_openfile
+    use ncdio_pio   , only : file_desc_t, ncd_inqdid, ncd_inqdlen
+    use ncdio_pio   , only : ncd_io
     use abortutils  , only : endrun
     use shr_log_mod , only : errMsg => shr_log_errMsg
-    use elm_varpar  , only : nminerals, ncations, nminsec
+    use elm_varpar  , only : nminerals, nks, ncations, nminsecs
     !
     ! !ARGUMENTS:
-    type(file_desc_t),intent(inout) :: ncid   ! pio netCDF file id
-    !
+    character(len=*), intent(in) :: elm_erw_paramfile ! parameter filename
+
     ! !LOCAL VARIABLES:
-    character(len=32)  :: subname = 'EWParamsType'
+    character(len=256) :: locfn   ! local file name
+    type(file_desc_t)  :: ncid    ! pio netCDF file id
+    integer            :: dimid   ! netCDF dimension id
+
     character(len=100) :: errCode = '-Error reading in parameters file:'
-    logical            :: readv ! has variable been read in or not
+    logical            :: readv   ! has variable been read in or not
     character(len=100) :: tString ! temp. var for reading
+
+    character(len=32)  :: subname = 'EWParamsType'
+
     !-----------------------------------------------------------------------
 
+    !
+    call getfil (elm_erw_paramfile, locfn, 0)
+    call ncd_pio_openfile (ncid, trim(locfn), 0)
+
+    call ncd_inqdid(ncid,'nminerals',dimid)
+    call ncd_inqdlen(ncid,dimid,nminerals)       ! note this will override value from 'elm_varpar' initials
+
     allocate(character(40) :: EWParamsInst%minerals_name(1:nminerals))
-    allocate(EWParamsInst%log_k_primary(1:nminerals, 1:nks))
+    allocate(EWParamsInst%log_k_primary(1:nminerals, 1:nks))   ! 'nks' NOT read-in as above
     allocate(EWParamsInst%e_primary(1:nminerals, 1:nks))
     allocate(EWParamsInst%n_primary(1:nminerals, 1:nks))
     allocate(EWParamsInst%log_keq_primary(1:nminerals))
+    allocate(EWParamsInst%primary_mass(1:nminerals))
+
+    call ncd_inqdid(ncid,'ncations',dimid)
+    call ncd_inqdlen(ncid,dimid,ncations)        ! note this will override value from 'elm_varpar' initials
+    allocate(character(40) :: EWParamsInst%cations_name(1:ncations))
+    allocate(EWParamsInst%cations_mass(1:ncations))
+    allocate(EWParamsInst%cations_valence(1:ncations))
 
     allocate(EWParamsInst%primary_stoi_proton(1:nminerals))
     allocate(EWParamsInst%primary_stoi_h2o_in(1:nminerals))
     allocate(EWParamsInst%primary_stoi_h2o_out(1:nminerals))
     allocate(EWParamsInst%primary_stoi_silica(1:nminerals))
-    allocate(character(40) :: EWParamsInst%cations_name(ncations))
     allocate(EWParamsInst%primary_stoi_cations(1:nminerals,1:ncations))
 
-    allocate(EWParamsInst%primary_mass(1:nminerals))
+    call ncd_inqdid(ncid,'nminsecs',dimid)
+    call ncd_inqdlen(ncid,dimid,nminsecs)       ! note this will override value from 'elm_varpar' initials
+    allocate(character(40) :: EWParamsInst%minsecs_name(1:nminsecs))
+    allocate(EWParamsInst%minsecs_mass(1:nminsecs))
+    allocate(EWParamsInst%log_keq_minsecs(1:nminsecs))
+    allocate(EWParamsInst%alpha_minsecs(1:nminsecs))
 
-    !
+    ! read in parameters
     tString='minerals_name'
     call ncd_io(varname=trim(tString),data=EWParamsInst%minerals_name, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+
+    tString='primary_mass'
+    call ncd_io(varname=trim(tString),data=EWParamsInst%primary_mass, flag='read', ncid=ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
 
     tString='log_k_primary'
@@ -189,10 +226,20 @@ contains
     call ncd_io(varname=trim(tString),data=EWParamsInst%log_keq_primary, flag='read', ncid=ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
 
+    ! for cations involving in primary mineral's dissolutions
     tString='cations_name'
     call ncd_io(varname=trim(tString),data=EWParamsInst%cations_name, flag='read', ncid=ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
 
+    tString='cations_mass'
+    call ncd_io(varname=trim(tString),data=EWParamsInst%cations_mass, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+
+    tString='cations_valence'
+    call ncd_io(varname=trim(tString),data=EWParamsInst%cations_valence, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+
+    ! for primary mineral's dissolution reactions (product)
     tString='primary_stoi_proton'
     call ncd_io(varname=trim(tString),data=EWParamsInst%primary_stoi_proton, flag='read', ncid=ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
@@ -213,9 +260,25 @@ contains
     call ncd_io(varname=trim(tString),data=EWParamsInst%primary_stoi_h2o_out, flag='read', ncid=ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
 
-    tString='primary_mass'
-    call ncd_io(varname=trim(tString),data=EWParamsInst%primary_mass, flag='read', ncid=ncid, readvar=readv)
+    ! for secondary mineral precipitions
+    tString='minsecs_name'
+    call ncd_io(varname=trim(tString),data=EWParamsInst%minsecs_name, flag='read', ncid=ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+
+    tString='minsecs_mass'
+    call ncd_io(varname=trim(tString),data=EWParamsInst%minsecs_mass, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+
+    tString='log_keq_minsecs'
+    call ncd_io(varname=trim(tString),data=EWParamsInst%log_keq_minsecs, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+
+    tString='alpha_minsecs'
+    call ncd_io(varname=trim(tString),data=EWParamsInst%alpha_minsecs, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+
+    ! close nc file
+    call ncd_pio_closefile(ncid)
 
   end subroutine readEnhancedWeatheringParams
 
@@ -236,7 +299,8 @@ contains
     type(soilstate_type)     , intent(in)    :: soilstate_vars
     !
     ! !LOCAL VARIABLES:
-    integer  :: fc,c,j,t,a             ! indices
+    integer  :: fc,c,j,t
+    integer  :: icat                   ! indices
     real(r8) :: co2_atm                ! CO2 partial pressure in atm
 
     associate( &
@@ -269,32 +333,29 @@ contains
         carbonate_vr(c,j) = mol_to_mass( hco3_to_co3(ph_to_hco3(soil_ph(c,j), co2_atm), soil_ph(c,j)), mass_co3, h2osoi_vol(c,j) )
 
         cec_proton_vr(c,j) = meq_to_mass(soilstate_vars%ceca_col(c,j), 1._r8, mass_h, soilstate_vars%bd_col(c,j))
-        do a = 1,ncations
-          cec_cation_vr(c,j,a) = meq_to_mass(soilstate_vars%cece_col(c,j,a), cation_valence(a), cation_mass(a), soilstate_vars%bd_col(c,j))
+        do icat = 1, ncations
+          cec_cation_vr(c,j,icat) = meq_to_mass(soilstate_vars%cece_col(c,j,icat), EWParamsInst%cations_valence(icat), EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j))
         end do
 
         ! calculate soil solution concentration using the equilibrium with CEC
-        do a = 1,ncations
-          cation_vr(c,j,a) = mol_to_mass( &
-              (10**(-soil_ph(c,j)-soilstate_vars%log_km_col(c,j,a)) / & 
-               (soilstate_vars%ceca_col(c,j) / soilstate_vars%cect_col(c,j)) & 
-              )**cation_valence(a) * &
-              soilstate_vars%cece_col(c,j,a) / soilstate_vars%cect_col(c,j) &
-          , cation_mass(a), h2osoi_vol(c,j) )
+        do icat = 1,ncations
+          cation_vr(c,j,icat) = ( 10**(-soil_ph(c,j)-soilstate_vars%log_km_col(c,j,icat)) / &
+               (soilstate_vars%ceca_col(c,j)/soilstate_vars%cect_col(c,j)) ) &
+              **EWParamsInst%cations_valence(icat)
+          cation_vr(c,j,icat) = cation_vr(c,j,icat) * &
+            (soilstate_vars%cece_col(c,j,icat)/soilstate_vars%cect_col(c,j))
+          cation_vr(c,j,icat) = mol_to_mass(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j))
         end do
-
-        ! write (iulog, *) 'initial cation_vr', c, j, mass_to_mol(cation_vr(c,j,1), cation_mass(1), h2osoi_vol(c,j)), mass_to_mol(cation_vr(c,j,2), cation_mass(2), h2osoi_vol(c,j)), mass_to_mol(cation_vr(c,j,3), cation_mass(3), h2osoi_vol(c,j)), mass_to_mol(cation_vr(c,j,4), cation_mass(4), h2osoi_vol(c,j)), mass_to_mol(cation_vr(c,j,5), cation_mass(5), h2osoi_vol(c,j))
 
         ! calculate the net charge balance at the first time step
         ! mol/kg
         net_charge_vr(c,j) = 10**(-soil_ph(c,j)) - 10**(-14_r8+soil_ph(c,j)) - &
             mass_to_mol(bicarbonate_vr(c,j), mass_hco3, h2osoi_vol(c,j)) - & 
             2_r8 * mass_to_mol(carbonate_vr(c,j), mass_co3, h2osoi_vol(c,j))
-        do a = 1,ncations
-          net_charge_vr(c,j) = net_charge_vr(c,j) + cation_valence(a) * mass_to_mol(cation_vr(c,j,a), cation_mass(a), h2osoi_vol(c,j))
+        do icat = 1, ncations
+          net_charge_vr(c,j) = net_charge_vr(c,j) + EWParamsInst%cations_valence(icat) * &
+             mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j))
         end do
-
-        ! write (iulog, *) 'initial net charge', c, j, net_charge_vr(c,j), 10**(-soil_ph(c,j)), - 10**(-14_r8+soil_ph(c,j)), - mass_to_mol(bicarbonate_vr(c,j), mass_hco3, h2osoi_vol(c,j)), - 2_r8 * mass_to_mol(carbonate_vr(c,j), mass_co3, h2osoi_vol(c,j)), cation_valence(1) * mass_to_mol(cation_vr(c,j,1), cation_mass(1), h2osoi_vol(c,j)), cation_valence(2) * mass_to_mol(cation_vr(c,j,2), cation_mass(2), h2osoi_vol(c,j)), cation_valence(3) * mass_to_mol(cation_vr(c,j,3), cation_mass(3), h2osoi_vol(c,j)), cation_valence(4) * mass_to_mol(cation_vr(c,j,4), cation_mass(4), h2osoi_vol(c,j)), cation_valence(5) * mass_to_mol(cation_vr(c,j,5), cation_mass(5), h2osoi_vol(c,j))
 
       end do
     end do
@@ -324,7 +385,8 @@ contains
 
     !
     ! !LOCAL VARIABLES:
-    integer  :: fc,c,j,a,m             ! indices
+    integer  :: fc,c,j
+    integer  :: m, isec, icat          ! indices
     integer  :: kyr                    ! current year
     integer  :: kmo                    ! month of year  (1, ..., 12)
     integer  :: kda                    ! day of month   (1, ..., 31)
@@ -395,15 +457,15 @@ contains
          !
          ! Secondary mineral state
          ! 
-         secondary_mineral_vr           => col_ms%secondary_mineral_vr      , & ! Output [real(r8) (:,:,:)] secondary mineral mass in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd, 1:nminsec)
+         secondary_mineral_vr           => col_ms%secondary_mineral_vr      , & ! Output [real(r8) (:,:,:)] secondary mineral mass in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd, 1:nminsecs)
 
          ! 
          ! Secondary mineral flux
          ! 
-         secondary_mineral_flux_vr      => col_mf%secondary_mineral_flux_vr , & ! Output [real(r8) (:,:,:) secondary mineral precipitated (g m-3 s-1) (1:nlevgrnd, 1:nminsec)
+         secondary_mineral_flux_vr      => col_mf%secondary_mineral_flux_vr , & ! Output [real(r8) (:,:,:) secondary mineral precipitated (g m-3 s-1) (1:nlevgrnd, 1:nminsecs)
          secondary_cation_flux_vr       => col_mf%secondary_cation_flux_vr  , & ! Output [real(r8) (:,:,:) cations consumed due to precipitation of secondary minerals (g m-3 s-1) (1:nlevgrnd, 1:ncations)
          secondary_silica_flux_vr       => col_mf%secondary_silica_flux_vr  , & ! Output [real(r8) (:,:) sio2 consumed due to precipitation of secondary minerals (g m-3 s-1) (1:nlevgrnd)
-         r_precip_vr                    => col_mf%r_precip_vr               , & ! Output [real(r8) (:,:)] rate at which the precipitation of secondary mineral happens (mol m-3 s-1) (1:nlevgrnd, 1:nminsec)
+         r_precip_vr                    => col_mf%r_precip_vr               , & ! Output [real(r8) (:,:)] rate at which the precipitation of secondary mineral happens (mol m-3 s-1) (1:nlevgrnd, 1:nminsecs)
          !
          ! Other related
          !
@@ -458,7 +520,7 @@ contains
 
         ! weight fraction of kaolinite in soil, g g-1 soil
         frac_kaolinite = 0.004_r8
-      else
+      else if (site_id == 2) then
         ! U.C. Davis
         ! rain pH data from the monitoring station in Davis,  
         ! National Atmospheric Deposition Program
@@ -490,6 +552,19 @@ contains
 
         ! weight fraction of kaolinite in soil, g g-1 soil
         frac_kaolinite = 0.2_r8
+
+      else
+        ! (TODO)
+        rain_ph(c) = 7.0_r8
+        rain_chem(c, :) = 0.0_r8
+
+        forc_app(c) = 0._r8
+        do m = 1, nminerals
+          forc_min(c, m) = 0._r8
+          forc_gra(c, m) = 10._r8
+        end do
+        forc_pho(c) = 0._r8
+
       end if
 
       !------------------------------------------------------------------------------
@@ -500,22 +575,22 @@ contains
       ! (Initial cation concentration - Above layer's concentration) * 
       ! (Influx from above - Plant uptake)
       !------------------------------------------------------------------------------
-      do a = 1, ncations
+      do icat = 1, ncations
         ! rainwater, mg/L => mol/kg
-        equilibria_conc(0) = rain_chem(c,a) * 1e-3 / cation_mass(a)
+        equilibria_conc(0) = rain_chem(c,icat) * 1e-3 / EWParamsInst%cations_mass(icat)
         do j = 1,mixing_layer
           h = 10**(-soilstate_vars%sph(c,j))
           beta_h = soilstate_vars%ceca_col(c,j) / soilstate_vars%cect_col(c,j)
-          beta_cation = soilstate_vars%cece_col(c,j,a) / soilstate_vars%cect_col(c,j)
-          keq = 10**soilstate_vars%log_km_col(c,j,a)
-          equilibria_conc(j) = beta_cation/(beta_h*keq/h)**cation_valence(a)
+          beta_cation = soilstate_vars%cece_col(c,j,icat) / soilstate_vars%cect_col(c,j)
+          keq = 10**soilstate_vars%log_km_col(c,j,icat)
+          equilibria_conc(j) = beta_cation/(beta_h*keq/h)**EWParamsInst%cations_valence(icat)
         end do
 
         ! mol kg-1 * g mol-1 * mm s-1 = g m-2 s-1, divide by dz to get g m-3 s-1
         do j = 1,mixing_layer
-          background_weathering_vr(c,j,a) = mol_to_mass(equilibria_conc(j) - equilibria_conc(j-1), cation_mass(a), 1e-3_r8 * (qin(c,j) - qflx_rootsoi_col(c,j)) / dz(c,j))
-
-          ! write (iulog, *) c, j, a, 'background_weathering', equilibria_conc(j), equilibria_conc(j) - equilibria_conc(j-1), qin(c,j), qin(c,j) - qflx_rootsoi_col(c,j)
+          background_weathering_vr(c,j,icat) = mol_to_mass(equilibria_conc(j) - equilibria_conc(j-1), &
+                              EWParamsInst%cations_mass(icat), &
+                              1e-3_r8 * (qin(c,j) - qflx_rootsoi_col(c,j)) / dz(c,j))
         end do
       end do
 
@@ -557,17 +632,11 @@ contains
               ! log10 of ion activity product divided by equilibrium constant
               log_omega_vr(c,j,m) = soil_ph(c,j) * EWParamsInst%primary_stoi_proton(m) - &
                 EWParamsInst%log_keq_primary(m)
-              do a = 1,ncations
+              do icat = 1,ncations
                 log_omega_vr(c,j,m) = log_omega_vr(c,j,m) + & 
-                  EWParamsInst%primary_stoi_cations(m,a) * & 
-                  mass_to_logmol(cation_vr(c,j,a), cation_mass(a), h2osoi_vol(c,j))
+                  EWParamsInst%primary_stoi_cations(m,icat) * &
+                  mass_to_logmol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j))
               end do
-
-              !write (iulog, *) 'log_omega_vr part 1', c, j, soil_ph(c,j)*EWParamsInst%primary_stoi_proton(m) - EWParamsInst%log_keq_primary(m), soil_ph(c,j), EWParamsInst%primary_stoi_proton(m), EWParamsInst%log_keq_primary(m)
-              !do a = 1,ncations
-              !  write (iulog, *) 'log_omega_vr cation', c, j, a, cation_names(a), EWParamsInst%primary_stoi_cations(m,a) * & 
-              !  mass_to_logmol(cation_vr(c,j,a), cation_mass(a), h2osoi_vol(c,j)), EWParamsInst%primary_stoi_cations(m,a), mass_to_logmol(cation_vr(c,j,a), cation_mass(a), h2osoi_vol(c,j)), cation_vr(c,j,a)
-              !end do
 
               ! check the reaction rate is not negative
               if (log_omega_vr(c,j,m) >= 0._r8) then
@@ -579,17 +648,10 @@ contains
 
                 write (iulog,*) ' WARNING! Omega > 1 meaning dissolution reaction cannot proceed for mineral '//m_str//' column '//c_str//' layer '//n_str//':'
 
-                !write (iulog, *) 'h2o_vol = ', h2osoi_vol(c,j)
-                !do a = 1,ncations
-                !  if (EWParamsInst%primary_stoi_cations(m,a) > 0._r8) then
-                !    write (iulog, *) 'cation ', a, '=', cation_vr(c,j,a)
-                !  end if
-                !end do
-
                 write (iulog, *) 'log_omega_vr part 1', soil_ph(c,j) * EWParamsInst%primary_stoi_proton(m) - EWParamsInst%log_keq_primary(m)
-                do a = 1,ncations
-                  write (iulog, *) 'log_omega_vr cation', a, cation_names(a), EWParamsInst%primary_stoi_cations(m,a) * & 
-                  mass_to_logmol(cation_vr(c,j,a), cation_mass(a), h2osoi_vol(c,j))
+                do icat = 1,ncations
+                  write (iulog, *) 'log_omega_vr cation', icat, EWParamsInst%cations_name(icat), EWParamsInst%primary_stoi_cations(m,icat) * &
+                  mass_to_logmol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j))
                 end do
 
               else
@@ -612,7 +674,7 @@ contains
                     (-1.0e6_r8 * EWParamsInst%e_primary(m,2) / rgas * (1/tsoi(c,j) - 1/298.15_r8)) + &
                     log10(1 - 10**log_omega_vr(c,j,m))
                   k_tot = k_tot + 10**log_k_dissolve_neutral
-                  write (iulog, *) c, j, m, 'log_k_dissolve_neutral', log_k_dissolve_neutral, EWParamsInst%log_k_primary(m,1), EWParamsInst%e_primary(m,1), rgas, tsoi(c,j), log_omega_vr(c,j,m)
+                  !write (iulog, *) c, j, m, 'log_k_dissolve_neutral', log_k_dissolve_neutral, EWParamsInst%log_k_primary(m,1), EWParamsInst%e_primary(m,1), rgas, tsoi(c,j), log_omega_vr(c,j,m)
                 end if
 
                 if (EWParamsInst%log_k_primary(m,3) > -9999) then
@@ -650,11 +712,11 @@ contains
         !    r_dissolve_vr(c,j,m) * EWParamsInst%primary_stoi_proton(m) * mass_h
         !end do
 
-        do a = 1,ncations
-          primary_cation_flux_vr(c,j,a) = 0._r8
+        do icat = 1,ncations
+          primary_cation_flux_vr(c,j,icat) = 0._r8
           do m = 1,nminerals
-            primary_cation_flux_vr(c,j,a) = primary_cation_flux_vr(c,j,a) + &
-              r_dissolve_vr(c,j,m) * EWParamsInst%primary_stoi_cations(m,a) * cation_mass(a)
+            primary_cation_flux_vr(c,j,icat) = primary_cation_flux_vr(c,j,icat) + &
+              r_dissolve_vr(c,j,m) * EWParamsInst%primary_stoi_cations(m,icat) * EWParamsInst%cations_mass(icat)
           end do
         end do
 
@@ -675,9 +737,9 @@ contains
             EWParamsInst%primary_stoi_proton(m)*mass_h - & 
             (EWParamsInst%primary_stoi_h2o_out(m)-EWParamsInst%primary_stoi_h2o_in(m))*mass_h2o - & 
             EWParamsInst%primary_stoi_silica(m) * mass_sio2
-          do a = 1,ncations
+          do icat = 1,ncations
             primary_residue_flux_vr(c,j,m) = primary_residue_flux_vr(c,j,m) - &
-              EWParamsInst%primary_stoi_cations(m,a) * cation_mass(a)
+              EWParamsInst%primary_stoi_cations(m,icat) * EWParamsInst%cations_mass(icat)
           end do
           primary_residue_flux_vr(c,j,m) = primary_residue_flux_vr(c,j,m) * r_dissolve_vr(c,j,m)
         end do
@@ -692,73 +754,91 @@ contains
       ! ---------------------------------------------------------------
       ! Secondary mineral precipitation
       ! ---------------------------------------------------------------
+
+      secondary_cation_flux_vr(c,:,:) = 0._r8
+      secondary_mineral_flux_vr(c,:,:)= 0._r8
+      r_precip_vr(c,:,:)              = 0._r8
+      secondary_silica_flux_vr(c,:)   = 0._r8
+
       do j = 1,mixing_layer
-        do m = 1,nminsec
-          r_precip_vr(c,j,m) = 0._r8
-        end do
 
         if (h2osoi_liqvol(c,j) > 1e-6) then
-          ! Calcite formation (Ca2+ is cation #1)
+
+         ! Calcite precipitation (Ca2+ is cation #1)
+         isec = 1
+         icat = 1
+         if (cation_vr(c,j,icat)>0._r8) then
           saturation_ratio = &
             mass_to_mol(carbonate_vr(c,j), mass_hco3, h2osoi_vol(c,j)) * &
-            mass_to_mol(cation_vr(c,j,1), cation_mass(1), h2osoi_vol(c,j)) * &
-            10**(-log_keq_minsec(1))
+            mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j)) * &
+            10**(EWParamsInst%log_keq_minsecs(icat))
 
           ! Reaction rate is 
           ! r = \alpha * (\Omega - 1)
           ! \alpha = 9*1e-10 mol dm-3 (solution) s-1
           ! 
           ! Kirk, G. J. D., Versteegen, A., Ritz, K. & Milodowski, A. E. A simple reactive-transport model of calcite precipitation in soils and other porous media. Geochimica et Cosmochimica Acta 165, 108–122 (2015).
-          r_precip_vr(c,j,1) = alpha_minsec(1) * max(saturation_ratio - 1._r8, 0._r8)
+          r_precip_vr(c,j,isec) = EWParamsInst%alpha_minsecs(isec) * max(saturation_ratio - 1._r8, 0._r8)
 
           ! limit the precipitation rate by the reactant's concentration
-          r_precip_vr(c,j,1) = min( & 
-            mass_to_mol(carbonate_vr(c,j), mass_co3, h2osoi_vol(c,j)) / dt, &
-            mass_to_mol(cation_vr(c,j,1), mass_co3, h2osoi_vol(c,j)) / dt, &
-            r_precip_vr(c,j,1) &
-          )
+          r_precip_vr(c,j,isec) = min( &
+             mass_to_mol(carbonate_vr(c,j), mass_co3, h2osoi_vol(c,j)) / dt, &
+             mass_to_mol(cation_vr(c,j,icat), mass_co3, h2osoi_vol(c,j)) / dt, &
+             r_precip_vr(c,j,isec) )
 
           ! convert from per kg solution to per m3 soil
           ! reaction is in liquid part only
-          r_precip_vr(c,j,1) = r_precip_vr(c,j,1) * h2osoi_liqvol(c,j) * 1e3_r8
+          r_precip_vr(c,j,isec) = r_precip_vr(c,j,isec) * h2osoi_liqvol(c,j) * 1e3_r8
 
-          ! Kaolinite formation (Al3+ is cation #5)
+          ! update the fluxes for operative sec. minerals/cations
+          secondary_cation_flux_vr(c,j,icat) = r_precip_vr(c,j,isec) * EWParamsInst%cations_mass(icat)
+          secondary_mineral_flux_vr(c,j,isec) = r_precip_vr(c,j,isec) * EWParamsInst%minsecs_mass(isec)
+
+         endif
+
+
+         ! Kaolinite formation (Al3+ is cation #5)
+         isec = 2
+         icat = 5
+         if (cation_vr(c,j,icat)>0._r8) then
           ! check silica concentration - if supersaturated, reduce to saturation point
           log_silica = mass_to_logmol(silica_vr(c,j), mass_sio2, h2osoi_vol(c,j))
           log_silica = min(log_silica, log_keq_sio2am)
 
-          saturation_ratio = 2 * log_silica + 2 * mass_to_logmol(cation_vr(c,j,5), cation_mass(5), h2osoi_vol(c,j)) + 6 * soil_ph(c,j) - log_keq_minsec(2)
+          saturation_ratio = 2 * log_silica + &
+                             2 * mass_to_logmol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j)) + &
+                             6 * soil_ph(c,j) + EWParamsInst%log_keq_minsecs(isec)
 
           ! Reaction rate is 
           ! r [mol m-3 s-1] = A_{bulk} [m2 m-3] * k * (\Omega - 1)
           ! Perez-Fodich, A., & Derry, L. A. (2020). A model for germanium-silicon equilibrium fractionation in kaolinite. Geochimica et Cosmochimica Acta, 288, 199–213. https://doi.org/10.1016/j.gca.2020.07.046
-          r_precip_vr(c,j,2) = alpha_minsec(2) * (soilstate_vars%bd_col(c,j)*1e3*(1-soilstate_vars%cellorg_col(c,j)/ParamsShareInst%organic_max)*frac_kaolinite) * max(10**saturation_ratio - 1._r8, 0._r8)
+          r_precip_vr(c,j,isec) = EWParamsInst%alpha_minsecs(isec) * &
+            (soilstate_vars%bd_col(c,j)*1e3*(1-soilstate_vars%cellorg_col(c,j)/ParamsShareInst%organic_max)* &
+            frac_kaolinite) * max(10**saturation_ratio - 1._r8, 0._r8)
 
           ! convert to mol kg-1 water s-1
-          r_precip_vr(c,j,2) = r_precip_vr(c,j,2) / h2osoi_liqvol(c,j) * 1e-3_r8
-
-          !write (iulog, *) 'r_precip_vr', c, j, r_precip_vr(c,j,1), r_precip_vr(c,j,2), h2osoi_liqvol(c,j), alpha_minsec(2), soilstate_vars%bd_col(c,j), (1._r8-soilstate_vars%cellorg_col(c,j)/ParamsShareInst%organic_max), frac_kaolinite, saturation_ratio
+          r_precip_vr(c,j,isec) = r_precip_vr(c,j,isec) / h2osoi_liqvol(c,j) * 1e-3_r8
 
           ! limit the precipitation rate by the reactant's concentration
-          r_precip_vr(c,j,2) = min( 10**log_silica / 2 / dt,  &
-            mass_to_mol(cation_vr(c,j,5), cation_mass(5), h2osoi_vol(c,j)) / 2 / dt, &
-            r_precip_vr(c,j,2) )
+          r_precip_vr(c,j,isec) = min( 10**log_silica / 2 / dt,  &
+            mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j)) / 2 / dt, &
+            r_precip_vr(c,j,isec) )
 
           ! convert from per kg solution to per m3 soil
           ! reaction is in liquid part only
-          r_precip_vr(c,j,2) = r_precip_vr(c,j,2) * h2osoi_liqvol(c,j) * 1e3_r8
+          r_precip_vr(c,j,isec) = r_precip_vr(c,j,isec) * h2osoi_liqvol(c,j) * 1e3_r8
 
-          ! update the fluxes
-          secondary_cation_flux_vr(c,j,1) = r_precip_vr(c,j,1) * cation_mass(1)
-          secondary_cation_flux_vr(c,j,5) = r_precip_vr(c,j,2) * cation_mass(5)
-          do a = 2,4
-            secondary_cation_flux_vr(c,j,a) = 0._r8
-          end do
-          secondary_mineral_flux_vr(c,j,1) = r_precip_vr(c,j,1) * mass_minsec(1)
-          secondary_mineral_flux_vr(c,j,2) = r_precip_vr(c,j,2) * mass_minsec(2)
-          secondary_silica_flux_vr(c,j) = r_precip_vr(c,j,2) * mass_sio2
+          ! update the fluxes for operative sec. minerals/cations
+          secondary_cation_flux_vr(c,j,icat) = r_precip_vr(c,j,isec) * EWParamsInst%cations_mass(icat)
+          secondary_mineral_flux_vr(c,j,isec) = r_precip_vr(c,j,isec) * EWParamsInst%minsecs_mass(isec)
+
+          secondary_silica_flux_vr(c,j) = secondary_silica_flux_vr(c,j) + &
+               r_precip_vr(c,j,isec) * mass_sio2
+
+         end if
+
         end if
-      end do
+      end do ! soil layer
     end do ! end of the soil column loop
 
     end associate
@@ -786,8 +866,9 @@ contains
 
     !
     ! !LOCAL VARIABLES:
-    integer  :: j,c,fc,m,a                             ! indices
-    integer  :: nlevbed				                         ! number of layers to bedrock
+    integer  :: j,c,fc
+    integer  :: icat                                   ! indices
+    integer  :: nlevbed				                   ! number of layers to bedrock
     real(r8) :: frac_thickness                         ! deal with the fractional layer between last layer and max allowed depth
     real(r8) :: tot_water(bounds%begc:bounds%endc)     ! total column liquid water (kg water/m2)
     real(r8) :: surface_water(bounds%begc:bounds%endc) ! liquid water to shallow surface depth (kg water/m2)
@@ -840,9 +921,9 @@ contains
       j = 1
       if (qin(c,j) > 0._r8) then
         proton_infl_vr(c,j) = 10**(-rain_ph(c)) * mass_h * qin(c,j) / dz(c,j)
-        do a = 1,ncations
+        do icat = 1,ncations
           ! 1e-3 g L-1 water * mm s-1 = 1e-3 g m-2 s-1, divide by dz to get g m-3 s-1
-          cation_infl_vr(c,j,a) = rain_chem(c,a) * 1e-3_r8 * qin(c,j) / dz(c,j)
+          cation_infl_vr(c,j,icat) = rain_chem(c,icat) * 1e-3_r8 * qin(c,j) / dz(c,j)
         end do
       end if
 
@@ -851,16 +932,16 @@ contains
         if (qin(c,j) > 0._r8) then
           ! flow from above layer
           proton_infl_vr(c,j) = mol_to_mass(mass_to_mol(proton_vr(c,j-1), mass_h, h2osoi_vol(c,j-1)), mass_h, 1e-3_r8 * qin(c,j) / dz(c,j))
-          do a = 1,ncations
-            cation_infl_vr(c,j,a) = mol_to_mass(mass_to_mol(cation_vr(c,j-1,a), cation_mass(a), &
-              h2osoi_vol(c,j-1)), cation_mass(a), 1e-3_r8 * qin(c,j) / dz(c,j))
+          do icat = 1,ncations
+            cation_infl_vr(c,j,icat) = mol_to_mass(mass_to_mol(cation_vr(c,j-1,icat), EWParamsInst%cations_mass(icat), &
+              h2osoi_vol(c,j-1)), EWParamsInst%cations_mass(icat), 1e-3_r8 * qin(c,j) / dz(c,j))
           end do
         else
           ! flow into above layer
           proton_infl_vr(c,j) = mol_to_mass(mass_to_mol(proton_vr(c,j), mass_h, h2osoi_vol(c,j)), mass_h, 1e-3_r8 * qin(c,j) / dz(c,j))
-          do a = 1,ncations
-            cation_infl_vr(c,j,a) = mol_to_mass(mass_to_mol(cation_vr(c,j,a), cation_mass(a), &
-              h2osoi_vol(c,j)), cation_mass(a), 1e-3_r8 * qin(c,j) / dz(c,j))
+          do icat = 1,ncations
+            cation_infl_vr(c,j,icat) = mol_to_mass(mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), &
+              h2osoi_vol(c,j)), EWParamsInst%cations_mass(icat), 1e-3_r8 * qin(c,j) / dz(c,j))
           end do
         end if
       end do
@@ -871,22 +952,22 @@ contains
         if (qout(c,j) > 0._r8) then
           ! flow into below layer
           proton_oufl_vr(c,j) = mol_to_mass(mass_to_mol(proton_vr(c,j), mass_h, h2osoi_vol(c,j)), mass_h, 1e-3_r8 * qout(c,j) / dz(c,j))
-          do a = 1,ncations
-            cation_oufl_vr(c,j,a) = mol_to_mass(mass_to_mol(cation_vr(c,j,a), cation_mass(a), &
-              h2osoi_vol(c,j)), cation_mass(a), 1e-3_r8 * qout(c,j) / dz(c,j))
+          do icat = 1,ncations
+            cation_oufl_vr(c,j,icat) = mol_to_mass(mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), &
+              h2osoi_vol(c,j)), EWParamsInst%cations_mass(icat), 1e-3_r8 * qout(c,j) / dz(c,j))
           end do
         else
           ! flow from below layer
           if (j < mixing_layer) then
             proton_oufl_vr(c,j) = mol_to_mass(mass_to_mol(proton_vr(c,j+1), mass_h, h2osoi_vol(c,j+1)), mass_h, 1e-3_r8 * qout(c,j) / dz(c,j))
-            do a = 1,ncations
-              cation_oufl_vr(c,j,a) = mol_to_mass(mass_to_mol(cation_vr(c,j+1,a), cation_mass(a), h2osoi_vol(c,j+1)), cation_mass(a), 1e-3_r8 * qout(c,j) / dz(c,j))
+            do icat = 1,ncations
+              cation_oufl_vr(c,j,icat) = mol_to_mass(mass_to_mol(cation_vr(c,j+1,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j+1)), EWParamsInst%cations_mass(icat), 1e-3_r8 * qout(c,j) / dz(c,j))
             end do
           else
             proton_oufl_vr(c,j) = mol_to_mass(mass_to_mol(proton_vr(c,j), mass_h, h2osoi_vol(c,j+1)), mass_h, 1e-3_r8 * qout(c,j) / dz(c,j))
-            do a = 1,ncations
-              cation_oufl_vr(c,j,a) = mol_to_mass(mass_to_mol(cation_vr(c,j,a), cation_mass(a), &
-                h2osoi_vol(c,j+1)), cation_mass(a), 1e-3_r8 * qout(c,j) / dz(c,j))
+            do icat = 1,ncations
+              cation_oufl_vr(c,j,icat) = mol_to_mass(mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), &
+                h2osoi_vol(c,j+1)), EWParamsInst%cations_mass(icat), 1e-3_r8 * qout(c,j) / dz(c,j))
             end do
           end if
         end if
@@ -894,19 +975,11 @@ contains
         ! uptake by vegetation
         ! set to zero, assuming litterfall balances out uptake
         proton_uptake_vr(c,j) = 0._r8 ! mol_to_mass(mass_to_mol(proton_vr(c,j), mass_h, h2osoi_vol(c,j)), mass_h, 1e-3_r8 * qflx_rootsoi_col(c,j) / dz(c,j))
-        do a = 1,ncations
-          cation_uptake_vr(c,j,a) = 0._r8 ! mol_to_mass(mass_to_mol(cation_vr(c,j,a), cation_mass(a), h2osoi_vol(c,j)), cation_mass(a), 1e-3_r8 * qflx_rootsoi_col(c,j) / dz(c,j))
+        do icat = 1,ncations
+          cation_uptake_vr(c,j,icat) = 0._r8 ! mol_to_mass(mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j)), EWParamsInst%cations_mass(icat), 1e-3_r8 * qflx_rootsoi_col(c,j) / dz(c,j))
         end do
       end do
     end do
-
-    !do fc = 1,num_soilc
-    !  c = filter_soilc(fc)
-    !  do j = 1,mixing_layer
-        !write (iulog, *) c, j, 'Reaction water flux', col_ws%h2osoi_vol(c,j) * dz(c,j), qin(c,j)*dt, - qout(c,j)*dt, -qflx_rootsoi_col(c,j)*dt
-        !write (iulog, *) c, j, 'Reaction proton flux', proton_vr(c,j) * dz(c,j), proton_infl_vr(c,j) * dz(c,j) * dt, -proton_oufl_vr(c,j) * dz(c,j) * dt, -proton_uptake_vr(c,j)*dt
-    !  end do
-    !end do
 
     !------------------------------------------------------------------------------
     ! Leaching (subsurface runoff) and surface runoff losses
@@ -952,14 +1025,14 @@ contains
           proton_leached_vr(c,j) = 0._r8
         end if
 
-        do a = 1,ncations
+        do icat = 1,ncations
           if (h2osoi_liq(c,j) > 0._r8) then
             ! (drain_tot / tot_water) is the fraction water lost per second
-            cation_leached_vr(c,j,a) = cation_vr(c,j,a) * qflx_drain(c) / tot_water(c)
+            cation_leached_vr(c,j,icat) = cation_vr(c,j,icat) * qflx_drain(c) / tot_water(c)
             ! ensure the rate is not larger than the soil pool and positive
-            cation_leached_vr(c,j,a) = max(min(cation_vr(c,j,a) / dt, cation_leached_vr(c,j,a)), 0._r8)
+            cation_leached_vr(c,j,icat) = max(min(cation_vr(c,j,icat) / dt, cation_leached_vr(c,j,icat)), 0._r8)
           else
-            cation_leached_vr(c,j,a) = 0._r8
+            cation_leached_vr(c,j,icat) = 0._r8
           end if
         end do
 
@@ -978,19 +1051,19 @@ contains
           proton_runoff_vr(c,j) = 0._r8
         end if
 
-        do a = 1,ncations
+        do icat = 1,ncations
           if (h2osoi_liq(c,j) > 0._r8) then
             if ( zisoi(j) <= depth_runoff_Mloss )  then
-              cation_runoff_vr(c,j,a) = cation_vr(c,j,a) * qflx_surf(c) / surface_water(c)
+              cation_runoff_vr(c,j,icat) = cation_vr(c,j,icat) * qflx_surf(c) / surface_water(c)
             else if ( zisoi(j-1) < depth_runoff_Mloss )  then
               frac_thickness = (depth_runoff_Mloss - zisoi(j-1)) / dz(c,j)
-              cation_runoff_vr(c,j,a) = cation_vr(c,j,a) * qflx_surf(c) / surface_water(c) * frac_thickness
+              cation_runoff_vr(c,j,icat) = cation_vr(c,j,icat) * qflx_surf(c) / surface_water(c) * frac_thickness
             end if
 
             ! ensure the rate is not larger than the soil pool and positive
-            cation_runoff_vr(c,j,a) = max(min(cation_vr(c,j,a) / dt, cation_runoff_vr(c,j,a)), 0._r8)
+            cation_runoff_vr(c,j,icat) = max(min(cation_vr(c,j,icat) / dt, cation_runoff_vr(c,j,icat)), 0._r8)
           else
-            cation_runoff_vr(c,j,a) = 0._r8
+            cation_runoff_vr(c,j,icat) = 0._r8
           end if
         end do
       end do ! end soil level loop
@@ -1027,7 +1100,8 @@ contains
 
     !
     ! !LOCAL VARIABLES:
-    integer  :: fc,c,t,j,a             ! indices
+    integer  :: fc,c,t,j
+    integer  :: icat                   ! indices
     real(r8) :: co2_atm                ! CO2 partial pressure in atm
     real(r8) :: cece(1:ncations)       ! temporary container (meq 100g-1 soil)
     real(r8) :: beta_list(1:ncations)  ! temporary container for cece/cec_tot
@@ -1064,12 +1138,15 @@ contains
       do j = 1,mixing_layer
 
         ! use grid search to find the pH
-        do a = 1,ncations
-          cece(a) = mass_to_meq(cec_cation_vr(c,j,a), cation_valence(a), cation_mass(a), soilstate_vars%bd_col(c,j))
-          beta_list(a) = cece(a) / soilstate_vars%cect_col(c,j)
-          keq_list(a) = 10**soilstate_vars%log_km_col(c,j,a)
+        do icat = 1,ncations
+          cece(icat) = mass_to_meq(cec_cation_vr(c,j,icat), &
+                                EWParamsInst%cations_valence(icat), &
+                                EWParamsInst%cations_mass(icat), &
+                                soilstate_vars%bd_col(c,j))
+          beta_list(icat) = cece(icat) / soilstate_vars%cect_col(c,j)
+          keq_list(icat) = 10**soilstate_vars%log_km_col(c,j,icat)
         end do
-        ph = solve_eq(net_charge_vr(c,j), co2_atm, beta_list, keq_list)
+        ph = solve_eq(net_charge_vr(c,j), co2_atm, beta_list, keq_list, EWParamsInst%cations_valence)
 
         ! calculate the implications on HCO3- & CO3 --
         bicarbonate_vr(c,j) = ph_to_hco3(ph, co2_atm)
@@ -1085,25 +1162,16 @@ contains
 
         ! calculate the implications on cations
         beta_h = 1._r8
-        do a = 1,ncations
-          beta_h = beta_h - beta_list(a)
+        do icat = 1,ncations
+          beta_h = beta_h - beta_list(icat)
         end do
 
-        do a = 1,ncations
-          conc(a) = beta_list(a)/(beta_h*keq_list(a)/10**(-ph))**cation_valence(a)
+        do icat = 1,ncations
+          conc(icat) = beta_list(icat)/(beta_h*keq_list(icat)/10**(-ph))**EWParamsInst%cations_valence(icat)
           ! the reaction happens in the liquid water part only
-          cec_cation_flux_vr(c,j,a) = (mol_to_mass(conc(a), cation_mass(a), h2osoi_liqvol(c,j)) - &
-                                       cation_vr(c,j,a)*h2osoi_liqvol(c,j)/h2osoi_vol(c,j)) / dt
+          cec_cation_flux_vr(c,j,icat) = (mol_to_mass(conc(icat), EWParamsInst%cations_mass(icat), h2osoi_liqvol(c,j)) - &
+                                       cation_vr(c,j,icat)*h2osoi_liqvol(c,j)/h2osoi_vol(c,j)) / dt
         end do
-
-        !write (iulog, *) 'cece', c, j, cece(1), cece(2), cece(3), cece(4), cece(5), soilstate_vars%cect_col(c,j)
-        !write (iulog, *) 'beta_list', c, j, beta_list(1), beta_list(2), beta_list(3), beta_list(4), beta_list(5), soilstate_vars%log_km_col(c,j,1), soilstate_vars%log_km_col(c,j,2), soilstate_vars%log_km_col(c,j,3), soilstate_vars%log_km_col(c,j,4), soilstate_vars%log_km_col(c,j,5)
-        !write (iulog, *) 'new_ph', c,j, ph, beta_h, co2_atm, net_charge_vr(c,j)
-        !write (iulog, *) 'new cation concentration', c,j, conc(1), conc(2), conc(3), conc(4), conc(5)
-
-        !do a = 1,ncations
-        !  write (iulog, *) 'cec', c, j, a, beta_list(a), beta_h, keq_list(a), ph, cation_valence(a), conc(a)
-        !end do
 
       end do
     end do

@@ -14,7 +14,7 @@ module ColumnDataType
   use abortutils      , only : endrun
   use MathfuncMod     , only : dot_sum
   use elm_varpar      , only : nlevsoi, nlevsno, nlevgrnd, nlevlak, nlevurb
-  use elm_varpar      , only : nminerals, ncations, nminsec, mixing_layer, cation_mass, cation_valence
+  use elm_varpar      , only : nminerals, ncations, nminsecs, mixing_layer
   use elm_varcon      , only : mass_h, mass_hco3, mass_co3, log_keq_hco3, log_keq_co3
   use elm_varpar      , only : ndecomp_cascade_transitions, ndecomp_pools, nlevcan
   use elm_varpar      , only : nlevdecomp_full, crop_prog, nlevdecomp
@@ -439,7 +439,7 @@ module ColumnDataType
       real(r8), pointer :: primary_residue_vr      (:,:,:) => null() ! non-SiO2 solids concentration in solid phase in each soil layer (1:nlevgrnd,1:nminerals) (g m-3)
       real(r8), pointer :: armor_thickness_vr      (:,:)   => null() ! armoring layer thickness due to preferential release and formation of secondary mineral (1:nlevgrnd) (um)
       real(r8), pointer :: ssa                     (:,:)   => null() ! specific surface area of the primary mineral (1:nminerals) (m2 g-1 mineral)
-      real(r8), pointer :: secondary_mineral_vr    (:,:,:) => null() ! secondary mineral concentration in solid phase in each soil layer (1:nlevgrnd,1:nminsec) (g m-3)
+      real(r8), pointer :: secondary_mineral_vr    (:,:,:) => null() ! secondary mineral concentration in solid phase in each soil layer (1:nlevgrnd,1:nminsecs) (g m-3)
 
       real(r8), pointer :: cec_cation_vr           (:,:,:) => null() ! adsorbed cation concentration each soil layer (1:nlevgrnd,1:ncations) (g m-3 soil [not dry soil])
       real(r8), pointer :: cec_proton_vr           (:,:)   => null() ! adsorbed H+ concentration in each soil layer (1:nlevgrnd) (g m-3 soil [not dry soil])
@@ -449,7 +449,7 @@ module ColumnDataType
       real(r8), pointer :: proton                  (:)     => null() ! vertically integrated soil H+ concentration in soil water (g m-2)
       real(r8), pointer :: cation                  (:,:)   => null() ! vertically integrated cation in soil water (1:ncations) (g m-2)
       real(r8), pointer :: silica                  (:)     => null() ! vertically integrated silicate in soil water (g m-2)
-      real(r8), pointer :: secondary_mineral       (:,:)   => null() ! vertically integrated secondary mineral (1:nminsec) (g m-2)
+      real(r8), pointer :: secondary_mineral       (:,:)   => null() ! vertically integrated secondary mineral (1:nminsecs) (g m-2)
       real(r8), pointer :: primary_residue         (:,:)   => null() ! vertically integrated non-SiO2 solids concentration (1:nminerals) (g m-2)
       real(r8), pointer :: cec_cation              (:,:)   => null() ! vertically integrated adsorbed cation concentration (1:ncations) (g m-2)
       real(r8), pointer :: cec_proton              (:)     => null() ! vertically integrated adsorbed proton concentration (g m-2)
@@ -1132,10 +1132,10 @@ module ColumnDataType
       real(r8), pointer :: r_dissolve_vr                (:,:,:)   => null() ! reaction rate of the dissolution of the primary mineral (1:nlevgrnd, 1:nminerals) (mol reaction m-3 s-1)
       real(r8), pointer :: log_omega_vr                 (:,:,:)   => null() ! Omega parameter in the dissolution equation (1:nlevgrnd, 1:nminerals)
 
-      real(r8), pointer :: secondary_mineral_flux_vr    (:,:,:)   => null() ! rate at which secondary mineral is formed (1:nlevgrnd,1:nminsec) (g m-3 s-1)
+      real(r8), pointer :: secondary_mineral_flux_vr    (:,:,:)   => null() ! rate at which secondary mineral is formed (1:nlevgrnd,1:nminsecs) (g m-3 s-1)
       real(r8), pointer :: secondary_cation_flux_vr     (:,:,:)   => null() ! rate at which cations consumed due to precipitation of secondary minerals (1:nlevgrnd,1:ncations) (g m-3 s-1)
       real(r8), pointer :: secondary_silica_flux_vr     (:,:)     => null() ! rate at which SiO2 is consumed by secondary mineral precipitation (1:nlevgrnd,1:ncations) (g m-3 s-1)
-      real(r8), pointer :: r_precip_vr                  (:,:,:)   => null() ! reaction rate of the precipitation of the secondary mineral (1:nlevgrnd,1:nminsec) (mol reaction m-3 s-1)
+      real(r8), pointer :: r_precip_vr                  (:,:,:)   => null() ! reaction rate of the precipitation of the secondary mineral (1:nlevgrnd,1:nminsecs) (mol reaction m-3 s-1)
 
       real(r8), pointer :: cec_cation_flux_vr           (:,:,:)   => null() ! rate at which cation is released into water (negative for adsorption into soil) (vertically resolved) (1:nlevgrnd, 1:ncations) (g m-3 s-1)
       real(r8), pointer :: cec_proton_flux_vr           (:,:)     => null() ! soil proton flux for charge balance with the cations (positive for adsorbed, negative for released) (g m-3 s-1)
@@ -1160,7 +1160,7 @@ module ColumnDataType
       real(r8), pointer :: primary_h2o_flux             (:)       => null() ! vertically integrated rate at which the primary reaction creates (+) or consumes (-) water (g m-2 s-1)
       real(r8), pointer :: primary_silica_flux          (:)       => null() ! vertically integrated rate at which SiO2 is generated by primary mineral dissolution (g m-2 s-1)
       real(r8), pointer :: primary_residue_flux         (:,:)     => null() ! vertically integrated rate of non-SiO2 solides being produced due to all the dissolution reaction (g m-3 s-1)
-      real(r8), pointer :: secondary_mineral_flux       (:,:)     => null() ! vertically integrated rate at which secondary mineral is formed (1:nminsec) (g m-2 s-1)
+      real(r8), pointer :: secondary_mineral_flux       (:,:)     => null() ! vertically integrated rate at which secondary mineral is formed (1:nminsecs) (g m-2 s-1)
       real(r8), pointer :: secondary_cation_flux        (:,:)     => null() ! vertically integrated rate at which cations consumed due to precipitation of secondary minerals (1:nlevgrnd,1:ncations) (g m-2 s-1)
       real(r8), pointer :: secondary_silica_flux        (:)       => null() ! vertically integrated rate at which SiO2 is consumed by secondary mineral precipitation (1:nlevgrnd,1:ncations) (g m-2 s-1)
       real(r8), pointer :: cec_cation_flux              (:,:)     => null() ! rate at which cation is adsorbed to soil (negative for released into water) (subtract this from the net dissolution and precipitation flux) (1:ncations) (g m-2 s-1)
@@ -5849,7 +5849,7 @@ contains
       allocate(this%primary_residue_vr  (begc:endc,1:nlevgrnd,1:nminerals))       ; this%primary_residue_vr     (:,:,:) = spval
       allocate(this%armor_thickness_vr  (begc:endc,1:nlevgrnd            ))       ; this%armor_thickness_vr     (:,:) = spval
       allocate(this%ssa                 (begc:endc,1:nminerals           ))       ; this%ssa                    (:,:) = spval
-      allocate(this%secondary_mineral_vr(begc:endc,1:nlevgrnd,1:nminsec  ))       ; this%secondary_mineral_vr   (:,:,:) = spval
+      allocate(this%secondary_mineral_vr(begc:endc,1:nlevgrnd,1:nminsecs  ))       ; this%secondary_mineral_vr   (:,:,:) = spval
       allocate(this%cec_cation_vr       (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cec_cation_vr          (:,:,:) = spval
       allocate(this%cec_proton_vr       (begc:endc,1:nlevgrnd            ))       ; this%cec_proton_vr          (:,:) = spval
       allocate(this%net_charge_vr       (begc:endc,1:nlevgrnd            ))       ; this%net_charge_vr          (:,:) = spval
@@ -5857,7 +5857,7 @@ contains
       allocate(this%proton              (begc:endc                       ))       ; this%proton                 (:) = spval
       allocate(this%cation              (begc:endc,1:ncations            ))       ; this%cation                 (:,:) = spval
       allocate(this%silica              (begc:endc                       ))       ; this%silica                 (:) = spval
-      allocate(this%secondary_mineral   (begc:endc,1:nminsec             ))       ; this%secondary_mineral      (:,:) = spval
+      allocate(this%secondary_mineral   (begc:endc,1:nminsecs             ))       ; this%secondary_mineral      (:,:) = spval
       allocate(this%primary_residue     (begc:endc,1:nminerals           ))       ; this%primary_residue        (:,:) = spval
       allocate(this%cec_cation          (begc:endc,1:ncations            ))       ; this%cec_cation             (:,:) = spval
       allocate(this%cec_proton          (begc:endc                       ))       ; this%cec_proton             (:)   = spval
@@ -5951,8 +5951,8 @@ contains
          avgflag='A', long_name='specific surface area of the primary mineral', &
          ptr_col=this%ssa, l2g_scale_type='veg')
 
-      this%secondary_mineral_vr(begc:endc,1:nlevgrnd,1:nminsec) = spval
-      do a = 1,nminsec
+      this%secondary_mineral_vr(begc:endc,1:nlevgrnd,1:nminsecs) = spval
+      do a = 1,nminsecs
          data2dptr => this%secondary_mineral_vr(:,:,a)
          write (a_str, '(I6)') a
          a_str = adjustl(a_str)  ! Remove leading spaces
@@ -6009,7 +6009,7 @@ contains
          avgflag='A', long_name='amount of SiO2 in the soil', &
          ptr_col=data1dptr, l2g_scale_type='veg')
 
-      this%secondary_mineral(begc:endc,1:nminsec) = spval
+      this%secondary_mineral(begc:endc,1:nminsecs) = spval
       data2dptr => this%secondary_mineral(:,:)
       call hist_addfld2d (fname='secondary_mineral',  units='g m-2', type2d='minsec', &
          avgflag='A', long_name='amount of precipitated secondary mineral in the soil', &
@@ -6056,7 +6056,7 @@ contains
             this%primary_residue_vr      (c,1:mixing_layer,1:nminerals ) = 0._r8
             this%armor_thickness_vr      (c,1:mixing_layer             ) = 0._r8
             this%ssa                     (c,1:nminerals            ) = 0._r8
-            this%secondary_mineral_vr    (c,1:mixing_layer,1:nminsec   ) = 0._r8
+            this%secondary_mineral_vr    (c,1:mixing_layer,1:nminsecs   ) = 0._r8
 
             ! will be re-initialized after hydrology reaches equilibrium
             this%cec_proton_vr           (c,1:mixing_layer             ) = 0._r8
@@ -6068,7 +6068,7 @@ contains
             this%proton                  (c                        ) = 0._r8
             this%cation                  (c,1:ncations             ) = 0._r8
             this%silica                  (c                        ) = 0._r8
-            this%secondary_mineral       (c,1:nminsec              ) = 0._r8
+            this%secondary_mineral       (c,1:nminsecs              ) = 0._r8
             this%primary_residue         (c,1:nminerals            ) = 0._r8
 
             this%cec_cation              (c,1:ncations             ) = 0._r8
@@ -6180,7 +6180,7 @@ contains
          long_name='specific surface area of the primary mineral', units='m2 g-1', &
          interpinic_flag='interp', readvar=readvar, data=ptr2d)
 
-      do a = 1, nminsec
+      do a = 1, nminsecs
          write (a_str, '(I6)') a
          a_str = adjustl(a_str)  ! Remove leading spaces
          varname = 'secondary_mineral_vr_'//trim(a_str)
@@ -6320,7 +6320,7 @@ contains
             this%silica(c) = this%silica(c) + this%silica_vr(c,j) * col_pp%dz(c,j)
             this%cec_proton(c) = this%cec_proton(c) + this%cec_proton_vr(c,j) * col_pp%dz(c,j)
 
-            do a = 1, nminsec
+            do a = 1, nminsecs
                this%secondary_mineral(c,a) = &
                   this%secondary_mineral(c,a) + this%secondary_mineral_vr(c,j,a) * col_pp%dz(c,j)
             end do
@@ -12440,11 +12440,11 @@ contains
       allocate(this%r_dissolve_vr                  (begc:endc,1:nlevgrnd,1:nminerals))       ; this%r_dissolve_vr               (:,:,:) = spval
       allocate(this%log_omega_vr                   (begc:endc,1:nlevgrnd,1:nminerals))       ; this%log_omega_vr                (:,:,:) = spval
 
-      allocate(this%secondary_mineral_flux_vr      (begc:endc,1:nlevgrnd,1:nminsec  ))       ; this%secondary_mineral_flux_vr     (:,:,:) = spval
+      allocate(this%secondary_mineral_flux_vr      (begc:endc,1:nlevgrnd,1:nminsecs  ))       ; this%secondary_mineral_flux_vr     (:,:,:) = spval
       allocate(this%secondary_cation_flux_vr       (begc:endc,1:nlevgrnd,1:ncations ))       ; this%secondary_cation_flux_vr      (:,:,:) = spval
       allocate(this%secondary_silica_flux_vr       (begc:endc,1:nlevgrnd            ))       ; this%secondary_silica_flux_vr      (:,:)   = spval
 
-      allocate(this%r_precip_vr                    (begc:endc,1:nlevgrnd,1:nminsec  ))       ; this%r_precip_vr                   (:,:,:) = spval
+      allocate(this%r_precip_vr                    (begc:endc,1:nlevgrnd,1:nminsecs  ))       ; this%r_precip_vr                   (:,:,:) = spval
 
       allocate(this%cec_cation_flux_vr             (begc:endc,1:nlevgrnd,1:ncations ))       ; this%r_precip_vr                   (:,:,:) = spval
       allocate(this%cec_proton_flux_vr             (begc:endc,1:nlevgrnd            ))       ; this%r_precip_vr                   (:,:,:) = spval
@@ -12470,7 +12470,7 @@ contains
       allocate(this%primary_h2o_flux               (begc:endc                       ))       ; this%primary_h2o_flux              (:)     = spval
       allocate(this%primary_silica_flux            (begc:endc                       ))       ; this%primary_silica_flux           (:)     = spval
       allocate(this%primary_residue_flux           (begc:endc,1:nminerals           ))       ; this%primary_residue_flux          (:,:)   = spval
-      allocate(this%secondary_mineral_flux         (begc:endc,1:nminsec             ))       ; this%secondary_mineral_flux        (:,:)   = spval
+      allocate(this%secondary_mineral_flux         (begc:endc,1:nminsecs             ))       ; this%secondary_mineral_flux        (:,:)   = spval
       allocate(this%secondary_cation_flux          (begc:endc,1:ncations            ))       ; this%secondary_cation_flux         (:,:)   = spval
       allocate(this%secondary_silica_flux          (begc:endc                       ))       ; this%secondary_silica_flux         (:)     = spval
       allocate(this%cec_cation_flux                (begc:endc,1:ncations            ))       ; this%cec_cation_flux               (:,:)   = spval
@@ -12603,7 +12603,7 @@ contains
       end do
 
       this%secondary_mineral_flux_vr(begc:endc,:,:) = spval
-      do a = 1,nminsec
+      do a = 1,nminsecs
          data2dptr => this%secondary_mineral_flux_vr(:,:,a)
          write (a_str, '(I6)') a
          a_str = adjustl(a_str)  ! Remove leading sp+aces
@@ -12630,7 +12630,7 @@ contains
          ptr_col=this%secondary_silica_flux_vr, l2g_scale_type='veg')
 
       this%r_precip_vr(begc:endc,:,:) = spval
-      do a = 1,nminsec
+      do a = 1,nminsecs
          data2dptr => this%r_precip_vr(:,:,a)
          write (a_str, '(I6)') a
          a_str = adjustl(a_str)  ! Remove leading spaces
@@ -12882,10 +12882,10 @@ contains
             this%r_dissolve_vr                   (c,1:mixing_layer,1:nminerals) = 0._r8
             this%log_omega_vr                    (c,1:mixing_layer,1:nminerals) = 0._r8
 
-            this%secondary_mineral_flux_vr       (c,1:mixing_layer,1:nminsec  ) = 0._r8
+            this%secondary_mineral_flux_vr       (c,1:mixing_layer,1:nminsecs  ) = 0._r8
             this%secondary_cation_flux_vr        (c,1:mixing_layer,1:ncations ) = 0._r8
             this%secondary_silica_flux_vr        (c,1:mixing_layer            ) = 0._r8
-            this%r_precip_vr                     (c,1:mixing_layer,1:nminsec  ) = 0._r8
+            this%r_precip_vr                     (c,1:mixing_layer,1:nminsecs  ) = 0._r8
 
             this%cec_cation_flux_vr              (c,1:mixing_layer,1:ncations ) = 0._r8
             this%cec_proton_flux_vr              (c,1:mixing_layer            ) = 0._r8
@@ -12910,7 +12910,7 @@ contains
             this%primary_h2o_flux                (c                       ) = 0._r8
             this%primary_silica_flux             (c                       ) = 0._r8
             this%primary_residue_flux            (c,1:nminerals           ) = 0._r8
-            this%secondary_mineral_flux          (c,1:nminsec             ) = 0._r8
+            this%secondary_mineral_flux          (c,1:nminsecs             ) = 0._r8
             this%secondary_cation_flux           (c,1:ncations            ) = 0._r8
             this%secondary_silica_flux           (c                       ) = 0._r8
             this%cec_cation_flux                 (c,1:ncations            ) = 0._r8
@@ -13058,7 +13058,7 @@ contains
             interpinic_flag='interp', readvar=readvar, data=ptr2d)
       end do
 
-      do a = 1,nminsec
+      do a = 1,nminsecs
          write (a_str, '(I6)') a
          a_str = adjustl(a_str)  ! Remove leading spaces
          varname = 'secondary_mineral_flux_vr_'//trim(a_str)
@@ -13085,7 +13085,7 @@ contains
          long_name='rate at which SiO2 is consumed due to precipitation of secondary minerals vertically resolved)', units='g m-3 s-1', &
          interpinic_flag='interp', readvar=readvar, data=this%secondary_silica_flux_vr)
 
-      do a = 1,nminsec
+      do a = 1,nminsecs
          write (a_str, '(I6)') a
          a_str = adjustl(a_str)  ! Remove leading spaces
          varname = 'r_precip_vr_'//trim(a_str)
@@ -13411,7 +13411,7 @@ contains
             this%secondary_silica_flux(c) = &
                this%secondary_silica_flux(c) + this%secondary_silica_flux_vr(c,j) * col_pp%dz(c,j)
 
-            do a = 1,nminsec
+            do a = 1,nminsecs
                this%secondary_mineral_flux(c,a) = &
                   this%secondary_mineral_flux(c,a) + this%secondary_mineral_flux_vr(c,j,a) * col_pp%dz(c,j)
             end do

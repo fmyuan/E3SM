@@ -1744,7 +1744,7 @@ contains
     !
     ! !USES:
     use elm_varpar      , only : nlevgrnd, nlevsno, nlevlak, nlevurb, numrad, nmonth
-    use elm_varpar      , only : nminerals, ncations, nminsec
+    use elm_varpar      , only : nminerals, ncations, nminsecs
     use elm_varpar      , only : natpft_size, cft_size, maxpatch_glcmec, nlevdecomp_full, nlevtrc_full, nvegwcs
     use elm_varpar      , only : nlevsoi
     use landunit_varcon , only : max_lunit
@@ -1930,7 +1930,7 @@ contains
     if (use_ew) then
       call ncd_defdim( lnfid, 'minerals', nminerals, dimid)
       call ncd_defdim( lnfid, 'cations', ncations, dimid)
-      call ncd_defdim( lnfid, 'minsec', nminsec, dimid)
+      call ncd_defdim( lnfid, 'minsec', nminsecs, dimid)
     end if   
     if(use_fates)then
        call ncd_defdim(lnfid, 'fates_levscag', nlevsclass_fates * nlevage_fates, dimid)
@@ -4699,7 +4699,7 @@ contains
     ! !USES:
     use elm_varpar      , only : nlevgrnd, nlevsno, nlevlak, numrad, nlevdecomp_full, nlevtrc_soil, nmonth, nvegwcs
     use elm_varpar      , only : natpft_size, cft_size, maxpatch_glcmec
-    use elm_varpar      , only : nlevsoi, nminerals, ncations, nminsec
+    use elm_varpar      , only : nlevsoi, nminerals, ncations, nminsecs
     use landunit_varcon , only : max_lunit
     !
     ! !ARGUMENTS:
@@ -4837,7 +4837,7 @@ contains
     case ('cations')
        num2d = ncations
     case ('minsec')
-       num2d = nminsec
+       num2d = nminsecs
     case ('fates_levscls')
        num2d = nlevsclass_fates
     case('fates_levcacls')
@@ -4883,7 +4883,7 @@ contains
     case default
        write(iulog,*) trim(subname),' ERROR: unsupported 2d type ',type2d, &
           ' currently supported types for multi level fields are: ', &
-          '[levgrnd,levlak,numrad,nmonthlevdcmp,levtrc,ltype,natpft,cft,glc_nec,elevclas,levsno,levsoi,nminerals,ncations,nminsec]'
+          '[levgrnd,levlak,numrad,nmonthlevdcmp,levtrc,ltype,natpft,cft,glc_nec,elevclas,levsno,levsoi,nminerals,ncations,nminsecs]'
        call endrun(msg=errMsg(__FILE__, __LINE__))
     end select
 
