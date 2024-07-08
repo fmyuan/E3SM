@@ -376,6 +376,7 @@ contains
     use elm_time_manager , only : get_step_size, get_curr_date
     use abortutils       , only : endrun
     use SharedParamsMod  , only : ParamsShareInst
+    use timeinfoMod
     !
     ! !ARGUMENTS:
     type(bounds_type)        , intent(in)    :: bounds
@@ -490,7 +491,7 @@ contains
       call get_curr_date(kyr, kmo, kda, mcsec)
       current_date = kyr*10000 + kmo*100 + kda
 
-      site_id = 2
+      site_id = 0  ! 0: read-in, 1: HB site hard-wired, 2: uc-davis site hard-wired
 
       if (site_id == 1) then
         ! Hubbard Brook
@@ -554,16 +555,19 @@ contains
         frac_kaolinite = 0.2_r8
 
       else
-        ! (TODO)
+        !
         rain_ph(c) = 7.0_r8
         rain_chem(c, :) = 0.0_r8
 
-        forc_app(c) = 0._r8
-        do m = 1, nminerals
-          forc_min(c, m) = 0._r8
-          forc_gra(c, m) = 10._r8
-        end do
-        forc_pho(c) = 0._r8
+        ! from read-in data of soil amendment application
+        !print *, nstep_mod, jday_mod, secs_curr, forc_app(c)
+        !do m = 1, nminerals
+        !  print *, m, forc_min(c, m), forc_gra(c, m)
+        !end do
+        forc_pho(c) = 0._r8  ! (TODO) 0~namendnutr element(s) from soil amend application, by given index of phosphrous
+
+        ! weight fraction of kaolinite in soil, g g-1 soil
+        frac_kaolinite = 0.0_r8
 
       end if
 
