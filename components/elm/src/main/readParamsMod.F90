@@ -188,10 +188,7 @@ contains
                       trim(elm_erw_paramfile)
        end if
 
-       call getfil (elm_erw_paramfile, locfn, 0)
-       call ncd_pio_openfile (ncid, trim(locfn), 0)
-       call readEnhancedWeatheringParams (ncid)
-       call ncd_pio_closefile(ncid)
+       call readEnhancedWeatheringParams (elm_erw_paramfile)
     end if
 
  end subroutine readPrivateParameters

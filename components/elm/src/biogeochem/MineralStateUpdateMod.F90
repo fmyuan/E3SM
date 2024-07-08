@@ -6,22 +6,20 @@ module MineralStateUpdateMod
   ! !USES:
   use shr_kind_mod            , only : r8 => shr_kind_r8
   use decompMod               , only : bounds_type
-  use elm_varpar              , only : nminerals, ncations, nminsec, nlevgrnd, mixing_layer, cation_mass, cation_valence, cation_names
+  use elm_varpar              , only : nminerals, ncations, nminsecs, nlevgrnd, mixing_layer
   use elm_varcon              , only : zisoi, dzsoi, mass_h
-  !use elm_varctl              , only : nu_com
-  !use elm_varctl              , only : use_pflotran, pf_cmode, use_fates
   use elm_varctl              , only : iulog
   use abortutils              , only : endrun
 
-  ! DEBUG
+  !
   use ewutils                 , only : mass_to_mol, mass_to_meq
   use ColumnDataType          , only : col_ws
 
-  !use GridcellDataType        , only : grc_cs, c13_grc_cs, c14_grc_cs
-  !use GridcellDataType        , only : grc_cf, c13_grc_cf, c14_grc_cf
   use ColumnDataType          , only : col_ms, col_mf, col_pp
   use ColumnDataType          , only : column_mineral_state, column_mineral_flux
   use SoilStateType           , only : soilstate_type
+
+  use EnhancedWeatheringMod   , only : EWParamsInst
   !
   implicit none
   save
@@ -99,14 +97,15 @@ contains
         ! note "cec_proton_flux_vr" integrates the impacts from CO2 reactions
         ! instead, use charge balance on the mineral surface to get the change in adsorped H+
         do a = 1,ncations
-          col_ms%cec_proton_vr(c,j) = col_ms%cec_proton_vr(c,j) + col_mf%cec_cation_flux_vr(c,j,a)*dt/cation_mass(a)*mass_h*cation_valence(a)
+          col_ms%cec_proton_vr(c,j) = col_ms%cec_proton_vr(c,j) + &
+            col_mf%cec_cation_flux_vr(c,j,a)*dt/EWParamsInst%cations_mass(a)*mass_h*EWParamsInst%cations_valence(a)
         end do
 
         ! silicate
         col_ms%silica_vr(c,j) = col_ms%silica_vr(c,j) + col_mf%primary_silica_flux_vr(c,j) * dt - col_mf%secondary_silica_flux_vr(c,j) * dt
 
         ! secondary mineral
-        do m = 1,nminsec
+        do m = 1,nminsecs
             col_ms%secondary_mineral_vr(c,j,m) = col_ms%secondary_mineral_vr(c,j,m) + col_mf%secondary_mineral_flux_vr(c,j,m) * dt
         end do
 
@@ -114,12 +113,12 @@ contains
 
         ! Calculate the total CO2 sequestration rate in mol m-2 s-1
         ! precipitated by calcite: 1 mol CO2 per mol Ca2+
-        col_mf%r_sequestration(c) = col_mf%r_sequestration(c) + col_mf%secondary_cation_flux_vr(c,j,1) / cation_mass(1)
+        col_mf%r_sequestration(c) = col_mf%r_sequestration(c) + col_mf%secondary_cation_flux_vr(c,j,1) / EWParamsInst%cations_mass(1)
         ! transported to ocean: 2x for 2+ cations, 1x for 1+ cations
         do a = 1,ncations
           col_mf%r_sequestration(c) = col_mf%r_sequestration(c) + & 
               (col_mf%cation_leached_vr(c,j,a) + col_mf%cation_leached_vr(c,j,a)) / &
-              cation_mass(a) * cation_valence(a)
+              EWParamsInst%cations_mass(a) * EWParamsInst%cations_valence(a)
         end do
       end do
 
@@ -127,39 +126,6 @@ contains
       col_mf%r_sequestration(c) = col_mf%r_sequestration(c) * 12._r8
       ! multiply by oceanic efficiency
       col_mf%r_sequestration(c) = col_mf%r_sequestration(c) * 0.86
-
-      !write (iulog, *) 'Post-reaction H+'
-      !do j = 1,mixing_layer
-      !  write (iulog, *) c, j, col_ms%soil_ph(c,j), col_ms%proton_vr(c,j), mass_to_mol(col_ms%proton_vr(c,j), mass_h, col_ws%h2osoi_vol(c,j)), - col_mf%primary_proton_flux_vr(c,j)*dt, col_mf%cec_proton_flux_vr(c,j)*dt, col_mf%proton_infl_vr(c,j)*dt, - col_mf%proton_oufl_vr(c,j)*dt, -col_mf%proton_uptake_vr(c,j)*dt, -col_mf%proton_leached_vr(c,j)*dt, -col_mf%proton_runoff_vr(c,j)*dt
-      !end do
-
-      !write (iulog, *) 'Post-reaction cation'
-      !do j = 1,mixing_layer
-      !  do a = 1, ncations
-      !    write (iulog, *) c, j, a, col_ms%cation_vr(c,j,a), mass_to_mol(col_ms%cation_vr(c,j,a), cation_mass(a), col_ws%h2osoi_vol(c,j)), col_mf%background_weathering_vr(c,j,a)*dt, col_mf%primary_cation_flux_vr(c,j,a)*dt, - col_mf%secondary_cation_flux_vr(c,j,a)*dt, col_mf%cec_cation_flux_vr(c,j,a)*dt, col_mf%cation_infl_vr(c,j,a)*dt, -col_mf%cation_oufl_vr(c,j,a)*dt, - col_mf%cation_uptake_vr(c,j,a)*dt, - col_mf%cation_leached_vr(c,j,a)*dt, - col_mf%cation_runoff_vr(c,j,a)*dt
-      !  end do
-      !end do
-
-      !write (iulog, *) 'Post-reaction cec H+'
-      !do j = 1,mixing_layer
-      !  write (iulog, *) c, j, col_ms%cec_proton_vr(c,j), mass_to_meq(col_ms%cec_proton_vr(c,j), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), mass_to_meq(col_mf%cec_cation_flux_vr(c,j,1)*dt/cation_mass(1)*mass_h*cation_valence(1) + col_mf%cec_cation_flux_vr(c,j,2)*dt/cation_mass(2)*mass_h*cation_valence(2) + col_mf%cec_cation_flux_vr(c,j,3)*dt/cation_mass(3)*mass_h*cation_valence(3) + col_mf%cec_cation_flux_vr(c,j,4)*dt/cation_mass(4)*mass_h*cation_valence(4) + col_mf%cec_cation_flux_vr(c,j,5)*dt/cation_mass(5)*mass_h*cation_valence(5), 1._r8, mass_h, soilstate_vars%bd_col(c,j))
-      !end do
-
-      !write (iulog, *) 'Post-reaction cec cation'
-      !do j = 1,mixing_layer
-      !  do a = 1, ncations
-      !    write (iulog, *) c, j, a, col_ms%cec_cation_vr(c,j,a), mass_to_meq(col_ms%cec_cation_vr(c,j,a), cation_valence(a), cation_mass(a), soilstate_vars%bd_col(c,j)), -col_mf%cec_cation_flux_vr(c,j,a)*dt
-      !  end do
-      !end do
-
-      !do j = 1,mixing_layer
-      !  do a = 1,ncations
-      !    if (col_ms%cation_vr(c,j,a) < 0) then
-      !      write (iulog, *) c, j, a, col_mf%cec_cation_flux_vr(c,j,a)*dt
-      !      call endrun(msg='cation_vr < 0')
-      !    end if
-      !  end do
-      !end do
 
     end do
   end subroutine MineralStateUpdate
@@ -192,7 +158,7 @@ contains
       do j = 1,mixing_layer
 
         ! check secondary mineral precipitation
-        do m = 1,nminsec
+        do m = 1,nminsecs
           if (m == 1) then
             a = 1
           else

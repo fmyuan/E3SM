@@ -241,7 +241,8 @@ contains
     deallocate(appl_rate_cur)
     deallocate(appl_grainsize_cur)
     deallocate(appl_specpct_cur)
-    deallocate(appl_nutrpct_cur)
+    if (present(appl_nutrpct)) &
+      deallocate(appl_nutrpct_cur)
 
   end subroutine dynsoilamendments_appl
 
