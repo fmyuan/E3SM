@@ -129,7 +129,8 @@ contains
     end if
 
     ! soil amendments application, e.g. basalt rock powder
-    if (use_ew) then
+    ! when prescribed transient pft/crop patches are on
+    if ( use_ew .and. (get_do_transient_pfts() .or. get_do_transient_crops()) ) then
        ! currently rocky powder application data is with flanduse_timeseries
        ! can be separated if needed.
        call dynsoilamendments_init(bounds, dynsoilamendments_filename=get_flanduse_timeseries(), &
@@ -269,7 +270,10 @@ contains
     end if
 
     ! soil amendments application, e.g. basalt rock powder
-    if (use_ew) then
+    ! when prescribed transient pft/crop patches are on
+    if ( use_ew .and. (get_do_transient_pfts() .or. get_do_transient_crops()) ) then
+       ! currently rocky powder application data is with flanduse_timeseries
+       ! can be separated if needed.
        call dynsoilamendments_appl(bounds_proc, col_ew%forc_app, col_ew%forc_gra, col_ew%forc_min)
     end if
 
