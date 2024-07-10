@@ -133,10 +133,6 @@ contains
       do f = 1, num_nolakec
          c = filter_nolakec(f)
          begwb(c) = begwb(c) + total_plant_stored_h2o(c)
-print *
-print *, '---------------------------------------------------'
-print *, 'checking begwb: ', nstep_mod, begwb(c)
-print *
       end do
 
       do f = 1, num_lakec
@@ -326,15 +322,6 @@ print *
                   - qflx_lateral(c)) * dtime
              dwb(c) = (endwb(c)-begwb(c))/dtime
 
-print *, 'check errh2o: 3 ', nstep, endwb(c)-begwb(c), endwb(c), begwb(c) &
-                  , forc_rain_col(c), forc_snow_col(c), qflx_floodc(c), qflx_surf_irrig_col(c) , qflx_over_supply_col(c) &
-                  , qflx_evap_tot(c), qflx_surf(c), qflx_h2osfc_surf(c) &
-                  , qflx_qrgwl(c), qflx_drain(c), qflx_drain_perched(c), qflx_snwcp_ice(c) &
-                  , qflx_lateral(c)
-print *, 'qflx_evap_tot:', qflx_evap_tot(c)*dtime
-print *, 'qflx_drain:', qflx_drain(c)*dtime
-print *, 'errh2o:', errh2o(c)
-if (nstep==24) STOP
           else
 
              errh2o(c) = 0.0_r8
@@ -363,7 +350,7 @@ if (nstep==24) STOP
              errh2o(c) = errh2o(c) - qflx_glcice_melt(c)*dtime
           endif
        end do
-
+       
        found = .false.
        do c = bounds%begc, bounds%endc
           
@@ -434,7 +421,7 @@ if (nstep==24) STOP
              write(iulog,*)'qflx_lateral               = ',qflx_lateral(indexc)
              write(iulog,*)'total_plant_stored_h2o_col = ',total_plant_stored_h2o_col(indexc)
              write(iulog,*)'elm model is stopping'
-             !call endrun(decomp_index=indexc, elmlevel=namec, msg=errmsg(__FILE__, __LINE__))
+             call endrun(decomp_index=indexc, elmlevel=namec, msg=errmsg(__FILE__, __LINE__))
           end if
 #endif
        end if
