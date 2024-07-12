@@ -2111,6 +2111,11 @@ sub process_namelist_inline_logic {
   # namelist group: elm_mosart_coupling   #
   #########################################
   setup_elm_mosart_coupling($opts, $nl_flags, $definition, $defaults, $nl);
+
+  # namelist group: elm_ats_inparm   #
+  #########################################
+  setup_logic_ats($opts, $nl_flags, $definition, $defaults, $nl);
+
 }
 
 #-------------------------------------------------------------------------------
@@ -2528,6 +2533,8 @@ sub setup_logic_demand {
   $settings{'use_crop'}            = $nl_flags->{'use_crop'};
   $settings{'use_modified_infil'}  = $nl_flags->{'use_modified_infil'};
   
+  $settings{'use_ats'}             = $nl_flags->{'use_ats'};
+
   my $demand = $nl->get_value('clm_demand');
   if (defined($demand)) {
     $demand =~ s/\'//g;   # Remove quotes
@@ -3402,6 +3409,24 @@ sub setup_elm_mosart_coupling {
   }
 }
 
+sub setup_logic_ats {
+    # elm_ats_inparm
+    #
+    my ($test_files, $nl_flags, $definition, $defaults, $nl) = @_;
+
+    if ( $nl_flags->{'use_ats'}  eq '.true.' ) {
+       add_default($test_files, $nl_flags->{'inputdata_rootdir'}, $definition, $defaults, $nl, 'ats_inputdir' );
+       add_default($test_files, $nl_flags->{'inputdata_rootdir'}, $definition, $defaults, $nl, 'ats_inputfile' );
+       add_default($test_files, $nl_flags->{'inputdata_rootdir'}, $definition, $defaults, $nl, 'use_ats_mesh' );
+       #
+       # Check if $ats_inputfile is set in $inputdata_rootdir/$ats#
+       my $ats_inputdir = $nl->get_value('ats_inputdir');
+       my $ats_inputfile = $nl->get_value('ats_inputfile');
+       my $use_ats_mesh = $nl->get_value('use_ats_mesh');
+       #
+    }
+} # end setup_logic_ats
+
 #-------------------------------------------------------------------------------
 
 sub setup_logic_fates {
@@ -3607,6 +3632,9 @@ sub write_output_files {
       if ( $nl_flags->{'use_fan'} eq ".true." ) {
         push @groups, "fan_nml";
       }
+    }
+    {
+      push @groups, "elm_ats_inparm";
     }
   }
 

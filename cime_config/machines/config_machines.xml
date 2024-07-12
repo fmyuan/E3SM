@@ -1436,6 +1436,7 @@ commented out until "*** No rule to make target '.../libadios2pio-nm-lib.a'" iss
       <env name="NETCDF_C_PATH">$ENV{NETCDF_C_PATH}</env>
       <env name="NETCDF_FORTRAN_PATH">$ENV{NETCDF_FORTRAN_PATH}</env>
       <env name="BLASLAPACK_LIBDIR">$ENV{BLASLAPACK_LIBDIR}</env>
+      <env name="ATS_DIR">$ENV{ATS_DIR}</env>
     </environment_variables>       
 
   </machine>
