@@ -20,6 +20,9 @@ module ExternalModelInterfaceMod
   use ExternalModelFATESMod                 , only : em_fates_type
   use ExternalModelStubMod                  , only : em_stub_type
   use ExternalModelAlquimiaMod              , only : em_alquimia_type
+#ifdef USE_ATS_LIB
+  use ExternalModelATSMod                   , only : em_ats_type
+#endif
 
   use EMI_TemperatureType_ExchangeMod       , only : EMI_Pack_TemperatureType_at_Column_Level_for_EM
   use EMI_TemperatureType_ExchangeMod       , only : EMI_Unpack_TemperatureType_at_Column_Level_from_EM
@@ -66,6 +69,7 @@ module ExternalModelInterfaceMod
   integer :: index_em_vsfm
   integer :: index_em_ptm
   integer :: index_em_alquimia
+  integer :: index_em_ats
 
   class(emi_data_list)               , pointer :: l2e_driver_list(:)
   class(emi_data_list)               , pointer :: e2l_driver_list(:)
@@ -77,6 +81,10 @@ module ExternalModelInterfaceMod
   class(em_fates_type)               , pointer :: em_fates
   class(em_stub_type)                , pointer :: em_stub(:)
   class(em_alquimia_type)            , pointer :: em_alquimia(:)
+#ifdef USE_ATS_LIB
+  ! for ats, don't instance for each individual clump (or mpi rank)
+  class(em_ats_type)                 , pointer, public :: em_ats
+#endif
 
   public :: EMI_Determine_Active_EMs
   public :: EMI_Init_EM
@@ -100,6 +108,7 @@ contains
     use elm_varctl, only : use_petsc_thermal_model
     use elm_varctl, only : use_em_stub
     use elm_varctl, only : use_alquimia
+    use elm_varctl, only : use_ats, use_ats_mesh
     !
     implicit none
     !
@@ -114,6 +123,7 @@ contains
     index_em_stub        = 0
     index_em_vsfm        = 0
     index_em_alquimia    = 0
+    index_em_ats         = 0
 
     nclumps = get_proc_clumps()
 
@@ -153,6 +163,16 @@ contains
 #endif
     endif
 
+    ! Is ATS active?
+    if (use_ats) then
+       num_em            = num_em + 1
+       index_em_ats      = num_em
+#ifdef USE_ATS_LIB
+       if(.not.use_ats_mesh) &
+       allocate(em_ats)
+#endif
+    endif
+
     ! Is PETSc based Thermal Model active?
     if (use_petsc_thermal_model) then
        num_em            = num_em + 1
@@ -180,6 +200,7 @@ contains
        write(iulog,*) '  Is PTM present?      ',(index_em_ptm      >0)
        write(iulog,*) '  Is Stub EM present?  ',(index_em_stub     >0)
        write(iulog,*) '  Is VSFM present?     ',(index_em_vsfm     >0)
+       write(iulog,*) '  Is ATS present?      ',(index_em_ats      >0)
     endif
 
     if (num_em > 1) then
@@ -211,6 +232,7 @@ contains
     use ExternalModelConstants, only : EM_ID_FATES
     use ExternalModelConstants, only : EM_ID_PFLOTRAN
     use ExternalModelConstants, only : EM_ID_ALQUIMIA
+    use ExternalModelConstants, only : EM_ID_ATS
     use ExternalModelConstants, only : EM_ID_VSFM
     use ExternalModelConstants, only : EM_ID_PTM
     use ExternalModelConstants, only : EM_ID_STUB
@@ -615,6 +637,145 @@ contains
        call endrun('PTM is on but code was not compiled with -DUSE_PETSC_LIB')
 #endif
 
+    ! ------------------------------------------------------------------------------
+    ! start of EM_ID_ATS block
+    case (EM_ID_ATS)
+
+#ifdef USE_ATS_LIB
+       ! Initialize EM
+
+       ! Initialize lists of data to be exchanged between ELM and ATS
+       ! during initialization step
+       allocate(l2e_init_list(nclumps))
+       allocate(e2l_init_list(nclumps))
+
+       do clump_rank = 1, nclumps
+          iem = (index_em_ats-1)*nclumps + clump_rank
+
+          call l2e_init_list(clump_rank)%Init()
+          call e2l_init_list(clump_rank)%Init()
+
+          ! Fill the data list:
+          !  - Data need during the initialization
+          call em_ats%Populate_L2E_Init_List(l2e_init_list(clump_rank))
+#ifdef ATS_READY
+          ! DON'T INITIALIZE ELM by ATS's states
+          call em_ats%Populate_E2L_Init_List(e2l_init_list(clump_rank))
+#endif
+          !  - Data need during timestepping
+          call em_ats%Populate_L2E_List(l2e_driver_list(iem))
+          call em_ats%Populate_E2L_List(e2l_driver_list(iem))
+       enddo
+
+       !$OMP PARALLEL DO PRIVATE (clump_rank, iem, bounds_clump)
+       do clump_rank = 1, nclumps
+
+          call get_clump_bounds(clump_rank, bounds_clump)
+          iem = (index_em_ats-1)*nclumps + clump_rank
+
+          ! Allocate memory for data
+          call EMI_Setup_Data_List(l2e_init_list(clump_rank), bounds_clump)
+          call EMI_Setup_Data_List(e2l_init_list(clump_rank), bounds_clump)
+          call EMI_Setup_Data_List(l2e_driver_list(iem)     , bounds_clump)
+          call EMI_Setup_Data_List(e2l_driver_list(iem)     , bounds_clump)
+
+          ! soil columns only for ats
+          num_filter_col = filter(clump_rank)%num_soilc
+          allocate(filter_col(num_filter_col))
+          do ii = 1, num_filter_col
+             filter_col(ii) = filter(clump_rank)%soilc(ii)
+          enddo
+
+          ! Reset values in the data list
+          call EMID_Reset_Data_for_EM(l2e_init_list(clump_rank), em_stage)
+          call EMID_Reset_Data_for_EM(e2l_init_list(clump_rank), em_stage)
+
+          ! Pack all WLM data needed by the external model
+          call EMI_Pack_WaterStateType_at_Column_Level_for_EM(l2e_init_list(clump_rank), em_stage, &
+               num_filter_col, filter_col, waterstate_vars)
+          call EMI_Pack_WaterFluxType_at_Column_Level_for_EM(l2e_init_list(clump_rank), em_stage, &
+               num_filter_col, filter_col)
+          call EMI_Pack_SoilHydrologyType_at_Column_Level_for_EM(l2e_init_list(clump_rank), em_stage, &
+               num_filter_col, filter_col, soilhydrology_vars)
+          call EMI_Pack_SoilStateType_at_Column_Level_for_EM(l2e_init_list(clump_rank), em_stage, &
+               num_filter_col, filter_col, soilstate_vars)
+          !need to create and pass filter_patch
+          call EMI_Pack_SoilStateType_at_Patch_Level_for_EM(l2e_init_list(clump_rank), em_stage, &
+               num_filter_col, filter_col, soilstate_vars)
+          call EMI_Pack_ColumnEnergyStateType_at_Column_Level_for_EM(l2e_init_list(clump_rank), em_stage, &
+               num_filter_col, filter_col, col_es)
+
+          call EMI_Pack_ColumnType_for_EM(l2e_init_list(clump_rank), em_stage, &
+               num_filter_col, filter_col)
+          call EMI_Pack_Filter_for_EM(l2e_init_list(clump_rank), em_stage, &
+               num_filter_col, filter_col)
+
+          deallocate(filter_col)
+          ! Ensure all data needed by external model is packed
+          call EMID_Verify_All_Data_Is_Set(l2e_init_list(clump_rank), em_stage)
+
+          ! Initialize the external model
+          call em_ats%Init(l2e_init_list(clump_rank), e2l_init_list(clump_rank), &
+               iam, bounds_clump)
+
+          ! Build a column level filter on which ATS is active.
+          ! This new filter would be used during the initialization to
+          ! unpack data from the EM into ELM's data structure.
+          allocate(tmp_col(bounds_clump%begc:bounds_clump%endc))
+
+          tmp_col(bounds_clump%begc:bounds_clump%endc) = 0
+
+          num_e2l_filter_col = 0
+          do c = bounds_clump%begc,bounds_clump%endc
+             if (col_pp%active(c)) then
+                l = col_pp%landunit(c)
+                if (lun_pp%itype(l) == istsoil .or. &
+                    lun_pp%itype(l) == istcrop) then
+                   num_e2l_filter_col = num_e2l_filter_col + 1
+                   tmp_col(c) = 1
+                end if
+             end if
+          end do
+
+          allocate(e2l_filter_col(num_e2l_filter_col))
+
+          num_e2l_filter_col = 0
+          do c = bounds_clump%begc,bounds_clump%endc
+             if (tmp_col(c) == 1) then
+                num_e2l_filter_col = num_e2l_filter_col + 1
+                e2l_filter_col(num_e2l_filter_col) = c
+             endif
+          enddo
+
+          ! Unpack all data sent from the external model
+          call EMI_Unpack_SoilStateType_at_Column_Level_from_EM(e2l_init_list(clump_rank), em_stage, &
+               num_e2l_filter_col, e2l_filter_col, soilstate_vars)
+          call EMI_Unpack_WaterStateType_at_Column_Level_from_EM(e2l_init_list(clump_rank), em_stage, &
+               num_e2l_filter_col, e2l_filter_col)
+          call EMI_Unpack_WaterFluxType_at_Column_Level_from_EM(e2l_init_list(clump_rank), em_stage, &
+               num_e2l_filter_col, e2l_filter_col, waterflux_vars)
+          call EMI_Unpack_SoilHydrologyType_at_Column_Level_from_EM(e2l_init_list(clump_rank), em_stage, &
+               num_e2l_filter_col, e2l_filter_col, soilhydrology_vars)
+
+          ! Ensure all data sent by external model is unpacked
+          call EMID_Verify_All_Data_Is_Set(e2l_init_list(clump_rank), em_stage)
+
+          ! Clean up memory
+          call l2e_init_list(clump_rank)%Destroy()
+          call e2l_init_list(clump_rank)%Destroy()
+
+          deallocate(e2l_filter_col)
+          deallocate(tmp_col)
+
+       enddo
+       !$OMP END PARALLEL DO
+
+#else
+       call endrun('ATS is on but code was not compiled with -DUSE_ATS_LIB')
+#endif
+    ! End of EM_ID_ATS block
+    ! ------------------------------------------------------------------------------
+
     case (EM_ID_STUB)
 
        !write(iulog,*)'*******************************************'
@@ -839,6 +1000,7 @@ contains
     use ExternalModelConstants , only : EM_ID_PTM
     use ExternalModelConstants , only : EM_ID_STUB
     use ExternalModelConstants , only : EM_ID_ALQUIMIA
+    use ExternalModelConstants , only : EM_ID_ATS
     use SoilStateType          , only : soilstate_type
     use SoilHydrologyType      , only : soilhydrology_type
     use TemperatureType        , only : temperature_type
@@ -921,6 +1083,8 @@ contains
        index_em = index_em_vsfm
     case (EM_ID_PTM)
        index_em = index_em_ptm
+    case (EM_ID_ATS)
+       index_em = index_em_ats
     case (EM_ID_STUB)
        index_em = index_em_stub
        write(iulog,*)'     2.1 Value of variables send by ELM'
@@ -1239,6 +1403,16 @@ contains
 #else
        call endrun('PTM is on but code was not compiled with -DUSE_PETSC_LIB')
 #endif
+
+    !-------------------------------------------------------------------------------
+    case (EM_ID_ATS)
+#ifdef USE_ATS_LIB
+       call em_ats%Solve(em_stage, dtime, nstep, clump_rank, &
+            l2e_driver_list(iem), e2l_driver_list(iem), bounds_clump)
+#else
+       call endrun('ATS is on but code was not compiled with -DUSE_ATS_LIB')
+#endif
+    !-------------------------------------------------------------------------------
 
     case (EM_ID_STUB)
        call EMID_Verify_All_Data_Is_Set(l2e_driver_list(iem), em_stage, print_data=.true.)

@@ -14,6 +14,7 @@ Module SoilHydrologyType
   use ColumnType            , only : col_pp      
   use GridcellType          , only : grc_pp   
   use topounit_varcon       , only : max_topounits
+  use elm_varctl            , only : use_ats
   !
   ! !PUBLIC TYPES:
   implicit none

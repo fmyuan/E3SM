@@ -15,6 +15,7 @@ module elm_initializeMod
   use elm_varctl       , only : use_fates, use_betr, use_fates_sp, use_fan, use_fates_luh
   use elm_varsur       , only : wt_lunit, urban_valid, wt_nat_patch, wt_cft, wt_glc_mec, topo_glc_mec,firrig,f_surf,f_grd
   use elm_varsur       , only : fert_cft, fert_p_cft
+  use elm_varctl       , only : use_ats, use_ats_mesh
   use elm_varsur       , only : wt_tunit, elv_tunit, slp_tunit,asp_tunit,num_tunit_per_grd
   use perf_mod         , only : t_startf, t_stopf
   !use readParamsMod    , only : readParameters
@@ -83,11 +84,15 @@ contains
     use domainLateralMod          , only: ldomain_lateral, domainlateral_init
     use SoilTemperatureMod        , only: init_soil_temperature
     use ExternalModelInterfaceMod , only: EMI_Determine_Active_EMs
+#ifdef USE_ATS_LIB
+    use ExternalModelInterfaceMod , only: em_ats
+#endif
     use dynSubgridControlMod      , only: dynSubgridControl_init
     use filterMod                 , only: allocFilters
     use reweightMod               , only: reweight_wrapup
     use topounit_varcon           , only: max_topounits, has_topounit, topounit_varcon_init
     use elm_varctl                , only: use_top_solar_rad
+    use spmdMod
     !
     ! !LOCAL VARIABLES:
     integer           :: ier                     ! error status
@@ -1114,6 +1119,7 @@ contains
     use ExternalModelInterfaceMod, only : EMI_Init_EM
     use ExternalModelConstants   , only : EM_ID_VSFM
     use ExternalModelConstants   , only : EM_ID_PTM
+    use ExternalModelConstants   , only : EM_ID_ATS
 
     implicit none
 
@@ -1162,6 +1168,10 @@ contains
 
     if (use_petsc_thermal_model) then
        call EMI_Init_EM(EM_ID_PTM)
+    endif
+
+    if (use_ats) then
+       call EMI_Init_EM(EM_ID_ATS)
     endif
 
     call t_stopf('elm_init3')

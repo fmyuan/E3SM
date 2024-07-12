@@ -168,6 +168,11 @@ module elm_driver
   use elm_interface_funcsMod      , only : update_bgc_data_pf2elm, update_th_data_pf2elm
   use elm_interface_pflotranMod   , only : elm_pf_run, elm_pf_write_restart
   use elm_interface_pflotranMod   , only : elm_pf_finalize
+  ! (3) ats
+  use elm_varctl                  , only : use_ats
+  use elm_varctl                  , only : ats_hmode, ats_thmode, ats_thcmode
+  use elm_varctl                  , only : ats_chkout
+
   !----------------------------------------------------------------------------
   use WaterBudgetMod              , only : WaterBudget_Reset, WaterBudget_Run, WaterBudget_Accum, WaterBudget_Print
   use WaterBudgetMod              , only : WaterBudget_SetBeginningMonthlyStates
@@ -272,6 +277,8 @@ contains
        end if
     end if
 
+    ! ELM-ats coupling check point write out switch
+    if (use_ats) ats_chkout = rstwr
 
     ! ============================================================================
     ! Specified phenology
@@ -898,6 +905,7 @@ contains
             filter(nc)%num_nolakec, filter(nc)%nolakec,                      &
             filter(nc)%num_hydrologyc, filter(nc)%hydrologyc,                &
             filter(nc)%num_hydrononsoic, filter(nc)%hydrononsoic,            &
+            filter(nc)%num_soilc, filter(nc)%soilc,                          &
             filter(nc)%num_urbanc, filter(nc)%urbanc,                        &
             filter(nc)%num_snowc, filter(nc)%snowc,                          &
             filter(nc)%num_nosnowc, filter(nc)%nosnowc,canopystate_vars,     &
@@ -1212,7 +1220,8 @@ contains
 
        call t_startf('hydro2 drainage')
 
-       if (use_elm_interface .and. (use_pflotran .and. pf_hmode)) then
+       if ((use_elm_interface .and. (use_pflotran .and. pf_hmode)) .or. &
+           (use_ats .and. ats_hmode) ) then
          ! pflotran only works on 'soilc' (already done above).
          ! here for non-soil hydrology columns
          call HydrologyDrainage(bounds_clump,                     &

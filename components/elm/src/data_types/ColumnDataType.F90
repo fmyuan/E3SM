@@ -31,6 +31,7 @@ module ColumnDataType
   use elm_varctl      , only : pf_hmode, nu_com
   use elm_varctl      , only : use_extrasnowlayers
   use elm_varctl      , only : use_fan
+  use elm_varctl      , only : use_ats, ats_hmode, ats_thmode, ats_thcmode
   use ch4varcon       , only : allowlakeprod
   use pftvarcon       , only : VMAX_MINSURF_P_vr, KM_MINSURF_P_vr, pinit_beta1, pinit_beta2
   use soilorder_varcon, only : smax, ks_sorption
@@ -1492,6 +1493,21 @@ contains
           avgflag='A', long_name='surface water depth', &
            ptr_col=this%h2osfc)
 
+    this%soilp(begc:endc,:) = spval
+    call hist_addfld2d (fname='SOIL_PRESSURE',  units='Pa', type2d='levgrnd', &
+          avgflag='A', long_name='soil pressure (vegetated landunits only)', &
+           ptr_col=this%soilp, l2g_scale_type='veg', default='inactive')
+
+    this%h2osoi_liqvol(begc:endc, :) = spval
+    call hist_addfld2d (fname='H2OSOIL_LIQVOL',  units='m3/m3 bulk',  type2d='levgrnd', &
+          avgflag='A', long_name='soil liq water vol fraction from external model, e.g. ATS', &
+           ptr_col=this%h2osoi_liqvol, default='inactive')
+
+    this%h2osoi_icevol(begc:endc,:) = spval
+    call hist_addfld2d (fname='H2OSOIL_ICEVOL',  units='m3/m3 bulk', type2d='levgrnd', &
+          avgflag='A', long_name='soil ice water vol fraction from external model, e.g. ATS', &
+           ptr_col=this%h2osoi_icevol, default='inactive')
+
     this%h2osoi_vol(begc:endc,:) = spval
      call hist_addfld2d (fname='H2OSOI',  units='mm3/mm3', type2d='levgrnd', &
           avgflag='A', long_name='volumetric soil water (vegetated landunits only)', &
@@ -1697,9 +1713,14 @@ contains
              do j = 1, nlevs
                 if (j > nlevbed) then
                    this%h2osoi_vol(c,j) = 0.0_r8
+                   if (use_ats .or. use_pflotran) &
+                      this%h2osoi_vol(c,j) = 1._r8         ! for below soil, assuming saturated initially helps spinup
                 else
 		               if (use_fates .or. use_hydrstress) then
                       this%h2osoi_vol(c,j) = 0.70_r8*watsat_input(c,j) !0.15_r8 to avoid very dry conditions that cause errors in FATES
+                   elseif (use_ats .or. use_pflotran) then
+                      !this%h2osoi_vol(c,j) = 0.15_r8      ! too dry to reach equilibrium
+                      this%h2osoi_vol(c,j) = 0.75_r8
                    else
                       this%h2osoi_vol(c,j) = 0.15_r8
                    endif
