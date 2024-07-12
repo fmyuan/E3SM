@@ -12,6 +12,13 @@ module EMI_WaterFluxType_ExchangeMod
   use EMI_Atm2LndType_Constants
   use EMI_CanopyStateType_Constants
   use EMI_ChemStateType_Constants
+  use EMI_CNCarbonStateType_Constants
+  use EMI_CNNitrogenStateType_Constants
+  use EMI_CNNitrogenFluxType_Constants
+  use EMI_CNCarbonFluxType_Constants
+  use EMI_ColumnEnergyStateType_Constants
+  use EMI_ColumnWaterStateType_Constants
+  use EMI_ColumnWaterFluxType_Constants
   use EMI_EnergyFluxType_Constants
   use EMI_SoilHydrologyType_Constants
   use EMI_SoilStateType_Constants
@@ -27,6 +34,7 @@ module EMI_WaterFluxType_ExchangeMod
   !
   public :: EMI_Pack_WaterFluxType_at_Column_Level_for_EM
   public :: EMI_Unpack_WaterFluxType_at_Column_Level_from_EM
+  public :: EMI_Unpack_WaterFluxType_at_Patch_Level_from_EM
 
 contains
   
@@ -35,7 +43,7 @@ contains
         num_filter, filter, waterflux_vars)
     !
     ! !DESCRIPTION:
-    ! Pack data from ALM waterflux_vars for EM
+    ! Pack data from ELM 'col_wf' for EM
     !
     ! !USES:
     use elm_varpar             , only : nlevsoi, nlevgrnd, nlevsno
@@ -47,7 +55,7 @@ contains
     integer                , intent(in) :: em_stage
     integer                , intent(in) :: num_filter
     integer                , intent(in) :: filter(:)
-    type(waterflux_type)   , intent(in) :: waterflux_vars
+    type(waterflux_type)   , intent(in), optional :: waterflux_vars
     !
     ! !LOCAL_VARIABLES:
     integer                             :: fc,c,j
@@ -64,6 +72,8 @@ contains
          mflx_snowlyr_disp    => col_wf%mflx_snowlyr_disp    , &
          mflx_snowlyr         => col_wf%mflx_snowlyr         , &
          mflx_drain           => col_wf%mflx_drain           , &
+         qflx_top_soil        => col_wf%qflx_top_soil        , &
+         qflx_evap_soi        => col_wf%qflx_evap_soi        , &
          qflx_infl            => col_wf%qflx_infl            , &
          qflx_totdrain        => col_wf%qflx_totdrain        , &
          qflx_gross_evap_soil => col_wf%qflx_gross_evap_soil , &
@@ -77,8 +87,7 @@ contains
          qflx_rootsoi         => col_wf%qflx_rootsoi         , &
          qflx_adv             => col_wf%qflx_adv             , &
          qflx_drain_vr        => col_wf%qflx_drain_vr        , &
-         qflx_tran_veg        => col_wf%qflx_tran_veg        , &
-         qflx_rootsoi_frac    => veg_wf%qflx_rootsoi_frac    &
+         qflx_tran_veg        => col_wf%qflx_tran_veg          &
          )
 
     count = 0
@@ -204,7 +213,7 @@ contains
           case (L2E_FLUX_SUB_SNOW_VOL)
              do fc = 1, num_filter
                 c = filter(fc)
-                cur_data%data_real_1d(c) = qflx_h2osfc2topsoi(c)
+                cur_data%data_real_1d(c) = qflx_snow2topsoi(c)  !???
              enddo
              cur_data%is_set = .true.
 
@@ -263,15 +272,6 @@ contains
              enddo
              cur_data%is_set = .true.
 
-          case (L2E_FLUX_ROOTSOI_FRAC)
-             do fc = 1, num_filter
-                c = filter(fc)
-                do j = 1, nlevsoi
-                   cur_data%data_real_2d(c,j) = qflx_rootsoi_frac(c,j)
-                enddo
-             enddo
-             cur_data%is_set = .true.
-
           end select
 
        endif
@@ -288,7 +288,7 @@ contains
         num_filter, filter, waterflux_vars)
     !
     ! !DESCRIPTION:
-    ! Unpack data for ALM waterflux_vars from EM
+    ! Unpack data for ELM 'col_wf' from EM
     !
     ! !USES:
     use elm_varpar             , only : nlevsoi, nlevgrnd, nlevsno
@@ -300,7 +300,7 @@ contains
     integer                , intent(in) :: em_stage
     integer                , intent(in) :: num_filter
     integer                , intent(in) :: filter(:)
-    type(waterflux_type)   , intent(in) :: waterflux_vars
+    type(waterflux_type)   , intent(in), optional :: waterflux_vars
     !
     ! !LOCAL_VARIABLES:
     integer                             :: fc,c,j
@@ -310,7 +310,13 @@ contains
     integer                             :: count
 
     associate(& 
-         mflx_snowlyr => col_wf%mflx_snowlyr   &
+         mflx_snowlyr => col_wf%mflx_snowlyr   , &
+         qflx_evap_soi        => col_wf%qflx_evap_soi        , &
+         qflx_infl            => col_wf%qflx_infl            , &
+         qflx_gross_evap_soil => col_wf%qflx_gross_evap_soil , &
+         qflx_gross_infl_soil => col_wf%qflx_gross_infl_soil , &
+         qflx_rootsoi         => col_wf%qflx_rootsoi         , &
+         qflx_tran_veg        => col_wf%qflx_tran_veg          &
          )
 
     count = 0
@@ -338,6 +344,40 @@ contains
              enddo
              cur_data%is_set = .true.
 
+          case (E2L_FLUX_ROOTSOI)
+             do fc = 1, num_filter
+                c = filter(fc)
+                do j = 1, nlevgrnd
+                   qflx_rootsoi(c,j) = cur_data%data_real_2d(c,j)
+                enddo
+             enddo
+             cur_data%is_set = .true.
+
+          case (E2L_FLUX_EVAP_SOIL)
+             do fc = 1, num_filter
+                c = filter(fc)
+                ! when coupling with ATS, ground surface hydrology is integrated into subsurface hydrology
+                ! soil evap is that between soil/ground and near-air
+                qflx_evap_soi(c) = cur_data%data_real_1d(c)
+             enddo
+             cur_data%is_set = .true.
+
+          case (E2L_FLUX_INFL_SOIL)
+             do fc = 1, num_filter
+                c = filter(fc)
+                ! when coupling with ATS, ground surface hydrology is integrated into subsurface hydrology
+                ! So, water input into soil should be rainfall+snowmelt (todo check if dew is accounted into soil evap???)
+                qflx_infl(c) = cur_data%data_real_1d(c)
+             enddo
+             cur_data%is_set = .true.
+
+          case (E2L_FLUX_TRAN_VEG)
+             do fc = 1, num_filter
+                c = filter(fc)
+                qflx_tran_veg(c) = cur_data%data_real_1d(c)
+             enddo
+             cur_data%is_set = .true.
+
           end select
 
        endif
@@ -348,6 +388,74 @@ contains
     end associate
 
   end subroutine EMI_Unpack_WaterFluxType_at_Column_Level_from_EM
+
+  !-----------------------------------------------------------------------
+  subroutine EMI_Unpack_WaterFluxType_at_Patch_Level_from_EM(data_list, em_stage, &
+        num_filter, filter, waterflux_vars)
+    !
+    ! !DESCRIPTION:
+    ! Unpack data for ALM soilstate_vars from EM
+    !
+    ! !USES:
+    use elm_varpar             , only : nlevsoi, nlevgrnd, nlevsno
+    !
+    implicit none
+    !
+    ! !ARGUMENTS:
+    class(emi_data_list)   , intent(in) :: data_list
+    integer                , intent(in) :: em_stage
+    integer                , intent(in) :: num_filter
+    integer                , intent(in) :: filter(:)
+    type(waterflux_type)   , intent(in), optional :: waterflux_vars
+    !
+    ! !LOCAL_VARIABLES:
+    integer                             :: fp,p,j
+    class(emi_data), pointer            :: cur_data
+    logical                             :: need_to_pack
+    integer                             :: istage
+    integer                             :: count
+
+    associate(&
+         qflx_rootsoi_frac    =>  veg_wf%qflx_rootsoi_frac      &
+         )
+
+    count = 0
+    cur_data => data_list%first
+    do
+       if (.not.associated(cur_data)) exit
+       count = count + 1
+
+       need_to_pack = .false.
+       do istage = 1, cur_data%num_em_stages
+          if (cur_data%em_stage_ids(istage) == em_stage) then
+             need_to_pack = .true.
+             exit
+          endif
+       enddo
+
+       if (need_to_pack) then
+
+          select case (cur_data%id)
+
+          case (E2L_FLUX_ROOTSOI_FRAC)
+             do fp = 1, num_filter
+                p = filter(fp)
+                do j = 1, nlevgrnd
+                   qflx_rootsoi_frac(p,j) = cur_data%data_real_2d(p,j)
+                enddo
+             enddo
+             cur_data%is_set = .true.
+
+          end select
+
+       endif
+
+       cur_data => cur_data%next
+    enddo
+
+    end associate
+
+  end subroutine EMI_Unpack_WaterFluxType_at_Patch_Level_from_EM
 
 
 end module EMI_WaterFluxType_ExchangeMod

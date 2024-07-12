@@ -7,10 +7,10 @@ module VegetationDataType
   !
   use shr_kind_mod   , only : r8 => shr_kind_r8
   use shr_infnan_mod , only : nan => shr_infnan_nan, assignment(=)
-  use clm_varcon     , only : ispval, spval
-  use clm_varctl     , only : use_fates
-  use clm_varpar      , only : nlevdecomp, nlevdecomp_full
-  use clm_varpar      , only : nlevsno, nlevgrnd, nlevlak, nlevurb, nlevcan, crop_prog
+  use elm_varcon     , only : ispval, spval
+  use elm_varctl     , only : use_fates
+  use elm_varpar      , only : nlevdecomp, nlevdecomp_full
+  use elm_varpar      , only : nlevsno, nlevgrnd, nlevlak, nlevurb, nlevcan, crop_prog
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -970,7 +970,7 @@ module VegetationDataType
   subroutine veg_es_init(this, begp, endp)
     !
     ! !USES:
-    use clm_varctl     , only : use_vancouver, use_mexicocity
+    use elm_varctl     , only : use_vancouver, use_mexicocity
     !
     ! !ARGUMENTS:
     class(vegetation_energy_state) :: this

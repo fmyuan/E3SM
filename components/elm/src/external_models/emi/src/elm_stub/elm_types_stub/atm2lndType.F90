@@ -2,10 +2,10 @@ module atm2lndType
 
   use shr_kind_mod  , only : r8 => shr_kind_r8
   use shr_infnan_mod, only : nan => shr_infnan_nan, assignment(=)
-  use clm_varpar    , only : numrad
+  use elm_varpar    , only : numrad
   use decompMod     , only : bounds_type
-  use clm_varcon    , only : rair, grav, cpair, hfus, tfrz, spval
-  use clm_varctl    , only : iulog, use_c13, use_cn, use_lch4, use_cndv, use_fates
+  use elm_varcon    , only : rair, grav, cpair, hfus, tfrz, spval
+  use elm_varctl    , only : iulog, use_c13, use_cn, use_lch4, use_cndv, use_fates
 
   !
   ! !PUBLIC TYPES:

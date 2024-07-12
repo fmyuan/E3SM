@@ -5,18 +5,18 @@ module CNCarbonStateType
   use shr_kind_mod           , only : r8 => shr_kind_r8
   use shr_infnan_mod         , only : nan => shr_infnan_nan, assignment(=)
   use shr_log_mod            , only : errMsg => shr_log_errMsg
-  use clm_varpar             , only : ndecomp_cascade_transitions, ndecomp_pools, nlevcan
-  use clm_varpar             , only : nlevdecomp_full, crop_prog, nlevdecomp
-  !use clm_varcon             , only : spval, ispval, dzsoi_decomp, zisoi, zsoi
+  use elm_varpar             , only : ndecomp_cascade_transitions, ndecomp_pools, nlevcan
+  use elm_varpar             , only : nlevdecomp_full, crop_prog, nlevdecomp
+  !use elm_varcon             , only : spval, ispval, dzsoi_decomp, zisoi, zsoi
   use landunit_varcon        , only : istcrop 
-  use clm_varctl             , only : iulog, use_vertsoilc, use_cndv, spinup_state 
+  use elm_varctl             , only : iulog, use_vertsoilc, use_cndv, spinup_state 
   use decompMod              , only : bounds_type
   use abortutils             , only : endrun
   use spmdMod                , only : masterproc 
-  use clm_varctl             , only : nu_com, use_fates, use_crop
+  use elm_varctl             , only : nu_com, use_fates, use_crop
 
   ! bgc interface & pflotran
-  use clm_varctl             , only : use_elm_interface, use_pflotran, pf_cmode
+  use elm_varctl             , only : use_elm_interface, use_pflotran, pf_cmode
   
   ! 
   ! !PUBLIC TYPES:

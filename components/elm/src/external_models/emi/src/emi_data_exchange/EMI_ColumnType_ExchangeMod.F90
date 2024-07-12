@@ -26,6 +26,7 @@ contains
     !
     ! !USES:
     use ColumnType                , only : col_pp
+    use VegetationType            , only : veg_pp
     use elm_varpar                , only : nlevgrnd, nlevsno
     !
     implicit none
@@ -35,11 +36,12 @@ contains
     integer              , intent(in) :: num_filter ! number of column soil points in column filter
     integer              , intent(in) :: filter(:)  ! column filter for soil points
     !
-    integer                           :: fc,c,j
+    integer                           :: fc,c,j,p
     class(emi_data), pointer          :: cur_data
     logical                           :: need_to_pack
     integer                           :: istage
     integer                           :: count
+    real(r8)                          :: rtemp
 
     count = 0
     cur_data => data_list%first
@@ -169,6 +171,27 @@ contains
                 c = filter(fc)
                 do j = -nlevsno+1, nlevgrnd
                    cur_data%data_real_2d(c,j) = col_pp%z(c,j)
+                enddo
+             enddo
+             cur_data%is_set = .true.
+
+          case (L2E_COLUMN_NUM_PATCH)
+             do fc = 1, num_filter
+                c = filter(fc)
+                cur_data%data_int_1d(c) = col_pp%npfts(c)
+             enddo
+             cur_data%is_set = .true.
+
+          case (L2E_COLUMN_PFT_TYPE)
+             do fc = 1, num_filter
+                c = filter(fc)
+                cur_data%data_int_1d(fc) = 0
+                rtemp = 0._r8
+                do p = col_pp%pfti(c), col_pp%pftf(c)
+                   ! pick the largest patch fraction in a column
+                   if (veg_pp%active(p) .and. veg_pp%wtcol(p)>rtemp) then
+                      cur_data%data_int_1d(fc) = p - col_pp%pfti(c)
+                   endif
                 enddo
              enddo
              cur_data%is_set = .true.

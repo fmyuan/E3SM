@@ -25,21 +25,21 @@ contains
     ! !ARGUMENTS:
     integer            , intent(in)  :: data_id
     integer            , intent(out) :: id_val
-    character (len=*)  , intent(out) :: name_val
+    character (len=32) , intent(out) :: name_val
     character (len=128), intent(out) :: long_name_val
-    character (len=24) , intent(out) :: units_val
+    character (len=32) , intent(out) :: units_val
     logical            , intent(out) :: is_int_type
     logical            , intent(out) :: is_real_type
     integer            , intent(out) :: ndim
-    character (len=24) , intent(out) :: dim1_beg_name
-    character (len=24) , intent(out) :: dim1_end_name
-    character (len=24) , intent(out) :: dim2_beg_name
-    character (len=24) , intent(out) :: dim2_end_name
-    character (len=24) , intent(out) :: dim3_beg_name
-    character (len=24) , intent(out) :: dim3_end_name
-    character (len=24) , intent(out) :: dim4_beg_name
-    character (len=24) , intent(out) :: dim4_end_name
-    logical            , intent(out) :: data_found
+    character (len=32) , intent(out) :: dim1_beg_name
+    character (len=32) , intent(out) :: dim1_end_name
+    character (len=32) , intent(out) :: dim2_beg_name
+    character (len=32) , intent(out) :: dim2_end_name
+    character (len=32) , intent(out) :: dim3_beg_name
+    character (len=32) , intent(out) :: dim3_end_name
+    character (len=32) , intent(out) :: dim4_beg_name
+    character (len=32) , intent(out) :: dim4_end_name
+    logical            , intent(inout) :: data_found
 
     is_int_type    = .false.
     is_real_type   = .false.
@@ -291,7 +291,7 @@ contains
        dim1_end_name  =  dimname_endc
        data_found   =  .true.
 
-    case(E2L_STATE_H2OSOI_LIQ)
+   case(E2L_STATE_H2OSOI_LIQ)
        id_val         =  E2L_STATE_H2OSOI_LIQ
        name_val       =  'Soil liquid water'
        long_name_val  =  'Soil liquid water: EM to ELM'
@@ -329,8 +329,47 @@ contains
        dim2_beg_name  =  dimname_one
        dim2_end_name  =  dimname_nlevgrnd
        data_found   =  .true.
-    end select
     
+    case(E2L_STATE_H2OSOI_VOL)
+       id_val         =  E2L_STATE_H2OSOI_VOL
+       name_val       =  'Soil volumetric liquid water'
+       long_name_val  =  'Soil volumetric liquid water: EM to ELM'
+       units_val      =  '[-]'
+       is_real_type   =  .true.
+       ndim           =  2
+       dim1_beg_name  =  dimname_begc
+       dim1_end_name  =  dimname_endc
+       dim2_beg_name  =  dimname_one
+       dim2_end_name  =  dimname_nlevgrnd
+       data_found   =  .true.
+
+    case(E2L_STATE_H2OSFC)
+       id_val         =  E2L_STATE_H2OSFC
+       name_val       =  'Standing surface water in'
+       long_name_val  =  'Standing surface water: EM to ELM'
+       units_val      =  '[mm]'
+       is_real_type   =  .true.
+       ndim           =  1
+       dim1_beg_name  =  dimname_begc
+       dim1_end_name  =  dimname_endc
+       data_found   =  .true.
+
+    case(E2L_STATE_SOIL_MATRIC_POTENTIAL_COL)
+       id_val         =  E2L_STATE_SOIL_MATRIC_POTENTIAL_COL
+       name_val       =  'Soil matric potential'
+       long_name_val  =  'Soil matric potential: EM to ELM'
+       units_val      =  '-mmH2O'
+       is_real_type   =  .true.
+       ndim           =  2
+       dim1_beg_name  =  dimname_begc
+       dim1_end_name  =  dimname_endc
+       dim2_beg_name  =  dimname_one
+       dim2_end_name  =  dimname_nlevgrnd
+       data_found   =  .true.
+
+    end select
+
+
   end subroutine EMI_WaterStateType_DataInfoByID
     
 end module EMI_WaterStateType_DataMod

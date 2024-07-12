@@ -25,21 +25,21 @@ contains
     ! !ARGUMENTS:
     integer            , intent(in)  :: data_id
     integer            , intent(out) :: id_val
-    character (len=*)  , intent(out) :: name_val
-    character (len=*)  , intent(out) :: long_name_val
-    character (len=*)  , intent(out) :: units_val
+    character (len=32) , intent(out) :: name_val
+    character (len=128), intent(out) :: long_name_val
+    character (len=32) , intent(out) :: units_val
     logical            , intent(out) :: is_int_type
     logical            , intent(out) :: is_real_type
     integer            , intent(out) :: ndim
-    character (len=24) , intent(out) :: dim1_beg_name
-    character (len=24) , intent(out) :: dim1_end_name
-    character (len=24) , intent(out) :: dim2_beg_name
-    character (len=24) , intent(out) :: dim2_end_name
-    character (len=24) , intent(out) :: dim3_beg_name
-    character (len=24) , intent(out) :: dim3_end_name
-    character (len=24) , intent(out) :: dim4_beg_name
-    character (len=24) , intent(out) :: dim4_end_name
-    logical            , intent(out) :: data_found
+    character (len=32) , intent(out) :: dim1_beg_name
+    character (len=32) , intent(out) :: dim1_end_name
+    character (len=32) , intent(out) :: dim2_beg_name
+    character (len=32) , intent(out) :: dim2_end_name
+    character (len=32) , intent(out) :: dim3_beg_name
+    character (len=32) , intent(out) :: dim3_end_name
+    character (len=32) , intent(out) :: dim4_beg_name
+    character (len=32) , intent(out) :: dim4_end_name
+    logical            , intent(inout) :: data_found
 
     is_int_type    = .false.
     is_real_type   = .false.
@@ -233,14 +233,27 @@ contains
        dim1_beg_name  =  dimname_begp
        dim1_end_name  =  dimname_endp
        dim2_beg_name  =  dimname_one
+       dim2_end_name  =  dimname_nlevsoi
+       data_found   =  .true.
+
+    case(L2E_PARAMETER_ROOTFR_COL)
+       id_val         =  L2E_PARAMETER_ROOTFR_COL
+       name_val       =  'Col fraction of roots in each soil layer'
+       long_name_val  =  'Col fraction of roots in each soil layer: ELM to EM'
+       units_val      =  '[-]'
+       is_real_type   =  .true.
+       ndim           =  2
+       dim1_beg_name  =  dimname_begc
+       dim1_end_name  =  dimname_endc
+       dim2_beg_name  =  dimname_one
        dim2_end_name  =  dimname_nlevgrnd
        data_found   =  .true.
 
     case(E2L_STATE_SOIL_MATRIC_POTENTIAL)
        id_val         =  E2L_STATE_SOIL_MATRIC_POTENTIAL
        name_val       =  'Soil matric potential'
-       long_name_val  =  ': EM to ELM'
-       units_val      =  '[Pa]'
+       long_name_val  =  'Soil matric potential: EM to ELM'
+       units_val      =  '-mmH2O'
        is_real_type   =  .true.
        ndim           =  2
        dim1_beg_name  =  dimname_begc

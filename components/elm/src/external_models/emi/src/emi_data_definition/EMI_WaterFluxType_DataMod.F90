@@ -25,21 +25,21 @@ contains
     ! !ARGUMENTS:
     integer            , intent(in)  :: data_id
     integer            , intent(out) :: id_val
-    character (len=*)  , intent(out) :: name_val
+    character (len=32) , intent(out) :: name_val
     character (len=128), intent(out) :: long_name_val
-    character (len=24) , intent(out) :: units_val
+    character (len=32) , intent(out) :: units_val
     logical            , intent(out) :: is_int_type
     logical            , intent(out) :: is_real_type
     integer            , intent(out) :: ndim
-    character (len=24) , intent(out) :: dim1_beg_name
-    character (len=24) , intent(out) :: dim1_end_name
-    character (len=24) , intent(out) :: dim2_beg_name
-    character (len=24) , intent(out) :: dim2_end_name
-    character (len=24) , intent(out) :: dim3_beg_name
-    character (len=24) , intent(out) :: dim3_end_name
-    character (len=24) , intent(out) :: dim4_beg_name
-    character (len=24) , intent(out) :: dim4_end_name
-    logical            , intent(out) :: data_found
+    character (len=32) , intent(out) :: dim1_beg_name
+    character (len=32) , intent(out) :: dim1_end_name
+    character (len=32) , intent(out) :: dim2_beg_name
+    character (len=32) , intent(out) :: dim2_end_name
+    character (len=32) , intent(out) :: dim3_beg_name
+    character (len=32) , intent(out) :: dim3_end_name
+    character (len=32) , intent(out) :: dim4_beg_name
+    character (len=32) , intent(out) :: dim4_end_name
+    logical            , intent(inout) :: data_found
 
     is_int_type    = .false.
     is_real_type   = .false.
@@ -170,8 +170,8 @@ contains
 
     case(L2E_FLUX_GROSS_INFL_SOIL)
        id_val         =  L2E_FLUX_GROSS_INFL_SOIL
-       name_val       =  'Gross evaporation infiltration'
-       long_name_val  =  'Gross evaporation infiltration: ELM to EM'
+       name_val       =  'Gross infiltration into soil'
+       long_name_val  =  'Gross infiltration into soil: ELM to EM'
        units_val      =  '[mm H2O/s]'
        is_real_type   =  .true.
        ndim           =  1
@@ -306,19 +306,7 @@ contains
        dim1_end_name  =  dimname_endc
        data_found   =  .true.
 
-    case(L2E_FLUX_ROOTSOI_FRAC)
-       id_val         =  L2E_FLUX_ROOTSOI_FRAC
-       name_val       =  'Root soil fraction'
-       long_name_val  =  'Root soil fraction: ELM to EM'
-       units_val      =  '[mm H2O/s]'
-       is_real_type   =  .true.
-       ndim           =  2
-       dim1_beg_name  =  dimname_begp
-       dim1_end_name  =  dimname_endp
-       dim2_beg_name  =  dimname_one
-       dim2_end_name  =  dimname_nlevsoi
-       data_found   =  .true.
-
+    !
     case(E2L_FLUX_SNOW_LYR_DISAPPERANCE_MASS_FLUX)
        id_val         =  E2L_FLUX_SNOW_LYR_DISAPPERANCE_MASS_FLUX
        name_val       =  'Snow layer disappearance sink'
@@ -329,6 +317,66 @@ contains
        dim1_beg_name  =  dimname_begc
        dim1_end_name  =  dimname_endc
        data_found   =  .true.
+
+    case(E2L_FLUX_ROOTSOI)
+       id_val         =  E2L_FLUX_ROOTSOI
+       name_val       =  'Root and soil water exchange, column'
+       long_name_val  =  'Root and soil water exchange, column: EM to ELM'
+       units_val      =  '[mm H2O/s]'
+       is_real_type   =  .true.
+       ndim           =  2
+       dim1_beg_name  =  dimname_begc
+       dim1_end_name  =  dimname_endc
+       dim2_beg_name  =  dimname_one
+       dim2_end_name  =  dimname_nlevgrnd
+       data_found   =  .true.
+
+    case(E2L_FLUX_EVAP_SOIL)
+       id_val         =  E2L_FLUX_EVAP_SOIL
+       name_val       =  'Gross evaporation from soil'
+       long_name_val  =  'Gross evaporation from soil: EM to ELM'
+       units_val      =  '[mm H2O/s]'
+       is_real_type   =  .true.
+       ndim           =  1
+       dim1_beg_name  =  dimname_begc
+       dim1_end_name  =  dimname_endc
+       data_found   =  .true.
+
+    case(E2L_FLUX_INFL_SOIL)
+       id_val         =  E2L_FLUX_INFL_SOIL
+       name_val       =  'Actual infiltration into soil'
+       long_name_val  =  'Actual infiltration into soil: EM to ELM'
+       units_val      =  '[mm H2O/s]'
+       is_real_type   =  .true.
+       ndim           =  1
+       dim1_beg_name  =  dimname_begc
+       dim1_end_name  =  dimname_endc
+       data_found   =  .true.
+
+    case(E2L_FLUX_TRAN_VEG)
+       id_val         =  E2L_FLUX_TRAN_VEG
+       name_val       =  'Total transpiration from vegetation on column'
+       long_name_val  =  'Total transpiration from vegetation on column: EM to ELM'
+       units_val      =  '[mm H2O/s]'
+       is_real_type   =  .true.
+       ndim           =  1
+       dim1_beg_name  =  dimname_begc
+       dim1_end_name  =  dimname_endc
+       data_found   =  .true.
+
+    case(E2L_FLUX_ROOTSOI_FRAC)
+       id_val         =  E2L_FLUX_ROOTSOI_FRAC
+       name_val       =  'Root and soil water exchange, pft'
+       long_name_val  =  'Root and soil water exchange, pft: EM to ELM'
+       units_val      =  '[mm H2O/s]'
+       is_real_type   =  .true.
+       ndim           =  2
+       dim1_beg_name  =  dimname_begp
+       dim1_end_name  =  dimname_endp
+       dim2_beg_name  =  dimname_one
+       dim2_end_name  =  dimname_nlevgrnd
+       data_found   =  .true.
+
     end select
     
   end subroutine EMI_WaterFluxType_DataInfoByID
