@@ -7,15 +7,15 @@ module SoilStateType
   use shr_infnan_mod  , only : nan => shr_infnan_nan, assignment(=)
   use decompMod       , only : bounds_type
   use abortutils      , only : endrun
-  use clm_varpar      , only : more_vertlayers, numpft, numrad
-  use clm_varpar      , only : nlevsoi, nlevgrnd, nlevlak, nlevsoifl, nlayer, nlayert, nlevurb, nlevsno
+  use elm_varpar      , only : more_vertlayers, numpft, numrad
+  use elm_varpar      , only : nlevsoi, nlevgrnd, nlevlak, nlevsoifl, nlayer, nlayert, nlevurb, nlevsno
   use landunit_varcon , only : istice, istdlak, istwet, istsoil, istcrop, istice_mec
   use column_varcon   , only : icol_roof, icol_sunwall, icol_shadewall, icol_road_perv, icol_road_imperv 
-  use clm_varcon      , only : secspday, pc, mu, denh2o, denice, grlnd
-  use clm_varctl      , only : use_cn, use_lch4,use_dynroot, use_fates
-  use clm_varctl      , only : use_var_soil_thick
-  use clm_varctl      , only : iulog, fsurdat, hist_wrtch4diag
-  use clm_varcon      , only : spval
+  use elm_varcon      , only : secspday, pc, mu, denh2o, denice, grlnd
+  use elm_varctl      , only : use_cn, use_lch4,use_dynroot, use_fates
+  use elm_varctl      , only : use_var_soil_thick
+  use elm_varctl      , only : iulog, fsurdat, hist_wrtch4diag
+  use elm_varcon      , only : spval
   !
   implicit none
   save

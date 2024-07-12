@@ -7,9 +7,17 @@ module EMI_SoilStateType_ExchangeMod
   use EMI_DataMod         , only : emi_data_list, emi_data
   use EMI_DataDimensionMod , only : emi_data_dimension_list_type
   use SoilStateType                         , only : soilstate_type
+  use VegetationType       , only : veg_pp
   use EMI_Atm2LndType_Constants
   use EMI_CanopyStateType_Constants
   use EMI_ChemStateType_Constants
+  use EMI_CNCarbonStateType_Constants
+  use EMI_CNNitrogenStateType_Constants
+  use EMI_CNNitrogenFluxType_Constants
+  use EMI_CNCarbonFluxType_Constants
+  use EMI_ColumnEnergyStateType_Constants
+  use EMI_ColumnWaterStateType_Constants
+  use EMI_ColumnWaterFluxType_Constants
   use EMI_EnergyFluxType_Constants
   use EMI_SoilHydrologyType_Constants
   use EMI_SoilStateType_Constants
@@ -37,7 +45,7 @@ contains
     ! Pack data from ALM soilstate_vars for EM
     !
     ! !USES:
-    use elm_varpar             , only : nlevsoi, nlevgrnd, nlevsno
+    use elm_varpar             , only : nlevsoi, nlevgrnd, nlevsno, numpft
     !
     implicit none
     !
@@ -49,11 +57,12 @@ contains
     type(soilstate_type)   , intent(in) :: soilstate_vars
     !
     ! !LOCAL_VARIABLES:
-    integer                             :: fc,c,j
+    integer                             :: fc,c,j,k,patch_idx, npfts
     class(emi_data), pointer            :: cur_data
     logical                             :: need_to_pack
     integer                             :: istage
     integer                             :: count
+    real(r8)                            :: rtemp
 
     associate(& 
          watsat       => soilstate_vars%watsat_col       , &
@@ -68,7 +77,10 @@ contains
          cellclay     => soilstate_vars%cellclay_col     , &
          cellsand     => soilstate_vars%cellsand_col     , &
          bd           => soilstate_vars%bd_col           , &
-         watfc        => soilstate_vars%watfc_col          &
+         watfc        => soilstate_vars%watfc_col        , &
+         rootfr_patch => soilstate_vars%rootfr_patch     , &
+         wtcol  => veg_pp%wtcol                          , &
+         active => veg_pp%active                           &
          )
 
     count = 0
@@ -206,6 +218,23 @@ contains
              enddo
              cur_data%is_set = .true.
 
+          case (L2E_PARAMETER_ROOTFR_COL)
+             npfts = numpft+1
+             do fc = 1, num_filter
+                c = filter(fc)
+                patch_idx = npfts * (c - 1)
+                rtemp = 0._r8
+                do k = 1, npfts
+                   patch_idx = patch_idx + 1
+                   if (active(patch_idx) .and. wtcol(patch_idx)>rtemp) then
+                      do j = 1, nlevsoi
+                         cur_data%data_real_2d(c,j) = rootfr_patch(patch_idx,j)
+                      enddo
+                   endif
+                enddo
+             enddo
+             cur_data%is_set = .true.
+
           end select
 
        endif
@@ -237,14 +266,16 @@ contains
     type(soilstate_type)   , intent(in) :: soilstate_vars
     !
     ! !LOCAL_VARIABLES:
-    integer                             :: fp,p,j
+    integer                             :: fp,p,j,k
     class(emi_data), pointer            :: cur_data
     logical                             :: need_to_pack
     integer                             :: istage
     integer                             :: count
 
     associate(& 
-         rootfr => soilstate_vars%rootfr_patch   &
+         rootfr => soilstate_vars%rootfr_patch   , &
+         wtcol  => veg_pp%wtcol                  , &
+         active => veg_pp%active                   &
          )
 
     count = 0
@@ -268,7 +299,7 @@ contains
           case (L2E_PARAMETER_ROOTFR_PATCH)
              do fp = 1, num_filter
                 p = filter(fp)
-                do j = 1, nlevgrnd
+                do j = 1, nlevsoi
                    cur_data%data_real_2d(p,j) = rootfr(p,j)
                 enddo
              enddo
@@ -305,14 +336,14 @@ contains
     type(soilstate_type)   , intent(in) :: soilstate_vars
     !
     ! !LOCAL_VARIABLES:
-    integer                             :: fc,c,j
+    integer                             :: fc,c,j,k
     class(emi_data), pointer            :: cur_data
     logical                             :: need_to_pack
     integer                             :: istage
     integer                             :: count
 
     associate(& 
-         smp_l => soilstate_vars%smp_l_col   &
+         smp_l => soilstate_vars%smp_l_col    &  ! -mmH2O
          )
 
     count = 0

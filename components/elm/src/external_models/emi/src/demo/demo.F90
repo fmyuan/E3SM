@@ -1,12 +1,12 @@
 program demo
 
   use ExternalModelInterfaceMod
-  use clm_varctl                , only : iulog
+  use elm_varctl                , only : iulog
   use decompMod                 , only : bounds_type, get_proc_bounds, get_proc_clumps, get_clump_bounds
   use elm_instMod               , only : elm_inst_biogeophys
-  use clm_varpar                , only : clm_varpar_init
+  use elm_varpar                , only : elm_varpar_init
   use elm_varcon                , only : elm_varcon_init
-  use clm_varpar                , only : nlevdecomp_full, ndecomp_pools
+  use elm_varpar                , only : nlevdecomp_full, ndecomp_pools
   use spmdMod                   , only : spmd_init
   use ExternalModelConstants    , only : EM_ID_STUB, EM_STUB_SOIL_HYDRO_STAGE, EM_STUB_SOIL_THERMAL_STAGE
   use elm_instMod               , only : soilstate_vars, waterstate_vars, waterflux_vars
@@ -27,7 +27,7 @@ program demo
 
   call spmd_init()
   call set_namelist_variables()
-  call clm_varpar_init()
+  call elm_varpar_init()
   call elm_varcon_init()
   call decompInit()
 
@@ -109,7 +109,7 @@ end program demo
 !-----------------------------------------------------------------------
 subroutine set_namelist_variables()
 
-  use clm_varctl, only : use_em_stub
+  use elm_varctl, only : use_em_stub
 
   implicit none
 
@@ -120,7 +120,7 @@ end subroutine set_namelist_variables
 subroutine decompInit ()
   !
   use decompMod
-  use clm_varctl, only : iulog
+  use elm_varctl, only : iulog
   use abortutils      , only : endrun
   use shr_log_mod     , only : errMsg => shr_log_errMsg
   use spmdMod , only : iam
@@ -202,8 +202,8 @@ subroutine initialize_clm_data_structures(bounds_proc)
   !use elm_instMod   , only : energyflux_vars
   use ColumnDataType, only : col_ws, col_wf, col_ef
   use shr_kind_mod  , only : r8 => shr_kind_r8, SHR_KIND_CL
-  use clm_varpar    , only : nlevgrnd
-  use clm_varpar    , only : nlevdecomp_full, ndecomp_pools
+  use elm_varpar    , only : nlevgrnd
+  use elm_varpar    , only : nlevdecomp_full, ndecomp_pools
   use shr_const_mod , only : SHR_CONST_PI
   !
   implicit none

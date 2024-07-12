@@ -12,29 +12,44 @@ module ExternalModelInterfaceMod
   use elm_varctl                            , only : iulog
   use EMI_DataMod         , only : emi_data_list, emi_data
   use EMI_DataDimensionMod , only : emi_data_dimension_list_type
+
 #ifdef USE_PETSC_LIB
   use ExternalModelVSFMMod                  , only : em_vsfm_type
   use ExternalModelPTMMod                   , only : em_ptm_type
 #endif
   use ExternalModelFATESMod                 , only : em_fates_type
   use ExternalModelStubMod                  , only : em_stub_type
+  use ExternalModelAlquimiaMod              , only : em_alquimia_type
+
   use EMI_TemperatureType_ExchangeMod       , only : EMI_Pack_TemperatureType_at_Column_Level_for_EM
   use EMI_TemperatureType_ExchangeMod       , only : EMI_Unpack_TemperatureType_at_Column_Level_from_EM
   use EMI_WaterStateType_ExchangeMod        , only : EMI_Pack_WaterStateType_at_Column_Level_for_EM
   use EMI_WaterStateType_ExchangeMod        , only : EMI_Unpack_WaterStateType_at_Column_Level_from_EM
+  use EMI_SoilStateType_ExchangeMod         , only : EMI_Pack_SoilStateType_at_Patch_Level_for_EM
   use EMI_SoilStateType_ExchangeMod         , only : EMI_Pack_SoilStateType_at_Column_Level_for_EM
   use EMI_SoilStateType_ExchangeMod         , only : EMI_Unpack_SoilStateType_at_Column_Level_from_EM
   use EMI_SoilHydrologyType_ExchangeMod     , only : EMI_Pack_SoilHydrologyType_at_Column_Level_for_EM
   use EMI_SoilHydrologyType_ExchangeMod     , only : EMI_Unpack_SoilHydrologyType_at_Column_Level_from_EM
   use EMI_WaterFluxType_ExchangeMod         , only : EMI_Pack_WaterFluxType_at_Column_Level_for_EM
   use EMI_WaterFluxType_ExchangeMod         , only : EMI_Unpack_WaterFluxType_at_Column_Level_from_EM
+  use EMI_WaterFluxType_ExchangeMod         , only : EMI_Unpack_WaterFluxType_at_Patch_Level_from_EM
   use EMI_EnergyFluxType_ExchangeMod        , only : EMI_Pack_EnergyFluxType_at_Column_Level_for_EM
   use EMI_CanopyStateType_ExchangeMod       , only : EMI_Unpack_CanopyStateType_at_Patch_Level_from_EM
   use EMI_Atm2LndType_ExchangeMod           , only : EMI_Pack_Atm2LndType_at_Grid_Level_for_EM
+  use EMI_Atm2LndType_ExchangeMod           , only : EMI_Pack_Atm2LndType_at_Column_Level_for_EM
   use EMI_ColumnType_Exchange               , only : EMI_Pack_ColumnType_for_EM
   use EMI_Filter_Exchange                   , only : EMI_Pack_Filter_for_EM
   use EMI_Landunit_Exchange                 , only : EMI_Pack_Landunit_for_EM
   use EMI_CNCarbonStateType_ExchangeMod
+  use EMI_CNCarbonFluxType_ExchangeMod
+  use EMI_CNNitrogenStateType_ExchangeMod
+  use EMI_CNNitrogenFluxType_ExchangeMod
+  use EMI_ColumnEnergyStateType_ExchangeMod, only : EMI_Pack_ColumnEnergyStateType_at_Column_Level_for_EM
+  use EMI_ColumnEnergyStateType_ExchangeMod, only : EMI_Unpack_ColumnEnergyStateType_at_Column_Level_from_EM
+  use EMI_ColumnWaterStateType_ExchangeMod, only : EMI_Pack_ColumnWaterStateType_at_Column_Level_for_EM
+  use EMI_ColumnWaterFluxType_ExchangeMod, only : EMI_Pack_ColumnWaterFluxType_at_Column_Level_for_EM
+  use EMI_ChemStateType_ExchangeMod        , only : EMI_Unpack_ChemStateType_at_Column_Level_from_EM
+  use EMI_ChemStateType_ExchangeMod        , only : EMI_Pack_ChemStateType_at_Column_Level_for_EM
   !
   implicit none
   !
@@ -50,6 +65,7 @@ module ExternalModelInterfaceMod
   integer :: index_em_stub
   integer :: index_em_vsfm
   integer :: index_em_ptm
+  integer :: index_em_alquimia
 
   class(emi_data_list)               , pointer :: l2e_driver_list(:)
   class(emi_data_list)               , pointer :: e2l_driver_list(:)
@@ -60,6 +76,7 @@ module ExternalModelInterfaceMod
 #endif
   class(em_fates_type)               , pointer :: em_fates
   class(em_stub_type)                , pointer :: em_stub(:)
+  class(em_alquimia_type)            , pointer :: em_alquimia(:)
 
   public :: EMI_Determine_Active_EMs
   public :: EMI_Init_EM
@@ -82,6 +99,7 @@ contains
 #endif
     use elm_varctl, only : use_petsc_thermal_model
     use elm_varctl, only : use_em_stub
+    use elm_varctl, only : use_alquimia
     !
     implicit none
     !
@@ -95,6 +113,7 @@ contains
     index_em_pflotran    = 0
     index_em_stub        = 0
     index_em_vsfm        = 0
+    index_em_alquimia    = 0
 
     nclumps = get_proc_clumps()
 
@@ -116,6 +135,13 @@ contains
     if (use_pflotran) then
        num_em            = num_em + 1
        index_em_pflotran = num_em
+    endif
+    
+    ! Is Alquimia EM active?
+    if (use_alquimia) then
+       num_em            = num_em + 1
+       index_em_alquimia     = num_em
+       allocate(em_alquimia(nclumps))
     endif
 
     ! Is VSFM active?
@@ -150,6 +176,7 @@ contains
        write(iulog,*) '  Is BeTR present?     ',(index_em_betr     >0)
        write(iulog,*) '  Is FATES present?    ',(index_em_fates    >0)
        write(iulog,*) '  Is PFLOTRAN present? ',(index_em_pflotran >0)
+       write(iulog,*) '  Is Alquimia present? ',(index_em_alquimia >0)
        write(iulog,*) '  Is PTM present?      ',(index_em_ptm      >0)
        write(iulog,*) '  Is Stub EM present?  ',(index_em_stub     >0)
        write(iulog,*) '  Is VSFM present?     ',(index_em_vsfm     >0)
@@ -183,6 +210,7 @@ contains
     use ExternalModelConstants, only : EM_ID_BETR
     use ExternalModelConstants, only : EM_ID_FATES
     use ExternalModelConstants, only : EM_ID_PFLOTRAN
+    use ExternalModelConstants, only : EM_ID_ALQUIMIA
     use ExternalModelConstants, only : EM_ID_VSFM
     use ExternalModelConstants, only : EM_ID_PTM
     use ExternalModelConstants, only : EM_ID_STUB
@@ -191,6 +219,8 @@ contains
     use elm_instMod           , only : soilhydrology_vars
     use elm_instMod           , only : waterflux_vars
     use elm_instMod           , only : waterstate_vars
+    use elm_instMod           , only : temperature_vars
+    use ColumnDataType        , only : col_es
 #else
     use elm_instMod           , only : soilstate_inst
     use elm_instMod           , only : soilhydrology_inst
@@ -204,6 +234,7 @@ contains
     use LandunitType          , only : lun_pp
     use landunit_varcon       , only : istsoil, istcrop,istice
     use column_varcon         , only : icol_road_perv
+    use filterMod             , only : filter
     !
     implicit none
     !
@@ -281,6 +312,95 @@ contains
        !$OMP END PARALLEL DO
 
     case (EM_ID_PFLOTRAN)
+      
+      
+    case (EM_ID_ALQUIMIA)
+
+        !write(iulog,*)'*******************************************'
+      !   write(iulog,*)'  In ELM: Initialization'
+      !   write(iulog,*)'  1.1 Populate lists of variables that will be exchanged between ELM and EM'
+      !   write(iulog,*)'      during initialization and timestepping.'
+
+        ! Initialize lists of data to be exchanged between ELM and ALQUIMIA
+        ! during initialization step
+        allocate(l2e_init_list(nclumps))
+        allocate(e2l_init_list(nclumps))
+
+        do clump_rank = 1, nclumps
+
+           iem = (index_em_alquimia-1)*nclumps + clump_rank
+
+           call l2e_init_list(clump_rank)%Init()
+           call e2l_init_list(clump_rank)%Init()
+
+           ! Fill the data list:
+           !  - Data need during the initialization
+           call em_alquimia(clump_rank)%Populate_L2E_Init_List(l2e_init_list(clump_rank))
+           call em_alquimia(clump_rank)%Populate_E2L_Init_List(e2l_init_list(clump_rank))
+
+           !  - Data need during timestepping
+           call em_alquimia(clump_rank)%Populate_L2E_List(l2e_driver_list(iem))
+           call em_alquimia(clump_rank)%Populate_E2L_List(e2l_driver_list(iem))
+
+        enddo
+
+      !   write(iulog,*)'  1.2 Exchange variables between ELM and EM during initialization'
+
+        !$OMP PARALLEL DO PRIVATE (clump_rank, iem, bounds_clump)
+        do clump_rank = 1, nclumps
+
+           call get_clump_bounds(clump_rank, bounds_clump)
+           iem = (index_em_alquimia-1)*nclumps + clump_rank
+
+           ! Allocate memory for data
+           call EMI_Setup_Data_List(l2e_init_list(clump_rank), bounds_clump)
+           call EMI_Setup_Data_List(e2l_init_list(clump_rank), bounds_clump)
+
+           ! Reset values in the data list
+           call EMID_Reset_Data_for_EM(l2e_init_list(clump_rank), em_stage)
+           call EMID_Reset_Data_for_EM(e2l_init_list(clump_rank), em_stage)
+
+           ! GB_FIX_ME: Create a temporary filter
+         !   num_filter_col = bounds_clump%endc - bounds_clump%begc + 1
+
+
+           ! Pack all ALM data needed by the external model
+           call EMI_Pack_SoilStateType_at_Column_Level_for_EM(l2e_init_list(clump_rank), em_stage, &
+               filter(clump_rank)%num_soilc, filter(clump_rank)%soilc, soilstate_vars)
+            call EMI_Pack_ColumnType_for_EM(l2e_init_list(clump_rank), em_stage, &
+               filter(clump_rank)%num_soilc, filter(clump_rank)%soilc)
+            call EMI_Pack_Filter_for_EM(l2e_init_list(clump_rank), em_stage, &
+               filter(clump_rank)%num_soilc, filter(clump_rank)%soilc)
+                 
+            call EMI_Pack_ColumnEnergyStateType_at_Column_Level_for_EM(l2e_init_list(clump_rank), em_stage, &
+               filter(clump_rank)%num_soilc, filter(clump_rank)%soilc, col_es)
+
+
+           ! Ensure all data needed by external model is packed
+         !   write(iulog,*)'     1.2.1 Value of variables send by ELM'
+           call EMID_Verify_All_Data_Is_Set(l2e_init_list(clump_rank), em_stage, print_data=.false.)
+
+           ! Initialize the external model
+           call em_alquimia(clump_rank)%Init(l2e_init_list(clump_rank), e2l_init_list(clump_rank), &
+                iam, bounds_clump)
+
+           ! Unpack all data sent from the external model
+           !call EMI_Unpack_WaterStateType_at_Column_Level_from_EM(e2l_init_list(clump_rank), em_stage, &
+          !      num_filter_col, filter_col)
+
+           ! Ensure all data sent by external model is unpacked
+         !   write(iulog,*)'     1.2.4 Value of variables received by ELM'
+           call EMID_Verify_All_Data_Is_Set(e2l_init_list(clump_rank), em_stage, print_data=.false.)
+
+           call l2e_init_list(clump_rank)%Destroy()
+           call e2l_init_list(clump_rank)%Destroy()
+
+           ! This must happen after em_alquimia%init because alquimia_sizes are needed for dimension sizes in driver list
+           call EMI_Setup_Data_List(l2e_driver_list(iem)     , bounds_clump)
+           call EMI_Setup_Data_List(e2l_driver_list(iem)     , bounds_clump)
+
+        enddo
+        !$OMP END PARALLEL DO
 
     case (EM_ID_VSFM)
 
@@ -393,7 +513,7 @@ contains
           call EMI_Unpack_SoilStateType_at_Column_Level_from_EM(e2l_init_list(clump_rank), em_stage, &
                num_e2l_filter_col, e2l_filter_col, soilstate_vars)
           call EMI_Unpack_WaterStateType_at_Column_Level_from_EM(e2l_init_list(clump_rank), em_stage, &
-               num_e2l_filter_col, e2l_filter_col, waterstate_vars)
+               num_e2l_filter_col, e2l_filter_col)
           call EMI_Unpack_WaterFluxType_at_Column_Level_from_EM(e2l_init_list(clump_rank), em_stage, &
                num_e2l_filter_col, e2l_filter_col, waterflux_vars)
           call EMI_Unpack_SoilHydrologyType_at_Column_Level_from_EM(e2l_init_list(clump_rank), em_stage, &
@@ -525,7 +645,7 @@ contains
 
        enddo
 
-       write(iulog,*)'  1.2 Exchange variables between ELM and EM during initialization'
+      !  write(iulog,*)'  1.2 Exchange variables between ELM and EM during initialization'
 
        !$OMP PARALLEL DO PRIVATE (clump_rank, iem, bounds_clump)
        do clump_rank = 1, nclumps
@@ -563,8 +683,8 @@ contains
                num_filter_col, filter_col, soilstate_vars)
 
           ! Ensure all data needed by external model is packed
-          write(iulog,*)'     1.2.1 Value of variables send by ELM'
-          call EMID_Verify_All_Data_Is_Set(l2e_init_list(clump_rank), em_stage, print_data=.true.)
+         !  write(iulog,*)'     1.2.1 Value of variables send by ELM'
+          call EMID_Verify_All_Data_Is_Set(l2e_init_list(clump_rank), em_stage, print_data=.false.)
 
           ! Initialize the external model
           call em_stub(clump_rank)%Init(l2e_init_list(clump_rank), e2l_init_list(clump_rank), &
@@ -572,11 +692,11 @@ contains
 
           ! Unpack all data sent from the external model
           call EMI_Unpack_WaterStateType_at_Column_Level_from_EM(e2l_init_list(clump_rank), em_stage, &
-               num_filter_col, filter_col, waterstate_vars)
+               num_filter_col, filter_col)
 
           ! Ensure all data sent by external model is unpacked
-          write(iulog,*)'     1.2.4 Value of variables received by ELM'
-          call EMID_Verify_All_Data_Is_Set(e2l_init_list(clump_rank), em_stage, print_data=.true.)
+         !  write(iulog,*)'     1.2.4 Value of variables received by ELM'
+          call EMID_Verify_All_Data_Is_Set(e2l_init_list(clump_rank), em_stage, print_data=.false.)
 
           call l2e_init_list(clump_rank)%Destroy()
           call e2l_init_list(clump_rank)%Destroy()
@@ -704,7 +824,10 @@ contains
        num_filter_lun, filter_lun,                            &
        soilhydrology_vars, soilstate_vars, waterflux_vars,    &
        waterstate_vars, temperature_vars,  atm2lnd_vars,      &
-       canopystate_vars, energyflux_vars, carbonstate_vars)
+       canopystate_vars, energyflux_vars, carbonstate_vars,   &
+       carbonflux_vars, nitrogenstate_vars, nitrogenflux_vars,&
+       chemstate_vars, &
+       col_es, col_ef, col_ws, col_wf, num_soilc, filter_soilc)
     !
     ! !DESCRIPTION:
     !
@@ -715,6 +838,7 @@ contains
     use ExternalModelConstants , only : EM_ID_VSFM
     use ExternalModelConstants , only : EM_ID_PTM
     use ExternalModelConstants , only : EM_ID_STUB
+    use ExternalModelConstants , only : EM_ID_ALQUIMIA
     use SoilStateType          , only : soilstate_type
     use SoilHydrologyType      , only : soilhydrology_type
     use TemperatureType        , only : temperature_type
@@ -723,7 +847,15 @@ contains
     use atm2lndType            , only : atm2lnd_type
     use CanopyStateType        , only : canopystate_type
     use EnergyFluxType         , only : energyflux_type
-    use CNCarbonStateType      , only : carbonstate_type
+    use ColumnDataType         , only : column_carbon_state
+    use ColumnDataType         , only : column_carbon_flux
+    use ColumnDataType         , only : column_nitrogen_state
+    use ColumnDataType         , only : column_nitrogen_flux
+    use ColumnDataType         , only : column_energy_state
+    use ColumnDataType         , only : column_energy_flux
+    use ColumnDataType         , only : column_water_state
+    use ColumnDataType         , only : column_water_flux
+    use ChemStateType          , only : chemstate_type
     use ExternalModelBETRMod   , only : EM_BETR_Solve
     use decompMod              , only : get_clump_bounds
     !
@@ -750,7 +882,17 @@ contains
     type(atm2lnd_type)       , optional , intent(inout) :: atm2lnd_vars
     type(canopystate_type)   , optional , intent(inout) :: canopystate_vars
     type(energyflux_type)    , optional , intent(inout) :: energyflux_vars
-    type(carbonstate_type)   , optional , intent(inout) :: carbonstate_vars
+    type(column_carbon_state)   , optional , intent(inout) :: carbonstate_vars
+    type(column_carbon_flux)   , optional , intent(inout) :: carbonflux_vars
+    type(column_energy_state)  , optional , intent(inout) :: col_es
+    type(column_energy_flux)  , optional , intent(inout) :: col_ef
+    type(column_water_state)  , optional , intent(inout) :: col_ws
+    type(column_water_flux)  , optional , intent(inout) :: col_wf
+    type(column_nitrogen_state)   , optional , intent(inout) :: nitrogenstate_vars
+    type(column_nitrogen_flux)   , optional , intent(inout) :: nitrogenflux_vars
+    type(chemstate_type)      , optional , intent(inout) :: chemstate_vars
+    integer                  , optional , intent(in)    :: num_soilc
+    integer                  , optional , intent(in)    :: filter_soilc(:)
     !
     integer          :: index_em
     real(r8)         :: dtime
@@ -773,6 +915,8 @@ contains
        index_em = index_em_fates
     case (EM_ID_PFLOTRAN)
        index_em = index_em_pflotran
+    case (EM_ID_ALQUIMIA)
+       index_em = index_em_alquimia
     case (EM_ID_VSFM)
        index_em = index_em_vsfm
     case (EM_ID_PTM)
@@ -811,6 +955,45 @@ contains
             num_nolakec_and_nourbanc, filter_nolakec_and_nourbanc, temperature_vars)
     endif
 
+    if ( present(col_es) .and. &
+         present(num_soilc)   .and. &
+         present(filter_soilc)) then
+
+       call EMI_Pack_ColumnEnergyStateType_at_Column_Level_for_EM(l2e_driver_list(iem), em_stage, &
+            num_soilc, filter_soilc, col_es)
+
+    endif
+
+    if ( present(col_ef) .and. &
+         present(num_soilc)   .and. &
+         present(filter_soilc)) then
+       ! (TODO)
+       !call EMI_Pack_ColumnEnergyFluxType_at_Column_Level_for_EM(l2e_driver_list(iem), em_stage, &
+       !     num_soilc, filter_soilc, col_ef)
+
+    endif
+
+    if ( present(col_ws) .and. &
+        present(num_soilc) .and. &
+        present(filter_soilc) ) then
+
+       call EMI_Pack_WaterFluxType_at_Column_Level_for_EM(l2e_driver_list(iem), em_stage, &
+            num_soilc, filter_soilc)
+
+       call EMI_Pack_ColumnWaterStateType_at_Column_Level_for_EM(l2e_driver_list(iem), em_stage, &
+            num_soilc, filter_soilc, col_ws)
+
+    endif
+
+    if ( present(col_wf) .and. &
+        present(num_soilc) .and. &
+        present(filter_soilc) ) then
+
+       call EMI_Pack_ColumnWaterFluxType_at_Column_Level_for_EM(l2e_driver_list(iem), em_stage, &
+            num_soilc, filter_soilc, col_wf)
+
+    endif
+
     if ( present(waterstate_vars)) then
        if (present(num_hydrologyc)  .and. &
            present(filter_hydrologyc)) then
@@ -823,6 +1006,13 @@ contains
 
           call EMI_Pack_WaterStateType_at_Column_Level_for_EM(l2e_driver_list(iem), em_stage, &
                num_nolakec_and_nourbanc, filter_nolakec_and_nourbanc, waterstate_vars)
+
+       elseif (present(num_soilc)  .and. &
+            present(filter_soilc)) then
+
+         call EMI_Pack_WaterStateType_at_Column_Level_for_EM(l2e_driver_list(iem), em_stage, &
+            num_soilc, filter_soilc, waterstate_vars)
+
        else
           ! GB_FIX_ME: Create a temporary filter
           if (present(clump_rank)) then
@@ -847,7 +1037,7 @@ contains
          present(filter_hydrologyc)) then
 
        call EMI_Pack_WaterFluxType_at_Column_Level_for_EM(l2e_driver_list(iem), em_stage, &
-            num_hydrologyc, filter_hydrologyc, waterflux_vars)
+            num_hydrologyc, filter_hydrologyc, waterflux_vars=waterflux_vars)
     endif
 
     if ( present(num_nolakec_and_nourbanc) .and. &
@@ -866,6 +1056,17 @@ contains
 
        call EMI_Pack_ColumnType_for_EM(l2e_driver_list(iem), em_stage, &
             num_hydrologyc, filter_hydrologyc)
+
+    endif
+
+    if ( present(num_soilc) .and. &
+      present(filter_soilc)) then
+
+      call EMI_Pack_Filter_for_EM(l2e_driver_list(iem), em_stage, &
+            num_soilc, filter_soilc)
+
+      call EMI_Pack_ColumnType_for_EM(l2e_driver_list(iem), em_stage, &
+            num_soilc, filter_soilc)
 
     endif
 
@@ -933,13 +1134,69 @@ contains
     enddo
     call EMI_Pack_ColumnType_for_EM(l2e_driver_list(iem), em_stage, &
             num_filter_col, filter_col)
+    if (present(atm2lnd_vars)) then
+       call EMI_Pack_Atm2LndType_at_Column_Level_for_EM(l2e_driver_list(iem), em_stage, &
+            num_filter_col, filter_col, atm2lnd_vars)
+    endif
     deallocate(filter_col)
 
     if (present(carbonstate_vars)  .and. &
-         present(num_hydrologyc)   .and. &
-         present(filter_hydrologyc)) then
+         present(num_soilc)   .and. &
+         present(filter_soilc)) then
        call EMI_Pack_CNCarbonStateType_at_Column_Level_for_EM(l2e_driver_list(iem), em_stage, &
-            num_hydrologyc, filter_hydrologyc, carbonstate_vars)
+            num_soilc, filter_soilc, carbonstate_vars)
+    endif
+    
+    if (present(carbonflux_vars)  .and. &
+         present(num_soilc)   .and. &
+         present(filter_soilc)) then
+       call EMI_Pack_CNCarbonFluxType_at_Column_Level_for_EM(l2e_driver_list(iem), em_stage, &
+            num_soilc, filter_soilc, carbonflux_vars)
+    endif
+    
+    if (present(nitrogenstate_vars)  .and. &
+         present(num_soilc)   .and. &
+         present(filter_soilc)) then
+       call EMI_Pack_CNNitrogenStateType_at_Column_Level_for_EM(l2e_driver_list(iem), em_stage, &
+            num_soilc, filter_soilc, nitrogenstate_vars)
+    endif
+
+    if (present(nitrogenflux_vars)  .and. &
+         present(num_soilc)   .and. &
+         present(filter_soilc)) then
+      call EMI_Pack_CNNitrogenFluxType_at_Column_Level_for_EM(l2e_driver_list(iem), em_stage, &
+            num_soilc, filter_soilc, nitrogenflux_vars)
+   endif
+
+   if (present(chemstate_vars)  .and. &
+      present(num_soilc)   .and. &
+      present(filter_soilc)) then
+      call EMI_Pack_ChemStateType_at_Column_Level_for_EM(l2e_driver_list(iem), em_stage, &
+            num_soilc, filter_soilc, chemstate_vars)
+   endif
+
+   if (present(soilstate_vars) .and. &
+       present(num_soilc)      .and. &
+       present(filter_soilc))   then
+          ! FIX_ME: Create a temporary filter
+          if (present(clump_rank)) then
+             call get_clump_bounds(clump_rank, bounds_clump)
+          else
+             call get_clump_bounds(1, bounds_clump)
+          endif
+          num_filter_patch = bounds_clump%endp - bounds_clump%begp + 1
+          allocate(filter_patch(num_filter_patch))
+          do ii = 1, num_filter_patch
+             filter_patch(ii) = bounds_clump%begp + ii - 1
+          enddo
+
+          call EMI_Pack_SoilStateType_at_Column_Level_for_EM(l2e_driver_list(iem), em_stage, &
+              num_soilc, filter_soilc, soilstate_vars)
+
+          call EMI_Pack_SoilStateType_at_Patch_Level_for_EM(l2e_driver_list(iem), em_stage, &
+               num_filter_patch, filter_patch, soilstate_vars)
+
+          deallocate(filter_patch)
     endif
 
     call EMID_Verify_All_Data_Is_Set(l2e_driver_list(iem), em_stage)
@@ -962,6 +1219,10 @@ contains
             e2l_driver_list(iem), bounds_clump)
 
     case (EM_ID_PFLOTRAN)
+      
+    case (EM_ID_ALQUIMIA)
+       call em_alquimia(clump_rank)%Solve(em_stage, dtime, nstep, clump_rank, l2e_driver_list(iem), &
+           e2l_driver_list(iem), bounds_clump)
 
     case (EM_ID_VSFM)
 #ifdef USE_PETSC_LIB
@@ -991,37 +1252,66 @@ contains
     ! ------------------------------------------------------------------------
     ! Unpack the data for EM
     ! ------------------------------------------------------------------------
-    if ( present(waterstate_vars) .and. &
-         present(num_hydrologyc)  .and. &
-         present(filter_hydrologyc)) then
+    if (present(num_hydrologyc)  .and. &
+     present(filter_hydrologyc)) then
+        call EMI_Unpack_WaterStateType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
+              num_hydrologyc, filter_hydrologyc)
 
-       call EMI_Unpack_WaterStateType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
-            num_hydrologyc, filter_hydrologyc, waterstate_vars)
+     elseif ( present(num_soilc)  .and. &
+        present(filter_soilc)) then
+        call EMI_Unpack_WaterStateType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
+              num_soilc, filter_soilc)
+     endif
+
+
+    ! Create a temporary filter
+    if (present(clump_rank)) then
+       call get_clump_bounds(clump_rank, bounds_clump)
+    else
+       call get_clump_bounds(1, bounds_clump)
     endif
-
-    if ( present(waterflux_vars) .and. &
-         present(num_hydrologyc) .and. &
-         present(filter_hydrologyc)) then
-
+    num_filter_patch = bounds_clump%endp - bounds_clump%begp + 1
+    allocate(filter_patch(num_filter_patch))
+    do ii = 1, num_filter_patch
+       filter_patch(ii) = bounds_clump%begp + ii - 1
+    enddo
+    
+    if  (present(num_hydrologyc) .and. &
+     present(filter_hydrologyc)) then
        call EMI_Unpack_WaterFluxType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
-            num_hydrologyc, filter_hydrologyc, waterflux_vars)
+             num_hydrologyc, filter_hydrologyc)
+    elseif  (present(num_soilc) .and. &
+     present(filter_soilc)) then
+       call EMI_Unpack_WaterFluxType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
+              num_soilc, filter_soilc)
     endif
 
-    if ( present(soilstate_vars) .and. &
-         present(num_hydrologyc) .and. &
+    call EMI_Unpack_WaterFluxType_at_Patch_Level_from_EM(e2l_driver_list(iem), em_stage, &
+          num_filter_patch, filter_patch)
+    deallocate(filter_patch)
+
+
+    if ( present(soilstate_vars)) then
+       if  (present(num_hydrologyc) .and. &
          present(filter_hydrologyc)) then
+            call EMI_Unpack_SoilStateType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
+                  num_hydrologyc, filter_hydrologyc, soilstate_vars)
 
-       call EMI_Unpack_SoilStateType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
-            num_hydrologyc, filter_hydrologyc, soilstate_vars)
+       elseif  (present(num_soilc) .and. &
+         present(filter_soilc)) then
+            call EMI_Unpack_SoilStateType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
+                  num_soilc, filter_soilc, soilstate_vars)
+       endif
     endif
+
 
     if ( present(soilhydrology_vars) .and. &
          present(num_hydrologyc)     .and. &
          present(filter_hydrologyc)) then
-
        call EMI_Unpack_SoilHydrologyType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
             num_hydrologyc, filter_hydrologyc, soilhydrology_vars)
     endif
+
 
     if (present(canopystate_vars)) then
           ! GB_FIX_ME: Create a temporary filter
@@ -1048,12 +1338,48 @@ contains
             num_nolakec_and_nourbanc, filter_nolakec_and_nourbanc, temperature_vars)
     endif
 
+    if ( present(col_es) .and. &
+         present(num_nolakec_and_nourbanc)     .and. &
+         present(filter_nolakec_and_nourbanc)) then
+
+      call EMI_Unpack_ColumnEnergyStateType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
+            num_nolakec_and_nourbanc, filter_nolakec_and_nourbanc, col_es)
+   endif
+
     if (present(carbonstate_vars)  .and. &
-         present(num_hydrologyc)   .and. &
-         present(filter_hydrologyc)) then
+         present(num_soilc)   .and. &
+         present(filter_soilc)) then
        call EMI_Unpack_CNCarbonStateType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
-            num_hydrologyc, filter_hydrologyc, carbonstate_vars)
+            num_soilc, filter_soilc, carbonstate_vars)
     endif
+    
+    if (present(carbonflux_vars)  .and. &
+         present(num_soilc)   .and. &
+         present(filter_soilc)) then
+       call EMI_Unpack_CNCarbonFluxType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
+            num_soilc, filter_soilc, carbonflux_vars)
+    endif
+    
+    if (present(nitrogenstate_vars)  .and. &
+         present(num_soilc)   .and. &
+         present(filter_soilc)) then
+       call EMI_Unpack_CNNitrogenStateType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
+            num_soilc, filter_soilc, nitrogenstate_vars)
+    endif
+
+    if (present(nitrogenflux_vars)  .and. &
+         present(num_soilc)   .and. &
+         present(filter_soilc)) then
+       call EMI_Unpack_CNNitrogenFluxType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
+            num_soilc, filter_soilc, nitrogenflux_vars)
+    endif
+
+    if (present(chemstate_vars)  .and. &
+      present(num_soilc)   .and. &
+      present(filter_soilc)) then
+      call EMI_UnPack_ChemStateType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
+            num_soilc, filter_soilc, chemstate_vars)
+   endif
 
     if (em_id == EM_ID_STUB) then
        write(iulog,*)'     2.4 Value of variables received by ELM'

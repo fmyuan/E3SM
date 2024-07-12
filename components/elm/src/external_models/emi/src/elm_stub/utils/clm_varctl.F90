@@ -1,4 +1,4 @@
-module clm_varctl
+module elm_varctl
 
   !-----------------------------------------------------------------------
   ! !DESCRIPTION:
@@ -10,7 +10,7 @@ module clm_varctl
   !
   ! !PUBLIC MEMBER FUNCTIONS:
   implicit none
-  public :: clm_varctl_set    ! Set variables
+  public :: elm_varctl_set    ! Set variables
   public :: cnallocate_carbon_only_set
   public :: cnallocate_carbon_only
   public :: cnallocate_carbonnitrogen_only_set
@@ -328,6 +328,17 @@ module clm_varctl
   !----------------------------------------------------------
   logical, public :: use_em_stub = .false.
   !----------------------------------------------------------
+  ! Alquimia external model
+  !----------------------------------------------------------
+  logical, public           :: use_em_alquimia      = .false.
+  character(len=32), public :: alquimia_inputfile   = 'alquimia_io/pflotran.in'
+  character(len=32), public :: alquimia_engine_name = 'pflotran'
+  character(len=32), public :: alquimia_IC_name     = 'initial' ! Initial condition
+  character(len=32), public :: alquimia_CO2_name     = 'CO2(aq)' ! Initial condition
+  character(len=32), public :: alquimia_NH4_name     = 'NH4+' ! Initial condition
+  character(len=32), public :: alquimia_NO3_name     = 'NO3-' ! Initial condition
+  logical, public           :: alquimia_handsoff      = .true.
+  !----------------------------------------------------------
   ! To retrieve namelist
   !----------------------------------------------------------
   character(len=SHR_KIND_CL), public :: NLFilename_in ! Namelist filename
@@ -394,7 +405,7 @@ module clm_varctl
 contains
 
   !---------------------------------------------------------------------------
-  subroutine clm_varctl_set( caseid_in, ctitle_in, brnch_retain_casename_in,    &
+  subroutine elm_varctl_set( caseid_in, ctitle_in, brnch_retain_casename_in,    &
        single_column_in, scmlat_in, scmlon_in, nsrest_in, &
        version_in, hostname_in, username_in)
     !
@@ -430,7 +441,7 @@ contains
     if ( present(username_in     ) ) username      = username_in
     if ( present(hostname_in     ) ) hostname      = hostname_in
 
-  end subroutine clm_varctl_set
+  end subroutine elm_varctl_set
 
   ! Set module carbon_only flag
   subroutine cnallocate_carbon_only_set(carbon_only_in)
@@ -481,4 +492,4 @@ contains
     endif
   end function get_carbontag
   
-end module clm_varctl
+end module elm_varctl

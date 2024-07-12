@@ -5,7 +5,7 @@ module EnergyFluxType
   !------------------------------------------------------------------------------
   use shr_kind_mod   , only : r8 => shr_kind_r8
   use shr_log_mod    , only : errMsg => shr_log_errMsg
-  use clm_varcon     , only : spval
+  use elm_varcon     , only : spval
   use decompMod      , only : bounds_type
   !
   implicit none
@@ -144,7 +144,7 @@ contains
     !
     ! !USES:
     use shr_infnan_mod , only : nan => shr_infnan_nan, assignment(=)
-    use clm_varpar     , only : nlevsno, nlevgrnd, nlevlak, crop_prog 
+    use elm_varpar     , only : nlevsno, nlevgrnd, nlevlak, crop_prog 
     !
     ! !ARGUMENTS:
     class(energyflux_type) :: this

@@ -11,6 +11,13 @@ module EMI_EnergyFluxType_ExchangeMod
   use EMI_Atm2LndType_Constants
   use EMI_CanopyStateType_Constants
   use EMI_ChemStateType_Constants
+  use EMI_CNCarbonStateType_Constants
+  use EMI_CNNitrogenStateType_Constants
+  use EMI_CNNitrogenFluxType_Constants
+  use EMI_CNCarbonFluxType_Constants
+  use EMI_ColumnEnergyStateType_Constants
+  use EMI_ColumnWaterStateType_Constants
+  use EMI_ColumnWaterFluxType_Constants
   use EMI_EnergyFluxType_Constants
   use EMI_SoilHydrologyType_Constants
   use EMI_SoilStateType_Constants
@@ -48,7 +55,7 @@ contains
     type(energyflux_type)  , intent(in) :: energyflux_vars
     !
     ! !LOCAL_VARIABLES:
-    integer                             :: fc,c,j
+    integer                             :: fc,c,j,k
     class(emi_data), pointer            :: cur_data
     logical                             :: need_to_pack
     integer                             :: istage
