@@ -21,6 +21,7 @@ module SoilStateType
   use elm_varctl      , only : use_erosion
   use elm_varctl      , only : use_var_soil_thick
   use elm_varctl      , only : iulog, fsurdat, hist_wrtch4diag
+  use elm_varctl      , only : use_ats
   use CH4varcon       , only : allowlakeprod
   use LandunitType    , only : lun_pp                
   use ColumnType      , only : col_pp                
@@ -267,7 +268,7 @@ contains
             ptr_patch=this%root_depth_patch, default='inactive' )
     end if
 
-    if (use_cn .or. use_fates) then
+    if (use_cn .or. use_fates .or. use_ats) then
        this%soilpsi_col(begc:endc,:) = spval
        call hist_addfld2d (fname='SOILPSI', units='MPa', type2d='levgrnd', &
             avgflag='A', long_name='soil water potential in each soil layer', &
@@ -653,7 +654,7 @@ contains
 
           do lev = 1,nlevgrnd
              ! Number of soil layers in hydrologically active columns = NLEV2BED
-	     nlevbed = col_pp%nlevbed(c)
+	         nlevbed = col_pp%nlevbed(c)
              if ( more_vertlayers )then ! duplicate clay and sand values from last soil layer
 
                 if (lev .eq. 1) then
@@ -735,6 +736,11 @@ contains
                 this%sucsat_col(c,lev)    = (1._r8-om_frac) * this%sucsat_col(c,lev) + om_sucsat*om_frac
                 this%hksat_min_col(c,lev) = xksat
 
+                if (lev > nlevbed) then
+                   ! bedrock porosity
+                   this%watsat_col(c,lev) = 1.0e-5_r8
+                endif
+
                 ! perc_frac is zero unless perf_frac greater than percolation threshold
                 if (om_frac > pcalpha) then
                    perc_norm=(1._r8 - pcalpha)**(-pcbeta)
@@ -766,6 +772,8 @@ contains
                      om_csol*om_frac)*1.e6_r8  ! J/(m3 K)
 
                 if (lev > nlevbed) then
+                   ! bedrock sat. hydraulic conductivity
+                   this%hksat_col(c,lev) = 1.0e-50_r8
                    this%csol_col(c,lev) = csol_bedrock
                 endif
 

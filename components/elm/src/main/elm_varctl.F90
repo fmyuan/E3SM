@@ -494,6 +494,24 @@ module elm_varctl
   !$acc declare copyin(pf_clmnstep0 )
 
   !----------------------------------------------------------
+  ! ATS external model
+  !----------------------------------------------------------
+  logical, public :: use_ats        = .false.
+  logical, public :: use_ats_mesh   = .false.
+  ! the following switches will allow flexibility of coupling ELM with ATS (which in fact runs in 4 modes incrementally)
+  logical, public :: ats_hmode      = .false.        ! switch for 'H' mode, surface & subsurface hydrological coupling ONLY (will be updated in interface)
+                                                     !     note that when in 'H' mode, EMI_ats will be called in 'HydrologyNoDrainage::SoilWater()'
+                                                     !               while in the following 3 modes, EMI_ats will be called in 'elm_drv()'
+  logical, public :: ats_thmode     = .false.        ! switch for 'T+H' mode, subsurface thermal-hydrological coupling (will be updated in interface)
+  logical, public :: ats_thcmode    = .false.        ! switch for 'T+H+C' mode, subsurface thermal-hydrological-biogeochemical coupling (will be updated in interface)
+  logical, public :: ats_chkout     = .false.        ! switch for ATS write out checkpoint file
+  !$acc declare copyin(use_ats       )
+  !$acc declare copyin(use_ats_mesh  )
+  !$acc declare copyin(ats_hmode     )
+  !$acc declare copyin(ats_thmode    )
+  !$acc declare copyin(ats_thcmode   )
+
+  !----------------------------------------------------------
   ! Alquimia external model
   !----------------------------------------------------------
   logical, public           :: use_alquimia         = .false.
