@@ -559,7 +559,7 @@ contains
   !------------------------------------------------------------------------
   subroutine EM_ATS_Init(this, l2e_init_list, e2l_init_list, iam, bounds_clump)
 
-    use clm_time_manager, only: get_nstep
+    use elm_time_manager, only: get_nstep
 
     implicit none
     class(em_ats_type)                   :: this
