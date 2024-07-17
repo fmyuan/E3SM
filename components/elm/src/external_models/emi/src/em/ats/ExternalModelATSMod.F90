@@ -1,7 +1,5 @@
 module ExternalModelATSMod
 
-#ifdef USE_ATS_LIB
-
   !-----------------------------------------------------------------------
   ! !DESCRIPTION:
   !
@@ -1027,7 +1025,5 @@ contains
   end subroutine EM_ATS_Finalize
 
  !------------------------------------------------------------------------
-
-#endif
 
 end module ExternalModelATSMod

@@ -143,7 +143,6 @@ contains
     !----------------------------------------------------------------------------------------
     case (ATS_HYDRO)
 
-#ifdef USE_ATS_LIB
 #ifndef _OPENACC
        call EMI_Driver(EM_ID_ATS, EM_ATS_SOIL_HYDRO_STAGE,                        &
             dt=dt, number_step=nstep, clump_rank=bounds%clump_index,              &
@@ -172,8 +171,6 @@ contains
 
        end do
 
-
-#endif
 #endif
 
     !----------------------------------------------------------------------------------------

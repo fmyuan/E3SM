@@ -20,9 +20,8 @@ module ExternalModelInterfaceMod
   use ExternalModelFATESMod                 , only : em_fates_type
   use ExternalModelStubMod                  , only : em_stub_type
   use ExternalModelAlquimiaMod              , only : em_alquimia_type
-#ifdef USE_ATS_LIB
+
   use ExternalModelATSMod                   , only : em_ats_type
-#endif
 
   use EMI_TemperatureType_ExchangeMod       , only : EMI_Pack_TemperatureType_at_Column_Level_for_EM
   use EMI_TemperatureType_ExchangeMod       , only : EMI_Unpack_TemperatureType_at_Column_Level_from_EM
@@ -81,10 +80,10 @@ module ExternalModelInterfaceMod
   class(em_fates_type)               , pointer :: em_fates
   class(em_stub_type)                , pointer :: em_stub(:)
   class(em_alquimia_type)            , pointer :: em_alquimia(:)
-#ifdef USE_ATS_LIB
+
   ! for ats, don't instance for each individual clump (or mpi rank)
   class(em_ats_type)                 , pointer, public :: em_ats
-#endif
+
 
   public :: EMI_Determine_Active_EMs
   public :: EMI_Init_EM
@@ -167,10 +166,10 @@ contains
     if (use_ats) then
        num_em            = num_em + 1
        index_em_ats      = num_em
-#ifdef USE_ATS_LIB
+
        if(.not.use_ats_mesh) &
        allocate(em_ats)
-#endif
+
     endif
 
     ! Is PETSc based Thermal Model active?
@@ -641,7 +640,6 @@ contains
     ! start of EM_ID_ATS block
     case (EM_ID_ATS)
 
-#ifdef USE_ATS_LIB
        ! Initialize EM
 
        ! Initialize lists of data to be exchanged between ELM and ATS
@@ -770,9 +768,6 @@ contains
        enddo
        !$OMP END PARALLEL DO
 
-#else
-       call endrun('ATS is on but code was not compiled with -DUSE_ATS_LIB')
-#endif
     ! End of EM_ID_ATS block
     ! ------------------------------------------------------------------------------
 
@@ -1406,12 +1401,10 @@ contains
 
     !-------------------------------------------------------------------------------
     case (EM_ID_ATS)
-#ifdef USE_ATS_LIB
+
        call em_ats%Solve(em_stage, dtime, nstep, clump_rank, &
             l2e_driver_list(iem), e2l_driver_list(iem), bounds_clump)
-#else
-       call endrun('ATS is on but code was not compiled with -DUSE_ATS_LIB')
-#endif
+
     !-------------------------------------------------------------------------------
 
     case (EM_ID_STUB)

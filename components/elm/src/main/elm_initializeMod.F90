@@ -84,9 +84,7 @@ contains
     use domainLateralMod          , only: ldomain_lateral, domainlateral_init
     use SoilTemperatureMod        , only: init_soil_temperature
     use ExternalModelInterfaceMod , only: EMI_Determine_Active_EMs
-#ifdef USE_ATS_LIB
     use ExternalModelInterfaceMod , only: em_ats
-#endif
     use dynSubgridControlMod      , only: dynSubgridControl_init
     use filterMod                 , only: allocFilters
     use reweightMod               , only: reweight_wrapup

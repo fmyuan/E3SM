@@ -1,6 +1,5 @@
 module ELM_ATS_InterfaceMod
 
-#ifdef USE_ATS_LIB
 
   !-----------------------------------------------------------------------
   ! !DESCRIPTION:
@@ -233,7 +232,5 @@ contains
 
   !------------------------------------------------------------------------
 
-
-#endif
 
 end module ELM_ATS_InterfaceMod
