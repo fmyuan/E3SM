@@ -47,7 +47,6 @@ contains
     !
     ! !USES:
     use elm_varpar             , only : nlevsoi, nlevgrnd, nlevsno
-    use elm_varctl             , only : use_ats
     !
     implicit none
     !
@@ -179,26 +178,26 @@ contains
           case (L2E_FLUX_GROSS_EVAP_SOIL)
              do fc = 1, num_filter
                 c = filter(fc)
-               if (use_ats) then
+#ifdef USE_ATS_LIB
                 ! when coupling with ATS, ground surface hydrology is integrated into subsurface hydrology
                 ! soil evap is that between soil/ground and near-air
                 cur_data%data_real_1d(c) = qflx_evap_soi(c)
-               else
+#else
                 cur_data%data_real_1d(c) = qflx_gross_evap_soil(c)
-               endif
+#endif
              enddo
              cur_data%is_set = .true.
 
           case (L2E_FLUX_GROSS_INFL_SOIL)
              do fc = 1, num_filter
                 c = filter(fc)
-               if (use_ats) then
+#ifdef USE_ATS_LIB
                 ! when coupling with ATS, ground surface hydrology is integrated into subsurface hydrology
                 ! So, water input into soil should be rainfall+snowmelt (todo check if dew is accounted into soil evap???)
                 cur_data%data_real_1d(c) = qflx_top_soil(c)
-               else
+#else
                 cur_data%data_real_1d(c) = qflx_gross_infl_soil(c)
-               endif
+#endif
              enddo
              cur_data%is_set = .true.
 

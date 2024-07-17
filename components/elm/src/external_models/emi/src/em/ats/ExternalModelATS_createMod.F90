@@ -1,5 +1,7 @@
 module ExternalModelATS_createMod
 
+#ifdef USE_ATS_LIB
+
   !-----------------------------------------------------------------------
   ! !DESCRIPTION:
   !
@@ -113,5 +115,6 @@ print *, 'pft index:', elmats_interface%pft
 
  !------------------------------------------------------------------------
 
+#endif
 
 end module ExternalModelATS_createMod
