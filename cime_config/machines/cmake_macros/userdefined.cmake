@@ -1,5 +1,9 @@
 string(APPEND CONFIG_ARGS " ")
 string(APPEND CPPDEFS " ")
+
+# cime/CIME/case_setup.py Now doesn't include userdefined.cmake anymore
+# so the following won't work. Move it to universal.cmake temporarily.
+
 set(AMANZI_TPLS_DIR "$ENV{AMANZI_TPLS_DIR}")
 set(ATS_DIR "$ENV{ATS_DIR}")
 if (COMP_NAME STREQUAL elm)
