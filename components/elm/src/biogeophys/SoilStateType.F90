@@ -99,7 +99,8 @@ module SoilStateType
      real(r8), pointer :: cece_col             (:,:,:)! col "effective" cation exchange capacity = sum of base cations + aluminum (meq/100g dry soil)
      real(r8), pointer :: ceca_col             (:,:)  ! col "acid" cation exchange capacity = H+ (meq/100g dry soil)
      real(r8), pointer :: log_km_col           (:,:,:)! col Gaines-Thomas convention product for the exchange between each cation and H+ (H+ as the product) (1:ncations) (vertically resolved)
-
+     real(r8), pointer :: kaolinite_col        (:,:)  ! col percentage kaolinite in mineral soil (g 100g-1 soil)
+     real(r8), pointer :: calcite_col          (:,:)  ! col percentage CaCO3 in mineral soil (g 100g-1 soil)
    contains
 
      procedure, public  :: Init
@@ -202,6 +203,8 @@ contains
     allocate(this%cece_col             (begc:endc,1:nlevgrnd,1:ncations)); this%cece_col          (:,:,:)   = spval
     allocate(this%ceca_col             (begc:endc,1:nlevgrnd))          ; this%ceca_col             (:,:)   = spval
     allocate(this%log_km_col           (begc:endc,1:nlevgrnd,1:ncations)); this%log_km_col         (:,:,:) = spval
+    allocate(this%kaolinite_col        (begc:endc,1:nlevgrnd))          ; this%kaolinite_col      (:,:)   = spval
+    allocate(this%calcite_col          (begc:endc,1:nlevgrnd))          ; this%calcite_col        (:,:)   = spval
 
   end subroutine InitAllocate
 
@@ -356,6 +359,15 @@ contains
                avgflag='A', long_name='Gaines-Thomas convention product for the exchange between each cation and H+ (H+ as the product)', &
                ptr_col=data2dptr, default='inactive')
        end do
+
+      call hist_addfld2d(fname='kaolinite_col', units='g 100g-1 dry soil', type2d='levgrnd', &
+            avgflag='A', long_name='percentage naturally occuring kaolinite in soil', &
+            ptr_col=this%kaolinite_col, default='inactive')
+
+      call hist_addfld2d(fname='calcite_col', units='g 100g-1 dry soil', type2d='levgrnd', &
+            avgflag='A', long_name='percentage naturally occuring CaCO3 in soil', &
+            ptr_col=this%calcite_col, default='inactive')
+
     end if
 
   end subroutine InitHistory
@@ -427,7 +439,7 @@ contains
     character(6)       :: a_str
     character(24)      :: fieldname
     real(r8), parameter :: min_liquid_pressure = -10132500._r8 ! Minimum soil liquid water pressure [mm]
-    real(r8) ,pointer  :: sph_in(:,:,:), cect_in(:,:,:), cece_in(:,:,:), ceca_in(:,:,:), logkm_in(:,:,:) ! reac in - cation exchange capacity variables
+    real(r8) ,pointer  :: sph_in(:,:,:), cect_in(:,:,:), cece_in(:,:,:), ceca_in(:,:,:), logkm_in(:,:,:), kaolinite_in(:,:,:), calcite_in(:,:,:) ! reac in - cation exchange capacity variables
     real(r8), dimension(4) :: kex_ca, kex_mg, kex_na, kex_k, kex_al
     !-----------------------------------------------------------------------
     begc = bounds%begc; endc= bounds%endc
@@ -597,11 +609,8 @@ contains
        allocate(cece_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
        allocate(ceca_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
        allocate(logkm_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
-
-       call ncd_io(ncid=ncid, varname='SOIL_PH', flag='read', data=sph_in, dim1name=grlnd, readvar=readvar)
-       if (.not. readvar) then
-          call endrun(msg=' ERROR: SOIL_PH NOT on surfdata file'//errMsg(__FILE__, __LINE__))
-       end if
+       allocate(kaolinite_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
+       allocate(calcite_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
 
        do a = 1,ncations
           write (a_str, '(I6)') a
@@ -620,7 +629,10 @@ contains
           end do
        end do
 
-       ! Because the data is not measured at the same pH, use the difference to calculate CEC_ACID
+       call ncd_io(ncid=ncid, varname='SOIL_PH', flag='read', data=sph_in, dim1name=grlnd, readvar=readvar)
+       if (.not. readvar) then
+          call endrun(msg=' ERROR: SOIL_PH NOT on surfdata file'//errMsg(__FILE__, __LINE__))
+       end if
        call ncd_io(ncid=ncid, varname='CEC_TOT', flag='read', data=cect_in, dim1name=grlnd, readvar=readvar)
        if (.not. readvar) then
           call endrun(msg=' ERROR: CEC_TOT NOT on surfdata file'//errMsg(__FILE__, __LINE__))
@@ -629,7 +641,14 @@ contains
        if (.not. readvar) then
           call endrun(msg=' ERROR: CEC_ACID NOT on surfdata file'//errMsg(__FILE__, __LINE__))
        end if
-
+       call ncd_io(ncid=ncid, varname='PCT_KAOLINITE', flag='read', data=kaolinite_in, dim1name=grlnd, readvar=readvar)
+       if (.not. readvar) then
+          call endrun(msg=' ERROR: PCT_KAOLINITE NOT on surfdata file'//errMsg(__FILE__, __LINE__))
+       end if
+       call ncd_io(ncid=ncid, varname='PCT_CALCITE', flag='read', data=calcite_in, dim1name=grlnd, readvar=readvar)
+       if (.not. readvar) then
+          call endrun(msg=' ERROR: PCT_CALCITE NOT on surfdata file'//errMsg(__FILE__, __LINE__))
+       end if
        do c = bounds%begc, bounds%endc
           g = col_pp%gridcell(c)
           t = col_pp%topounit(c)
@@ -639,6 +658,8 @@ contains
             this%sph     (c, lev) =  sph_in(g,ti,lev)
             this%cect_col(c, lev) = cect_in(g,ti,lev)
             this%ceca_col(c, lev) = ceca_in(g,ti,lev)
+            this%kaolinite_col(c, lev) = kaolinite_in(g,ti,lev)
+            this%calcite_col(c, lev) = calcite_in(g,ti,lev)
           end do
        end do
 
@@ -661,7 +682,7 @@ contains
           end if
        end do
 
-       deallocate(sph_in, cect_in, cece_in, ceca_in, logkm_in)
+       deallocate(sph_in, cect_in, cece_in, ceca_in, logkm_in, kaolinite_in, calcite_in)
     end if
 
     ! Close file
@@ -1171,6 +1192,17 @@ contains
                long_name='Gaines-Thomas convention product between adsorbed and dissolved ions', units='', &
                interpinic_flag='interp', readvar=readvar, data=ptr2d)
       end do
+
+      call restartvar(ncid=ncid, flag=flag, varname='kaolinite_col', xtype=ncd_double,  &
+            dim1name='column', dim2name='levgrnd', switchdim=.true., &
+            long_name='percentage naturall occurring kaolinite in soil', units='g 100g-1 dry soil', &
+            interpinic_flag='interp', readvar=readvar, data=this%kaolinite_col)
+
+      call restartvar(ncid=ncid, flag=flag, varname='calcite_col', xtype=ncd_double,  &
+            dim1name='column', dim2name='levgrnd', switchdim=.true., &
+            long_name='percentage naturall occurring CaCO3 in soil', units='g g-1 dry soil', &
+            interpinic_flag='interp', readvar=readvar, data=this%calcite_col)
+
     end if
   end subroutine Restart
 

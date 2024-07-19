@@ -56,11 +56,11 @@ module EnhancedWeatheringMod
      ! coefficient before the mineral is always 1
 
 
-     real(r8), pointer  :: primary_stoi_proton         (:)      => null()   ! reaction stoichiometry coefficient in front of H+, 1:nminerals
-     real(r8), pointer  :: primary_stoi_h2o_in         (:)      => null()   ! reaction stoichiometry coefficient in front of water consumed, 1:nminerals
-     real(r8), pointer  :: primary_stoi_cations        (:, :)   => null()   ! reaction stoichiometry coefficient in front of cations, 1:nminerals x 1:ncations
-     real(r8), pointer  :: primary_stoi_silica         (:)      => null()   ! reaction stoichiometry coefficient in front of SiO2, 1:nminerals
-     real(r8), pointer  :: primary_stoi_h2o_out        (:)      => null()   ! reaction stoichiometry coefficient in front of water produced, 1:nminerals
+     real(r8), pointer  :: primary_stoi_proton       (:)      => null()   ! reaction stoichiometry coefficient in front of H+, 1:nminerals
+     real(r8), pointer  :: primary_stoi_cations      (:, :)   => null()   ! reaction stoichiometry coefficient in front of cations, 1:nminerals x 1:ncations
+     real(r8), pointer  :: primary_stoi_sio2         (:)      => null()   ! reaction stoichiometry coefficient in front of SiO2, 1:nminerals
+     real(r8), pointer  :: primary_stoi_h2o          (:)      => null()   ! reaction stoichiometry coefficient in front of water (posive = produced, negative = consumed), 1:nminerals
+     real(r8), pointer  :: primary_stoi_hco3         (:)      => null()   ! reaction stoichiometry coefficient in front of HCO3-, 1:nminerals
 
   end type EWParamsType
 
@@ -189,10 +189,10 @@ contains
     allocate(EWParamsInst%cations_valence(1:ncations))
 
     allocate(EWParamsInst%primary_stoi_proton(1:nminerals))
-    allocate(EWParamsInst%primary_stoi_h2o_in(1:nminerals))
-    allocate(EWParamsInst%primary_stoi_h2o_out(1:nminerals))
-    allocate(EWParamsInst%primary_stoi_silica(1:nminerals))
+    allocate(EWParamsInst%primary_stoi_h2o(1:nminerals))
+    allocate(EWParamsInst%primary_stoi_sio2(1:nminerals))
     allocate(EWParamsInst%primary_stoi_cations(1:nminerals,1:ncations))
+    allocate(EWParamsInst%primary_stoi_hco3(1:nminerals))
 
     call ncd_inqdid(ncid,'nminsecs',dimid)
     call ncd_inqdlen(ncid,dimid,nminsecs)       ! note this will override value from 'elm_varpar' initials
@@ -244,20 +244,16 @@ contains
     call ncd_io(varname=trim(tString),data=EWParamsInst%primary_stoi_proton, flag='read', ncid=ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
 
-    tString='primary_stoi_h2o_in'
-    call ncd_io(varname=trim(tString),data=EWParamsInst%primary_stoi_h2o_in, flag='read', ncid=ncid, readvar=readv)
+    tString='primary_stoi_h2o'
+    call ncd_io(varname=trim(tString),data=EWParamsInst%primary_stoi_h2o, flag='read', ncid=ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
 
     tString='primary_stoi_cations'
     call ncd_io(varname=trim(tString),data=EWParamsInst%primary_stoi_cations, flag='read', ncid=ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
 
-    tString='primary_stoi_silica'
-    call ncd_io(varname=trim(tString),data=EWParamsInst%primary_stoi_silica, flag='read', ncid=ncid, readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
-
-    tString='primary_stoi_h2o_out'
-    call ncd_io(varname=trim(tString),data=EWParamsInst%primary_stoi_h2o_out, flag='read', ncid=ncid, readvar=readv)
+    tString='primary_stoi_sio2'
+    call ncd_io(varname=trim(tString),data=EWParamsInst%primary_stoi_sio2, flag='read', ncid=ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
 
     ! for secondary mineral precipitions
@@ -400,7 +396,6 @@ contains
     real(r8) :: saturation_ratio, log_silica, log_carbonate
     real(r8) :: k_tot
     character(6):: n_str, m_str, c_str
-    real(r8) :: frac_kaolinite
 
     ! TEMPORARY - pick site
     integer :: site_id
@@ -505,22 +500,23 @@ contains
         rain_chem(c, 3) = 0.075_r8
         rain_chem(c, 4) = 0.014_r8
         rain_chem(c, 5) = 0._r8
-        if (current_date .eq. 19991019) then
-            ! 55 tons / 11.8 ha = 0.466 kg / m2, applied over one day
-            forc_app(c) = 0.466_r8
-        else
-            forc_app(c) = 0._r8
-        end if
-        forc_min(c, 1) = 1._r8
-        forc_min(c, 2) = 0._r8
-        forc_min(c, 3) = 0._r8
-        forc_min(c, 4) = 0._r8
-        forc_min(c, 5) = 0._r8
-        forc_pho(c   ) = 0._r8
-        forc_gra(c, 1:5) = 9.6_r8 ! 9.6 um
 
-        ! weight fraction of kaolinite in soil, g g-1 soil
-        frac_kaolinite = 0.004_r8
+        !if (current_date .eq. 19991019) then
+        !    ! 55 tons / 11.8 ha = 0.466 kg / m2, applied over one day
+        !    forc_app(c) = 0.466_r8
+        !else
+        !    forc_app(c) = 0._r8
+        !end if
+        !forc_min(c, 1) = 1._r8
+        !forc_min(c, 2) = 0._r8
+        !forc_min(c, 3) = 0._r8
+        !forc_min(c, 4) = 0._r8
+        !forc_min(c, 5) = 0._r8
+        !forc_pho(c   ) = 0._r8
+        !forc_gra(c, 1:5) = 9.6_r8 ! 9.6 um
+
+        !! weight fraction of kaolinite in soil, g g-1 soil
+        !frac_kaolinite = 0.004_r8
       else if (site_id == 2) then
         ! U.C. Davis
         ! rain pH data from the monitoring station in Davis,  
@@ -533,30 +529,30 @@ contains
         rain_chem(c, 3) = 0.025_r8
         rain_chem(c, 4) = 0.04_r8
         rain_chem(c, 5) = 0._r8
-        if ((kyr .eq. 2019) .or. (kyr .eq. 2020)) then
-          if ((kmo .eq. 9) .or. (kmo .eq. 10) .or. (kmo .eq. 11)) then
-           ! 40 t ha-1 = 4 kg / m2, applied over 3 months, convert to per day
-            forc_app(c) = 4._r8 / 90._r8
-          else
-            forc_app(c) = 0._r8
-          end if
-        else
-          forc_app(c) = 0._r8
-        end if
-        forc_min(c, 1) = 0._r8
-        forc_min(c, 2) = 0._r8
-        forc_min(c, 3) = 0.334_r8 ! albite
-        forc_min(c, 4) = 0.334_r8 ! anorthite
-        forc_min(c, 5) = 0.143_r8 ! epidote
-        forc_pho(c   ) = 0._r8
-        forc_gra(c, 1:5) = 105._r8 ! 102-107 um
 
-        ! weight fraction of kaolinite in soil, g g-1 soil
-        frac_kaolinite = 0.2_r8
+        !if ((kyr .eq. 2019) .or. (kyr .eq. 2020)) then
+        !  if ((kmo .eq. 9) .or. (kmo .eq. 10) .or. (kmo .eq. 11)) then
+        !   ! 40 t ha-1 = 4 kg / m2, applied over 3 months, convert to per day
+        !    forc_app(c) = 4._r8 / 90._r8
+        !  else
+        !    forc_app(c) = 0._r8
+        !  end if
+        !else
+        !  forc_app(c) = 0._r8
+        !end if
 
+        ! manually overwrite the mineral content
+        forc_min(c,1:9) = 0._r8
+        forc_min(c,3) = 0.334_r8
+        forc_min(c,4) = 0.334_r8
+        forc_min(c,5) = 0.143_r8
+        forc_gra(c, 1:9) = 105._r8
+
+        !! weight fraction of kaolinite in soil, g g-1 soil
+        !frac_kaolinite = 0.2_r8
       else
         !
-        rain_ph(c) = 7.0_r8
+        rain_ph(c) = 5.6_r8
         rain_chem(c, :) = 0.0_r8
 
         ! from read-in data of soil amendment application
@@ -564,11 +560,13 @@ contains
         !do m = 1, nminerals
         !  print *, m, forc_min(c, m), forc_gra(c, m)
         !end do
+
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        ! Need P content to affect NEE
         forc_pho(c) = 0._r8  ! (TODO) 0~namendnutr element(s) from soil amend application, by given index of phosphrous
 
-        ! weight fraction of kaolinite in soil, g g-1 soil
-        frac_kaolinite = 0.0_r8
-
+        !! weight fraction of kaolinite in soil, g g-1 soil
+        !frac_kaolinite = 0.0_r8
       end if
 
       !------------------------------------------------------------------------------
@@ -578,6 +576,9 @@ contains
       ! Therefore, set background weathering rate equal to 
       ! (Initial cation concentration - Above layer's concentration) * 
       ! (Influx from above - Plant uptake)
+      !
+      ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      ! Need to add natural calcite dissolution
       !------------------------------------------------------------------------------
       do icat = 1, ncations
         ! rainwater, mg/L => mol/kg
@@ -727,20 +728,20 @@ contains
         primary_h2o_flux_vr(c,j) = 0._r8
         do m = 1,nminerals
           primary_h2o_flux_vr(c,j) = primary_h2o_flux_vr(c,j) + & 
-            r_dissolve_vr(c,j,m) * (EWParamsInst%primary_stoi_h2o_out(m) - EWParamsInst%primary_stoi_h2o_in(m)) * mass_h2o
+            r_dissolve_vr(c,j,m) * EWParamsInst%primary_stoi_h2o(m) * mass_h2o
         end do
 
         primary_silica_flux_vr(c,j) = 0._r8
         do m = 1,nminerals
           primary_silica_flux_vr(c,j) = primary_silica_flux_vr(c,j) + &
-            r_dissolve_vr(c,j,m) * EWParamsInst%primary_stoi_silica(m) * mass_sio2
+            r_dissolve_vr(c,j,m) * EWParamsInst%primary_stoi_sio2(m) * mass_sio2
         end do
 
         do m = 1,nminerals
           primary_residue_flux_vr(c,j,m) = EWParamsInst%primary_mass(m) + &
             EWParamsInst%primary_stoi_proton(m)*mass_h - & 
-            (EWParamsInst%primary_stoi_h2o_out(m)-EWParamsInst%primary_stoi_h2o_in(m))*mass_h2o - & 
-            EWParamsInst%primary_stoi_silica(m) * mass_sio2
+            EWParamsInst%primary_stoi_h2o(m)*mass_h2o - & 
+            EWParamsInst%primary_stoi_sio2(m) * mass_sio2
           do icat = 1,ncations
             primary_residue_flux_vr(c,j,m) = primary_residue_flux_vr(c,j,m) - &
               EWParamsInst%primary_stoi_cations(m,icat) * EWParamsInst%cations_mass(icat)
@@ -818,7 +819,7 @@ contains
           ! Perez-Fodich, A., & Derry, L. A. (2020). A model for germanium-silicon equilibrium fractionation in kaolinite. Geochimica et Cosmochimica Acta, 288, 199–213. https://doi.org/10.1016/j.gca.2020.07.046
           r_precip_vr(c,j,isec) = EWParamsInst%alpha_minsecs(isec) * &
             (soilstate_vars%bd_col(c,j)*1e3*(1-soilstate_vars%cellorg_col(c,j)/ParamsShareInst%organic_max)* &
-            frac_kaolinite) * max(10**saturation_ratio - 1._r8, 0._r8)
+            soilstate_vars%kaolinite_col(c,j)) * max(10**saturation_ratio - 1._r8, 0._r8)
 
           ! convert to mol kg-1 water s-1
           r_precip_vr(c,j,isec) = r_precip_vr(c,j,isec) / h2osoi_liqvol(c,j) * 1e-3_r8

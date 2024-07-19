@@ -224,11 +224,26 @@ contains
 
         if (atm2lnd_vars%loaded_bypassdata == 0) then
           !meteorological forcing
+
+          use_livneh = .false.
+          use_daymet = .false.
+          if(index(metdata_type, 'livneh') .gt. 0) then 
+              use_livneh = .true.
+          else if (index(metdata_type, 'daymet') .gt. 0) then 
+              use_daymet = .true.
+          end if
+
           if (index(metdata_type, 'qian') .gt. 0) then 
             atm2lnd_vars%metsource = 0   
           else if (index(metdata_type,'jra') .gt. 0 .and. index(metdata_type,'cru') .gt. 0) then
-            ! CRUJAR v2.3 (note: this 'else if' is ahead of next one, cru, to avoid type mis-matching
+            !! CRUJAR v2.3 (note: this 'else if' is ahead of next one, cru, to avoid type mis-matching
             atm2lnd_vars%metsource = 6
+            !CRU-JRA v2.4.5
+            if (use_daymet) then
+              met_nvars = 7
+            else
+              met_nvars = 8
+            end if
           else if (index(metdata_type,'cru') .gt. 0 .and. index(metdata_type,'jra') .le. 0) then
             atm2lnd_vars%metsource = 1  
           else if (index(metdata_type,'site') .gt. 0) then 
@@ -242,14 +257,6 @@ contains
           else
             write(iulog,*) 'input metdata_type: ', metdata_type
             call endrun( sub//' ERROR: Invalid met data source for cpl_bypass' )
-          end if
-
-          use_livneh = .false.
-          use_daymet = .false.
-          if(index(metdata_type, 'livneh') .gt. 0) then 
-              use_livneh = .true.
-          else if (index(metdata_type, 'daymet') .gt. 0) then 
-              use_daymet = .true.
           end if
  
           metvars(1) = 'TBOT'
@@ -274,6 +281,14 @@ contains
               metvars(12) = 'SNOWC'
               metvars(13) = 'SNOWL'
               metvars(14) = 'V'
+          else if (atm2lnd_vars%metsource .eq. 6) then 
+              if (use_daymet) then
+                metvars(6) = 'WIND'
+              else
+                ! CRUJRAv2.4.5
+                metvars(6) = 'UWIND'
+                metvars(8) = 'VWIND'
+              end if
           else
               metvars(4) = 'FSDS'
               metvars(5) = 'PRECTmms'
@@ -312,8 +327,16 @@ contains
             atm2lnd_vars%endyear_met_spinup = 590 !100
             atm2lnd_vars%endyear_met_trans  = 590 !100
           else if (atm2lnd_vars%metsource == 6) then
-            !CRU-JRA v2.3
-            atm2lnd_vars%endyear_met_trans  = 2021
+            if (use_daymet) then
+              !!CRU-JRA v2.3
+              atm2lnd_vars%endyear_met_trans  = 2021
+            else
+              !CRU-JRA v2.4.5
+              metsource_str = 'crujra'
+              atm2lnd_vars%startyear_met      = 1901
+              atm2lnd_vars%endyear_met_spinup = 1920
+              atm2lnd_vars%endyear_met_trans  = 2022
+            end if
           end if
 
           if (use_livneh) then 
@@ -425,11 +448,14 @@ contains
                     !metdata_fname = 'WCYCL1850S.ne30_' // trim(metvars(v)) // '_0076-0100_z' // zst(2:3) // '.nc'
                     metdata_fname = 'CBGC1850S.ne30_' // trim(metvars(v)) // '_0566-0590_z' // zst(2:3) // '.nc'
             else if (atm2lnd_vars%metsource == 6) then
-              ! CRUJAR v2.3
-                metdata_fname = 'CRUJRAV2.3.c2023.0.5x0.5_' // trim(metvars(v)) // '_1901-2021_z' // zst(2:3) // '.nc'
+              !! CRUJAR v2.3
+              !  metdata_fname = 'CRUJRAV2.3.c2023.0.5x0.5_' // trim(metvars(v)) // '_1901-2021_z' // zst(2:3) // '.nc'
                 if (use_daymet .and. (index(metdata_type, 'daymet4') .gt. 0) ) then
                    !daymet v4 downscaled for NA with user-defined zone-mappings.txt
                     metdata_fname = 'CRUJRAV2.3.c2023_daymet4_' // trim(metvars(v)) // '_1980-2021_z' // zst(2:3) // '.nc'
+                else
+                    ! CRUJRA v2.4.5
+                    metdata_fname = 'crujra.v2.4.5d_' // trim(metvars(v)) // '_1901-2022_z' // zst(2:3) // '.nc'
                 end if
             end if
   
