@@ -53,7 +53,7 @@ module elm_varpar
   integer, parameter :: numveg      =  16     ! number of veg types (without specific crop)
 
   ! soil mineral dissoloution/precipitation constants
-  integer :: nminerals   =  9      ! maximum allowed number of minerals that are contained in the rock in enhanced weathering (specify fraction = zero in the input file if < nminerals are contained in the rock powder)
+  integer :: nminerals   = 10      ! maximum allowed number of minerals that are contained in the rock in enhanced weathering (specify fraction = zero in the input file if < nminerals are contained in the rock powder)
                                    ! (currently: wollastonite, forsterite, albite, anorthite, epidote, diopside, enstatite, tremonlite, calcite)
   integer :: ncations    =  5      ! number of cations in chemical reactions for enhanced weathering: Ca2+, Mg2+, Na+, K+, Al3+ (H+ is tracked in soil pH)
   integer :: nminsecs    =  2      ! number of secondary minerals formed in chemical reactions during enhanced weathering: CaCO3, kaolinite

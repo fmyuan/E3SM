@@ -1302,7 +1302,7 @@ contains
             this%forc_app(c) = 0._r8
             do j = 1,nminerals
                this%forc_min(c,j) = 0._r8
-               this%forc_gra(c,j) = 0._r8
+               this%forc_gra(c,j) = 1._r8 ! avoid infinity values
             end do
             this%forc_pho(c) = 0._r8
             this%rain_ph(c) = 5.6_r8

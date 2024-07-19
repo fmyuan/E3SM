@@ -107,8 +107,8 @@ contains
 
     ! read data SOIL_AMENDMENTS_DOY, SOIL_AMENDMENTS_RATE, SOIL_AMENDMENTS_GRAINSIZE, and,
     ! SOIL_AMENDMENTS_PCT corresponding to correct year
-    
-    num_points = (bounds%endg - bounds%begg + 1)     
+
+    num_points = (bounds%endg - bounds%begg + 1)
 
     amendappl_shape = [num_points, max_topounits, mpft]
     soilamend_doy = dyn_var_time_uninterp_type( &
