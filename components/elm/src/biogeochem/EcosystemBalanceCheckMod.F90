@@ -804,7 +804,7 @@ contains
          end if
       end do ! end of columns loop
 
-
+      nstep = get_nstep()
       if (err_found .and. nstep>1) then
 #ifndef _OPENACC
          c = err_index
@@ -862,6 +862,7 @@ contains
     logical :: iserr_pm, iserr_in, iserr_sm, iserr_h    ! error flag
     real(r8):: dt                        ! radiation time step (seconds)
     integer :: year
+    integer :: nstep
     !-----------------------------------------------------------------------
 
     associate(  &
@@ -1009,7 +1010,9 @@ contains
       end if
     end do ! end of columns loop
    
-   if (spinup_state == 0 .or. year > nyears_before_ew) then
+    nstep = get_nstep()
+    if (nstep>1) then
+#ifndef _OPENACC
       if (iserr_pm .or. iserr_in .or. iserr_sm .or. iserr_h) then
          c = err_index
          write(iulog,*)'column primary mineral balance error = ', err_pm(c), c
@@ -1033,11 +1036,12 @@ contains
 
          call endrun(msg=errMsg(__FILE__, __LINE__))
       end if
-   else
+#endif
+    else
       if (masterproc) then
          write(iulog,*) '--WARNING-- skipping mineral balance check for initialization'
       end if
-   end if
+    end if
 
     end associate
 

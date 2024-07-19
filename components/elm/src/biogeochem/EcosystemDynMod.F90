@@ -8,7 +8,7 @@ module EcosystemDynMod
   use shr_kind_mod        , only : r8 => shr_kind_r8
   use shr_sys_mod         , only : shr_sys_flush
   use elm_varctl          , only : use_c13, use_c14, use_fates, use_dynroot, use_fan
-  use elm_varctl          , only : use_ew
+  use elm_varctl          , only : use_ew, finidat
   use elm_varctl          , only : spinup_state, nyears_before_ew
   use decompMod           , only : bounds_type
   use perf_mod            , only : t_startf, t_stopf
@@ -632,13 +632,14 @@ contains
     !----------------------------------------------------------------
     ! Enhanced weathering reactions
     if (use_ew) then
-      if (spinup_state == 1 .and. year == nyears_before_ew) then
+      if (finidat == ' ' .and. nstep_mod <= 1) then
+         ! if cold start, need to eq. soil cation states with soil CEC properties and other
+         ! during the first time-step
          call MineralInit(bounds, num_soilc, filter_soilc, soilstate_vars)
       end if
-      if (spinup_state == 0 .or. year > nyears_before_ew) then
-         call MineralDynamics(bounds, num_soilc, filter_soilc, soilstate_vars)
-         call MineralEquilibria(bounds, num_soilc, filter_soilc, soilstate_vars)
-      end if
+
+      call MineralDynamics(bounds, num_soilc, filter_soilc, soilstate_vars)
+      call MineralEquilibria(bounds, num_soilc, filter_soilc, soilstate_vars)
     end if
 
     !----------------------------------------------------------------
