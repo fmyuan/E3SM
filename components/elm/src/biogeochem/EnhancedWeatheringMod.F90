@@ -12,7 +12,8 @@ module EnhancedWeatheringMod
   use elm_varctl          , only : iulog, spinup_state, nyears_before_ew
   use elm_varcon          , only : log_keq_co3, log_keq_hco3, log_keq_sio2am
   use elm_varcon          , only : mass_co3, mass_hco3, mass_co2, mass_h2o, mass_sio2, mass_h
-  use elm_varpar          , only : mixing_layer, mixing_depth
+  use elm_varcon          , only : zisoi
+  use elm_varpar          , only : mixing_layer, mixing_depth, nlevgrnd
   use elm_varpar          , only : nminerals, ncations, nminsecs, nks
   use decompMod           , only : bounds_type
   use ColumnDataType      , only : col_ew, col_ms, col_mf, col_es, col_ws, col_wf
@@ -352,7 +353,6 @@ contains
           net_charge_vr(c,j) = net_charge_vr(c,j) + EWParamsInst%cations_valence(icat) * &
              mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j))
         end do
-
       end do
     end do
 
@@ -396,6 +396,8 @@ contains
     real(r8) :: saturation_ratio, log_silica, log_carbonate
     real(r8) :: k_tot
     character(6):: n_str, m_str, c_str
+    real(r8) :: qflx_drain_layer, qflx_surf_layer, dzsum
+    real(r8), parameter :: depth_runoff_Mloss = 0.05   ! (m) depth over which runoff mixes with soil water for ions loss to runoff; same as nitrogen runoff depth
 
     ! TEMPORARY - pick site
     integer :: site_id
@@ -468,6 +470,8 @@ contains
          tsoi                          => col_es%t_soisno     , &
          qin                           => col_wf%qin          , & ! Input: [real(r8) (:,:) ] flux of water into soil layer [mm h2o/s]
          qout                          => col_wf%qout         , & ! Input: [real(r8) (:,:) ] flux of water out of soil layer [mm h2o/s]
+         qflx_drain                    => col_wf%qflx_drain   , & ! Input:  [real(r8) (:)   ]  sub-surface runoff (mm H2O /s)                    
+         qflx_surf                     => col_wf%qflx_surf    , & ! Input:  [real(r8) (:)   ]  surface runoff (mm H2O /s)
          qflx_rootsoi_col              => col_wf%qflx_rootsoi , & ! Input: [real(r8) (:,:) ]  vegetation/soil water exchange (mm H2O/s) (+ = to atm)
          h2osoi_vol                    => col_ws%h2osoi_vol   , & ! Input:  [real(r8) (:)] volumetric soil water content, ice + water (m3 m-3)
          h2osoi_liqvol                 => col_ws%h2osoi_liqvol, & ! Input:  [real(r8) (:)] volumetric soil water content, liquid only (m3 m-3)
@@ -486,7 +490,7 @@ contains
       call get_curr_date(kyr, kmo, kda, mcsec)
       current_date = kyr*10000 + kmo*100 + kda
 
-      site_id = 0  ! 0: read-in, 1: HB site hard-wired, 2: uc-davis site hard-wired
+      site_id = 1  ! 0: read-in, 1: HB site hard-wired, 2: uc-davis site hard-wired
 
       if (site_id == 1) then
         ! Hubbard Brook
@@ -501,19 +505,16 @@ contains
         rain_chem(c, 4) = 0.014_r8
         rain_chem(c, 5) = 0._r8
 
-        !if (current_date .eq. 19991019) then
-        !    ! 55 tons / 11.8 ha = 0.466 kg / m2, applied over one day
-        !    forc_app(c) = 0.466_r8
-        !else
-        !    forc_app(c) = 0._r8
-        !end if
-        !forc_min(c, 1) = 1._r8
-        !forc_min(c, 2) = 0._r8
-        !forc_min(c, 3) = 0._r8
-        !forc_min(c, 4) = 0._r8
-        !forc_min(c, 5) = 0._r8
-        !forc_pho(c   ) = 0._r8
-        !forc_gra(c, 1:5) = 9.6_r8 ! 9.6 um
+        if (current_date .eq. 19991019) then
+            ! 55 tons / 11.8 ha = 0.466 kg / m2, applied over one day
+            forc_app(c) = 0.466_r8
+        else
+            forc_app(c) = 0._r8
+        end if
+        forc_min(c, 1:nminerals) = 0._r8
+        forc_min(c, 1) = 1._r8
+        forc_pho(c   ) = 0._r8
+        forc_gra(c, 1:nminerals) = 9.6_r8 ! 9.6 um
 
         !! weight fraction of kaolinite in soil, g g-1 soil
         !frac_kaolinite = 0.004_r8
@@ -530,23 +531,26 @@ contains
         rain_chem(c, 4) = 0.04_r8
         rain_chem(c, 5) = 0._r8
 
-        !if ((kyr .eq. 2019) .or. (kyr .eq. 2020)) then
-        !  if ((kmo .eq. 9) .or. (kmo .eq. 10) .or. (kmo .eq. 11)) then
-        !   ! 40 t ha-1 = 4 kg / m2, applied over 3 months, convert to per day
-        !    forc_app(c) = 4._r8 / 90._r8
-        !  else
-        !    forc_app(c) = 0._r8
-        !  end if
-        !else
-        !  forc_app(c) = 0._r8
-        !end if
+        if ((kyr .eq. 2019) .or. (kyr .eq. 2020)) then
+          if ((kmo .eq. 9) .or. (kmo .eq. 10) .or. (kmo .eq. 11)) then
+           ! 40 t ha-1 = 4 kg / m2, applied over 3 months, convert to per day
+            forc_app(c) = 4._r8 / 90._r8
+          else
+            forc_app(c) = 0._r8
+          end if
+        else
+          forc_app(c) = 0._r8
+        end if
+
+        !! overwrite in the control case
+        forc_app(c) = 0._r8
 
         ! manually overwrite the mineral content
-        forc_min(c,1:9) = 0._r8
+        forc_min(c,1:nminerals) = 0._r8
         forc_min(c,3) = 0.334_r8
-        forc_min(c,4) = 0.334_r8
         forc_min(c,5) = 0.143_r8
-        forc_gra(c, 1:9) = 105._r8
+        forc_min(c,4) = 0.334_r8
+        forc_gra(c, 1:nminerals) = 105._r8
 
         !! weight fraction of kaolinite in soil, g g-1 soil
         !frac_kaolinite = 0.2_r8
@@ -570,16 +574,28 @@ contains
       end if
 
       !------------------------------------------------------------------------------
-      ! At long-term equilibrium, water influx at top should be equal to 
-      ! (outflux at bottom + plant uptake + surface & subsurface runoff)
-      ! However, plant uptake is zero in the cation balance. 
-      ! Therefore, set background weathering rate equal to 
-      ! (Initial cation concentration - Above layer's concentration) * 
-      ! (Influx from above - Plant uptake)
+      ! At long-term equilibrium, assume no inter-soil-layer movement of cations.
+      ! There is only loss via (plant uptake + surface & subsurface runoff). 
+      ! Background weathering should be able to replenish that loss. 
       !
       ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Need to add natural calcite dissolution
       !------------------------------------------------------------------------------
+      dzsum = 0._r8
+      do j = 1,nlevgrnd
+        dzsum = dzsum + dz(c,j)
+      end do
+
+      do m = 1, nminerals
+        write (iulog, *) 'log_k_primary', EWParamsInst%log_k_primary(m,1), EWParamsInst%log_k_primary(m,2), EWParamsInst%log_k_primary(m,3)
+      end do
+
+      do m = 1, nminerals
+        do icat = 1, ncations
+          write (iulog, *) 'primary_stoi_cations', EWParamsInst%primary_stoi_cations(m,icat)
+        end do
+      end do
+
       do icat = 1, ncations
         ! rainwater, mg/L => mol/kg
         equilibria_conc(0) = rain_chem(c,icat) * 1e-3 / EWParamsInst%cations_mass(icat)
@@ -591,11 +607,19 @@ contains
           equilibria_conc(j) = beta_cation/(beta_h*keq/h)**EWParamsInst%cations_valence(icat)
         end do
 
-        ! mol kg-1 * g mol-1 * mm s-1 = g m-2 s-1, divide by dz to get g m-3 s-1
+        ! mol kg-1 * g mol-1 * mm s-1 = g m-2 s-1,divide by dz to get g m-3 s-1
         do j = 1,mixing_layer
-          background_weathering_vr(c,j,icat) = mol_to_mass(equilibria_conc(j) - equilibria_conc(j-1), &
-                              EWParamsInst%cations_mass(icat), &
-                              1e-3_r8 * (qin(c,j) - qflx_rootsoi_col(c,j)) / dz(c,j))
+          qflx_drain_layer = qflx_drain(c) / dzsum
+          if (zisoi(j) < depth_runoff_Mloss) then
+            qflx_surf_layer = qflx_surf(c) / depth_runoff_Mloss
+          else
+            qflx_surf_layer = 0._r8
+          end if
+
+          background_weathering_vr(c,j,icat) = &
+              mol_to_mass(equilibria_conc(j), & !  - equilibria_conc(j-1)
+                EWParamsInst%cations_mass(icat), 1e-3_r8 * (qflx_drain_layer + & 
+                qflx_surf_layer + qflx_rootsoi_col(c,j)))
         end do
       end do
 
@@ -665,7 +689,7 @@ contains
 
                 ! only add this part if the rate is > -9999 (the NULL value, since base reaction is 
                 ! sometimes not reported)
-                if (EWParamsInst%log_k_primary(m,1) > -9999) then
+                if (EWParamsInst%log_k_primary(m,1) > -9000) then
                   log_k_dissolve_acid = EWParamsInst%log_k_primary(m,1) + log10(exp(1.0)) * & 
                     (-1.0e6_r8 * EWParamsInst%e_primary(m,1) / rgas * (1/tsoi(c,j) - 1/298.15_r8)) - &
                     EWParamsInst%n_primary(m,1) * soil_ph(c,j) + log10(1 - 10**log_omega_vr(c,j,m))
@@ -674,15 +698,15 @@ contains
                   write (iulog, *) c, j, m, 'log_k_dissolve_acid', log_k_dissolve_acid, EWParamsInst%log_k_primary(m,1), EWParamsInst%e_primary(m,1), rgas, tsoi(c,j), EWParamsInst%n_primary(m,1), soil_ph(c,j), log_omega_vr(c,j,m)
                 end if
 
-                if (EWParamsInst%log_k_primary(m,2) > -9999) then
+                if (EWParamsInst%log_k_primary(m,2) > -9000) then
                   log_k_dissolve_neutral = EWParamsInst%log_k_primary(m,2) + log10(exp(1.0)) * & 
                     (-1.0e6_r8 * EWParamsInst%e_primary(m,2) / rgas * (1/tsoi(c,j) - 1/298.15_r8)) + &
                     log10(1 - 10**log_omega_vr(c,j,m))
                   k_tot = k_tot + 10**log_k_dissolve_neutral
-                  !write (iulog, *) c, j, m, 'log_k_dissolve_neutral', log_k_dissolve_neutral, EWParamsInst%log_k_primary(m,1), EWParamsInst%e_primary(m,1), rgas, tsoi(c,j), log_omega_vr(c,j,m)
+                  write (iulog, *) c, j, m, 'log_k_dissolve_neutral', log_k_dissolve_neutral, EWParamsInst%log_k_primary(m,1), EWParamsInst%e_primary(m,1), rgas, tsoi(c,j), log_omega_vr(c,j,m)
                 end if
 
-                if (EWParamsInst%log_k_primary(m,3) > -9999) then
+                if (EWParamsInst%log_k_primary(m,3) > -9000) then
                   log_k_dissolve_base = EWParamsInst%log_k_primary(m,3) + log10(exp(1.0)) * & 
                     (-1.0e6_r8 * EWParamsInst%e_primary(m,3) / rgas * (1/tsoi(c,j) - 1/298.15_r8)) - &
                     EWParamsInst%n_primary(m,3) * (14 - soil_ph(c,j)) + log10(1 - 10**log_omega_vr(c,j,m))
@@ -818,8 +842,9 @@ contains
           ! r [mol m-3 s-1] = A_{bulk} [m2 m-3] * k * (\Omega - 1)
           ! Perez-Fodich, A., & Derry, L. A. (2020). A model for germanium-silicon equilibrium fractionation in kaolinite. Geochimica et Cosmochimica Acta, 288, 199–213. https://doi.org/10.1016/j.gca.2020.07.046
           r_precip_vr(c,j,isec) = EWParamsInst%alpha_minsecs(isec) * &
-            (soilstate_vars%bd_col(c,j)*1e3*(1-soilstate_vars%cellorg_col(c,j)/ParamsShareInst%organic_max)* &
-            soilstate_vars%kaolinite_col(c,j)) * max(10**saturation_ratio - 1._r8, 0._r8)
+            (soilstate_vars%bd_col(c,j)*1e3*(1-soilstate_vars%cellorg_col(c,j)/ &
+             ParamsShareInst%organic_max)*soilstate_vars%kaolinite_col(c,j)/100._r8) * &
+            max(10**saturation_ratio - 1._r8, 0._r8)
 
           ! convert to mol kg-1 water s-1
           r_precip_vr(c,j,isec) = r_precip_vr(c,j,isec) / h2osoi_liqvol(c,j) * 1e-3_r8
@@ -861,7 +886,6 @@ contains
     !
     ! !USES:
     !$acc routine seq
-    use elm_varcon       , only : zisoi
     !
     ! !ARGUMENTS:
     type(bounds_type)        , intent(in)    :: bounds
@@ -1111,7 +1135,6 @@ contains
     real(r8) :: cece(1:ncations)       ! temporary container (meq 100g-1 soil)
     real(r8) :: beta_list(1:ncations)  ! temporary container for cece/cec_tot
     real(r8) :: beta_h                 ! temporary container for ceca/cec_tot
-    real(r8) :: ph                     ! temporary container for soil pH at equilibrium
     real(r8) :: keq_list(1:ncations)   ! temporary container for exchange coefficients between H+ and cations
     real(r8) :: conc(1:ncations)       ! temporary container for cation concentration (mol/kg)
     real(r8) :: dt
@@ -1119,6 +1142,7 @@ contains
     associate( &
         net_charge_vr                       => col_ms%net_charge_vr           , & ! Input:  [real(r8) (:,:)] net charge of the tracked ions in the soil solution system, constant over time (1:nlevgrnd) (mol kg-1)
 
+        soil_ph                             => col_ms%soil_ph                 , & ! Input:  [real(r8) (:,:)] calculated soil pH (1:nlevgrnd)
         proton_vr                           => col_ms%proton_vr               , & ! Input: [real (r8) (:,:)] calculated soil H+ concentration in soil water each soil layer (1:nlevgrnd) (g m-3 soil [not water])
         cation_vr                           => col_ms%cation_vr               , & ! Input: [real(r8) (:,:,:)] cation concentration in soil water in each soil layer (1:nlevgrnd,1:ncations) (g m-3 soil [not water])
         cec_cation_vr                       => col_ms%cec_cation_vr           , & ! Input: [real(r8) (:,:,:)] adsorbed cation concentration each soil layer (1:nlevgrnd,1:ncations) (g m-3 soil [not dry soil])
@@ -1151,18 +1175,18 @@ contains
           beta_list(icat) = cece(icat) / soilstate_vars%cect_col(c,j)
           keq_list(icat) = 10**soilstate_vars%log_km_col(c,j,icat)
         end do
-        ph = solve_eq(net_charge_vr(c,j), co2_atm, beta_list, keq_list, EWParamsInst%cations_valence)
+        soil_ph(c,j) = solve_eq(net_charge_vr(c,j), co2_atm, beta_list, keq_list, EWParamsInst%cations_valence)
 
         ! calculate the implications on HCO3- & CO3 --
-        bicarbonate_vr(c,j) = ph_to_hco3(ph, co2_atm)
-        carbonate_vr(c,j) = hco3_to_co3(bicarbonate_vr(c,j), ph)
+        bicarbonate_vr(c,j) = ph_to_hco3(soil_ph(c,j), co2_atm)
+        carbonate_vr(c,j) = hco3_to_co3(bicarbonate_vr(c,j), soil_ph(c,j))
 
         bicarbonate_vr(c,j) = mol_to_mass(bicarbonate_vr(c,j), mass_hco3, h2osoi_vol(c,j))
         carbonate_vr(c,j) = mol_to_mass(carbonate_vr(c,j), mass_co3, h2osoi_vol(c,j))
 
         ! calculate the implications on H+
         ! the reaction happens in the liquid water part only
-        cec_proton_flux_vr(c,j) = (mol_to_mass(10**(-ph), mass_h, h2osoi_liqvol(c,j)) - &
+        cec_proton_flux_vr(c,j) = (mol_to_mass(10**(-soil_ph(c,j)), mass_h, h2osoi_liqvol(c,j)) - &
                                    proton_vr(c,j)*h2osoi_liqvol(c,j)/h2osoi_vol(c,j)) / dt
 
         ! calculate the implications on cations
@@ -1172,7 +1196,7 @@ contains
         end do
 
         do icat = 1,ncations
-          conc(icat) = beta_list(icat)/(beta_h*keq_list(icat)/10**(-ph))**EWParamsInst%cations_valence(icat)
+          conc(icat) = beta_list(icat)/(beta_h*keq_list(icat)/10**(-soil_ph(c,j)))**EWParamsInst%cations_valence(icat)
           ! the reaction happens in the liquid water part only
           cec_cation_flux_vr(c,j,icat) = (mol_to_mass(conc(icat), EWParamsInst%cations_mass(icat), h2osoi_liqvol(c,j)) - &
                                        cation_vr(c,j,icat)*h2osoi_liqvol(c,j)/h2osoi_vol(c,j)) / dt

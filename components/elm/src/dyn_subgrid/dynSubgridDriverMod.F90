@@ -36,6 +36,8 @@ module dynSubgridDriverMod
   use ColumnDataType      , only : col_ns, col_ps
   use VegetationDataType  , only : vegetation_carbon_state, veg_ns, veg_ps
 
+  use elm_varctl, only: iulog
+
   !
   ! !PUBLIC MEMBER FUNCTIONS:
   implicit none
