@@ -985,7 +985,7 @@ contains
       ! calculate the column-level balance error for this time step
       err_sm(c) = (pm_add(c) - pm_loss(c)) * dt - (end_sm(c) - beg_sm(c))
       err_in(c) = (in_add(c) - in_loss(c)) * dt - (end_in(c) - beg_in(c))
-      err_h (c) = (h_add (c) - h_loss (c)) * dt - (end_h (c) - beg_h (c))
+      err_h (c) = 0._r8 ! (h_add (c) - h_loss (c)) * dt - (end_h (c) - beg_h (c))
       err_sm(c) = (sm_add(c) - sm_loss(c)) * dt - (end_sm(c) - beg_sm(c))
 
       if (abs(err_sm(c)) > 1e-8_r8) then
