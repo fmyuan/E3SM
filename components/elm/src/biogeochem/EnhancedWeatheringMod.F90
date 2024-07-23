@@ -490,7 +490,7 @@ contains
       call get_curr_date(kyr, kmo, kda, mcsec)
       current_date = kyr*10000 + kmo*100 + kda
 
-      site_id = 1  ! 0: read-in, 1: HB site hard-wired, 2: uc-davis site hard-wired
+      site_id = 0  ! 0: read-in, 1: HB site hard-wired, 2: uc-davis site hard-wired
 
       if (site_id == 1) then
         ! Hubbard Brook
@@ -556,14 +556,16 @@ contains
         !frac_kaolinite = 0.2_r8
       else
         !
-        rain_ph(c) = 5.6_r8
-        rain_chem(c, :) = 0.0_r8
+        rain_ph(c) = 5.6_r8       ! (TODO) from wet-deposition dataset
+        rain_chem(c, :) = 0.0_r8  ! (TODO) from wet-deposition dataset
 
-        ! from read-in data of soil amendment application
-        !print *, nstep_mod, jday_mod, secs_curr, forc_app(c)
-        !do m = 1, nminerals
-        !  print *, m, forc_min(c, m), forc_gra(c, m)
-        !end do
+        ! from read-in data of soil amendment application, for checking
+
+        write(101,*) nstep_mod, jday_mod, secs_curr, forc_app(c)
+        do m = 1, nminerals
+          write(101,*) m, forc_min(c, m), forc_gra(c, m)
+        end do
+        write(101,*) ''
 
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         ! Need P content to affect NEE
@@ -586,15 +588,15 @@ contains
         dzsum = dzsum + dz(c,j)
       end do
 
-      do m = 1, nminerals
-        write (iulog, *) 'log_k_primary', EWParamsInst%log_k_primary(m,1), EWParamsInst%log_k_primary(m,2), EWParamsInst%log_k_primary(m,3)
-      end do
+      !do m = 1, nminerals
+      !  write (iulog, *) 'log_k_primary', EWParamsInst%log_k_primary(m,1), EWParamsInst%log_k_primary(m,2), EWParamsInst%log_k_primary(m,3)
+      !end do
 
-      do m = 1, nminerals
-        do icat = 1, ncations
-          write (iulog, *) 'primary_stoi_cations', EWParamsInst%primary_stoi_cations(m,icat)
-        end do
-      end do
+      !do m = 1, nminerals
+      !  do icat = 1, ncations
+      !    write (iulog, *) 'primary_stoi_cations', EWParamsInst%primary_stoi_cations(m,icat)
+      !  end do
+      !end do
 
       do icat = 1, ncations
         ! rainwater, mg/L => mol/kg

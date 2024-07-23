@@ -635,6 +635,7 @@ contains
       if (finidat == ' ' .and. nstep_mod <= 1) then
          ! if cold start, need to eq. soil cation states with soil CEC properties and other
          ! during the first time-step
+         write(101,*) 'MineralInit called: ', nstep_mod
          call MineralInit(bounds, num_soilc, filter_soilc, soilstate_vars)
       end if
 
