@@ -626,14 +626,14 @@ contains
              ! and a separate check is done above for these terms.
 
              if (.not. lun_pp%urbpoi(l)) then
-             #if (defined HUM_HOL || defined MARSH || defined COL3RD)
+#if (defined HUM_HOL || defined MARSH || defined COL3RD)
                 errseb(p) = sabv(p) + sabg_chk(p) + forc_lwrad(t) - eflx_lwrad_out(p) &
                      - eflx_sh_tot(p) - eflx_lh_tot(p) - eflx_soil_grnd(p) !+ eflx_sh_tide(c) note, Junyan disabled this for test !SL added eflx_sh_tide 5-5-22
              ! not to include eflx_sh_tide(c) when not use HUM_HOL or COL3D ...                  
-             #else     
+#else
                errseb(p) = sabv(p) + sabg_chk(p) + forc_lwrad(t) - eflx_lwrad_out(p) &
                      - eflx_sh_tot(p) - eflx_lh_tot(p) - eflx_soil_grnd(p) !SL added eflx_sh_tide 5-5-22         
-             #endif
+#endif
                      
              else
                 errseb(p) = sabv(p) + sabg(p) &
