@@ -6033,11 +6033,6 @@ contains
           avgflag='A', long_name='column-integrated snow freezing rate', &
            ptr_col=this%qflx_snofrz, set_lake=spval, c2l_scale_type='urbanf', default='inactive')
 
-    this%qflx_lat_aqu(begc:endc) = spval
-    call hist_addfld1d (fname='QLAT_AQU', units='kg/m2/s', &
-         avgflag='A', long_name='Lateral flux between hummock/hollow', &
-         ptr_col=this%qflx_lat_aqu, set_lake=spval, c2l_scale_type='urbanf', default='inactive')
-
     if (create_glacier_mec_landunit) then
        this%qflx_glcice(begc:endc) = spval
        call hist_addfld1d (fname='QICE',  units='mm/s',  &
@@ -6104,10 +6099,10 @@ contains
     end do
 
     this%qflx_tran_veg_sat(begc:endc) = 0._r8
-#if (defined HUM_HOL)
-    qflx_lat_aqu_layer(begc:endc,:) = 0._r8
-    qflx_lat_aqu      (begc:endc) = 0._r8
-    qflx_surf_input   (begc:endc) = 0._r8
+#if (defined HUM_HOL  || defined MARSH)
+    this%qflx_lat_aqu_layer(begc:endc,:) = 0._r8
+    this%qflx_lat_aqu      (begc:endc) = 0._r8
+    this%qflx_surf_input   (begc:endc) = 0._r8
 #endif
 
   end subroutine col_wf_init
