@@ -3435,7 +3435,7 @@ contains
     ! dead wood pools, for stem and coarse root.
     ! add phosphorus flux - X.YANG
     use elm_varcon       , only : secspday
-    use clm_time_manager , only : get_days_per_year
+    use elm_time_manager , only : get_days_per_year
     !
     ! !ARGUMENTS:
       !$acc routine seq

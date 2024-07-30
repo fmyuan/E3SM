@@ -925,7 +925,7 @@ contains
       !$acc routine seq
      use elm_varcon       , only : pondmx, tfrz, watmin,denice,denh2o
      use elm_varpar       , only : nlevsoi, nlevgrnd
-     use clm_time_manager , only : get_step_size, get_curr_date, get_curr_time
+     use elm_time_manager , only : get_step_size, get_curr_date, get_curr_time
      use column_varcon    , only : icol_roof, icol_road_imperv
      use elm_varctl       , only : use_vsfm, use_var_soil_thick
      use domainMod        , only : ldomain

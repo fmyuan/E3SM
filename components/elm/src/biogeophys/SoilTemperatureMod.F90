@@ -175,7 +175,7 @@ contains
     use elm_varpar               , only : nlevsno, nlevgrnd, nlevurb
     use elm_varctl               , only : iulog
     use elm_varcon               , only : cnfac, cpice, cpliq, denh2o, secspday
-    use clm_time_manager         , only : get_step_size, get_curr_date, get_curr_time
+    use elm_time_manager         , only : get_step_size, get_curr_date, get_curr_time
     use landunit_varcon          , only : istice, istice_mec, istsoil, istcrop
     use column_varcon            , only : icol_roof, icol_sunwall, icol_shadewall, icol_road_perv, icol_road_imperv
     use landunit_varcon          , only : istwet, istice, istice_mec, istsoil, istcrop

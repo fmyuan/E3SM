@@ -534,7 +534,7 @@ contains
 
     use ExternalModelInterfaceMod , only: EMI_Driver
     use ExternalModelConstants    , only: EM_ID_ALQUIMIA,EM_ALQUIMIA_SOLVE_STAGE
-    use clm_time_manager          , only: get_step_size_real
+    use elm_time_manager          , only: get_step_size_real
     use elm_varctl                , only: use_alquimia
     use ColumnDataType            , only: col_chem
     use elm_instMod               , only: waterstate_vars

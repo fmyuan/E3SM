@@ -311,7 +311,7 @@ contains
     !
     ! !USES:
 
-    use clm_time_manager, only : get_curr_date, get_step_size, get_nstep
+    use elm_time_manager, only : get_curr_date, get_step_size, get_nstep
     use elm_varcon      , only : secspday
     use pftvarcon,  only : noveg, nbrdlf_dcd_brl_shrub, season_decid, stress_decid
 #if defined HUM_HOL
