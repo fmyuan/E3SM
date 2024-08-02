@@ -13,6 +13,7 @@ module surfrdMod
   use landunit_varcon , only : numurbl
   use elm_varcon      , only : grlnd
   use elm_varctl      , only : iulog, scmlat, scmlon, single_column, firrig_data
+  use shr_sys_mod      , only : shr_sys_flush
   use elm_varctl      , only : create_glacier_mec_landunit
   use surfrdUtilsMod  , only : check_sums_equal_1_2d, check_sums_equal_1_3d
   use surfrdUtilsMod  , only : collapse_crop_types, collapse_crop_var
@@ -101,7 +102,14 @@ contains
     end if
 
     call getfil( filename, locfn, 0 )
+
+    write (iulog, *) 'filename', filename
+    call shr_sys_flush(iulog)
+
     call ncd_pio_openfile (ncid, trim(locfn), 0)
+
+    write (iulog, *) 'filename2', filename
+    call shr_sys_flush(iulog)
 
     ! Determine dimensions and if grid file is 2d or 1d
 
@@ -109,6 +117,8 @@ contains
     if (masterproc) then
        write(iulog,*)'lat/lon grid flag (isgrid2d) is ',isgrid2d
     end if
+
+    call shr_sys_flush(iulog)
 
     allocate(mask(ns))
     mask(:) = 1

@@ -586,15 +586,15 @@ contains
         dzsum = dzsum + dz(c,j)
       end do
 
-      do m = 1, nminerals
-        write (iulog, *) 'log_k_primary', EWParamsInst%log_k_primary(m,1), EWParamsInst%log_k_primary(m,2), EWParamsInst%log_k_primary(m,3)
-      end do
+      !do m = 1, nminerals
+      !  write (iulog, *) 'log_k_primary', EWParamsInst%log_k_primary(m,1), EWParamsInst%log_k_primary(m,2), EWParamsInst%log_k_primary(m,3)
+      !end do
 
-      do m = 1, nminerals
-        do icat = 1, ncations
-          write (iulog, *) 'primary_stoi_cations', EWParamsInst%primary_stoi_cations(m,icat)
-        end do
-      end do
+      !do m = 1, nminerals
+      !  do icat = 1, ncations
+      !    write (iulog, *) 'primary_stoi_cations', EWParamsInst%primary_stoi_cations(m,icat)
+      !  end do
+      !end do
 
       do icat = 1, ncations
         ! rainwater, mg/L => mol/kg
