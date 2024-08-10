@@ -1016,6 +1016,9 @@ contains
     ! use modified infiltration scheme in surface water storage
     call mpi_bcast (use_modified_infil, 1, MPI_LOGICAL, 0, mpicom, ier)
 
+    ! use erw functions
+    call mpi_bcast (use_ew, 1, MPI_LOGICAL, 0, mpicom, ier)
+
   end subroutine control_spmd
 
   !------------------------------------------------------------------------
