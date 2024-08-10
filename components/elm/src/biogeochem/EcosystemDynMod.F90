@@ -632,7 +632,7 @@ contains
     !----------------------------------------------------------------
     ! Enhanced weathering reactions
     if (use_ew) then
-      if (spinup_state == 1 .and. year == nyears_before_ew) then
+      if (spinup_state == 1 .and. year <= nyears_before_ew) then
          call MineralInit(bounds, num_soilc, filter_soilc, soilstate_vars)
       end if
       if (spinup_state == 0 .or. year > nyears_before_ew) then
