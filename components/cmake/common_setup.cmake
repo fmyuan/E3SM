@@ -148,4 +148,13 @@ endif()
 
 if (ELM_USE_ALQUIMIA)
   set(SLIBS "${SLIBS} -L${ALQUIMIA_LIB} -lalquimia -Wl,-rpath,${ALQUIMIA_LIB}")
+  
+  if (PFLOTRAN_PATH)
+    set(SLIBS "${SLIBS} -L${PFLOTRAN_PATH} -lpflotranchem -Wl,-rpath,${PFLOTRAN_PATH}")
+
+    if(PETSC_DIR)
+      set(SLIBS "${SLIBS} -L${PETSC_DIR}/lib -lpetsc -Wl,-rpath,${PETSC_DIR}/lib")
+    endif()
+  endif()
+
 endif()
