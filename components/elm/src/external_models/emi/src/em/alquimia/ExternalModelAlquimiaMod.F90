@@ -44,6 +44,8 @@ module ExternalModelAlquimiaMod
 
   type, public, extends(em_base_type) :: em_alquimia_type
 
+    integer :: natural_id
+
     integer :: index_l2e_col_dz
     integer :: index_l2e_col_zi
     
@@ -1289,6 +1291,22 @@ end subroutine EMAlquimia_Coldstart
                   lsat = min(max(lsat,0.01),1.0)
                   kgwater_perm3soil = porosity_l2e(c,j)*lsat*water_density_l2e(c,j)
 
+                  ! kgwater_perm3soil likely updated from ELM hydrological modules
+                  ! So, in order to maitain mass balance, it's a must to reset concentrations
+                  !   for species NOT envolved in ELM bgc.
+                  ! NOTE that: this must be called prior to continued 'resetting' for species
+                  !            really changed in ELM, i.e. NH4, NO3, soilcarbon, soilnitrogen, etc.
+                  do k=1, this%chem_sizes%num_primary
+                     if (lsat>=0.01_r8) then
+                        ! lsat_prv are saved after called alquimia one-step,
+                        ! and, *_e2l should be those at previous timestep as well
+                        !aux_doubles_l2e(c,j,k) = aux_doubles_l2e(c,j,k) &
+                        !   *porosity_l2e(c,j)*lsat(c,j)*water_density_e2l(c,j) &
+                        !   /kgwater_perm3soil
+                     endif
+                  end do
+
+
                   if (this%NH4_pool_number>0 .and. lsat>=0.01_r8) then
                      aux_doubles_l2e(c,j,this%NH4_pool_number) = max(nh4_l2e(c,j)/natomw,minval)/kgwater_perm3soil
                   endif
@@ -2326,6 +2344,7 @@ end subroutine EMAlquimia_Coldstart
     porosity=this%chem_state%porosity
     call this%chem%ReactionStepOperatorSplit(this%chem_engine, actual_dt, this%chem_properties, this%chem_state, &
                                            this%chem_aux_data, this%chem_status)
+                                           !this%chem_aux_data, this%natural_id, this%chem_status)
     ! Reset porosity because Pflotran tends to mess it up
     this%chem_state%porosity=porosity
     ! write(iulog,*),'Converged =',this%chem_status%converged,"ncuts =",num_cuts
@@ -2473,6 +2492,7 @@ end subroutine EMAlquimia_Coldstart
     porosity_tmp=this%chem_state%porosity
     call this%chem%ReactionStepOperatorSplit(this%chem_engine, actual_dt, this%chem_properties, this%chem_state, &
                                          this%chem_aux_data, this%chem_status)
+                                         !this%chem_aux_data, this%natural_id, this%chem_status)
     ! Reset porosity because Pflotran tends to mess it up
     this%chem_state%porosity=porosity_tmp
 
