@@ -44,6 +44,8 @@ module ExternalModelAlquimiaMod
 
   type, public, extends(em_base_type) :: em_alquimia_type
 
+    integer :: natural_id
+
     integer :: index_l2e_col_dz
     integer :: index_l2e_col_zi
     
@@ -2217,7 +2219,7 @@ end subroutine EMAlquimia_Coldstart
     
     porosity=this%chem_state%porosity
     call this%chem%ReactionStepOperatorSplit(this%chem_engine, actual_dt, this%chem_properties, this%chem_state, &
-                                           this%chem_aux_data, this%chem_status)
+                                           this%chem_aux_data, this%natural_id, this%chem_status)
     ! Reset porosity because Pflotran tends to mess it up
     this%chem_state%porosity=porosity
     ! write(iulog,*),'Converged =',this%chem_status%converged,"ncuts =",num_cuts
@@ -2362,7 +2364,7 @@ end subroutine EMAlquimia_Coldstart
 
     porosity_tmp=this%chem_state%porosity
     call this%chem%ReactionStepOperatorSplit(this%chem_engine, actual_dt, this%chem_properties, this%chem_state, &
-                                         this%chem_aux_data, this%chem_status)
+                                         this%chem_aux_data, this%natural_id, this%chem_status)
     ! Reset porosity because Pflotran tends to mess it up
     this%chem_state%porosity=porosity_tmp
 
