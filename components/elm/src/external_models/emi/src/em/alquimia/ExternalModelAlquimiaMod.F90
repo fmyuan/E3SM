@@ -1430,7 +1430,7 @@ end subroutine EMAlquimia_Coldstart
                   sulfate_e2l(c,j) = 0.0_r8
               endif
 
-              if(this%sulfate_pool_number>0) then
+              if(this%sulfide_pool_number>0) then
                 sulfide_e2l(c,j) = total_mobile_e2l(c,j,this%sulfide_pool_number)
               else
                 sulfide_e2l(c,j) = 0.0_r8
