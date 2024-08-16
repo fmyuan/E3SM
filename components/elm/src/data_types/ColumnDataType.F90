@@ -6040,7 +6040,7 @@ contains
          l = col_pp%landunit(c)
 
          ! must be vegetated/bare land or crop
-         if (lun_pp%itype(l)==istsoil .or. lun_pp%itype(l)==istcrop) then
+         !if (lun_pp%itype(l)==istsoil .or. lun_pp%itype(l)==istcrop) then
             ! 
             do n = 1,mixing_layer
                this%soil_ph(c,n) = soilstate_vars%sph(c,n)
@@ -6061,7 +6061,7 @@ contains
             ! will be re-initialized after hydrology reaches equilibrium
             this%cec_proton_vr           (c,1:mixing_layer             ) = 0._r8
             this%cec_cation_vr           (c,1:mixing_layer,1:ncations  ) = 0._r8
-            this%cation_vr               (c,1:mixing_layer,1:ncations  ) = 0._r8
+            this%cation_vr               (c,1:nlevgrnd,1:ncations      ) = 0._r8
             this%net_charge_vr           (c,1:mixing_layer             ) = 0._r8
 
             this%primary_mineral         (c,1:nminerals            ) = 0._r8
@@ -6078,7 +6078,7 @@ contains
             this%err_in                  (c                        ) = 0._r8
             this%err_h                   (c                        ) = 0._r8
             this%err_sm                  (c                        ) = 0._r8
-         end if
+         !end if
       end do ! columns loop
 
    end subroutine col_ms_init
@@ -12868,7 +12868,7 @@ contains
          l = col_pp%landunit(c)
 
          ! must be vegetated/bare land or crop
-         if (lun_pp%itype(l)==istsoil .or. lun_pp%itype(l)==istcrop) then
+         !if (lun_pp%itype(l)==istsoil .or. lun_pp%itype(l)==istcrop) then
             this%background_weathering_vr        (c,1:mixing_layer,1:ncations ) = 0._r8
             this%primary_added_vr                (c,1:mixing_layer,1:nminerals) = 0._r8
             this%primary_dissolve_vr             (c,1:mixing_layer,1:nminerals) = 0._r8
@@ -12934,7 +12934,7 @@ contains
             this%in_loss                         (c                       ) = 0._r8
             this%sm_add                          (c                       ) = 0._r8
             this%sm_loss                         (c                       ) = 0._r8
-        end if
+        !end if
 
       end do ! columns loop
 

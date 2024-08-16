@@ -857,6 +857,8 @@ contains
       ! dwat2(c,j)*dzmm(c,j)/dtime = qin2(c,j) - (qout2(c,j) + qflx_rootsoi_col(c,j))
       ! note the sign of the qflx term is flipped compared to CLM4.5 Tech Note
       do fc = 1, num_hydrologyc
+         c = filter_hydrologyc(fc)
+
          j = 1
          qout2(c,j) = qout(c,j) + dqodw1(c,j)*dwat2(c,j) + dqodw2(c,j)*dwat2(c,j+1)
          qin2(c,j) = qin(c,j)

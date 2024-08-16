@@ -18,10 +18,13 @@ module EnhancedWeatheringMod
   use decompMod           , only : bounds_type
   use ColumnDataType      , only : col_ew, col_ms, col_mf, col_es, col_ws, col_wf
   use ColumnType          , only : col_pp
+  use LandunitType        , only : lun_pp
   use TopounitDataType    , only : top_as
   use SoilStateType       , only : soilstate_type
   use ewutils             , only : logmol_to_mass, mol_to_mass, meq_to_mass, mass_to_mol, mass_to_meq
   use ewutils             , only : mass_to_logmol, objective_solveq, solve_eq, ph_to_hco3, hco3_to_co3
+  use domainMod           , only: ldomain
+  use landunit_varcon , only : istsoil, istcrop
 
   implicit none
   save
@@ -296,7 +299,7 @@ contains
     type(soilstate_type)     , intent(in)    :: soilstate_vars
     !
     ! !LOCAL VARIABLES:
-    integer  :: fc,c,j,t
+    integer  :: fc,c,j,t,g,l
     integer  :: icat                   ! indices
     real(r8) :: co2_atm                ! CO2 partial pressure in atm
 
@@ -316,6 +319,9 @@ contains
     do fc = 1,num_soilc
       c = filter_soilc(fc)
       t = col_pp%topounit(c)
+      g = col_pp%gridcell(c)
+      l = col_pp%landunit(c)
+      !write (iulog, *) lun_pp%itype(l) == istsoil
 
       co2_atm = top_as%pco2bot(t) / 101325
 
@@ -342,6 +348,8 @@ contains
           cation_vr(c,j,icat) = cation_vr(c,j,icat) * &
             (soilstate_vars%cece_col(c,j,icat)/soilstate_vars%cect_col(c,j))
           cation_vr(c,j,icat) = mol_to_mass(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j))
+
+          ! write (iulog, *) 'cation_vr', ldomain%latc(g), ldomain%lonc(g), g, c, j, icat, cation_vr(c,j,icat), soil_ph(c,j), soilstate_vars%log_km_col(c,j,icat), soilstate_vars%ceca_col(c,j), soilstate_vars%cect_col(c,j), EWParamsInst%cations_valence(icat), soilstate_vars%cece_col(c,j,icat), h2osoi_vol(c,j)
         end do
 
         ! calculate the net charge balance at the first time step
@@ -598,7 +606,7 @@ contains
 
       do icat = 1, ncations
         ! rainwater, mg/L => mol/kg
-        equilibria_conc(0) = rain_chem(c,icat) * 1e-3 / EWParamsInst%cations_mass(icat)
+        ! equilibria_conc(0) = rain_chem(c,icat) * 1e-3 / EWParamsInst%cations_mass(icat)
         do j = 1,mixing_layer
           h = 10**(-soilstate_vars%sph(c,j))
           beta_h = soilstate_vars%ceca_col(c,j) / soilstate_vars%cect_col(c,j)
@@ -895,9 +903,9 @@ contains
 
     !
     ! !LOCAL VARIABLES:
-    integer  :: j,c,fc
+    integer  :: j,c,fc,g,l
     integer  :: icat                                   ! indices
-    integer  :: nlevbed				                   ! number of layers to bedrock
+    integer  :: nlevbed                                ! number of layers to bedrock
     real(r8) :: frac_thickness                         ! deal with the fractional layer between last layer and max allowed depth
     real(r8) :: tot_water(bounds%begc:bounds%endc)     ! total column liquid water (kg water/m2)
     real(r8) :: surface_water(bounds%begc:bounds%endc) ! liquid water to shallow surface depth (kg water/m2)
@@ -945,6 +953,9 @@ contains
     !------------------------------------------------------------------------------
     do fc = 1,num_soilc
       c = filter_soilc(fc)
+      g = col_pp%gridcell(c)
+      l = col_pp%landunit(c)
+      ! write (iulog, *) lun_pp%itype(l) == istsoil
 
       ! mol L-1 water * g mol-1 * mm s-1 = g m-2 s-1, divide by dz to get g m-3 s-1
       j = 1
@@ -953,7 +964,8 @@ contains
         do icat = 1,ncations
           ! 1e-3 g L-1 water * mm s-1 = 1e-3 g m-2 s-1, divide by dz to get g m-3 s-1
           cation_infl_vr(c,j,icat) = rain_chem(c,icat) * 1e-3_r8 * qin(c,j) / dz(c,j)
-        end do
+          ! write (iulog, *) 'cation_infl_vr', ldomain%latc(g), ldomain%lonc(g), g, c, j, icat, cation_infl_vr(c,j,icat), qin(c,j), dz(c,j), rain_chem(c,icat)
+       end do
       end if
 
       do j = 2,mixing_layer

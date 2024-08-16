@@ -218,7 +218,7 @@ contains
 
           if ((col_ms%cation_vr(c,j,a) + temp_in + temp_out) < 0._r8) then
             if (col_ms%cation_vr(c,j,a) + temp_in < 0._r8) then
-              write (iulog, *) c, j, a, 'Problematic flushing rate: ', 'dt=', dt, 'initial cation=', col_ms%cation_vr(c,j,a), 'terms=', col_mf%background_weathering_vr(c,j,a)*dt, col_mf%primary_cation_flux_vr(c,j,a), col_mf%cation_infl_vr(c,j,a), col_mf%cation_oufl_vr(c,j,a)*dt, col_mf%cation_uptake_vr(c,j,a)*dt, col_mf%cation_leached_vr(c,j,a)*dt, col_mf%cation_runoff_vr(c,j,a)*dt
+              write (iulog, *) c, j, a, 'Problematic flushing rate: ', 'dt=', dt, 'initial cation=', col_ms%cation_vr(c,j,a),'terms=', col_mf%background_weathering_vr(c,j,a)*dt, col_mf%primary_cation_flux_vr(c,j,a)*dt, col_mf%cation_infl_vr(c,j,a)*dt, col_mf%cation_oufl_vr(c,j,a)*dt, col_mf%cation_uptake_vr(c,j,a)*dt, col_mf%cation_leached_vr(c,j,a)*dt, col_mf%cation_runoff_vr(c,j,a)*dt
               call endrun(msg=subname //':: ERROR: Negative cation balance'//errMsg(__FILE__, __LINE__))
             end if
 
