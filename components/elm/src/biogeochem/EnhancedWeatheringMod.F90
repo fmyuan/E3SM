@@ -23,7 +23,7 @@ module EnhancedWeatheringMod
   use SoilStateType       , only : soilstate_type
   use ewutils             , only : logmol_to_mass, mol_to_mass, meq_to_mass, mass_to_mol, mass_to_meq
   use ewutils             , only : mass_to_logmol, objective_solveq, solve_eq, ph_to_hco3, hco3_to_co3
-  use domainMod           , only: ldomain
+  use domainMod           , only: ldomain ! debug print
   use landunit_varcon , only : istsoil, istcrop
 
   implicit none
@@ -340,7 +340,7 @@ contains
           cec_cation_vr(c,j,icat) = meq_to_mass(soilstate_vars%cece_col(c,j,icat), EWParamsInst%cations_valence(icat), EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j))
         end do
 
-        ! calculate soil solution concentration using the equilibrium with CEC
+        ! calculate initial soil solution concentration using the equilibrium with CEC
         do icat = 1,ncations
           cation_vr(c,j,icat) = ( 10**(-soil_ph(c,j)-soilstate_vars%log_km_col(c,j,icat)) / &
                (soilstate_vars%ceca_col(c,j)/soilstate_vars%cect_col(c,j)) ) &
@@ -352,7 +352,7 @@ contains
           ! write (iulog, *) 'cation_vr', ldomain%latc(g), ldomain%lonc(g), g, c, j, icat, cation_vr(c,j,icat), soil_ph(c,j), soilstate_vars%log_km_col(c,j,icat), soilstate_vars%ceca_col(c,j), soilstate_vars%cect_col(c,j), EWParamsInst%cations_valence(icat), soilstate_vars%cece_col(c,j,icat), h2osoi_vol(c,j)
         end do
 
-        ! calculate the net charge balance at the first time step
+        ! calculate the net charge balance during initializaiong
         ! mol/kg
         net_charge_vr(c,j) = 10**(-soil_ph(c,j)) - 10**(-14_r8+soil_ph(c,j)) - &
             mass_to_mol(bicarbonate_vr(c,j), mass_hco3, h2osoi_vol(c,j)) - & 
@@ -498,7 +498,7 @@ contains
       call get_curr_date(kyr, kmo, kda, mcsec)
       current_date = kyr*10000 + kmo*100 + kda
 
-      site_id = 1  ! 0: read-in, 1: HB site hard-wired, 2: uc-davis site hard-wired
+      site_id = 0  ! 0: read-in, 1: HB site hard-wired, 2: uc-davis site hard-wired
 
       if (site_id == 1) then
         ! Hubbard Brook
@@ -524,8 +524,6 @@ contains
         forc_pho(c   ) = 0._r8
         forc_gra(c, 1:nminerals) = 9.6_r8 ! 9.6 um
 
-        !! weight fraction of kaolinite in soil, g g-1 soil
-        !frac_kaolinite = 0.004_r8
       else if (site_id == 2) then
         ! U.C. Davis
         ! rain pH data from the monitoring station in Davis,  
@@ -560,12 +558,10 @@ contains
         forc_min(c,4) = 0.334_r8
         forc_gra(c, 1:nminerals) = 105._r8
 
-        !! weight fraction of kaolinite in soil, g g-1 soil
-        !frac_kaolinite = 0.2_r8
-      else
+     else
         !
         rain_ph(c) = 5.6_r8
-        rain_chem(c, :) = 0.0_r8
+        rain_chem(c, :) = 0.0_r8 ! in the new setup, rain_chem should no longer matter
 
         ! from read-in data of soil amendment application
         !print *, nstep_mod, jday_mod, secs_curr, forc_app(c)
@@ -576,33 +572,19 @@ contains
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         ! Need P content to affect NEE
         forc_pho(c) = 0._r8  ! (TODO) 0~namendnutr element(s) from soil amend application, by given index of phosphrous
-
-        !! weight fraction of kaolinite in soil, g g-1 soil
-        !frac_kaolinite = 0.0_r8
       end if
 
       !------------------------------------------------------------------------------
-      ! At long-term equilibrium, assume no inter-soil-layer movement of cations.
-      ! There is only loss via (plant uptake + surface & subsurface runoff). 
-      ! Background weathering should be able to replenish that loss. 
-      !
-      ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      ! Need to add natural calcite dissolution
+      ! Pure background weathering
+      ! - At long-term equilibrium, assume soil solution concentration is balanced
+      !   with cation exchange. Also, assume no inter-soil-layer movement of cations.
+      ! - There is only loss via (plant uptake + surface & subsurface runoff). 
+      ! - Background weathering rate only replenishes that loss. 
       !------------------------------------------------------------------------------
       dzsum = 0._r8
       do j = 1,nlevgrnd
         dzsum = dzsum + dz(c,j)
       end do
-
-      !do m = 1, nminerals
-      !  write (iulog, *) 'log_k_primary', EWParamsInst%log_k_primary(m,1), EWParamsInst%log_k_primary(m,2), EWParamsInst%log_k_primary(m,3)
-      !end do
-
-      !do m = 1, nminerals
-      !  do icat = 1, ncations
-      !    write (iulog, *) 'primary_stoi_cations', EWParamsInst%primary_stoi_cations(m,icat)
-      !  end do
-      !end do
 
       do icat = 1, ncations
         ! rainwater, mg/L => mol/kg
@@ -631,6 +613,12 @@ contains
         end do
       end do
 
+      !------------------------------------------------------------------------------
+      ! Add the weathering of pre-existing calcite in the soil
+      !------------------------------------------------------------------------------
+      ! soilstate_vars%bd_col(c,j) * soilstate_vars%calcite_col(c,j)/100._r8
+
+
       ! ---------------------------------------------------------------
       ! Apply the primary minerals
       ! ---------------------------------------------------------------
@@ -642,7 +630,7 @@ contains
       end do
 
       ! ---------------------------------------------------------------
-      ! Dissolution reaction
+      ! Primary mineral dissolution
       ! ---------------------------------------------------------------
       ! Specific surface area depends on the grain size of the mineral, following
       !    Strefler, J., Amann, T., Bauer, N., Kriegler, E., and Hartmann, J.: Potential and 
@@ -889,11 +877,12 @@ contains
     !
     ! !DESCRIPTION:
     ! On the radiation time step, update the boundary conditions of
-    ! soil ions (H+, cations) caused by rain water infiltration and
+    ! soil ions (H+, cations) caused by vertical movement and
     ! subsurface & surface runoff
     !
     ! !USES:
     !$acc routine seq
+    use TridiagonalMod       , only : Tridiagonal
     !
     ! !ARGUMENTS:
     type(bounds_type)        , intent(in)    :: bounds
@@ -911,6 +900,15 @@ contains
     real(r8) :: surface_water(bounds%begc:bounds%endc) ! liquid water to shallow surface depth (kg water/m2)
     real(r8) :: drain_tot(bounds%begc:bounds%endc)     ! total drainage flux (mm H2O /s)
     real(r8), parameter :: depth_runoff_Mloss = 0.05   ! (m) depth over which runoff mixes with soil water for ions loss to runoff; same as nitrogen runoff depth
+
+
+    real(r8) :: amx(bounds%begc:bounds%endc,1:nlevgrnd+1)     ! "a" left off diagonal of tridiagonal matrix
+    real(r8) :: bmx(bounds%begc:bounds%endc,1:nlevgrnd+1)     ! "b" diagonal column for tridiagonal matrix
+    real(r8) :: cmx(bounds%begc:bounds%endc,1:nlevgrnd+1)     ! "c" right off diagonal tridiagonal matrix
+    real(r8) :: rmx(bounds%begc:bounds%endc,1:nlevgrnd+1)     ! "r" forcing term of tridiagonal matrix
+    real(r8) :: xin(bounds%begc:bounds%endc,1:nlevgrnd+1)     ! flux of cation into soil layer [mm h2o/s]
+    real(r8) :: xout(bounds%begc:bounds%endc,1:nlevgrnd+1)    ! flux of cation out of soil layer [mm h2o/s]
+
     !-----------------------------------------------------------------------
 
     associate( &
@@ -949,6 +947,35 @@ contains
     )
 
     !------------------------------------------------------------------------------
+    ! Collect the water flow boundary conditions
+    !------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+    !------------------------------------------------------------------------------
+    ! Collect the cation concentration in mol/kg
+    !------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+    !------------------------------------------------------------------------------
     ! Calculate the amount of proton and cation in/out flux from infiltration
     !------------------------------------------------------------------------------
     do fc = 1,num_soilc
@@ -964,7 +991,8 @@ contains
         do icat = 1,ncations
           ! 1e-3 g L-1 water * mm s-1 = 1e-3 g m-2 s-1, divide by dz to get g m-3 s-1
           cation_infl_vr(c,j,icat) = rain_chem(c,icat) * 1e-3_r8 * qin(c,j) / dz(c,j)
-          ! write (iulog, *) 'cation_infl_vr', ldomain%latc(g), ldomain%lonc(g), g, c, j, icat, cation_infl_vr(c,j,icat), qin(c,j), dz(c,j), rain_chem(c,icat)
+
+          write (iulog, *) 'cation_infl_vr', ldomain%latc(g), ldomain%lonc(g), g, c, j, icat, cation_infl_vr(c,j,icat), qin(c,j), dz(c,j), rain_chem(c,icat)
        end do
       end if
 
@@ -974,15 +1002,21 @@ contains
           ! flow from above layer
           proton_infl_vr(c,j) = mol_to_mass(mass_to_mol(proton_vr(c,j-1), mass_h, h2osoi_vol(c,j-1)), mass_h, 1e-3_r8 * qin(c,j) / dz(c,j))
           do icat = 1,ncations
-            cation_infl_vr(c,j,icat) = mol_to_mass(mass_to_mol(cation_vr(c,j-1,icat), EWParamsInst%cations_mass(icat), &
-              h2osoi_vol(c,j-1)), EWParamsInst%cations_mass(icat), 1e-3_r8 * qin(c,j) / dz(c,j))
+            cation_infl_vr(c,j,icat) = mol_to_mass(mass_to_mol(cation_vr(c,j-1,icat), & 
+              EWParamsInst%cations_mass(icat), h2osoi_vol(c,j-1)), & 
+              EWParamsInst%cations_mass(icat), 1e-3_r8 * qin(c,j) / dz(c,j))
+
+            write (iulog, *) 'cation_infl_vr', ldomain%latc(g), ldomain%lonc(g), g, c, j, icat, cation_infl_vr(c,j,icat), qin(c,j), dz(c,j), cation_vr(c,j-1,icat)
           end do
         else
-          ! flow into above layer
+          ! flow into above layer, negative
           proton_infl_vr(c,j) = mol_to_mass(mass_to_mol(proton_vr(c,j), mass_h, h2osoi_vol(c,j)), mass_h, 1e-3_r8 * qin(c,j) / dz(c,j))
           do icat = 1,ncations
-            cation_infl_vr(c,j,icat) = mol_to_mass(mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), &
-              h2osoi_vol(c,j)), EWParamsInst%cations_mass(icat), 1e-3_r8 * qin(c,j) / dz(c,j))
+            cation_infl_vr(c,j,icat) = mol_to_mass(mass_to_mol(cation_vr(c,j,icat), & 
+              EWParamsInst%cations_mass(icat), h2osoi_vol(c,j)), & 
+              EWParamsInst%cations_mass(icat), 1e-3_r8 * qin(c,j) / dz(c,j))
+
+            write (iulog, *) 'cation_infl_vr', ldomain%latc(g), ldomain%lonc(g), g, c, j, icat, cation_infl_vr(c,j,icat), qin(c,j), dz(c,j), cation_vr(c,j,icat)
           end do
         end if
       end do
@@ -994,8 +1028,11 @@ contains
           ! flow into below layer
           proton_oufl_vr(c,j) = mol_to_mass(mass_to_mol(proton_vr(c,j), mass_h, h2osoi_vol(c,j)), mass_h, 1e-3_r8 * qout(c,j) / dz(c,j))
           do icat = 1,ncations
-            cation_oufl_vr(c,j,icat) = mol_to_mass(mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), &
-              h2osoi_vol(c,j)), EWParamsInst%cations_mass(icat), 1e-3_r8 * qout(c,j) / dz(c,j))
+            cation_oufl_vr(c,j,icat) = mol_to_mass(mass_to_mol(cation_vr(c,j,icat), & 
+              EWParamsInst%cations_mass(icat), h2osoi_vol(c,j)), & 
+              EWParamsInst%cations_mass(icat), 1e-3_r8 * qout(c,j) / dz(c,j))
+
+            write (iulog, *) 'cation_oufl_vr', ldomain%latc(g), ldomain%lonc(g), g, c, j, icat, cation_oufl_vr(c,j,icat), qout(c,j), dz(c,j), cation_vr(c,j,icat)
           end do
         else
           ! flow from below layer
@@ -1003,12 +1040,15 @@ contains
             proton_oufl_vr(c,j) = mol_to_mass(mass_to_mol(proton_vr(c,j+1), mass_h, h2osoi_vol(c,j+1)), mass_h, 1e-3_r8 * qout(c,j) / dz(c,j))
             do icat = 1,ncations
               cation_oufl_vr(c,j,icat) = mol_to_mass(mass_to_mol(cation_vr(c,j+1,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j+1)), EWParamsInst%cations_mass(icat), 1e-3_r8 * qout(c,j) / dz(c,j))
+
+              write (iulog, *) 'cation_oufl_vr', ldomain%latc(g), ldomain%lonc(g), g, c, j, icat, cation_oufl_vr(c,j,icat), qout(c,j), dz(c,j), cation_vr(c,j+1,icat)
             end do
           else
-            proton_oufl_vr(c,j) = mol_to_mass(mass_to_mol(proton_vr(c,j), mass_h, h2osoi_vol(c,j+1)), mass_h, 1e-3_r8 * qout(c,j) / dz(c,j))
+            proton_oufl_vr(c,j) = mol_to_mass(mass_to_mol(proton_vr(c,j), mass_h, h2osoi_vol(c,j)), mass_h, 1e-3_r8 * qout(c,j) / dz(c,j))
             do icat = 1,ncations
-              cation_oufl_vr(c,j,icat) = mol_to_mass(mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), &
-                h2osoi_vol(c,j+1)), EWParamsInst%cations_mass(icat), 1e-3_r8 * qout(c,j) / dz(c,j))
+              cation_oufl_vr(c,j,icat) = mol_to_mass(mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j)), EWParamsInst%cations_mass(icat), 1e-3_r8 * qout(c,j) / dz(c,j))
+
+              write (iulog, *) 'cation_oufl_vr', ldomain%latc(g), ldomain%lonc(g), g, c, j, icat, cation_oufl_vr(c,j,icat), qout(c,j), dz(c,j), cation_vr(c,j,icat)
             end do
           end if
         end if

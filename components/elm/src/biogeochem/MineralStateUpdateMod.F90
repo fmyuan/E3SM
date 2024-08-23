@@ -17,6 +17,7 @@ module MineralStateUpdateMod
   use ColumnDataType          , only : column_mineral_state, column_mineral_flux
   use SoilStateType           , only : soilstate_type
   use EnhancedWeatheringMod   , only : EWParamsInst
+  use domainMod               , only : ldomain ! debug print
   !
   implicit none
   save
@@ -48,7 +49,7 @@ contains
 
     !
     ! !LOCAL VARIABLES:
-    integer  :: c,p,j,k,a,m ! indices
+    integer  :: c,p,j,k,a,m,g ! indices
     integer  :: fp,fc         ! lake filter indices
     real(r8) :: flux_limit
     real(r8) :: temp_solution_balance
@@ -179,8 +180,8 @@ contains
     real(r8)                     , intent(in)    :: dt              ! radiation time step (seconds)
     !
     ! !LOCAL VARIABLES:
-    integer  :: c,j,a,m ! indices
-    integer  :: fc      ! lake filter indices
+    integer  :: c,j,a,m,g ! indices
+    integer  :: fc        ! lake filter indices
     real(r8) :: flux_limit
     real(r8) :: temp_in, temp_out
     character(len=32) :: subname = 'elm_erw_mineral_flux_limit'  ! subroutine name
@@ -188,6 +189,8 @@ contains
 
     do fc = 1,num_soilc
       c = filter_soilc(fc)
+      g = col_pp%gridcell(c)
+
       do j = 1,mixing_layer
 
         do a = 1,ncations
@@ -218,7 +221,7 @@ contains
 
           if ((col_ms%cation_vr(c,j,a) + temp_in + temp_out) < 0._r8) then
             if (col_ms%cation_vr(c,j,a) + temp_in < 0._r8) then
-              write (iulog, *) c, j, a, 'Problematic flushing rate: ', 'dt=', dt, 'initial cation=', col_ms%cation_vr(c,j,a),'terms=', col_mf%background_weathering_vr(c,j,a)*dt, col_mf%primary_cation_flux_vr(c,j,a)*dt, col_mf%cation_infl_vr(c,j,a)*dt, col_mf%cation_oufl_vr(c,j,a)*dt, col_mf%cation_uptake_vr(c,j,a)*dt, col_mf%cation_leached_vr(c,j,a)*dt, col_mf%cation_runoff_vr(c,j,a)*dt
+              write (iulog, *) ldomain%latc(g), ldomain%lonc(g), g, c, j, a, 'Problematic flushing rate: ', 'dt=', dt, 'initial cation=', col_ms%cation_vr(c,j,a), 'terms=', col_mf%background_weathering_vr(c,j,a)*dt, col_mf%primary_cation_flux_vr(c,j,a)*dt, col_mf%cation_infl_vr(c,j,a)*dt, col_mf%cation_oufl_vr(c,j,a)*dt, col_mf%cation_uptake_vr(c,j,a)*dt, col_mf%cation_leached_vr(c,j,a)*dt, col_mf%cation_runoff_vr(c,j,a)*dt
               call endrun(msg=subname //':: ERROR: Negative cation balance'//errMsg(__FILE__, __LINE__))
             end if
 
@@ -233,7 +236,7 @@ contains
             !col_mf%cation_leached_vr(c,j,a) = col_mf%cation_leached_vr(c,j,a) * flux_limit
             !col_mf%cation_runoff_vr(c,j,a) = col_mf%cation_runoff_vr(c,j,a) * flux_limit
 
-            write (iulog, *) 'Flux limit due to negative cation concentration; factor = ', c, j, a, flux_limit, col_mf%secondary_cation_flux_vr(c,j,a), col_mf%cec_cation_flux_vr(c,j,a)
+            write (iulog, *) 'Flux limit due to negative cation concentration; factor = ', ldomain%latc(g), ldomain%lonc(g), g, c, j, a, flux_limit, col_mf%secondary_cation_flux_vr(c,j,a), col_mf%cec_cation_flux_vr(c,j,a)
           end if
         end do
 
