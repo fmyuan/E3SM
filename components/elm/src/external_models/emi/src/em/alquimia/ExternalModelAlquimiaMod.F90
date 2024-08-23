@@ -44,6 +44,8 @@ module ExternalModelAlquimiaMod
 
   type, public, extends(em_base_type) :: em_alquimia_type
 
+    integer :: natural_id
+
     integer :: index_l2e_col_dz
     integer :: index_l2e_col_zi
     
@@ -68,6 +70,7 @@ module ExternalModelAlquimiaMod
     ! Solve data returned to land model
     integer :: index_e2l_state_decomp_cpools
     integer :: index_e2l_state_decomp_npools
+    integer :: index_e2l_flux_hrimm
     integer :: index_e2l_flux_hr
     integer :: index_e2l_flux_ch4
     integer :: index_e2l_state_nh4
@@ -156,7 +159,7 @@ module ExternalModelAlquimiaMod
     integer, pointer, dimension(:)       :: carbon_pool_mapping
     integer, pointer, dimension(:)       :: nitrogen_pool_mapping
     integer, pointer, dimension(:)       :: pool_reaction_mapping
-    integer                              :: CO2_pool_number,CH4_pool_number,acetate_pool_number
+    integer                              :: CO2_pool_number,CH4_pool_number,acetate_pool_number, hrimm_pool_number
     integer                              :: NH4_pool_number,NO3_pool_number,N2O_pool_number,N2_pool_number
     integer                              :: Nimm_pool_number,Nmin_pool_number,Nimp_pool_number
     integer                              :: plantNO3uptake_pool_number,plantNH4uptake_pool_number
@@ -453,6 +456,10 @@ contains
     this%index_e2l_state_decomp_npools              = index
 
     ! Heterotrophic respiration flux
+    id                                             = E2L_FLUX_HETEROTROPHIC_RESP_VERTICALLY_RESOLVED
+    call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
+    this%index_e2l_flux_hrimm           = index
+
     id                                             = E2L_FLUX_HETEROTROPHIC_RESP!_VERTICALLY_RESOLVED
     call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_e2l_flux_hr              = index
@@ -752,6 +759,10 @@ contains
     ! In principle the input deck could also include constraints for upper boundary condition and lateral boundary conditions (saltwater, freshwater?)
     ! but that could get tricky if those conditions are not constant over time. Would we have to reprocess the BC every time step?
     ! I think we do need some kind of alquimia condition for boundaries because ELM/MOSART/etc won't necessarily have the same chemicals as the alquimia reaction network
+
+    ! A note (2024-08: fmyuan@ornl): It's little bit hard to set a 'GeochemicalCondition', which are multiple-layered struct-data.
+    ! An alternative is to reset 'AuxiliaryData', specifically it's 'data%doubles'
+
     call AllocateAlquimiaGeochemicalCondition(len_trim(ic_name,C_INT),0,0,this%chem_ic)
     call f_c_string_ptr(ic_name,this%chem_ic%name,len_trim(ic_name)+1)
     
@@ -955,7 +966,7 @@ end subroutine EMAlquimia_Coldstart
     real(r8) , pointer, dimension(:)     :: NO3runoff_e2l,DONrunoff_e2l ! 1D total column runoff (gN/m2/s)
     real(r8) , pointer, dimension(:)     :: DICrunoff_e2l,DOCrunoff_e2l ! 1D total column runoff (gN/m2/s)
     real(r8) , pointer, dimension(:,:)  :: no3_e2l,no3_l2e,nh4_e2l,nh4_l2e,n2o_e2l,n2_e2l
-    real(r8) , pointer, dimension(:,:)  :: Nimm_e2l, Nimp_e2l, Nmin_e2l
+    real(r8) , pointer, dimension(:,:)  :: hrimm_e2l, Nimm_e2l, Nimp_e2l, Nmin_e2l
     real(r8) , pointer, dimension(:,:)  :: plantNO3uptake_e2l,plantNH4uptake_e2l, plantNdemand_l2e
     real(r8) , pointer, dimension(:,:)  :: water_density_l2e,water_density_e2l,aqueous_pressure_l2e,aqueous_pressure_e2l,porosity_l2e,dz,zi
     real(r8) , pointer, dimension(:,:,:) :: total_mobile_l2e , total_mobile_e2l, free_mobile_l2e, free_mobile_e2l
@@ -980,6 +991,8 @@ end subroutine EMAlquimia_Coldstart
     real(r8), parameter :: natomw = 14.0067d0 ! Value in clmvarcon is 14.007
     real(r8), parameter :: catomw = 12.0110d0 ! Value in clmvarcon is 12.011
     real(r8),dimension(this%chem_sizes%num_primary)  :: surf_flux, surf_bc, lat_flux, lat_bc
+    real(r8) :: kgwater_perm3soil             ! mass water per m3 bulk soil
+    real(r8) :: lsat                          ! liq water saturation
     
     character(kind=C_CHAR,len=kAlquimiaMaxStringLength) :: status_message
     procedure(ReactionStepOperatorSplit), pointer :: engine_ReactionStepOperatorSplit
@@ -1019,7 +1032,7 @@ end subroutine EMAlquimia_Coldstart
     ! C and N pools
     call e2l_list%GetPointerToReal3D(this%index_e2l_state_decomp_cpools , soilcarbon_e2l) ! gC/m2
     call e2l_list%GetPointerToReal3D(this%index_e2l_state_decomp_npools , soilnitrogen_e2l) ! gN/m2
-    ! call e2l_list%GetPointerToReal2D(this%index_e2l_flux_hr , hr_e2l) ! (gC/m3/s)
+    call e2l_list%GetPointerToReal2D(this%index_e2l_flux_hrimm , hrimm_e2l) ! (gC/m3/s)
     call e2l_list%GetPointerToReal1D(this%index_e2l_flux_hr , hr_e2l) ! (gC/m2/s)
 
     call e2l_list%GetPointerToReal1D(this%index_e2l_flux_ch4 , methaneflux_e2l) ! (gC/m2/s)
@@ -1122,6 +1135,9 @@ end subroutine EMAlquimia_Coldstart
       endif
 
       ! Does this need to loop over all columns?
+      ! No need, since 'this%' was setup/initialized only once for each 'clump_rank'.
+      ! Unless, above 'this%chem%ProcessCondition' looped over either columns or columns*soil_layers
+      ! AND, anyway it will be called inside ELMAlquimia_Solve_BGC
       do fc = 1, num_soilc
         c = filter_soilc(fc)
         call this%copy_Alquimia_to_ELM(1,water_density_e2l(c,:),&
@@ -1145,13 +1161,17 @@ end subroutine EMAlquimia_Coldstart
     
      ! Run the reactions engine for a step. Alquimia works on one cell at a time
      ! TODO: Transport needs to be integrated somehow. 
+
     do fc = 1, num_soilc
       c = filter_soilc(fc)
 
         DON_before=0.0
         totalN_before=0.0
         totalC_before=0.0
-         do j = 1, nlevdecomp  
+
+        do j = 1, nlevdecomp
+             ! cell id
+             this%natural_id = j + (c-1)*num_soilc
 
              ! Set soil carbon and nitrogen from land model
              ! Convert soil C,N from g/m3 to mol/m3. Assumes pool is defined as immobile, not aqueous
@@ -1222,8 +1242,7 @@ end subroutine EMAlquimia_Coldstart
               DON_before = DON_before + total_mobile_l2e(c,j,k)*natomw*this%DON_content(k)*dz(c,j)
               totalC_before = totalC_before + total_mobile_l2e(c,j,k)*catomw*(this%DOC_content(k)+this%DIC_content(k))*dz(c,j)
              enddo
-
-          enddo ! End of layer loop setting things up
+        enddo ! End of layer loop setting things up
 
           totalN_before = DON_before + sum(no3_l2e(c,:)*dz(c,:)) + sum(nh4_l2e(c,:)*dz(c,:))
           if(this%n2o_pool_number>0) totalN_before = totalN_before + sum(total_mobile_e2l(c,:,this%n2o_pool_number))*natomw*2
@@ -1261,6 +1280,62 @@ end subroutine EMAlquimia_Coldstart
                   qflx_adv_l2e(c,j) = 0.0_r8
                 endif
                   qflx_drain_l2e(c,j) = qflx_drain_l2e(c,j) - (qflx_adv_l2e(c,j-1)-qflx_adv_l2e(c,j))*dt
+              enddo
+
+              ! reset Alquimia aux_double(:) with ELM state variables
+              ! in pflotran_alquimia_interface.F90, alquimia_auxdata will be copied to a 'guess' which then passing to pflotran's rt_auxvar in RStep()
+              do j=1, nlevdecomp
+
+                  ! aq. pri_molal (mol per kg water)
+                  lsat = h2o_liqvol(c,j)/porosity_l2e(c,j)
+                  lsat = min(max(lsat,0.01),1.0)
+                  kgwater_perm3soil = porosity_l2e(c,j)*lsat*water_density_l2e(c,j)
+
+                  if (this%NH4_pool_number>0 .and. lsat>=0.01_r8) then
+                     aux_doubles_l2e(c,j,this%NH4_pool_number) = max(nh4_l2e(c,j)/natomw,minval)/kgwater_perm3soil
+                  endif
+                  if (this%NO3_pool_number>0 .and. lsat>=0.01_r8) then
+                     aux_doubles_l2e(c,j,this%NO3_pool_number) = max(no3_l2e(c,j)/natomw,minval)/kgwater_perm3soil
+                  endif
+
+                  ! immobile (mol per m3 soil)
+                  do poolnum=1,ndecomp_pools
+                     if(this%carbon_pool_mapping(poolnum)>0) then
+                        aux_doubles_l2e(c,j,this%carbon_pool_mapping(poolnum))=max(soilcarbon_l2e(c,j,poolnum)/catomw,minval)
+                     endif
+                     if(this%nitrogen_pool_mapping(poolnum)>0) then
+                        aux_doubles_l2e(c,j,this%nitrogen_pool_mapping(poolnum))=max(soilnitrogen_l2e(c,j,poolnum)/natomw,minval)
+                     endif
+                  enddo
+
+                  ! if plantNdemand is in, reset actual plantNuptake to track its change
+                  if (this%plantNO3demand_pool_number>0 .and. this%plantNO3uptake_pool_number>0) then
+                     aux_doubles_l2e(c,j,this%plantNO3demand_pool_number) = total_immobile_l2e(c,j,this%plantNO3demand_pool_number)
+                     aux_doubles_l2e(c,j,this%plantNO3uptake_pool_number) = minval
+                  endif
+                  if (this%plantNH4demand_pool_number>0 .and. this%plantNH4uptake_pool_number>0) then
+                     aux_doubles_l2e(c,j,this%plantNH4demand_pool_number) = total_immobile_l2e(c,j,this%plantNH4demand_pool_number)
+                     aux_doubles_l2e(c,j,this%plantNH4uptake_pool_number) = minval
+                  endif
+
+                  ! reset a few tracking variables to get its state change
+                  ! (since PFLOTRAN don't output fluxes, if zeroing state variables, its values after solving would be what needed)
+                  if (this%hrimm_pool_number>0) then
+                     ! this is a sum of all C decomposition production of CO2 (which won't further reacts or transports)
+                     aux_doubles_l2e(c,j,this%hrimm_pool_number) = minval
+                  endif
+                  if (this%Nimm_pool_number>0) then
+                     ! this is a sum of all N immobilzation during SOM/Litter C decomposition (which won't further reacts or transports)
+                     aux_doubles_l2e(c,j,this%Nimm_pool_number) = minval
+                  endif
+                  if (this%Nmin_pool_number>0) then
+                     ! this is a sum of all N mineralization during SOM/Litter C decomposition (which won't further reacts or transports)
+                     ! together with 'Nimm_pool', will output net mineral N inputs into soil NH4/NO3 pool
+                     aux_doubles_l2e(c,j,this%Nmin_pool_number) = minval
+                  endif
+
+                  ! (TODO) in case SOM produce DOM, a tracer of all summed is needed, for easy mass balance checking in ELM bgc.
+
               enddo
 
 
@@ -1387,6 +1462,11 @@ end subroutine EMAlquimia_Coldstart
               !   hr_e2l(c,j) = hr_e2l(c,j)/dt
               ! endif
 
+              ! for tracking
+              if (this%hrimm_pool_number>0) then
+                 hrimm_e2l(c,j) = total_immobile_e2l(c,j,this%hrimm_pool_number)*catomw/dt
+              endif
+
               DOC_e2l(c,j) = 0.0_r8
               DON_e2l(c,j) = 0.0_r8
               DIC_e2l(c,j) = 0.0_r8
@@ -1490,15 +1570,26 @@ end subroutine EMAlquimia_Coldstart
 
               if(this%Nimm_pool_number>0) Nimm_e2l(c,j) = total_immobile_e2l(c,j,this%Nimm_pool_number)*natomw/dt
               if(this%Nimp_pool_number>0) Nimp_e2l(c,j) = total_immobile_e2l(c,j,this%Nimp_pool_number)*natomw/dt
-              ! Nmin will be added to the NH4 pool elsewhere in ELM so skip that for now
-              ! if(this%Nmin_pool_number>0) Nmin_e2l(c,j) = alquimia_immobile_data(this%Nmin_pool_number)*natomw/dt
+
+              ! for tracking
+              if(this%Nmin_pool_number>0) Nmin_e2l(c,j) = total_immobile_e2l(c,j,this%Nmin_pool_number)*natomw/dt
 
               ! PFLOTRAN may use an aqueous tracer to model plant N uptake if defining using Microbial reaction
               ! Do we need to transfer N back to aqueous pools if uptake exceeds demand? Plant model assumes that will never happen
-              if(this%plantNO3uptake_pool_number>0) plantNO3uptake_e2l(c,j) = (total_immobile_e2l(c,j,this%plantNO3uptake_pool_number))*natomw/dt + &
+              if(this%plantNO3uptake_pool_number>0) then
+                plantNO3uptake_e2l(c,j) = (total_immobile_e2l(c,j,this%plantNO3uptake_pool_number))*natomw/dt + &
                                                 (total_mobile_e2l(c,j,this%plantNO3uptake_pool_number))*natomw/dt
-              if(this%plantNH4uptake_pool_number>0) plantNH4uptake_e2l(c,j) = (total_immobile_e2l(c,j,this%plantNH4uptake_pool_number))*natomw/dt + &
+              else
+                plantNO3uptake_e2l(c,j) = 0._r8
+              endif
+
+              if(this%plantNH4uptake_pool_number>0) then
+                plantNH4uptake_e2l(c,j) = (total_immobile_e2l(c,j,this%plantNH4uptake_pool_number))*natomw/dt + &
                                                 (total_mobile_e2l(c,j,this%plantNH4uptake_pool_number))*natomw/dt
+              else
+                plantNH4uptake_e2l(c,j) = 0._r8
+              endif
+
 
               if( plantNdemand_l2e(c,j) == 0.0_r8) then
                       no3_e2l(c,j) = no3_e2l(c,j) + plantNO3uptake_e2l(c,j)*dt
@@ -1601,6 +1692,7 @@ end subroutine EMAlquimia_Coldstart
           ! write(iulog,*),'Soil N pools after',poolnum,sum(soilnitrogen_e2l(c,:,poolnum)*dz(c,:))
           totalC_after = totalC_after + sum(soilcarbon_e2l(c,:,poolnum)*dz(c,:))
         enddo
+
         Cflux =  (DICrunoff_e2l(c) + DOCrunoff_e2l(c) + hr_e2l(c) + methaneflux_e2l(c))*dt
         if(abs(totalC_after + Cflux - totalC_before) > 1e-9 ) then
           ! write(iulog,*) ' C imbalance after alquimia solve ',totalC_after + Cflux - totalC_before
@@ -1738,6 +1830,9 @@ end subroutine EMAlquimia_Coldstart
     real(r8) :: surface_site_density(:,:), cation_exchange_capacity(:,:), aux_doubles(:,:)
     integer  :: aux_ints(:,:)
 
+    real (c_double), pointer :: alquimia_data_mobile(:), alquimia_data_immobile(:), &
+                                alquimia_data_mnrvfrac(:), alquimia_data_mnrssa(:), &
+                                alquimia_data_srfsiteden(:), alquimia_data_cec(:)
     real (c_double), pointer :: alquimia_data(:)
     integer (c_int)   , pointer :: alquimia_int_data(:)
 
@@ -1752,28 +1847,35 @@ end subroutine EMAlquimia_Coldstart
     molperL_to_molperm3 = 1000.0_r8*this%chem_state%porosity*this%chem_properties%saturation
 
     ! c_f_pointer just points an array to the right data, so it needs to be actually copied
-    call c_f_pointer(this%chem_state%total_mobile%data, alquimia_data, (/this%chem_sizes%num_primary/))
-    alquimia_data(1:this%chem_sizes%num_primary) = total_mobile(j,1:this%chem_sizes%num_primary)/molperL_to_molperm3
+    call c_f_pointer(this%chem_state%total_mobile%data, alquimia_data_mobile, (/this%chem_sizes%num_primary/))
+    alquimia_data_mobile(1:this%chem_sizes%num_primary) = total_mobile(j,1:this%chem_sizes%num_primary)/molperL_to_molperm3
     ! Don't let concentrations get below a minimal value to prevent crashes
     do k=1,this%chem_sizes%num_primary
-      if(abs(alquimia_data(k))>0.0 .and. abs(alquimia_data(k))<minval) alquimia_data(k)=minval
+      if(abs(alquimia_data_mobile(k))>0.0 .and. abs(alquimia_data_mobile(k))<minval) alquimia_data_mobile(k)=minval
     enddo
-    call c_f_pointer(this%chem_state%total_immobile%data, alquimia_data, (/this%chem_sizes%num_primary/))
-    alquimia_data(1:this%chem_sizes%num_primary) = total_immobile(j,1:this%chem_sizes%num_primary)
-    call c_f_pointer(this%chem_state%mineral_volume_fraction%data, alquimia_data, (/this%chem_sizes%num_minerals/))
-    alquimia_data(1:this%chem_sizes%num_minerals) = mineral_volume_fraction(j,1:this%chem_sizes%num_minerals)
-    call c_f_pointer(this%chem_state%mineral_specific_surface_area%data, alquimia_data, (/this%chem_sizes%num_minerals/))
-    alquimia_data(1:this%chem_sizes%num_minerals) = mineral_specific_surface_area(j,1:this%chem_sizes%num_minerals)
-    call c_f_pointer(this%chem_state%surface_site_density%data, alquimia_data, (/this%chem_sizes%num_surface_sites/))
-    alquimia_data(1:this%chem_sizes%num_surface_sites) = surface_site_density(j,1:this%chem_sizes%num_surface_sites)
-    call c_f_pointer(this%chem_state%cation_exchange_capacity%data, alquimia_data, (/this%chem_sizes%num_ion_exchange_sites/))
-    alquimia_data(1:this%chem_sizes%num_ion_exchange_sites) = cation_exchange_capacity(j,1:this%chem_sizes%num_ion_exchange_sites) 
+
+    call c_f_pointer(this%chem_state%total_immobile%data, alquimia_data_immobile, (/this%chem_sizes%num_primary/))
+    alquimia_data_immobile(1:this%chem_sizes%num_primary) = total_immobile(j,1:this%chem_sizes%num_primary)
+
+    call c_f_pointer(this%chem_state%mineral_volume_fraction%data, alquimia_data_mnrvfrac, (/this%chem_sizes%num_minerals/))
+    alquimia_data_mnrvfrac(1:this%chem_sizes%num_minerals) = mineral_volume_fraction(j,1:this%chem_sizes%num_minerals)
+
+    call c_f_pointer(this%chem_state%mineral_specific_surface_area%data, alquimia_data_mnrssa, (/this%chem_sizes%num_minerals/))
+    alquimia_data_mnrssa(1:this%chem_sizes%num_minerals) = mineral_specific_surface_area(j,1:this%chem_sizes%num_minerals)
+
+    call c_f_pointer(this%chem_state%surface_site_density%data, alquimia_data_srfsiteden, (/this%chem_sizes%num_surface_sites/))
+    alquimia_data_srfsiteden(1:this%chem_sizes%num_surface_sites) = surface_site_density(j,1:this%chem_sizes%num_surface_sites)
+
+    call c_f_pointer(this%chem_state%cation_exchange_capacity%data, alquimia_data_cec, (/this%chem_sizes%num_ion_exchange_sites/))
+    alquimia_data_cec(1:this%chem_sizes%num_ion_exchange_sites) = cation_exchange_capacity(j,1:this%chem_sizes%num_ion_exchange_sites)
+
     call c_f_pointer(this%chem_aux_data%aux_doubles%data, alquimia_data, (/this%chem_sizes%num_aux_doubles/))
     alquimia_data(1:this%chem_sizes%num_aux_doubles) = aux_doubles(j,1:this%chem_sizes%num_aux_doubles) 
     ! Messing with aux data is probably frowned upon, but very low values of free ion concentrations (<1e-200) in aux_doubles were causing crashes
     do k=1,this%chem_sizes%num_primary
       if(abs(alquimia_data(k))>0.0 .and. abs(alquimia_data(k))<minval) alquimia_data(k)=minval
     enddo
+
     call c_f_pointer(this%chem_aux_data%aux_ints%data, alquimia_int_data, (/this%chem_sizes%num_aux_integers/))
     alquimia_int_data(1:this%chem_sizes%num_aux_integers) = aux_ints(j,1:this%chem_sizes%num_aux_integers) 
 
@@ -1855,6 +1957,14 @@ end subroutine EMAlquimia_Coldstart
     endif
     this%CO2_pool_number = pool_num
     
+    ! checking if summed HR is tracked as immobile species
+    pool_num = find_alquimia_pool('HRimm',name_list,this%chem_sizes%num_primary)
+    if (pool_num>0) then
+      write(iulog, '(a,6x,a,i3,1x,a)'),'CO2 production summed', '<-> Alquimia pool',pool_num, 'HRimm'
+    else
+      write(iulog, '(a,i3,1X,a)'),'WARNING: No match for pool',ii, 'HRimm'
+    endif
+    this%hrimm_pool_number = pool_num
     
     write(iulog,*),'Alquimia nitrogen pool mapping:'
     allocate(this%nitrogen_pool_mapping(ndecomp_pools))
@@ -2349,6 +2459,8 @@ end subroutine EMAlquimia_Coldstart
     this%chem_properties%saturation = sat(j)*max(liq_frac(j),0.01) ! Set minimum saturation to stop concentrations from blowing up at low soil moisture
     if(liq_frac(j)<0.5) this%chem_state%temperature = -100.0_r8
 
+    this%natural_id = j
+
     call this%copy_ELM_to_Alquimia(j,water_density,&
           aqueous_pressure,&
           total_mobile,&
@@ -2417,7 +2529,7 @@ end subroutine EMAlquimia_Coldstart
         exit ! Drop out of the layer loop to start over at shorter time step
       endif
     endif
-    enddo ! Layer loop
+  enddo ! Layer loop
 
 
     if(actual_dt<=60.0_r8) then
