@@ -968,8 +968,8 @@ contains
 
       in_loss(c) = 0._r8
       do a = 1, ncations
-         in_loss(c) = in_loss(c) + secondary_cation_flux(c,a) + &
-            cation_leached(c,a) + cation_runoff(c,a) + cation_oufl(c,a) + cation_uptake(c,a)
+         in_loss(c) = in_loss(c) + secondary_cation_flux(c,a) + cation_uptake(c,a) + &
+            cation_oufl(c,a) + cation_leached(c,a) + cation_runoff(c,a)
       end do
 
       h_add(c) = proton_infl(c) + cec_proton_flux(c)

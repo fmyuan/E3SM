@@ -144,7 +144,7 @@ contains
     use perf_mod             , only: t_startf, t_stopf
     use PhosphorusDynamicsMod         , only: PhosphorusBiochemMin_balance
     use EnhancedWeatheringMod         , only: MineralLeaching
-    use MineralStateUpdateMod         , only: MineralStateUpdate, MineralFluxLimit
+    use MineralStateUpdateMod         , only: MineralStateUpdate
 
     !
     ! !ARGUMENTS:
@@ -239,7 +239,6 @@ contains
        if (spinup_state == 0 .or. year > nyears_before_ew) then
           event = 'MUpdateLeaching'
           call t_start_lnd(event)
-          call MineralFluxLimit(num_soilc, filter_soilc, col_ms, col_mf, dt)
           call MineralStateUpdate(num_soilc, filter_soilc, col_ms, col_mf, dt, soilstate_vars)
           call t_stop_lnd(event)
        end if
@@ -559,8 +558,8 @@ contains
     use RootDynamicsMod        , only: RootDynamics
     use SoilLittDecompMod            , only: SoilLittDecompAlloc
     use SoilLittDecompMod            , only: SoilLittDecompAlloc2 !after SoilLittDecompAlloc
-    use EnhancedWeatheringMod        , only: MineralInit, MineralEquilibria, MineralDynamics, MineralLeaching
-
+    use EnhancedWeatheringMod        , only: MineralInit, MineralEquilibria, MineralDynamics
+    use MineralStateUpdateMod        , only: MineralFluxLimit
     !
     ! !ARGUMENTS:
     type(bounds_type)        , intent(in)    :: bounds
@@ -638,6 +637,7 @@ contains
       if (spinup_state == 0 .or. year > nyears_before_ew) then
          call MineralDynamics(bounds, num_soilc, filter_soilc, soilstate_vars)
          call MineralEquilibria(bounds, num_soilc, filter_soilc, soilstate_vars)
+         call MineralFluxLimit(num_soilc, filter_soilc, col_ms, col_mf, dt)
       end if
     end if
 
