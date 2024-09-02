@@ -151,13 +151,13 @@ contains
     ! ------------------------------------------------------------------------
     ! Read in global land grid and land mask (amask)- needed to set decomposition
     ! ------------------------------------------------------------------------
-
     ! global memory for amask is allocate in surfrd_get_glomask - must be
     ! deallocated below
     if (masterproc) then
        write(iulog,*) 'Attempting to read global land mask from ',trim(fatmlndfrc)
        call shr_sys_flush(iulog)
     endif
+
     call surfrd_get_globmask(filename=fatmlndfrc, mask=amask, ni=ni, nj=nj)
 
     ! Exit early if no valid land points

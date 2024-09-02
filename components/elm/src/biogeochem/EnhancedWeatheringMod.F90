@@ -18,10 +18,14 @@ module EnhancedWeatheringMod
   use decompMod           , only : bounds_type
   use ColumnDataType      , only : col_ew, col_ms, col_mf, col_es, col_ws, col_wf
   use ColumnType          , only : col_pp
+  use LandunitType        , only : lun_pp
   use TopounitDataType    , only : top_as
   use SoilStateType       , only : soilstate_type
-  use ewutils             , only : logmol_to_mass, mol_to_mass, meq_to_mass, mass_to_mol, mass_to_meq
+  use ewutils             , only : logmol_to_mass, mol_to_mass, meq_to_mass, mass_to_mol, mass_to_meq, advection_diffusion
   use ewutils             , only : mass_to_logmol, objective_solveq, solve_eq, ph_to_hco3, hco3_to_co3
+  use domainMod           , only: ldomain ! debug print
+  use shr_sys_mod         , only : shr_sys_flush
+  use landunit_varcon , only : istsoil, istcrop
 
   implicit none
   save
@@ -46,6 +50,7 @@ module EnhancedWeatheringMod
      character(len=40), pointer  :: cations_name       (:)      => null()
      real(r8), pointer  :: cations_mass                (:)      => null()   ! molar masses of the cation species, g/mol
      real(r8), pointer  :: cations_valence             (:)      => null()   ! valence of the cations
+     real(r8), pointer  :: cations_diffusivity         (:)      => null()   ! diffusion coefficient of the cations in water, m2/s
 
      character(len=40), pointer  :: minsecs_name       (:)      => null()   ! names of the secondary minerals for the record
      real(r8), pointer  :: minsecs_mass                (:)      => null()   ! molar mass of the secondary mineral, g/mol, 1:nminsecss (e.g. Mg2SiO4 = 140.6931 g/mol)
@@ -188,6 +193,7 @@ contains
     allocate(character(40) :: EWParamsInst%cations_name(1:ncations))
     allocate(EWParamsInst%cations_mass(1:ncations))
     allocate(EWParamsInst%cations_valence(1:ncations))
+    allocate(EWParamsInst%cations_diffusivity(1:ncations))
 
     allocate(EWParamsInst%primary_stoi_proton(1:nminerals))
     allocate(EWParamsInst%primary_stoi_h2o(1:nminerals))
@@ -238,6 +244,10 @@ contains
 
     tString='cations_valence'
     call ncd_io(varname=trim(tString),data=EWParamsInst%cations_valence, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+
+    tString='cations_diffusivity'
+    call ncd_io(varname=trim(tString),data=EWParamsInst%cations_diffusivity, flag='read', ncid=ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
 
     ! for primary mineral's dissolution reactions (product)
@@ -296,7 +306,7 @@ contains
     type(soilstate_type)     , intent(in)    :: soilstate_vars
     !
     ! !LOCAL VARIABLES:
-    integer  :: fc,c,j,t
+    integer  :: fc,c,j,t,g,l
     integer  :: icat                   ! indices
     real(r8) :: co2_atm                ! CO2 partial pressure in atm
 
@@ -316,6 +326,9 @@ contains
     do fc = 1,num_soilc
       c = filter_soilc(fc)
       t = col_pp%topounit(c)
+      g = col_pp%gridcell(c)
+      l = col_pp%landunit(c)
+      !write (iulog, *) lun_pp%itype(l) == istsoil
 
       co2_atm = top_as%pco2bot(t) / 101325
 
@@ -334,7 +347,7 @@ contains
           cec_cation_vr(c,j,icat) = meq_to_mass(soilstate_vars%cece_col(c,j,icat), EWParamsInst%cations_valence(icat), EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j))
         end do
 
-        ! calculate soil solution concentration using the equilibrium with CEC
+        ! calculate initial soil solution concentration using the equilibrium with CEC
         do icat = 1,ncations
           cation_vr(c,j,icat) = ( 10**(-soil_ph(c,j)-soilstate_vars%log_km_col(c,j,icat)) / &
                (soilstate_vars%ceca_col(c,j)/soilstate_vars%cect_col(c,j)) ) &
@@ -342,9 +355,11 @@ contains
           cation_vr(c,j,icat) = cation_vr(c,j,icat) * &
             (soilstate_vars%cece_col(c,j,icat)/soilstate_vars%cect_col(c,j))
           cation_vr(c,j,icat) = mol_to_mass(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j))
+
+          ! write (iulog, *) 'cation_vr', ldomain%latc(g), ldomain%lonc(g), g, c, j, icat, cation_vr(c,j,icat), soil_ph(c,j), soilstate_vars%log_km_col(c,j,icat), soilstate_vars%ceca_col(c,j), soilstate_vars%cect_col(c,j), EWParamsInst%cations_valence(icat), soilstate_vars%cece_col(c,j,icat), h2osoi_vol(c,j)
         end do
 
-        ! calculate the net charge balance at the first time step
+        ! calculate the net charge balance during initializaiong
         ! mol/kg
         net_charge_vr(c,j) = 10**(-soil_ph(c,j)) - 10**(-14_r8+soil_ph(c,j)) - &
             mass_to_mol(bicarbonate_vr(c,j), mass_hco3, h2osoi_vol(c,j)) - & 
@@ -516,8 +531,6 @@ contains
         forc_pho(c   ) = 0._r8
         forc_gra(c, 1:nminerals) = 9.6_r8 ! 9.6 um
 
-        !! weight fraction of kaolinite in soil, g g-1 soil
-        !frac_kaolinite = 0.004_r8
       else if (site_id == 2) then
         ! U.C. Davis
         ! rain pH data from the monitoring station in Davis,  
@@ -552,55 +565,37 @@ contains
         forc_min(c,4) = 0.334_r8
         forc_gra(c, 1:nminerals) = 105._r8
 
-        !! weight fraction of kaolinite in soil, g g-1 soil
-        !frac_kaolinite = 0.2_r8
-      else
+     else
         !
-        rain_ph(c) = 5.6_r8       ! (TODO) from wet-deposition dataset
-        rain_chem(c, :) = 0.0_r8  ! (TODO) from wet-deposition dataset
+        rain_ph(c) = 5.6_r8
+        rain_chem(c, :) = 0.0_r8 ! in the new setup, rain_chem should no longer matter
 
-        ! from read-in data of soil amendment application, for checking
-
-        write(101,*) nstep_mod, jday_mod, secs_curr, forc_app(c)
-        do m = 1, nminerals
-          write(101,*) m, forc_min(c, m), forc_gra(c, m)
-        end do
-        write(101,*) ''
+        ! from read-in data of soil amendment application
+        !print *, nstep_mod, jday_mod, secs_curr, forc_app(c)
+        !do m = 1, nminerals
+        !  print *, m, forc_min(c, m), forc_gra(c, m)
+        !end do
 
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         ! Need P content to affect NEE
         forc_pho(c) = 0._r8  ! (TODO) 0~namendnutr element(s) from soil amend application, by given index of phosphrous
-
-        !! weight fraction of kaolinite in soil, g g-1 soil
-        !frac_kaolinite = 0.0_r8
       end if
 
       !------------------------------------------------------------------------------
-      ! At long-term equilibrium, assume no inter-soil-layer movement of cations.
-      ! There is only loss via (plant uptake + surface & subsurface runoff). 
-      ! Background weathering should be able to replenish that loss. 
-      !
-      ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      ! Need to add natural calcite dissolution
+      ! Pure background weathering
+      ! - At long-term equilibrium, assume soil solution concentration is balanced
+      !   with cation exchange. Also, assume no inter-soil-layer movement of cations.
+      ! - There is only loss via (plant uptake + surface & subsurface runoff). 
+      ! - Background weathering rate only replenishes that loss. 
       !------------------------------------------------------------------------------
       dzsum = 0._r8
       do j = 1,nlevgrnd
         dzsum = dzsum + dz(c,j)
       end do
 
-      !do m = 1, nminerals
-      !  write (iulog, *) 'log_k_primary', EWParamsInst%log_k_primary(m,1), EWParamsInst%log_k_primary(m,2), EWParamsInst%log_k_primary(m,3)
-      !end do
-
-      !do m = 1, nminerals
-      !  do icat = 1, ncations
-      !    write (iulog, *) 'primary_stoi_cations', EWParamsInst%primary_stoi_cations(m,icat)
-      !  end do
-      !end do
-
       do icat = 1, ncations
         ! rainwater, mg/L => mol/kg
-        equilibria_conc(0) = rain_chem(c,icat) * 1e-3 / EWParamsInst%cations_mass(icat)
+        ! equilibria_conc(0) = rain_chem(c,icat) * 1e-3 / EWParamsInst%cations_mass(icat)
         do j = 1,mixing_layer
           h = 10**(-soilstate_vars%sph(c,j))
           beta_h = soilstate_vars%ceca_col(c,j) / soilstate_vars%cect_col(c,j)
@@ -625,6 +620,11 @@ contains
         end do
       end do
 
+      !------------------------------------------------------------------------------
+      ! Add the weathering of pre-existing calcite in the soil
+      !------------------------------------------------------------------------------
+      ! soilstate_vars%bd_col(c,j) * soilstate_vars%calcite_col(c,j)/100._r8
+
       ! ---------------------------------------------------------------
       ! Apply the primary minerals
       ! ---------------------------------------------------------------
@@ -636,7 +636,7 @@ contains
       end do
 
       ! ---------------------------------------------------------------
-      ! Dissolution reaction
+      ! Primary mineral dissolution
       ! ---------------------------------------------------------------
       ! Specific surface area depends on the grain size of the mineral, following
       !    Strefler, J., Amann, T., Bauer, N., Kriegler, E., and Hartmann, J.: Potential and 
@@ -883,7 +883,7 @@ contains
     !
     ! !DESCRIPTION:
     ! On the radiation time step, update the boundary conditions of
-    ! soil ions (H+, cations) caused by rain water infiltration and
+    ! soil ions (H+, cations) caused by vertical movement and
     ! subsurface & surface runoff
     !
     ! !USES:
@@ -897,14 +897,21 @@ contains
 
     !
     ! !LOCAL VARIABLES:
-    integer  :: j,c,fc
+    integer  :: j,c,fc,g,l
     integer  :: icat                                   ! indices
-    integer  :: nlevbed				                   ! number of layers to bedrock
+    integer  :: nlevbed                                ! number of layers to bedrock
     real(r8) :: frac_thickness                         ! deal with the fractional layer between last layer and max allowed depth
-    real(r8) :: tot_water(bounds%begc:bounds%endc)     ! total column liquid water (kg water/m2)
-    real(r8) :: surface_water(bounds%begc:bounds%endc) ! liquid water to shallow surface depth (kg water/m2)
-    real(r8) :: drain_tot(bounds%begc:bounds%endc)     ! total drainage flux (mm H2O /s)
+    real(r8) :: tot_water                              ! total column liquid water (kg water/m2)
+    real(r8) :: surface_water                          ! liquid water to shallow surface depth (kg water/m2)
+    real(r8) :: drain_tot                              ! total drainage flux (mm H2O /s)
     real(r8), parameter :: depth_runoff_Mloss = 0.05   ! (m) depth over which runoff mixes with soil water for ions loss to runoff; same as nitrogen runoff depth
+    real(r8) :: rain_proton, rain_cations(1:ncations)  ! surface boundary condition (g m-3 H2O)
+    real(r8) :: sourcesink_proton(1:mixing_layer), sourcesink_cations(1:mixing_layer,1:ncations) ! (g m-3 soil s-1)
+    real(r8) :: adv_water(1:mixing_layer)              ! m H2O / s, negative downward
+    real(r8) :: diffus(1:mixing_layer)                 ! m2/s
+    real(r8) :: rho(1:mixing_layer)                    ! "density" factor using soil water content
+    real(r8) :: dcation_dt(1:mixing_layer, 1:ncations) ! cation concentration rate, g m-3 s-1
+
     !-----------------------------------------------------------------------
 
     associate( &
@@ -937,111 +944,120 @@ contains
 
          proton_oufl_vr                 => col_mf%proton_oufl_vr          , & ! Output: [real(r8) (:,:)] proton flux carried away by infiltration (g m-3 soil s-1 [not water]) (1:nlevgrnd)
          cation_oufl_vr                 => col_mf%cation_oufl_vr          , & ! Output: [real(r8) (:,:,:)] cation flux carried away by infiltration (g m-3 soil s-1 [not water]) (1:nlevgrnd, 1:ncations)
+
          cation_uptake_vr               => col_mf%cation_uptake_vr        , & ! Output: [real(r8) (:,:,:)] cation flux uptaken by plants (g m-3 soil s-1 [not water]) (1:nlevgrnd, 1:ncations)
+         cec_cation_flux_vr             => col_mf%cec_cation_flux_vr      , & ! Output: [real(r8) (:,:,:)] rate at which adsorbed cation is released into water (negative for adsorption into soil) (vertically resolved) (1:nlevgrnd, 1:ncations) (g m-3 s-1)
+
+         primary_proton_flux_vr         => col_mf%primary_proton_flux_vr  , & ! Output [real(r8) (:,:)] consumed H+ due to all the dissolution reactions (g m-3 s-1) (1:nlevgrnd)
+         primary_cation_flux_vr         => col_mf%primary_cation_flux_vr  , & ! Output [real(r8) (:,:,:) cations produced due to all the dissolution reactions (g m-3 s-1) (1:nlevgrnd, 1:ncations)
+         background_weathering_vr       => col_mf%background_weathering_vr, & ! Output: [real(r8) (:)] background weathering rate (g m-3 s-1)
+         secondary_cation_flux_vr       => col_mf%secondary_cation_flux_vr, & ! Output [real(r8) (:,:,:) cations consumed due to precipitation of secondary minerals (g m-3 s-1) (1:nlevgrnd, 1:ncations)
 
          qflx_rootsoi_col               =>    col_wf%qflx_rootsoi         & ! Input: [real(r8) (:,:) ]  vegetation/soil water exchange (mm H2O/s) (+ = to atm)
     )
 
-    !------------------------------------------------------------------------------
-    ! Calculate the amount of proton and cation in/out flux from infiltration
-    !------------------------------------------------------------------------------
     do fc = 1,num_soilc
       c = filter_soilc(fc)
+      g = col_pp%gridcell(c)
+      ! l = col_pp%landunit(c)
+      ! write (iulog, *) lun_pp%itype(l) == istsoil
 
-      ! mol L-1 water * g mol-1 * mm s-1 = g m-2 s-1, divide by dz to get g m-3 s-1
-      j = 1
-      if (qin(c,j) > 0._r8) then
-        proton_infl_vr(c,j) = 10**(-rain_ph(c)) * mass_h * qin(c,j) / dz(c,j)
-        do icat = 1,ncations
-          ! 1e-3 g L-1 water * mm s-1 = 1e-3 g m-2 s-1, divide by dz to get g m-3 s-1
-          cation_infl_vr(c,j,icat) = rain_chem(c,icat) * 1e-3_r8 * qin(c,j) / dz(c,j)
-        end do
-      end if
-
-      do j = 2,mixing_layer
-        ! mol kg-1 water * g mol-1 * mm s-1, divide by dz to get g m-3 s-1
-        if (qin(c,j) > 0._r8) then
-          ! flow from above layer
-          proton_infl_vr(c,j) = mol_to_mass(mass_to_mol(proton_vr(c,j-1), mass_h, h2osoi_vol(c,j-1)), mass_h, 1e-3_r8 * qin(c,j) / dz(c,j))
-          do icat = 1,ncations
-            cation_infl_vr(c,j,icat) = mol_to_mass(mass_to_mol(cation_vr(c,j-1,icat), EWParamsInst%cations_mass(icat), &
-              h2osoi_vol(c,j-1)), EWParamsInst%cations_mass(icat), 1e-3_r8 * qin(c,j) / dz(c,j))
-          end do
-        else
-          ! flow into above layer
-          proton_infl_vr(c,j) = mol_to_mass(mass_to_mol(proton_vr(c,j), mass_h, h2osoi_vol(c,j)), mass_h, 1e-3_r8 * qin(c,j) / dz(c,j))
-          do icat = 1,ncations
-            cation_infl_vr(c,j,icat) = mol_to_mass(mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), &
-              h2osoi_vol(c,j)), EWParamsInst%cations_mass(icat), 1e-3_r8 * qin(c,j) / dz(c,j))
-          end do
-        end if
+      !------------------------------------------------------------------------------
+      ! Collect the water flow boundary conditions (g m-3)
+      !------------------------------------------------------------------------------
+      ! mol/kg rain => g/m3 rain
+      rain_proton = 10**(-rain_ph(c)) * mass_h * 1e3
+      do icat = 1,ncations
+        ! mg/L rain => g/m3 rain
+        rain_cations(icat) = rain_chem(c,icat)
       end do
 
-      ! change mixing_layer to nlevsoi and let groundwater boundary condition to zero
+      !------------------------------------------------------------------------------
+      ! Calculate the net source sink due to plant uptake, background weathering, 
+      ! mineral reactions, and cation exchange (g m-3 s-1)
+      !------------------------------------------------------------------------------
       do j = 1,mixing_layer
-        ! mol kg-1 water * g mol-1 * mm s-1, divide by dz to get g m-3 s-1
-        if (qout(c,j) > 0._r8) then
-          ! flow into below layer
-          proton_oufl_vr(c,j) = mol_to_mass(mass_to_mol(proton_vr(c,j), mass_h, h2osoi_vol(c,j)), mass_h, 1e-3_r8 * qout(c,j) / dz(c,j))
-          do icat = 1,ncations
-            cation_oufl_vr(c,j,icat) = mol_to_mass(mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), &
-              h2osoi_vol(c,j)), EWParamsInst%cations_mass(icat), 1e-3_r8 * qout(c,j) / dz(c,j))
-          end do
-        else
-          ! flow from below layer
-          if (j < mixing_layer) then
-            proton_oufl_vr(c,j) = mol_to_mass(mass_to_mol(proton_vr(c,j+1), mass_h, h2osoi_vol(c,j+1)), mass_h, 1e-3_r8 * qout(c,j) / dz(c,j))
-            do icat = 1,ncations
-              cation_oufl_vr(c,j,icat) = mol_to_mass(mass_to_mol(cation_vr(c,j+1,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j+1)), EWParamsInst%cations_mass(icat), 1e-3_r8 * qout(c,j) / dz(c,j))
-            end do
-          else
-            proton_oufl_vr(c,j) = mol_to_mass(mass_to_mol(proton_vr(c,j), mass_h, h2osoi_vol(c,j+1)), mass_h, 1e-3_r8 * qout(c,j) / dz(c,j))
-            do icat = 1,ncations
-              cation_oufl_vr(c,j,icat) = mol_to_mass(mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), &
-                h2osoi_vol(c,j+1)), EWParamsInst%cations_mass(icat), 1e-3_r8 * qout(c,j) / dz(c,j))
-            end do
-          end if
-        end if
-
-        ! uptake by vegetation
-        ! set to zero, assuming litterfall balances out uptake
+        !------------------------------------------------------------------------------
+        ! uptake by vegetation - set to zero, assuming litterfall balances out uptake
+        !------------------------------------------------------------------------------
         proton_uptake_vr(c,j) = 0._r8 ! mol_to_mass(mass_to_mol(proton_vr(c,j), mass_h, h2osoi_vol(c,j)), mass_h, 1e-3_r8 * qflx_rootsoi_col(c,j) / dz(c,j))
         do icat = 1,ncations
           cation_uptake_vr(c,j,icat) = 0._r8 ! mol_to_mass(mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j)), EWParamsInst%cations_mass(icat), 1e-3_r8 * qflx_rootsoi_col(c,j) / dz(c,j))
         end do
+
+        ! 
+        sourcesink_proton(j) = - proton_uptake_vr(c,j) - primary_proton_flux_vr(c,j) ! zero
+        do icat = 1,ncations
+          sourcesink_cations(j,icat) = background_weathering_vr(c,j,icat) + & 
+            primary_cation_flux_vr(c,j,icat) + cec_cation_flux_vr(c,j,icat) - &
+            secondary_cation_flux_vr(c,j,icat) - cation_uptake_vr(c,j,icat)
+        end do
+
       end do
-    end do
 
-    !------------------------------------------------------------------------------
-    ! Leaching (subsurface runoff) and surface runoff losses
-    !------------------------------------------------------------------------------
-    ! calculate the total soil water
-    tot_water(bounds%begc:bounds%endc) = 0._r8
-    do fc = 1,num_soilc
-        c = filter_soilc(fc)
-        nlevbed = nlev2bed(c)
-        do j = 1,nlevbed
-          tot_water(c) = tot_water(c) + h2osoi_liq(c,j)
-        end do
-    end do
-
-    ! for runoff calculation; calculate total water to a given depth
-    surface_water(bounds%begc:bounds%endc) = 0._r8
-    do fc = 1,num_soilc
-        c = filter_soilc(fc)
+      !------------------------------------------------------------------------------
+      ! Calculate the vertical transport
+      !------------------------------------------------------------------------------
+      do icat = 1,ncations
+        diffus(1:mixing_layer) = EWParamsInst%cations_diffusivity(icat)
         do j = 1,mixing_layer
-          if ( zisoi(j) <= depth_runoff_Mloss)  then
-              surface_water(c) = surface_water(c) + h2osoi_liq(c,j)
-          elseif ( zisoi(j-1) < depth_runoff_Mloss)  then
-              frac_thickness = (depth_runoff_Mloss - zisoi(j-1)) / dz(c,j)
-              surface_water(c) = surface_water(c) + h2osoi_liq(c,j) * frac_thickness
-          end if
+          rho(j) = 1._r8 / h2osoi_liqvol(c,j)
+          ! note the flux rate is negative downward
+          adv_water(j) = -1.0e3_r8 * qin(c,j)
         end do
-    end do
 
-    ! Loop through columns
-    do fc = 1,num_soilc
-      c = filter_soilc(fc)
+        call advection_diffusion( & 
+          cation_vr(c,1:mixing_layer, icat), adv_water(1:mixing_layer), diffus(1:mixing_layer), &
+          sourcesink_cations(1:mixing_layer,icat), rain_cations(icat), dt, rho(1:mixing_layer), &
+          dcation_dt(1:mixing_layer, icat) &
+        )
+      end do
+
+      !------------------------------------------------------------------------------
+      ! Fill the boundary variables
+      !------------------------------------------------------------------------------
+      do j = 1, mixing_layer
+        proton_infl_vr(c,j) = 0._r8
+        proton_oufl_vr(c,j) = 0._r8
+      end do
+
+      do j = 1, mixing_layer
+        do icat = 1, ncations
+          cation_infl_vr(c,j,icat) = dcation_dt(j, icat) - sourcesink_cations(j,icat)
+          cation_oufl_vr(c,j,icat) = 0._r8
+        end do
+      end do
+
+      !------------------------------------------------------------------------------
+      ! Update the cation concentrations using the vertical transport
+      !------------------------------------------------------------------------------
+      do icat = 1,ncations
+        do j = 1,mixing_layer
+          cation_vr(c, j, icat) = cation_vr(c, j, icat) + dcation_dt(j, icat) * dt
+        end do
+      end do
+
+      !------------------------------------------------------------------------------
+      ! Leaching (subsurface runoff) and surface runoff losses
+      !------------------------------------------------------------------------------
+      ! calculate the total soil water
+      tot_water = 0._r8
+      nlevbed = nlev2bed(c)
+      do j = 1,nlevbed
+        tot_water = tot_water + h2osoi_liq(c,j)
+      end do
+
+      ! for runoff calculation; calculate total water to a given depth
+      surface_water = 0._r8
+      do j = 1,mixing_layer
+        if ( zisoi(j) <= depth_runoff_Mloss)  then
+            surface_water = surface_water + h2osoi_liq(c,j)
+        elseif ( zisoi(j-1) < depth_runoff_Mloss)  then
+            frac_thickness = (depth_runoff_Mloss - zisoi(j-1)) / dz(c,j)
+            surface_water = surface_water + h2osoi_liq(c,j) * frac_thickness
+        end if
+      end do
+>>>>>>> yw/elm_erw_regional
 
       do j = 1,mixing_layer
         ! calculate the leaching flux as a function of the dissolved
@@ -1049,7 +1065,7 @@ contains
 
         if (h2osoi_liq(c,j) > 0._r8) then
           ! (drain_tot / tot_water) is the fraction water lost per second
-          proton_leached_vr(c,j) = proton_vr(c,j) * qflx_drain(c) / tot_water(c)
+          proton_leached_vr(c,j) = proton_vr(c,j) * qflx_drain(c) / tot_water
           ! ensure the rate is not larger than the soil pool and positive
           proton_leached_vr(c,j) = max(min(proton_vr(c,j) / dt, proton_leached_vr(c,j)), 0._r8)
         else
@@ -1059,7 +1075,7 @@ contains
         do icat = 1,ncations
           if (h2osoi_liq(c,j) > 0._r8) then
             ! (drain_tot / tot_water) is the fraction water lost per second
-            cation_leached_vr(c,j,icat) = cation_vr(c,j,icat) * qflx_drain(c) / tot_water(c)
+            cation_leached_vr(c,j,icat) = cation_vr(c,j,icat) * qflx_drain(c) / tot_water
             ! ensure the rate is not larger than the soil pool and positive
             cation_leached_vr(c,j,icat) = max(min(cation_vr(c,j,icat) / dt, cation_leached_vr(c,j,icat)), 0._r8)
           else
@@ -1071,10 +1087,10 @@ contains
 
         if (h2osoi_liq(c,j) > 0._r8) then
           if ( zisoi(j) <= depth_runoff_Mloss )  then
-            proton_runoff_vr(c,j) = proton_vr(c,j) * qflx_surf(c) / surface_water(c)
+            proton_runoff_vr(c,j) = proton_vr(c,j) * qflx_surf(c) / surface_water
           else if ( zisoi(j-1) < depth_runoff_Mloss )  then
             frac_thickness = (depth_runoff_Mloss - zisoi(j-1)) / dz(c,j)
-            proton_runoff_vr(c,j) = proton_vr(c,j) * qflx_surf(c) / surface_water(c) * frac_thickness
+            proton_runoff_vr(c,j) = proton_vr(c,j) * qflx_surf(c) / surface_water * frac_thickness
           end if
           ! ensure the rate is not larger than the soil pool and positive
           proton_runoff_vr(c,j) = max(min(proton_vr(c,j) / dt, proton_runoff_vr(c,j)), 0._r8)
@@ -1085,10 +1101,10 @@ contains
         do icat = 1,ncations
           if (h2osoi_liq(c,j) > 0._r8) then
             if ( zisoi(j) <= depth_runoff_Mloss )  then
-              cation_runoff_vr(c,j,icat) = cation_vr(c,j,icat) * qflx_surf(c) / surface_water(c)
+              cation_runoff_vr(c,j,icat) = cation_vr(c,j,icat) * qflx_surf(c) / surface_water
             else if ( zisoi(j-1) < depth_runoff_Mloss )  then
               frac_thickness = (depth_runoff_Mloss - zisoi(j-1)) / dz(c,j)
-              cation_runoff_vr(c,j,icat) = cation_vr(c,j,icat) * qflx_surf(c) / surface_water(c) * frac_thickness
+              cation_runoff_vr(c,j,icat) = cation_vr(c,j,icat) * qflx_surf(c) / surface_water * frac_thickness
             end if
 
             ! ensure the rate is not larger than the soil pool and positive

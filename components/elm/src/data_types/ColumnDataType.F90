@@ -1140,6 +1140,10 @@ module ColumnDataType
       real(r8), pointer :: cec_cation_flux_vr           (:,:,:)   => null() ! rate at which cation is released into water (negative for adsorption into soil) (vertically resolved) (1:nlevgrnd, 1:ncations) (g m-3 s-1)
       real(r8), pointer :: cec_proton_flux_vr           (:,:)     => null() ! soil proton flux for charge balance with the cations (positive for adsorbed, negative for released) (g m-3 s-1)
 
+      real(r8), pointer :: proton_limit_vr              (:,:)     => null() ! flux limitation factor due to insufficient H+ exchange capacity
+      real(r8), pointer :: cec_limit_vr                 (:,:,:)   => null() ! flux limitation factor due ton insufficient cation exchange rate
+      real(r8), pointer :: flux_limit_vr                (:,:,:)   => null() ! flux limitation factor on secondary mineral precipitation and cation exchange rate
+
       real(r8), pointer :: cation_infl_vr               (:,:,:)   => null() ! rate at which cations are infiltrated from above (1:nlevgrnd) (g m-3 s-1)
       real(r8), pointer :: cation_oufl_vr               (:,:,:)   => null() ! rate at which cations are infiltrated to below (1:nlevgrnd,1:ncations) (g m-3 s-1)
       real(r8), pointer :: cation_uptake_vr             (:,:,:)   => null() ! rate at which cations are uptaken by plants (1:nlevgrnd,1:ncations) (g m-3 s-1)
@@ -6040,9 +6044,9 @@ contains
          l = col_pp%landunit(c)
 
          ! must be vegetated/bare land or crop
-         if (lun_pp%itype(l)==istsoil .or. lun_pp%itype(l)==istcrop) then
+         !if (lun_pp%itype(l)==istsoil .or. lun_pp%itype(l)==istcrop) then
             ! 
-            do n = 1,mixing_layer
+            do n = 1,nlevgrnd
                this%soil_ph(c,n) = soilstate_vars%sph(c,n)
 
                ! will be re-initialized after hydrology reaches equilibrium
@@ -6051,24 +6055,24 @@ contains
                this%carbonate_vr(c,n) = 0._r8
             end do
 
-            this%primary_mineral_vr      (c,1:mixing_layer,1:nminerals ) = 0._r8
-            this%silica_vr               (c,1:mixing_layer             ) = 1e-10_r8 ! need a small nonzero number to avoid initializing to infinity
-            this%primary_residue_vr      (c,1:mixing_layer,1:nminerals ) = 0._r8
-            this%armor_thickness_vr      (c,1:mixing_layer             ) = 0._r8
+            this%primary_mineral_vr      (c,1:nlevgrnd,1:nminerals ) = 0._r8
+            this%silica_vr               (c,1:nlevgrnd             ) = 1e-10_r8 ! need a small nonzero number to avoid initializing to infinity
+            this%primary_residue_vr      (c,1:nlevgrnd,1:nminerals ) = 0._r8
+            this%armor_thickness_vr      (c,1:nlevgrnd             ) = 0._r8
             this%ssa                     (c,1:nminerals            ) = 0._r8
-            this%secondary_mineral_vr    (c,1:mixing_layer,1:nminsecs   ) = 0._r8
+            this%secondary_mineral_vr    (c,1:nlevgrnd,1:nminsecs  ) = 0._r8
 
             ! will be re-initialized after hydrology reaches equilibrium
-            this%cec_proton_vr           (c,1:mixing_layer             ) = 0._r8
-            this%cec_cation_vr           (c,1:mixing_layer,1:ncations  ) = 0._r8
-            this%cation_vr               (c,1:mixing_layer,1:ncations  ) = 0._r8
-            this%net_charge_vr           (c,1:mixing_layer             ) = 0._r8
+            this%cec_proton_vr           (c,1:nlevgrnd             ) = 0._r8
+            this%cec_cation_vr           (c,1:nlevgrnd,1:ncations  ) = 0._r8
+            this%cation_vr               (c,1:nlevgrnd,1:ncations  ) = 0._r8
+            this%net_charge_vr           (c,1:nlevgrnd             ) = 0._r8
 
             this%primary_mineral         (c,1:nminerals            ) = 0._r8
             this%proton                  (c                        ) = 0._r8
             this%cation                  (c,1:ncations             ) = 0._r8
             this%silica                  (c                        ) = 0._r8
-            this%secondary_mineral       (c,1:nminsecs              ) = 0._r8
+            this%secondary_mineral       (c,1:nminsecs             ) = 0._r8
             this%primary_residue         (c,1:nminerals            ) = 0._r8
 
             this%cec_cation              (c,1:ncations             ) = 0._r8
@@ -6078,7 +6082,7 @@ contains
             this%err_in                  (c                        ) = 0._r8
             this%err_h                   (c                        ) = 0._r8
             this%err_sm                  (c                        ) = 0._r8
-         end if
+         !end if
       end do ! columns loop
 
    end subroutine col_ms_init
@@ -12449,6 +12453,10 @@ contains
       allocate(this%cec_cation_flux_vr             (begc:endc,1:nlevgrnd,1:ncations ))       ; this%r_precip_vr                   (:,:,:) = spval
       allocate(this%cec_proton_flux_vr             (begc:endc,1:nlevgrnd            ))       ; this%r_precip_vr                   (:,:,:) = spval
 
+      allocate(this%cec_limit_vr                   (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cec_limit_vr                  (:,:,:) = spval
+      allocate(this%proton_limit_vr                (begc:endc,1:nlevgrnd            ))       ; this%proton_limit_vr               (:,:  ) = spval
+      allocate(this%flux_limit_vr                  (begc:endc,1:nlevgrnd,1:ncations ))       ; this%flux_limit_vr                 (:,:,:) = spval
+
       allocate(this%cation_infl_vr                 (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cation_infl_vr               (:,:,:) = spval
       allocate(this%cation_oufl_vr                 (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cation_oufl_vr               (:,:,:) = spval
       allocate(this%cation_uptake_vr               (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cation_uptake_vr             (:,:,:) = spval
@@ -12655,6 +12663,33 @@ contains
       call hist_addfld2d (fname='cec_proton_flux_vr',  units='g m-3 s-1', type2d='levgrnd', &
          avgflag='A', long_name='soil proton flux for charge balance with the cations (positive for adsorbed, negative for released)', &
          ptr_col=this%cec_proton_flux_vr, l2g_scale_type='veg')
+
+      this%proton_limit_vr(begc:endc,:) = spval
+      call hist_addfld2d (fname='proton_limit_vr',  units='', type2d='levgrnd', &
+         avgflag='A', long_name='flux limit factor due to insufficient H+ exchange', &
+         ptr_col=this%proton_limit_vr, l2g_scale_type='veg')
+
+      this%cec_limit_vr(begc:endc,:,:) = spval
+      do a = 1,ncations
+         data2dptr => this%cec_limit_vr(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'cec_limit_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname,  units='', type2d='levgrnd', &
+            avgflag='A', long_name='flux limit factor due to insufficient cation exchange', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
+      end do
+
+      this%flux_limit_vr(begc:endc,:,:) = spval
+      do a = 1,ncations
+         data2dptr => this%flux_limit_vr(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'flux_limit_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname,  units='', type2d='levgrnd', &
+            avgflag='A', long_name='flux limit factor on cation exchange and secondary mineral precipitation', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
+      end do
 
       this%cation_infl_vr(begc:endc,:,:) = spval
       do a = 1,ncations
@@ -12868,38 +12903,42 @@ contains
          l = col_pp%landunit(c)
 
          ! must be vegetated/bare land or crop
-         if (lun_pp%itype(l)==istsoil .or. lun_pp%itype(l)==istcrop) then
-            this%background_weathering_vr        (c,1:mixing_layer,1:ncations ) = 0._r8
-            this%primary_added_vr                (c,1:mixing_layer,1:nminerals) = 0._r8
-            this%primary_dissolve_vr             (c,1:mixing_layer,1:nminerals) = 0._r8
-            this%primary_proton_flux_vr          (c,1:mixing_layer            ) = 0._r8
-            this%primary_cation_flux_vr          (c,1:mixing_layer,1:ncations ) = 0._r8
-            this%primary_h2o_flux_vr             (c,1:mixing_layer            ) = 0._r8
-            this%primary_silica_flux_vr          (c,1:mixing_layer            ) = 0._r8
-            this%primary_residue_flux_vr         (c,1:mixing_layer,1:nminerals) = 0._r8
-            this%primary_prelease_vr             (c,1:mixing_layer            ) = 0._r8
+         !if (lun_pp%itype(l)==istsoil .or. lun_pp%itype(l)==istcrop) then
+            this%background_weathering_vr        (c,1:nlevgrnd,1:ncations ) = 0._r8
+            this%primary_added_vr                (c,1:nlevgrnd,1:nminerals) = 0._r8
+            this%primary_dissolve_vr             (c,1:nlevgrnd,1:nminerals) = 0._r8
+            this%primary_proton_flux_vr          (c,1:nlevgrnd            ) = 0._r8
+            this%primary_cation_flux_vr          (c,1:nlevgrnd,1:ncations ) = 0._r8
+            this%primary_h2o_flux_vr             (c,1:nlevgrnd            ) = 0._r8
+            this%primary_silica_flux_vr          (c,1:nlevgrnd            ) = 0._r8
+            this%primary_residue_flux_vr         (c,1:nlevgrnd,1:nminerals) = 0._r8
+            this%primary_prelease_vr             (c,1:nlevgrnd            ) = 0._r8
 
-            this%r_dissolve_vr                   (c,1:mixing_layer,1:nminerals) = 0._r8
-            this%log_omega_vr                    (c,1:mixing_layer,1:nminerals) = 0._r8
+            this%r_dissolve_vr                   (c,1:nlevgrnd,1:nminerals) = 0._r8
+            this%log_omega_vr                    (c,1:nlevgrnd,1:nminerals) = 0._r8
 
-            this%secondary_mineral_flux_vr       (c,1:mixing_layer,1:nminsecs  ) = 0._r8
-            this%secondary_cation_flux_vr        (c,1:mixing_layer,1:ncations ) = 0._r8
-            this%secondary_silica_flux_vr        (c,1:mixing_layer            ) = 0._r8
-            this%r_precip_vr                     (c,1:mixing_layer,1:nminsecs  ) = 0._r8
+            this%secondary_mineral_flux_vr       (c,1:nlevgrnd,1:nminsecs ) = 0._r8
+            this%secondary_cation_flux_vr        (c,1:nlevgrnd,1:ncations ) = 0._r8
+            this%secondary_silica_flux_vr        (c,1:nlevgrnd            ) = 0._r8
+            this%r_precip_vr                     (c,1:nlevgrnd,1:nminsecs ) = 0._r8
 
-            this%cec_cation_flux_vr              (c,1:mixing_layer,1:ncations ) = 0._r8
-            this%cec_proton_flux_vr              (c,1:mixing_layer            ) = 0._r8
+            this%cec_cation_flux_vr              (c,1:nlevgrnd,1:ncations ) = 0._r8
+            this%cec_proton_flux_vr              (c,1:nlevgrnd            ) = 0._r8
 
-            this%cation_infl_vr                  (c,1:mixing_layer,1:ncations ) = 0._r8
-            this%cation_oufl_vr                  (c,1:mixing_layer,1:ncations ) = 0._r8
-            this%cation_uptake_vr                (c,1:mixing_layer,1:ncations ) = 0._r8
-            this%cation_leached_vr               (c,1:mixing_layer,1:ncations ) = 0._r8
-            this%cation_runoff_vr                (c,1:mixing_layer,1:ncations ) = 0._r8
-            this%proton_infl_vr                  (c,1:mixing_layer            ) = 0._r8
-            this%proton_oufl_vr                  (c,1:mixing_layer            ) = 0._r8
-            this%proton_uptake_vr                (c,1:mixing_layer            ) = 0._r8
-            this%proton_leached_vr               (c,1:mixing_layer            ) = 0._r8
-            this%proton_runoff_vr                (c,1:mixing_layer            ) = 0._r8
+            this%cec_limit_vr                   (c,1:nlevgrnd,1:ncations  ) = 1._r8
+            this%proton_limit_vr                (c,1:nlevgrnd             ) = 1._r8
+            this%flux_limit_vr                  (c,1:nlevgrnd,1:ncations  ) = 1._r8
+
+            this%cation_infl_vr                  (c,1:nlevgrnd,1:ncations ) = 0._r8
+            this%cation_oufl_vr                  (c,1:nlevgrnd,1:ncations ) = 0._r8
+            this%cation_uptake_vr                (c,1:nlevgrnd,1:ncations ) = 0._r8
+            this%cation_leached_vr               (c,1:nlevgrnd,1:ncations ) = 0._r8
+            this%cation_runoff_vr                (c,1:nlevgrnd,1:ncations ) = 0._r8
+            this%proton_infl_vr                  (c,1:nlevgrnd            ) = 0._r8
+            this%proton_oufl_vr                  (c,1:nlevgrnd            ) = 0._r8
+            this%proton_uptake_vr                (c,1:nlevgrnd            ) = 0._r8
+            this%proton_leached_vr               (c,1:nlevgrnd            ) = 0._r8
+            this%proton_runoff_vr                (c,1:nlevgrnd            ) = 0._r8
 
             this%background_weathering           (c,1:ncations            ) = 0._r8
 
@@ -12934,7 +12973,7 @@ contains
             this%in_loss                         (c                       ) = 0._r8
             this%sm_add                          (c                       ) = 0._r8
             this%sm_loss                         (c                       ) = 0._r8
-        end if
+        !end if
 
       end do ! columns loop
 
@@ -13111,6 +13150,33 @@ contains
          dim1name='column', dim2name='levgrnd', switchdim=.true., &
          long_name='soil proton flux for charge balance with the cations (positive for adsorbed, negative for released)', units='g m-3 s-1', &
          interpinic_flag='interp', readvar=readvar, data=this%cec_proton_flux_vr)
+
+      call restartvar(ncid=ncid, flag=flag, varname='proton_limit_vr', xtype=ncd_double, &
+         dim1name='column', dim2name='levgrnd', switchdim=.true., &
+         long_name='flux limit factor due to insufficient H+ exchange', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%proton_limit_vr)
+
+      do a = 1,ncations
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'cec_limit_vr_'//trim(a_str)
+         ptr2d => this%cec_limit_vr(:,:,a)
+         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
+            dim1name='column', dim2name='levgrnd', switchdim=.true., &
+            long_name='flux limit factor due to insufficient cation exchange', units='', &
+            interpinic_flag='interp', readvar=readvar, data=ptr2d)
+      end do
+
+      do a = 1,ncations
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'flux_limit_vr_'//trim(a_str)
+         ptr2d => this%flux_limit_vr(:,:,a)
+         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
+            dim1name='column', dim2name='levgrnd', switchdim=.true., &
+            long_name='flux limit factor on cation exchange and secondary mineral precipitation', units='', &
+            interpinic_flag='interp', readvar=readvar, data=ptr2d)
+      end do
 
       do a = 1,ncations
          write (a_str, '(I6)') a
@@ -13365,11 +13431,15 @@ contains
          c = filter_soilc(fc)
 
          do a = 1,ncations
-            this%cation_infl(c,a) = this%cation_infl_vr(c,1,a) * col_pp%dz(c,1)
-            this%cation_oufl(c,a) = this%cation_oufl_vr(c,mixing_layer,a) * col_pp%dz(c,mixing_layer)
+            !this%cation_infl(c,a) = 0._r8
+            !this%cation_oufl(c,a) = 0._r8
+            do j = 1,nlevgrnd
+               this%cation_infl(c,a) = this%cation_infl(c,a) + this%cation_infl_vr(c,j,a) * col_pp%dz(c,j)
+               this%cation_oufl(c,a) = this%cation_oufl(c,a) + this%cation_oufl_vr(c,j,a) * col_pp%dz(c,j)
+            end do
          end do
-         this%proton_infl(c) = this%proton_infl_vr(c,1) * col_pp%dz(c,1)
-         this%proton_oufl(c) = this%proton_oufl_vr(c,mixing_layer) * col_pp%dz(c,mixing_layer)
+         this%proton_infl(c) = 0._r8
+         this%proton_oufl(c) = 0._r8
 
          ! vertical integrated flux
          do j = 1,mixing_layer
@@ -13387,10 +13457,10 @@ contains
                   this%background_weathering_vr(c,j,a) * col_pp%dz(c,j)
                this%primary_cation_flux(c,a) = &
                   this%primary_cation_flux(c,a) + this%primary_cation_flux_vr(c,j,a) * col_pp%dz(c,j)
-               this%secondary_cation_flux(c,a) = &
-                  this%secondary_cation_flux(c,a) + this%secondary_cation_flux_vr(c,j,a) * col_pp%dz(c,j)
                this%cec_cation_flux(c,a) = &
                   this%cec_cation_flux(c,a) + this%cec_cation_flux_vr(c,j,a) * col_pp%dz(c,j)
+               this%secondary_cation_flux(c,a) = &
+                  this%secondary_cation_flux(c,a) + this%secondary_cation_flux_vr(c,j,a) * col_pp%dz(c,j)
                this%cation_uptake(c,a) = &
                   this%cation_uptake(c,a) + this%cation_uptake_vr(c,j,a) * col_pp%dz(c,j)
                this%cation_leached(c,a) = &

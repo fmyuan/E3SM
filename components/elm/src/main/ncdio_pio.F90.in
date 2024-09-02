@@ -174,6 +174,7 @@ contains
     PIO_subsystem => shr_pio_getiosys(inst_name)
     io_type       =  shr_pio_getiotype(inst_name)
 
+
   end subroutine ncd_pio_init
 
   !-----------------------------------------------------------------------
@@ -190,7 +191,6 @@ contains
     ! !LOCAL VARIABLES:
     integer :: ierr
     !-----------------------------------------------------------------------
-
     ierr = pio_openfile(pio_subsystem, file, io_type, fname, mode)
 
     if(ierr/= PIO_NOERR) then
