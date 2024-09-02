@@ -1057,7 +1057,6 @@ contains
             surface_water = surface_water + h2osoi_liq(c,j) * frac_thickness
         end if
       end do
->>>>>>> yw/elm_erw_regional
 
       do j = 1,mixing_layer
         ! calculate the leaching flux as a function of the dissolved
