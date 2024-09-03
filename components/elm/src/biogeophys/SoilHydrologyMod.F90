@@ -1097,6 +1097,11 @@ contains
           qflx_rsub_sat      =>    col_wf%qflx_rsub_sat      , & ! Output: [real(r8) (:)   ] soil saturation excess [mm h2o/s]
           qflx_drain_perched =>    col_wf%qflx_drain_perched , & ! Output: [real(r8) (:)   ] perched wt sub-surface runoff (mm H2O /s)
 
+          qin                =>    col_wf%qin                , & ! output: [real(r8) (:,:) ] flux of column-internal water into soil layer [mm h2o/s]
+          qout               =>    col_wf%qout               , & ! output: [real(r8) (:,:) ] flux of column-internal water out of soil layer [mm h2o/s]
+          qin_external       =>    col_wf%qin_external       , & ! output: [real(r8) (:,:) ] flux of column-external water into soil layer [mm h2o/s]
+          qout_external      =>    col_wf%qout_external      , & ! output: [real(r8) (:,:) ] flux of column-external water out of soil layer [mm h2o/s]
+
           h2osoi_liq         =>    col_ws%h2osoi_liq        , & ! Output: [real(r8) (:,:) ] liquid water (kg/m2)
           h2osoi_ice         =>    col_ws%h2osoi_ice          & ! Output: [real(r8) (:,:) ] ice lens (kg/m2)
           )
@@ -1125,6 +1130,12 @@ contains
           rsub_top(c)      = 0._r8
           fracice_rsub(c)  = 0._r8
           qflx_qrgwl(c)    = 0._r8
+
+          ! initialize qin_/out_external here
+          ! And will be added up for any kinds of drainages in specific layer(s)
+          qin_external(c,1:nlevgrnd) = 0._r8
+          qout_external(c,1:nlevgrnd) = 0._r8
+
        end do
 
        ! The layer index of the first unsaturated layer, i.e., the layer right above
@@ -1211,6 +1222,9 @@ contains
 
                 h2osoi_liq(c,k) = h2osoi_liq(c,k) + rsub_top_layer
 
+                ! water drained out from perched layer(s) (always negative)
+                qout_external(c,k) = qout_external(c,k) + rsub_top_layer/dtime
+
                 if (rsub_top_tot >= 0.) then
                    zwt(c) = zwt(c) - rsub_top_layer/eff_porosity(c,k)/1000._r8
                    exit
@@ -1294,6 +1308,9 @@ contains
                    rsub_top_tot = rsub_top_tot - rsub_top_layer
 
                    h2osoi_liq(c,k) = h2osoi_liq(c,k) + rsub_top_layer
+
+                   ! water drained out from perched layer(s) (always negative)
+                   qout_external(c,k) = qout_external(c,k) + rsub_top_layer/dtime
 
                    if (rsub_top_tot >= 0.) then
                       zwt_perched(c) = zwt_perched(c) - rsub_top_layer/eff_porosity(c,k)/1000._r8
@@ -1385,6 +1402,15 @@ contains
                    rsub_top_layer=max(rsub_top_tot,-(s_y*(zi(c,nlevbed) - zwt(c))*1.e3))
                    rsub_top_layer=min(rsub_top_layer,0._r8)
                    h2osoi_liq(c,nlevbed) = h2osoi_liq(c,nlevbed) + rsub_top_layer
+
+                   if (rsub_top_layer<=0._r8) then
+                      ! water drained out from groundwater layer(s) (always negative)
+                      qout_external(c,nlevbed) = qout_external(c,nlevbed) + rsub_top_layer/dtime
+                   else
+                      ! water recharge from groundwater layer(s) (always positive)
+                      qin_external(c,nlevbed) = qin_external(c,nlevbed) + rsub_top_layer/dtime
+                   end if
+
                    rsub_top_tot = rsub_top_tot - rsub_top_layer
                    if (rsub_top_tot >= 0.) then
                       zwt(c) = zwt(c) - rsub_top_layer/s_y/1000._r8
@@ -1400,6 +1426,18 @@ contains
                    zwt(c)     = zwt(c) + (rsub_top(c) * dtime)/1000._r8/rous
                    h2osoi_liq(c,nlevsoi) = h2osoi_liq(c,nlevsoi) + max(0._r8,(wa(c)-5000._r8))
                    wa(c)  = min(wa(c), 5000._r8)
+
+                   if (rsub_top(c)>0._r8) then
+                      ! water drained out from groundwater layer(s) (always negative)
+                      qout_external(c,nlevsoi) = qout_external(c,nlevsoi) - rsub_top(c)
+                   end if
+                   ! gross groundwater recharge
+                   if ((wa(c) + rsub_top(c) * dtime)>0._r8) then
+                      ! water recharge from groundwater layer(s) (always positive)
+                      qin_external(c,nlevsoi) = qin_external(c,nlevsoi) + (wa(c)/dtime+rsub_top(c))
+                   end if
+
+
                 end if
              else
                 !-- water table within soil layers 1-9  -------------------------------------
@@ -1423,6 +1461,10 @@ contains
                          rsub_top_layer=min(rsub_top_layer,0._r8)
                          if (use_vsfm) rsub_top_layer = 0._r8
                          h2osoi_liq(c,j) = h2osoi_liq(c,j) + rsub_top_layer
+
+                         ! water drained out from perched layer(s) (always negative)
+                         qout_external(c,j) = qout_external(c,j) + rsub_top_layer/dtime
+
                          rsub_top_tot = rsub_top_tot - rsub_top_layer
                       end do
                    else
@@ -1436,6 +1478,9 @@ contains
                          rsub_top_layer=min(rsub_top_layer,0._r8)
                          if (use_vsfm) rsub_top_layer = 0._r8
                          h2osoi_liq(c,j) = h2osoi_liq(c,j) + rsub_top_layer
+
+                         ! water drained out from perched layer(s) (always negative)
+                         qout_external(c,j) = qout_external(c,j) + rsub_top_layer/dtime
 
                          rsub_top_tot = rsub_top_tot - rsub_top_layer
 
@@ -1496,6 +1541,11 @@ contains
              else
                 h2osoi_liq(c,j)   = min(eff_porosity(c,j)*dzmm(c,j), h2osoi_liq(c,j))
                 h2osoi_liq(c,j-1) = h2osoi_liq(c,j-1) + xsi(c)
+
+                ! water flow upwardly?
+                qout(c,j) = qout(c,j) + xsi(c)/dtime
+                qin(c,j-1)= qin(c,j-1) + xsi(c)/dtime
+
              endif
           end do
        end do
@@ -1521,6 +1571,11 @@ contains
                 qflx_rsub_sat(c)     = xs1(c) / dtime
              endif
           endif
+
+          if (xs1(c)>0._r8) then
+             ! top-layer exfiltration either to h2osfc or to drainage, is a loss from soil column
+             qout_external(c,1) = xs1(c)/dtime
+          end if
 
           if (use_vsfm) qflx_rsub_sat(c) = 0._r8
 
@@ -1549,6 +1604,11 @@ contains
              end if
              h2osoi_liq(c,j  ) = h2osoi_liq(c,j  ) + xs(c)
              h2osoi_liq(c,j+1) = h2osoi_liq(c,j+1) - xs(c)
+
+             ! need to adjust column-internal water flux as well
+             qin(c,j)   = qin(c,j)    + xs(c)/dtime
+             qout(c,j+1)= qout(c,j+1) - xs(c)/dtime
+
           end do
        end do
 
@@ -1564,11 +1624,17 @@ contains
                 if (available_h2osoi_liq >= xs(c)) then
                    h2osoi_liq(c,j) = h2osoi_liq(c,j) + xs(c)
                    h2osoi_liq(c,i) = h2osoi_liq(c,i) - xs(c)
+                   ! need to adjust column-internal water flux as well
+                   qin(c,j)   = qin(c,j)  + xs(c)/dtime
+                   qout(c,i)  = qout(c,i) - xs(c)/dtime
                    xs(c) = 0._r8
                    exit searchforwater
                 else
                    h2osoi_liq(c,j) = h2osoi_liq(c,j) + available_h2osoi_liq
                    h2osoi_liq(c,i) = h2osoi_liq(c,i) - available_h2osoi_liq
+                   ! need to adjust column-internal water flux as well
+                   qin(c,j)   = qin(c,j)  + available_h2osoi_liq/dtime
+                   qout(c,i)  = qout(c,i) - available_h2osoi_liq/dtime
                    xs(c) = xs(c) - available_h2osoi_liq
                 end if
              end do searchforwater
@@ -1577,6 +1643,8 @@ contains
           end if
           ! Needed in case there is no water to be found
           h2osoi_liq(c,j) = h2osoi_liq(c,j) + xs(c)
+          ! need to adjust column-internal water flux as well
+          qin(c,j)   = qin(c,j)  + xs(c)/dtime
           ! Instead of removing water from aquifer where it eventually
           ! shows up as excess drainage to the ocean, take it back out of
           ! drainage
