@@ -605,8 +605,11 @@ module ColumnDataType
     real(r8), pointer :: mflx_drain           (:,:) => null() ! drainage from groundwater table (kg H2O /s)
     real(r8), pointer :: mflx_recharge        (:)   => null() ! recharge from soil column to unconfined aquifer (kg H2O /s)
 
-    real(r8), pointer :: qin                  (:,:) => null() ! flux of water into soil layer [mm h2o/s]
-    real(r8), pointer :: qout                 (:,:) => null() ! flux of water out of soil layer [mm h2o/s]
+    ! the following are for solute adv occurred both btw column-layers and through sides, if any, but excluding infiltration, (top) soil evap, rooted-layer trans
+    real(r8), pointer :: qin                  (:,:) => null() ! flux of internal column water into a soil layer [mm h2o/s]
+    real(r8), pointer :: qout                 (:,:) => null() ! flux of internal column water out of a soil layer [mm h2o/s]
+    real(r8), pointer :: qin_external         (:,:) => null() ! flux of external column water, e.g. water recharge/lateral in, excluding infiltration, into soil layer [mm h2o/s] (always non-negative)
+    real(r8), pointer :: qout_external        (:,:) => null() ! flux of external column water, e.g. discharge, all sorts of drainage, excluding rootsoil evaptran,  out of soil layer [mm h2o/s] (always non-positive)
 
   contains
     procedure, public :: Init    => col_wf_init
@@ -6591,6 +6594,8 @@ contains
 
     allocate(this%qin                    (begc:endc,1:nlevgrnd+1)); this%qin                  (:,:) = spval
     allocate(this%qout                   (begc:endc,1:nlevgrnd+1)); this%qout                 (:,:) = spval
+    allocate(this%qin_external           (begc:endc,1:nlevgrnd))  ; this%qin_external         (:,:) = spval
+    allocate(this%qout_external          (begc:endc,1:nlevgrnd))  ; this%qout_external        (:,:) = spval
 
     !-----------------------------------------------------------------------
     ! initialize history fields for select members of col_wf
