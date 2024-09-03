@@ -339,9 +339,9 @@ contains
       dz_node(j)= zsoi(j) - zsoi(j-1)
     enddo
 
-    write(iulog,*) 'adv_flux',adv_flux(1:mixing_layer+1)
-    write(iulog,*) 'diffus',diffus(1:mixing_layer)
-    write(iulog,*) 'source',source(1:mixing_layer)
+    !write(iulog,*) 'adv_flux',adv_flux(1:mixing_layer+1)
+    !write(iulog,*) 'diffus',diffus(1:mixing_layer)
+    !write(iulog,*) 'source',source(1:mixing_layer)
 
     ! Calculate the D and F terms in the Patankar algorithm
     ! d: diffusivity
@@ -469,13 +469,13 @@ contains
     if(info > 0) call endrun(msg='dgtsv error in adv_diff line __LINE__: singular matrix')
     conc_after = r_tri
 
-    write (iulog,*) 'conc_before',conc_trcr
-    write (iulog,*) 'conc_after',conc_after
-    write (iulog,*) 'Diff=',sum((conc_after(1:mixing_layer)-conc_trcr)*dzsoi_decomp)
-    write (iulog,*) 'Flow',adv_flux(1:mixing_layer+1)
-    write (iulog,*) 'Diffus',diffus
-    write (iulog,*) 'dz',dzsoi_decomp
-    write (iulog,*) 'dznode',dz_node
+    !write (iulog,*) 'conc_before',conc_trcr
+    !write (iulog,*) 'conc_after',conc_after
+    !write (iulog,*) 'Diff=',sum((conc_after(1:mixing_layer)-conc_trcr)*dzsoi_decomp)
+    !write (iulog,*) 'Flow',adv_flux(1:mixing_layer+1)
+    !write (iulog,*) 'Diffus',diffus
+    !write (iulog,*) 'dz',dzsoi_decomp
+    !write (iulog,*) 'dznode',dz_node
 
     conc_change_rate = (conc_after(1:mixing_layer)-conc_trcr)/dtime
 

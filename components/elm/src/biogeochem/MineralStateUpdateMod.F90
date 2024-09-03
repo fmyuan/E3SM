@@ -130,12 +130,12 @@ contains
     !  write (iulog, *) c, j, col_ms%soil_ph(c,j), col_ms%proton_vr(c,j), mass_to_mol(col_ms%proton_vr(c,j), mass_h, col_ws%h2osoi_vol(c,j)), - col_mf%primary_proton_flux_vr(c,j)*dt, col_mf%cec_proton_flux_vr(c,j)*dt, col_mf%proton_infl_vr(c,j)*dt, - col_mf%proton_oufl_vr(c,j)*dt, -col_mf%proton_uptake_vr(c,j)*dt, -col_mf%proton_leached_vr(c,j)*dt, -col_mf%proton_runoff_vr(c,j)*dt
     !end do
 
-    write (iulog, *) 'Post-reaction cation'
-    do j = 1,mixing_layer
-      do icat = 1, ncations
-        write (iulog, *) c, j, icat, col_ms%cation_vr(c,j,icat), mass_to_mol(col_ms%cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), col_ws%h2osoi_vol(c,j)), col_mf%background_weathering_vr(c,j,icat)*dt, col_mf%primary_cation_flux_vr(c,j,icat)*dt, - col_mf%secondary_cation_flux_vr(c,j,icat)*dt, col_mf%cec_cation_flux_vr(c,j,icat)*dt, col_mf%cation_infl_vr(c,j,icat)*dt, -col_mf%cation_oufl_vr(c,j,icat)*dt, - col_mf%cation_uptake_vr(c,j,icat)*dt, - col_mf%cation_leached_vr(c,j,icat)*dt, - col_mf%cation_runoff_vr(c,j,icat)*dt
-      end do
-    end do
+    !write (iulog, *) 'Post-reaction cation'
+    !do j = 1,mixing_layer
+    !  do icat = 1, ncations
+    !    write (iulog, *) c, j, icat, col_ms%cation_vr(c,j,icat), mass_to_mol(col_ms%cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), col_ws%h2osoi_vol(c,j)), col_mf%background_weathering_vr(c,j,icat)*dt, col_mf%primary_cation_flux_vr(c,j,icat)*dt, - col_mf%secondary_cation_flux_vr(c,j,icat)*dt, col_mf%cec_cation_flux_vr(c,j,icat)*dt, col_mf%cation_infl_vr(c,j,icat)*dt, -col_mf%cation_oufl_vr(c,j,icat)*dt, - col_mf%cation_uptake_vr(c,j,icat)*dt, - col_mf%cation_leached_vr(c,j,icat)*dt, - col_mf%cation_runoff_vr(c,j,icat)*dt
+    !  end do
+    !end do
 
     !write (iulog, *) 'Post-reaction cec H+'
     !do j = 1,mixing_layer

@@ -1004,14 +1004,21 @@ contains
         do j = 1,mixing_layer
           rho(j) = 1._r8 / h2osoi_liqvol(c,j)
           ! note the flux rate is negative downward
-          adv_water(j) = -1.0e3_r8 * qin(c,j)
+          adv_water(j) = -1.0e-3_r8 * qin(c,j)
         end do
+
+        !write (iulog, *) 'pre-adv', c, icat, cation_vr(c,1:mixing_layer, icat)
+        !write (iulog, *) 'adv_water', c, adv_water(1:mixing_layer)
+        !write (iulog, *) 'sourcesink', c, icat, sourcesink_cations(1:mixing_layer,icat)
 
         call advection_diffusion( & 
           cation_vr(c,1:mixing_layer, icat), adv_water(1:mixing_layer), diffus(1:mixing_layer), &
           sourcesink_cations(1:mixing_layer,icat), rain_cations(icat), dt, rho(1:mixing_layer), &
           dcation_dt(1:mixing_layer, icat) &
         )
+
+        !write (iulog, *) 'dcation_dt', c, icat, dcation_dt(1:mixing_layer, icat)
+
       end do
 
       !------------------------------------------------------------------------------
@@ -1036,6 +1043,7 @@ contains
         do j = 1,mixing_layer
           cation_vr(c, j, icat) = cation_vr(c, j, icat) + dcation_dt(j, icat) * dt
         end do
+        write (iulog, *) 'post-adv', c, icat, cation_vr(c,1:mixing_layer, icat)
       end do
 
       !------------------------------------------------------------------------------
