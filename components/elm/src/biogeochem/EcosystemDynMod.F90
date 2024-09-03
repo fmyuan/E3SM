@@ -217,9 +217,9 @@ contains
      call PhosphorusLeaching(bounds, num_soilc, filter_soilc, dt)
 
      if (use_ew) then
-       if (spinup_state == 0 .or. year > nyears_before_ew) then
+       !if (spinup_state == 0 .or. year > nyears_before_ew) then
           call MineralLeaching(bounds, num_soilc, filter_soilc, dt)
-       end if
+       !end if
      end if
     end if !(.not. (pf_cmode .and. pf_hmode))
     !-----------------------------------------------------------------------
@@ -236,12 +236,12 @@ contains
     call t_stop_lnd(event)
 
     if (use_ew) then
-       if (spinup_state == 0 .or. year > nyears_before_ew) then
+       !if (spinup_state == 0 .or. year > nyears_before_ew) then
           event = 'MUpdateLeaching'
           call t_start_lnd(event)
           call MineralStateUpdate(num_soilc, filter_soilc, col_ms, col_mf, dt, soilstate_vars)
           call t_stop_lnd(event)
-       end if
+       !end if
     end if
 
     event = 'CNPsum'
