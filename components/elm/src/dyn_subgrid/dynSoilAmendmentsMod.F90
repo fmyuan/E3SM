@@ -183,6 +183,8 @@ contains
 
     SHR_ASSERT(bounds%level == BOUNDS_LEVEL_PROC, subname // ': argument must be PROC-level bounds')
 
+    call dynsoilamendments_file%time_info%set_current_year_get_year()
+
     allocate(appl_doy_cur(bounds%begg:bounds%endg, max_topounits, natpft_lb:cft_ub))
     allocate(appl_rate_cur(bounds%begg:bounds%endg, max_topounits, natpft_lb:cft_ub))
     allocate(appl_grainsize_cur(bounds%begg:bounds%endg, max_topounits))

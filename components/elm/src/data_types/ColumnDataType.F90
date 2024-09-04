@@ -13436,8 +13436,6 @@ contains
          c = filter_soilc(fc)
 
          do a = 1,ncations
-            !this%cation_infl(c,a) = 0._r8
-            !this%cation_oufl(c,a) = 0._r8
             do j = 1,nlevgrnd
                this%cation_infl(c,a) = this%cation_infl(c,a) + this%cation_infl_vr(c,j,a) * col_pp%dz(c,j)
                this%cation_oufl(c,a) = this%cation_oufl(c,a) + this%cation_oufl_vr(c,j,a) * col_pp%dz(c,j)

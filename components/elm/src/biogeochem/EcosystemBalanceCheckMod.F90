@@ -943,8 +943,8 @@ contains
        end do
 
        end_in(c) = 0._r8
-       do m = 1,ncations
-          end_in(c) = end_in(c) + cation(c,m)
+       do a = 1,ncations
+          end_in(c) = end_in(c) + cation(c,a)
        end do
 
        end_h(c) = proton(c)
