@@ -1009,7 +1009,10 @@ contains
 
         !write (iulog, *) 'pre-adv', c, icat, cation_vr(c,1:mixing_layer, icat)
         !write (iulog, *) 'adv_water', c, adv_water(1:mixing_layer)
+        !write (iulog, *) 'diffus', c, icat, diffus(1:mixing_layer)
         !write (iulog, *) 'sourcesink', c, icat, sourcesink_cations(1:mixing_layer,icat)
+        !write (iulog, *) 'rain_cations', c, icat, rain_cations(icat)
+        !write (iulog, *) 'rho', c, icat, rho(1:mixing_layer)
 
         call advection_diffusion( & 
           cation_vr(c,1:mixing_layer, icat), adv_water(1:mixing_layer), diffus(1:mixing_layer), &
@@ -1043,7 +1046,7 @@ contains
         do j = 1,mixing_layer
           cation_vr(c, j, icat) = cation_vr(c, j, icat) + dcation_dt(j, icat) * dt
         end do
-        write (iulog, *) 'post-adv', c, icat, cation_vr(c,1:mixing_layer, icat)
+        !write (iulog, *) 'post-adv', c, icat, cation_vr(c,1:mixing_layer, icat)
       end do
 
       !------------------------------------------------------------------------------

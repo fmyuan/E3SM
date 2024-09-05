@@ -489,7 +489,6 @@ contains
     use pdepStreamMod         , only : pdep_init, pdep_interp
     use DecompCascadeBGCMod , only : init_decompcascade_bgc
     use DecompCascadeCNMod  , only : init_decompcascade_cn
-    !use ewStreamMod           , only : ew_init
     use CNDecompCascadeContype, only : init_decomp_cascade_constants
     use VegetationPropertiesType        , only : veg_vp
     use SoilorderConType      , only : soilorderconInit

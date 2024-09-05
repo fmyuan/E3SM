@@ -198,7 +198,7 @@ contains
 
             col_mf%cec_cation_flux_vr(c,j,icat) = col_mf%cec_cation_flux_vr(c,j,icat) * col_mf%cec_limit_vr(c,j,icat)
 
-            write (iulog, *) 'Flux limit due to negative CEC cation; factor = ', c, j, icat, col_mf%cec_limit_vr(c,j,icat), col_mf%cec_cation_flux_vr(c,j,icat)
+            write (iulog, *) 'Flux limit due to negative CEC cation; factor = ', ldomain%latc(g), ldomain%lonc(g), g, c, j, icat, col_mf%cec_limit_vr(c,j,icat), col_mf%cec_cation_flux_vr(c,j,icat)
           end if
         end do
 
@@ -210,6 +210,9 @@ contains
           temp_out = - col_mf%secondary_cation_flux_vr(c,j,icat)*dt + & 
                        col_mf%cec_cation_flux_vr(c,j,icat)*dt
 
+          ! Perhaps a fake error ......... this should have been taken care of in the 
+          ! advection transport module; Also, we seem to get intermittently very high 
+          ! flushing rates. !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           if ((col_ms%cation_vr(c,j,icat) + temp_in + temp_out) < 0._r8) then
             if (col_ms%cation_vr(c,j,icat) + temp_in < 0._r8) then
               write (iulog, *) 'Problematic flushing rate: ', ldomain%latc(g), ldomain%lonc(g), g, c, j, icat, 'dt=', dt, 'initial cation=', col_ms%cation_vr(c,j,icat), 'terms=', col_mf%background_weathering_vr(c,j,icat)*dt, col_mf%primary_cation_flux_vr(c,j,icat)*dt, col_mf%cation_uptake_vr(c,j,icat)*dt

@@ -76,7 +76,6 @@ module elm_driver
   use SatellitePhenologyMod  , only : SatellitePhenology, interpMonthlyVeg
   use ndepStreamMod          , only : ndep_interp
   use pdepStreamMod          , only : pdep_interp
-  !use ewStreamMod            , only : ew_interp
   use ActiveLayerMod         , only : alt_calc
   use CH4Mod                 , only : CH4
   use DUSTMod                , only : DustDryDep, DustEmission
