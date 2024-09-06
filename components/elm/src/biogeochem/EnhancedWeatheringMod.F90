@@ -61,7 +61,6 @@ module EnhancedWeatheringMod
      ! primary mineral + proton + (water) = cations + SiO2 + (water)
      ! coefficient before the mineral is always 1
 
-
      real(r8), pointer  :: primary_stoi_proton       (:)      => null()   ! reaction stoichiometry coefficient in front of H+, 1:nminerals
      real(r8), pointer  :: primary_stoi_cations      (:, :)   => null()   ! reaction stoichiometry coefficient in front of cations, 1:nminerals x 1:ncations
      real(r8), pointer  :: primary_stoi_sio2         (:)      => null()   ! reaction stoichiometry coefficient in front of SiO2, 1:nminerals
@@ -908,7 +907,7 @@ contains
     real(r8), parameter :: depth_runoff_Mloss = 0.05   ! (m) depth over which runoff mixes with soil water for ions loss to runoff; same as nitrogen runoff depth
     real(r8) :: rain_proton, rain_cations(1:ncations)  ! surface boundary condition (g m-3 H2O)
     real(r8) :: sourcesink_proton(1:mixing_layer), sourcesink_cations(1:mixing_layer,1:ncations) ! (g m-3 soil s-1)
-    real(r8) :: adv_water(1:mixing_layer)              ! m H2O / s, negative downward
+    real(r8) :: adv_water(1:mixing_layer+1)            ! m H2O / s, negative downward
     real(r8) :: diffus(1:mixing_layer)                 ! m2/s
     real(r8) :: rho(1:mixing_layer)                    ! "density" factor using soil water content
     real(r8) :: dcation_dt(1:mixing_layer, 1:ncations) ! cation concentration rate, g m-3 s-1
@@ -1002,10 +1001,10 @@ contains
       do icat = 1,ncations
         diffus(1:mixing_layer) = EWParamsInst%cations_diffusivity(icat)
         do j = 1,mixing_layer
-          rho(j) = 1._r8 / h2osoi_liqvol(c,j)
           ! note the flux rate is negative downward
           adv_water(j) = -1.0e-3_r8 * qin(c,j)
         end do
+        adv_water(mixing_layer + 1) = qin(c,j+1)
 
         !write (iulog, *) 'pre-adv', c, icat, cation_vr(c,1:mixing_layer, icat)
         !write (iulog, *) 'adv_water', c, adv_water(1:mixing_layer)
@@ -1015,8 +1014,9 @@ contains
         !write (iulog, *) 'rho', c, icat, rho(1:mixing_layer)
 
         call advection_diffusion( & 
-          cation_vr(c,1:mixing_layer, icat), adv_water(1:mixing_layer), diffus(1:mixing_layer), &
-          sourcesink_cations(1:mixing_layer,icat), rain_cations(icat), dt, rho(1:mixing_layer), &
+          cation_vr(c,1:mixing_layer, icat), adv_water(1:mixing_layer+1), diffus(1:mixing_layer), &
+          sourcesink_cations(1:mixing_layer,icat), rain_cations(icat), dt, &
+          h2osoi_liqvol(c,1:mixing_layer), &
           dcation_dt(1:mixing_layer, icat) &
         )
 

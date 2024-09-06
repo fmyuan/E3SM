@@ -198,7 +198,7 @@ contains
 
             col_mf%cec_cation_flux_vr(c,j,icat) = col_mf%cec_cation_flux_vr(c,j,icat) * col_mf%cec_limit_vr(c,j,icat)
 
-            write (iulog, *) 'Flux limit due to negative CEC cation; factor = ', ldomain%latc(g), ldomain%lonc(g), g, c, j, icat, col_mf%cec_limit_vr(c,j,icat), col_mf%cec_cation_flux_vr(c,j,icat)
+            write (iulog, *) 'Flux limit due to negative CEC cation: ', ldomain%latc(g), ldomain%lonc(g), g, c, j, icat, col_mf%cec_limit_vr(c,j,icat), col_mf%cec_cation_flux_vr(c,j,icat)
           end if
         end do
 
@@ -225,7 +225,7 @@ contains
             col_mf%secondary_cation_flux_vr(c,j,icat) = col_mf%secondary_cation_flux_vr(c,j,icat) * col_mf%flux_limit_vr(c,j,icat)
             col_mf%cec_cation_flux_vr(c,j,icat) = col_mf%cec_cation_flux_vr(c,j,icat) * col_mf%flux_limit_vr(c,j,icat)
 
-            write (iulog, *) 'Flux limit due to negative cation concentration; factor = ', ldomain%latc(g), ldomain%lonc(g), g, c, j, icat, col_mf%flux_limit_vr(c,j,icat), col_mf%secondary_cation_flux_vr(c,j,icat), col_mf%cec_cation_flux_vr(c,j,icat)
+            write (iulog, *) 'Flux limit due to negative cation concentration: ', ldomain%latc(g), ldomain%lonc(g), g, c, j, icat, col_mf%flux_limit_vr(c,j,icat), col_mf%secondary_cation_flux_vr(c,j,icat), col_mf%cec_cation_flux_vr(c,j,icat)
           end if
         end do
 
@@ -243,7 +243,7 @@ contains
               col_mf%cec_cation_flux_vr(c,j,icat) = col_mf%cec_cation_flux_vr(c,j,icat) * col_mf%proton_limit_vr(c,j)
             end do
 
-            write (iulog, *) 'Flux limit due to negative CEC H+; factor = ', c, j, col_mf%proton_limit_vr(c,j), col_mf%cec_cation_flux_vr(c,j,1), col_mf%cec_cation_flux_vr(c,j,2), col_mf%cec_cation_flux_vr(c,j,3), col_mf%cec_cation_flux_vr(c,j,4), col_mf%cec_cation_flux_vr(c,j,5)
+            write (iulog, *) 'Flux limit due to negative CEC H+; factor = ', ldomain%latc(g), ldomain%lonc(g), g, c, j, col_mf%proton_limit_vr(c,j), col_mf%cec_cation_flux_vr(c,j,1), col_mf%cec_cation_flux_vr(c,j,2), col_mf%cec_cation_flux_vr(c,j,3), col_mf%cec_cation_flux_vr(c,j,4), col_mf%cec_cation_flux_vr(c,j,5)
         end if
       end do
     end do

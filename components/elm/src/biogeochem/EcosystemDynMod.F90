@@ -219,6 +219,8 @@ contains
      if (use_ew) then
        if (spinup_state == 0 .or. year > nyears_before_ew) then
           call MineralLeaching(bounds, num_soilc, filter_soilc, dt)
+          ! !!!!!!!!!!!!!!!!!!!!! Do this later
+          ! call MineralEquilibria(bounds, num_soilc, filter_soilc, soilstate_vars)
        end if
      end if
     end if !(.not. (pf_cmode .and. pf_hmode))

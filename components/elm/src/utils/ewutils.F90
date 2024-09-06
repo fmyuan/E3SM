@@ -93,7 +93,7 @@ contains
     ! g m-3 soil s-1). Log transformation. 
     !
     ! !ARGUMENTS: 
-    real(r8), intent(in) :: log_mol_conc ! mol kg-1 water
+    real(r8), intent(in) :: log_mol_conc ! mol kg-1 waterfad
     real(r8), intent(in) :: molar_mass ! g mol-1, molar mass of the cation or solid
     real(r8), intent(in) :: h2o ! m3 m-3, volumetric soil water content
     real(r8) :: mass_conc ! g m-3 soil
@@ -288,14 +288,14 @@ contains
   end function solve_eq
 
 
-  subroutine advection_diffusion(conc_trcr,adv_flux,diffus,source,surf_bc,dtime,rho,conc_change_rate)
+  subroutine advection_diffusion(conc_trcr,adv_flux,diffus,source,surf_bc,dtime,vwc,conc_change_rate)
     ! From B. Sulman; edited layer depth; soil bulk concentration can use g/m3
     ! 
     ! Advection and diffusion for a single tracer in one column given diffusion coefficient, flow, and source-sink terms
     ! Based on SoilLittVertTranspMod, which implements S. V. Patankar, Numerical Heat Transfer and Fluid Flow, Series in Computational Methods in Mechanics and Thermal Sciences, Hemisphere Publishing Corp., 1980. Chapter 5
     ! Not sure if this belongs here or somewhere else. Is it bad to do this in the EMI subroutine?
 
-    use elm_varpar       , only : nlevdecomp, mixing_layer, mixing_depth, nlevgrnd
+    use elm_varpar       , only : mixing_layer
     use elm_varcon       , only : zsoi, zisoi, dzsoi_decomp
     use abortutils       , only : endrun
 
@@ -306,7 +306,7 @@ contains
 
     real(r8), intent(in) :: surf_bc                 ! Surface boundary layer concentration (for infiltration)
     real(r8), intent(in) :: dtime                   ! Time step (s)
-    real(r8), intent(in) :: rho(1:mixing_layer)     ! Water density (bulk) in layer
+    real(r8), intent(in) :: vwc(1:mixing_layer)     ! Volumetric soil moisture in layer (m3/m3)
     real(r8), intent(out):: conc_change_rate(1:mixing_layer) ! Bulk concentration (e.g. mol/m3/s)
 
     ! Local variables
@@ -314,6 +314,7 @@ contains
     real(r8) :: pe                           ! Pe for "A" function in Patankar
     real(r8) :: w_m1, w_p1                   ! Weights for calculating harmonic mean of diffusivity
     real(r8) :: d_m1, d_p1                   ! Harmonic mean of diffusivity
+    real(r8) :: vwc_m1, vwc_p1                ! Harmonic mean of soil moisture
     real(r8) :: a_tri(0:mixing_layer+1)      ! "a" vector for tridiagonal matrix
     real(r8) :: b_tri(0:mixing_layer+1)      ! "b" vector for tridiagonal matrix
     real(r8) :: c_tri(0:mixing_layer+1)      ! "c" vector for tridiagonal matrix
@@ -359,8 +360,10 @@ contains
           d_p1 = 0._r8
         endif
         d_p1_zp1(j) = d_p1 / dz_node(j+1)
-        f_m1(j) = adv_flux(j)  ! Include infiltration here
-        f_p1(j) = adv_flux(j+1)
+        vwc_m1 = vwc(j)
+        vwc_p1 = 1._r8 / ((1._r8 - w_p1) / vwc(j) + w_p1 / vwc(j+1))
+        f_m1(j) = adv_flux(j) / vwc_m1  ! Include infiltration here
+        f_p1(j) = adv_flux(j+1) / vwc_p1
         pe_m1(j) = 0._r8
         pe_p1(j) = f_p1(j) / d_p1_zp1(j) ! Peclet #
       elseif (j == mixing_layer) then
@@ -373,7 +376,8 @@ contains
           endif
           d_m1_zm1(j) = d_m1 / dz_node(j)
           d_p1_zp1(j) = d_m1_zm1(j) ! Set to be the same
-          f_m1(j) = adv_flux(j)
+          vwc_m1 = 1. / ((1. - w_m1) / vwc(j-1) + w_m1 / vwc(j))
+          f_m1(j) = adv_flux(j) / vwc_m1
           !f_p1(j) = adv_flux(j+1)
           f_p1(j) = 0._r8
           pe_m1(j) = f_m1(j) / d_m1_zm1(j) ! Peclet #
@@ -394,8 +398,10 @@ contains
           endif
           d_m1_zm1(j) = d_m1 / dz_node(j)
           d_p1_zp1(j) = d_p1 / dz_node(j+1)
-          f_m1(j) = adv_flux(j)
-          f_p1(j) = adv_flux(j+1)
+          vwc_m1 = 1. / ((1. - w_m1) / vwc(j-1) + w_m1 / vwc(j))
+          vwc_p1 = 1. / ((1. - w_p1) / vwc(j) + w_p1 / vwc(j+1))
+          f_m1(j) = adv_flux(j) / vwc_m1
+          f_p1(j) = adv_flux(j+1) / vwc_p1
           pe_m1(j) = f_m1(j) / d_m1_zm1(j) ! Peclet #
           pe_p1(j) = f_p1(j) / d_p1_zp1(j) ! Peclet #
       end if
@@ -414,7 +420,7 @@ contains
     do j = 0,mixing_layer +1
 
       if (j > 0 .and. j < mixing_layer+1) then
-          a_p_0 =  dzsoi_decomp(j) / dtime * rho(j) ! Should this be multiplied by layer water content (for rho)?
+          a_p_0 =  dzsoi_decomp(j) / dtime / vwc(j) ! Should this be multiplied by layer water content (for vwc)?
       endif
 
       if (j == 0) then ! top layer (atmosphere)
@@ -454,7 +460,7 @@ contains
     ! j=0
     ! write(iulog,'(i3,4e18.9)'),j,a_tri(j),b_tri(j),c_tri(j),r_tri(j)
     ! do j=1,mixing_layer
-    !   write(iulog,'(i3,11e18.9)'),j,a_tri(j),b_tri(j),c_tri(j),r_tri(j),dzsoi_decomp(j) / dtime * rho(j) ,pe_m1(j),pe_p1(j),f_m1(j),f_p1(j),d_m1_zm1(j)*dz_node(j),d_p1_zp1(j)*dz_node(j+1)
+    !   write(iulog,'(i3,11e18.9)'),j,a_tri(j),b_tri(j),c_tri(j),r_tri(j),dzsoi_decomp(j) / dtime * vwc(j) ,pe_m1(j),pe_p1(j),f_m1(j),f_p1(j),d_m1_zm1(j)*dz_node(j),d_p1_zp1(j)*dz_node(j+1)
     ! enddo
     ! j=mixing_layer+1
     ! write(iulog,'(i3,4e18.9)'),j,a_tri(j),b_tri(j),c_tri(j),r_tri(j)
