@@ -987,9 +987,13 @@ contains
           sourcesink_cations(j,icat) = background_weathering_vr(c,j,icat) + & 
             primary_cation_flux_vr(c,j,icat) + cec_cation_flux_vr(c,j,icat) - &
             secondary_cation_flux_vr(c,j,icat) - cation_uptake_vr(c,j,icat)
+
+if (icat==1) &
+print *,'checking CEC flux 1:', c, j, icat, cec_cation_flux_vr(c,j,icat)
         end do
 
       end do
+print *, ''
 
       !------------------------------------------------------------------------------
       ! Calculate the vertical transport
@@ -1002,6 +1006,8 @@ contains
         end do
         adv_water(mixing_layer + 1) = -1.0e-3_r8 * qin(c,j+1)
 
+diffus(1:mixing_layer) = 1.e-99_r8
+adv_water(1:mixing_layer+1) = 0._r8
 
         call advection_diffusion( & 
           cation_vr(c,1:mixing_layer, icat), adv_water(1:mixing_layer+1), diffus(1:mixing_layer), &
@@ -1023,8 +1029,14 @@ contains
         do icat = 1, ncations
           cation_infl_vr(c,j,icat) = dcation_dt(j, icat) - sourcesink_cations(j,icat)
           cation_oufl_vr(c,j,icat) = 0._r8
+
+if (icat==1) &
+print *,'checking CEC flux 2:', c, j, icat, cation_vr(c, j, icat) + dcation_dt(j, icat) * dt, &
+dcation_dt(j, icat), sourcesink_cations(j,icat)
+
         end do
       end do
+print *, ''
 
       !------------------------------------------------------------------------------
       ! Update the cation concentrations using the vertical transport
@@ -1179,6 +1191,9 @@ contains
 
       co2_atm = top_as%pco2bot(t) / 101325
 
+print *, '-------------------------------------------------'
+print *, ''
+
       do j = 1,mixing_layer
 
         ! use grid search to find the pH
@@ -1210,14 +1225,19 @@ contains
           beta_h = beta_h - beta_list(icat)
         end do
 
+
         do icat = 1,ncations
           conc(icat) = beta_list(icat)/(beta_h*keq_list(icat)/10**(-soil_ph(c,j)))**EWParamsInst%cations_valence(icat)
           ! the reaction happens in the liquid water part only
           cec_cation_flux_vr(c,j,icat) = (mol_to_mass(conc(icat), EWParamsInst%cations_mass(icat), h2osoi_liqvol(c,j)) - &
                                        cation_vr(c,j,icat)*h2osoi_liqvol(c,j)/h2osoi_vol(c,j)) / dt
+if (icat==1) &
+print *, 'checking CEC flux 0: ', c,j,icat, cec_cation_flux_vr(c,j,icat)
+
         end do
 
       end do
+print *, ''
     end do
 
     end associate

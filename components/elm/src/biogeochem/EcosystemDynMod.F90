@@ -637,9 +637,9 @@ contains
          call MineralInit(bounds, num_soilc, filter_soilc, soilstate_vars)
       end if
 
-      call MineralDynamics(bounds, num_soilc, filter_soilc, soilstate_vars)
+      !call MineralDynamics(bounds, num_soilc, filter_soilc, soilstate_vars)
       call MineralEquilibria(bounds, num_soilc, filter_soilc, soilstate_vars)
-      call MineralFluxLimit(num_soilc, filter_soilc, col_ms, col_mf, dt)
+      !call MineralFluxLimit(num_soilc, filter_soilc, col_ms, col_mf, dt)
     end if
 
     !----------------------------------------------------------------

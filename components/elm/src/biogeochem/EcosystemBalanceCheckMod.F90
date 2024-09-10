@@ -997,6 +997,62 @@ contains
       if (abs(err_in(c)) > 1e-8_r8) then
          iserr_in = .true.
          err_index = c
+
+write(c,*) get_nstep(), fc, c, err_in(c)
+write(c,*) beg_in(c), end_in(c), end_in(c)-beg_in(c)
+write(c,*) in_add(c)*dt, in_loss(c)*dt, (in_loss(c)-in_add(c))*dt
+write(c,*)
+
+end_in(c)=0; in_add(c) = 0._r8;in_loss(c) = 0._r8
+do a = 1, ncations
+end_in(c)=end_in(c) + cation(c,a)
+write(c,*) 'state: ', c,a, end_in(c), cation(c,a)
+
+in_add(c) = in_add(c) + &
+background_weathering(c,a)*dt + &
+primary_cation_flux(c,a)*dt + &
+cation_infl(c,a)*dt + &
+cec_cation_flux(c,a)*dt
+
+write(c,*) '+: ', c,a,in_add(c), &
+!
+background_weathering(c,a)*dt + &
+primary_cation_flux(c,a)*dt + &
+cation_infl(c,a)*dt + &
+cec_cation_flux(c,a)*dt, &
+!
+background_weathering(c,a)*dt, &
+primary_cation_flux(c,a)*dt, &
+cation_infl(c,a)*dt, &
+cec_cation_flux(c,a)*dt
+
+in_loss(c) = in_loss(c) + &
+secondary_cation_flux(c,a)*dt + &
+cation_leached(c,a)*dt + &
+cation_runoff(c,a)*dt + &
+cation_oufl(c,a)*dt + &
+cation_uptake(c,a)*dt
+
+write(c,*) '-: ', c,a,in_loss(c), &
+!
+secondary_cation_flux(c,a)*dt + &
+cation_leached(c,a)*dt + &
+cation_runoff(c,a)*dt + &
+cation_oufl(c,a)*dt + &
+cation_uptake(c,a)*dt, &
+!
+secondary_cation_flux(c,a)*dt, &
+cation_leached(c,a)*dt, &
+cation_runoff(c,a)*dt, &
+cation_oufl(c,a)*dt, &
+cation_uptake(c,a)*dt
+write(c,*)
+
+end do
+write(c,*) '---------------------------------------'
+
+
+
       end if
 
       if (abs(err_h(c)) > 1e-8_r8) then
