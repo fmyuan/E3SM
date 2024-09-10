@@ -340,10 +340,6 @@ contains
       dz_node(j)= zsoi(j) - zsoi(j-1)
     enddo
 
-    write(iulog,*) 'adv_flux',adv_flux(1:mixing_layer+1)
-    write(iulog,*) 'diffus',diffus(1:mixing_layer)
-    write(iulog,*) 'source',source(1:mixing_layer)
-
     ! Calculate the D and F terms in the Patankar algorithm
     ! d: diffusivity
     ! f: flow
@@ -437,10 +433,8 @@ contains
           r_tri(j) = source(j) * dzsoi_decomp(j) + a_p_0 * conc_trcr(j)
           if(adv_flux(j)<0) then ! downward flow (infiltration)
             r_tri(j) = r_tri(j) - adv_flux(j)*surf_bc
-            !  write (iulog,*) __LINE__,adv_flux(j),surf_bc,adv_flux(j)*surf_bc
           else ! upward flow to the surface
             r_tri(j) = r_tri(j) - adv_flux(j)*conc_trcr(j)
-            ! write (iulog,*) __LINE__,adv_flux(j),conc_trcr(j),adv_flux(j)*conc_trcr(j)
           endif
           
       elseif (j < mixing_layer+1) then
@@ -456,15 +450,6 @@ contains
       endif
     enddo ! j; mixing_layer
 
-    ! write(iulog,'(11a18)'),'a','b','c','r','ap0','pe_m','pe_p','f_m','f_p','d_m','d_p'
-    ! j=0
-    ! write(iulog,'(i3,4e18.9)'),j,a_tri(j),b_tri(j),c_tri(j),r_tri(j)
-    ! do j=1,mixing_layer
-    !   write(iulog,'(i3,11e18.9)'),j,a_tri(j),b_tri(j),c_tri(j),r_tri(j),dzsoi_decomp(j) / dtime * rho(j) ,pe_m1(j),pe_p1(j),f_m1(j),f_p1(j),d_m1_zm1(j)*dz_node(j),d_p1_zp1(j)*dz_node(j+1)
-    ! enddo
-    ! j=mixing_layer+1
-    ! write(iulog,'(i3,4e18.9)'),j,a_tri(j),b_tri(j),c_tri(j),r_tri(j)
-
     ! Solve for the concentration profile for this time step
     ! call Tridiagonal(0, mixing_layer+1, 0, a_tri, b_tri, c_tri, r_tri, conc_after)
     ! This is the LAPACK tridiagonal solver which gave more accurate results in my testing
@@ -474,14 +459,6 @@ contains
     if(info < 0) call endrun(msg='dgtsv error in adv_diff line __LINE__: illegal argument')
     if(info > 0) call endrun(msg='dgtsv error in adv_diff line __LINE__: singular matrix')
     conc_after = r_tri
-
-    write (iulog,*) 'conc_before',conc_trcr
-    write (iulog,*) 'conc_after',conc_after
-    write (iulog,*) 'Diff=',sum((conc_after(1:mixing_layer)-conc_trcr)*dzsoi_decomp)
-    write (iulog,*) 'Flow',adv_flux(1:mixing_layer+1)
-    write (iulog,*) 'Diffus',diffus
-    write (iulog,*) 'dz',dzsoi_decomp
-    write (iulog,*) 'dznode',dz_node
 
     conc_change_rate = (conc_after(1:mixing_layer)-conc_trcr)/dtime
 

@@ -483,9 +483,7 @@ contains
          ! Other related
          !
          tsoi                          => col_es%t_soisno     , &
-         qin                           => col_wf%qin          , & ! Input: [real(r8) (:,:) ] flux of water into soil layer [mm h2o/s]
-         qout                          => col_wf%qout         , & ! Input: [real(r8) (:,:) ] flux of water out of soil layer [mm h2o/s]
-         qflx_drain                    => col_wf%qflx_drain   , & ! Input:  [real(r8) (:)   ]  sub-surface runoff (mm H2O /s)                    
+         qflx_drain                    => col_wf%qflx_drain   , & ! Input:  [real(r8) (:)   ]  sub-surface runoff (mm H2O /s)
          qflx_surf                     => col_wf%qflx_surf    , & ! Input:  [real(r8) (:)   ]  surface runoff (mm H2O /s)
          qflx_rootsoi_col              => col_wf%qflx_rootsoi , & ! Input: [real(r8) (:,:) ]  vegetation/soil water exchange (mm H2O/s) (+ = to atm)
          h2osoi_vol                    => col_ws%h2osoi_vol   , & ! Input:  [real(r8) (:)] volumetric soil water content, ice + water (m3 m-3)
@@ -959,8 +957,6 @@ contains
     do fc = 1,num_soilc
       c = filter_soilc(fc)
       g = col_pp%gridcell(c)
-      ! l = col_pp%landunit(c)
-      ! write (iulog, *) lun_pp%itype(l) == istsoil
 
       !------------------------------------------------------------------------------
       ! Collect the water flow boundary conditions (g m-3)

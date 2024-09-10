@@ -75,11 +75,7 @@ contains
         end do
 
         ! soil H+ concentration (g m-3 soil)
-        !! col_ms%proton_vr(c,j) = col_ms%proton_vr(c,j) - col_mf%primary_proton_flux_vr(c,j)*dt + col_mf%cec_proton_flux_vr(c,j)*dt + col_mf%proton_infl_vr(c,j)*dt - col_mf%proton_oufl_vr(c,j)*dt - col_mf%proton_uptake_vr(c,j)*dt - col_mf%proton_leached_vr(c,j)*dt - col_mf%proton_runoff_vr(c,j)*dt
-        !! col_ms%soil_ph(c,j) = - log10(mass_to_mol(col_ms%proton_vr(c,j), 1._r8, col_ws%h2osoi_vol(c,j)))
         col_ms%proton_vr(c,j) = mol_to_mass(10**(-col_ms%soil_ph(c,j)), mass_h, col_ws%h2osoi_liq(c,j))
-
-        !write (iulog, *) 'soil_ph', c, j, col_ms%soil_ph(c,j), col_ms%proton_vr(c,j), col_ws%h2osoi_vol(c,j)
 
         ! primary mineral
         do m = 1,nminerals
@@ -125,39 +121,6 @@ contains
 
     end do
 
-    !write (iulog, *) 'Post-reaction H+'
-    !do j = 1,mixing_layer
-    !  write (iulog, *) c, j, col_ms%soil_ph(c,j), col_ms%proton_vr(c,j), mass_to_mol(col_ms%proton_vr(c,j), mass_h, col_ws%h2osoi_vol(c,j)), - col_mf%primary_proton_flux_vr(c,j)*dt, col_mf%cec_proton_flux_vr(c,j)*dt, col_mf%proton_infl_vr(c,j)*dt, - col_mf%proton_oufl_vr(c,j)*dt, -col_mf%proton_uptake_vr(c,j)*dt, -col_mf%proton_leached_vr(c,j)*dt, -col_mf%proton_runoff_vr(c,j)*dt
-    !end do
-
-    write (iulog, *) 'Post-reaction cation'
-    do j = 1,mixing_layer
-      do icat = 1, ncations
-        write (iulog, *) c, j, icat, col_ms%cation_vr(c,j,icat), mass_to_mol(col_ms%cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), col_ws%h2osoi_vol(c,j)), col_mf%background_weathering_vr(c,j,icat)*dt, col_mf%primary_cation_flux_vr(c,j,icat)*dt, - col_mf%secondary_cation_flux_vr(c,j,icat)*dt, col_mf%cec_cation_flux_vr(c,j,icat)*dt, col_mf%cation_infl_vr(c,j,icat)*dt, -col_mf%cation_oufl_vr(c,j,icat)*dt, - col_mf%cation_uptake_vr(c,j,icat)*dt, - col_mf%cation_leached_vr(c,j,icat)*dt, - col_mf%cation_runoff_vr(c,j,icat)*dt
-      end do
-    end do
-
-    !write (iulog, *) 'Post-reaction cec H+'
-    !do j = 1,mixing_layer
-    !  write (iulog, *) c, j, col_ms%cec_proton_vr(c,j), mass_to_meq(col_ms%cec_proton_vr(c,j), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), mass_to_meq(col_mf%cec_cation_flux_vr(c,j,1)*dt/EWParamsInst%cations_mass(1)*mass_h*EWParamsInst%cations_valence(1) + col_mf%cec_cation_flux_vr(c,j,2)*dt/EWParamsInst%cations_mass(2)*mass_h*EWParamsInst%cations_valence(2) + col_mf%cec_cation_flux_vr(c,j,3)*dt/EWParamsInst%cations_mass(3)*mass_h*EWParamsInst%cations_valence(3) + col_mf%cec_cation_flux_vr(c,j,4)*dt/EWParamsInst%cations_mass(4)*mass_h*EWParamsInst%cations_valence(4) + col_mf%cec_cation_flux_vr(c,j,5)*dt/EWParamsInst%cations_mass(5)*mass_h*EWParamsInst%cations_valence(5), 1._r8, mass_h, soilstate_vars%bd_col(c,j))
-    !end do
-
-    !write (iulog, *) 'Post-reaction cec cation'
-    !do j = 1,mixing_layer
-    !  do a = 1, ncations
-    !    write (iulog, *) c, j, icat, col_ms%cec_cation_vr(c,j,icat), mass_to_meq(col_ms%cec_cation_vr(c,j,icat), EWParamsInst%cations_valence(icat), EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j)), -col_mf%cec_cation_flux_vr(c,j,icat)*dt
-    !  end do
-    !end do
-
-    !do j = 1,mixing_layer
-    !  do icat = 1,ncations
-    !    if (col_ms%cation_vr(c,j,icat) < 0) then
-    !      write (iulog, *) c, j, icat, col_mf%cec_cation_flux_vr(c,j,icat)*dt
-    !      call endrun(msg=`cation_vr < 0')
-    !    end if
-    !  end do
-    !end do
-
   end subroutine MineralStateUpdate
 
 
@@ -198,7 +161,6 @@ contains
 
             col_mf%cec_cation_flux_vr(c,j,icat) = col_mf%cec_cation_flux_vr(c,j,icat) * col_mf%cec_limit_vr(c,j,icat)
 
-            write (iulog, *) 'Flux limit due to negative CEC cation; factor = ', c, j, icat, col_mf%cec_limit_vr(c,j,icat), col_mf%cec_cation_flux_vr(c,j,icat)
           end if
         end do
 
@@ -222,7 +184,6 @@ contains
             col_mf%secondary_cation_flux_vr(c,j,icat) = col_mf%secondary_cation_flux_vr(c,j,icat) * col_mf%flux_limit_vr(c,j,icat)
             col_mf%cec_cation_flux_vr(c,j,icat) = col_mf%cec_cation_flux_vr(c,j,icat) * col_mf%flux_limit_vr(c,j,icat)
 
-            write (iulog, *) 'Flux limit due to negative cation concentration; factor = ', ldomain%latc(g), ldomain%lonc(g), g, c, j, icat, col_mf%flux_limit_vr(c,j,icat), col_mf%secondary_cation_flux_vr(c,j,icat), col_mf%cec_cation_flux_vr(c,j,icat)
           end if
         end do
 
@@ -240,7 +201,6 @@ contains
               col_mf%cec_cation_flux_vr(c,j,icat) = col_mf%cec_cation_flux_vr(c,j,icat) * col_mf%proton_limit_vr(c,j)
             end do
 
-            write (iulog, *) 'Flux limit due to negative CEC H+; factor = ', c, j, col_mf%proton_limit_vr(c,j), col_mf%cec_cation_flux_vr(c,j,1), col_mf%cec_cation_flux_vr(c,j,2), col_mf%cec_cation_flux_vr(c,j,3), col_mf%cec_cation_flux_vr(c,j,4), col_mf%cec_cation_flux_vr(c,j,5)
         end if
       end do
     end do
