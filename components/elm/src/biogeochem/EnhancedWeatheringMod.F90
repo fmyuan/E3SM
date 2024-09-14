@@ -340,7 +340,7 @@ contains
 
         ! write (iulog, *) 'initial proton_vr', c, j, proton_vr(c,j), soil_ph(c,j), h2osoi_vol(c,j), nlevbed, nlevsoi
 
-        ! for the sake of initial charge balance, calculaf%te from soil pH
+        ! for the sake of initial charge balance, calculate from soil pH
         bicarbonate_vr(c,j) = mol_to_mass( ph_to_hco3(soil_ph(c,j), co2_atm), mass_hco3, h2osoi_vol(c,j) )
         carbonate_vr(c,j) = mol_to_mass( hco3_to_co3(ph_to_hco3(soil_ph(c,j), co2_atm), soil_ph(c,j)), mass_co3, h2osoi_vol(c,j) )
 
