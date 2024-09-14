@@ -590,7 +590,7 @@ contains
     real(r8) :: dt
     integer :: c13, c14
 
-    integer  :: year
+    integer  :: year, mon, day, sec
     integer  :: c, fc
     !-----------------------------------------------------------------------
 
@@ -598,7 +598,7 @@ contains
     c14 = 1
     !-----------------------------------------------------------------------
     dt = dtime_mod
-    year = year_curr
+    year = year_curr; mon = mon_curr; day = day_curr; sec= secs_curr
 
     ! Call the main CN routines
 
@@ -633,7 +633,7 @@ contains
     !----------------------------------------------------------------
     ! Enhanced weathering reactions
     if (use_ew) then
-      if (spinup_state == 1 .and. year <= nyears_before_ew) then
+      if (spinup_state == 1 .and. year == nyears_before_ew .and. mon == 12 .and. day == 31) then
          call MineralInit(bounds, num_soilc, filter_soilc, soilstate_vars)
       end if
       if (spinup_state == 0 .or. year > nyears_before_ew) then

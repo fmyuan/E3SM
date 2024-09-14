@@ -8,6 +8,7 @@ module EcosystemBalanceCheckMod
   use shr_kind_mod        , only : r8 => shr_kind_r8
   use shr_infnan_mod      , only : nan => shr_infnan_nan, assignment(=)
   use shr_log_mod         , only : errMsg => shr_log_errMsg
+  use shr_sys_mod         , only : shr_sys_flush
   use decompMod           , only : bounds_type
   use abortutils          , only : endrun
   use elm_varctl          , only : iulog, use_fates, use_fan
@@ -15,7 +16,7 @@ module EcosystemBalanceCheckMod
   use elm_time_manager    , only : get_step_size,get_nstep
   use elm_varpar          , only : crop_prog
   use elm_varpar          , only : nlevdecomp
-  use elm_varpar          , only : nminerals, ncations, nminsecs, mixing_layer
+  use elm_varpar          , only : nminerals, ncations, nminsecs
   use elm_varcon          , only : dzsoi_decomp
   use elm_varctl          , only : nu_com
   use elm_varctl          , only : ECA_Pconst_RGspin

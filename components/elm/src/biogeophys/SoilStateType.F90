@@ -11,7 +11,7 @@ module SoilStateType
   use ncdio_pio       , only : ncd_pio_openfile, ncd_inqfdims, ncd_pio_closefile, ncd_inqdid, ncd_inqdlen
   use elm_varpar      , only : more_vertlayers, numpft, numrad
   use elm_varpar      , only : nlevsoi, nlevgrnd, nlevlak, nlevsoifl, nlayer, nlayert, nlevurb, nlevsno
-  use elm_varpar      , only : ncations, mixing_layer
+  use elm_varpar      , only : ncations
   use landunit_varcon , only : istice, istdlak, istwet, istsoil, istcrop, istice_mec
   use column_varcon   , only : icol_roof, icol_sunwall, icol_shadewall, icol_road_perv, icol_road_imperv 
   use elm_varcon      , only : zsoi, dzsoi, zisoi, spval, namet, grlnd
@@ -22,6 +22,7 @@ module SoilStateType
   use elm_varctl      , only : use_erosion, use_ew
   use elm_varctl      , only : use_var_soil_thick
   use elm_varctl      , only : iulog, fsurdat, hist_wrtch4diag
+  use shr_sys_mod     , only : shr_sys_flush
   use CH4varcon       , only : allowlakeprod
   use LandunitType    , only : lun_pp                
   use ColumnType      , only : col_pp                
@@ -198,13 +199,13 @@ contains
     allocate(this%root_conductance_patch(begp:endp,1:nlevsoi))          ; this%root_conductance_patch (:,:) = spval
     allocate(this%soil_conductance_patch(begp:endp,1:nlevsoi))          ; this%soil_conductance_patch (:,:) = spval
 
-    allocate(this%sph                  (begc:endc,1:nlevgrnd))          ; this%sph                 (:,:)   = spval
-    allocate(this%cect_col             (begc:endc,1:nlevgrnd))          ; this%cect_col           (:,:)   = spval
-    allocate(this%cece_col             (begc:endc,1:nlevgrnd,1:ncations)); this%cece_col          (:,:,:)   = spval
-    allocate(this%ceca_col             (begc:endc,1:nlevgrnd))          ; this%ceca_col             (:,:)   = spval
-    allocate(this%log_km_col           (begc:endc,1:nlevgrnd,1:ncations)); this%log_km_col         (:,:,:) = spval
-    allocate(this%kaolinite_col        (begc:endc,1:nlevgrnd))          ; this%kaolinite_col      (:,:)   = spval
-    allocate(this%calcite_col          (begc:endc,1:nlevgrnd))          ; this%calcite_col        (:,:)   = spval
+    allocate(this%sph                  (begc:endc,1:nlevsoi))           ; this%sph                 (:,:)   = spval
+    allocate(this%cect_col             (begc:endc,1:nlevsoi))           ; this%cect_col           (:,:)   = spval
+    allocate(this%cece_col             (begc:endc,1:nlevsoi,1:ncations)); this%cece_col          (:,:,:)   = spval
+    allocate(this%ceca_col             (begc:endc,1:nlevsoi))           ; this%ceca_col             (:,:)   = spval
+    allocate(this%log_km_col           (begc:endc,1:nlevsoi,1:ncations)); this%log_km_col         (:,:,:) = spval
+    allocate(this%kaolinite_col        (begc:endc,1:nlevsoi))           ; this%kaolinite_col      (:,:)   = spval
+    allocate(this%calcite_col          (begc:endc,1:nlevsoi))           ; this%calcite_col        (:,:)   = spval
 
   end subroutine InitAllocate
 
@@ -604,13 +605,13 @@ contains
 
     ! Read cation exchange properties
     if (use_ew) then
-       allocate(sph_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
-       allocate(cect_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
-       allocate(cece_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
-       allocate(ceca_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
-       allocate(logkm_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
-       allocate(kaolinite_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
-       allocate(calcite_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
+       allocate(sph_in(bounds%begg:bounds%endg,max_topounits,nlevsoi))
+       allocate(cect_in(bounds%begg:bounds%endg,max_topounits,nlevsoi))
+       allocate(cece_in(bounds%begg:bounds%endg,max_topounits,nlevsoi))
+       allocate(ceca_in(bounds%begg:bounds%endg,max_topounits,nlevsoi))
+       allocate(logkm_in(bounds%begg:bounds%endg,max_topounits,nlevsoi))
+       allocate(kaolinite_in(bounds%begg:bounds%endg,max_topounits,nlevsoi))
+       allocate(calcite_in(bounds%begg:bounds%endg,max_topounits,nlevsoi))
 
        do a = 1,ncations
           write (a_str, '(I6)') a
@@ -623,7 +624,7 @@ contains
           end if
 
           do c = bounds%begc, bounds%endc
-             do lev = 1,mixing_layer
+             do lev = 1,nlevsoi
                 this%cece_col(c,lev,a) = cece_in(g,ti,lev)
              end do
           end do
@@ -654,7 +655,7 @@ contains
           t = col_pp%topounit(c)
           topi = grc_pp%topi(g)
           ti = t - topi + 1
-          do lev = 1,mixing_layer
+          do lev = 1,nlevsoi
             this%sph     (c, lev) =  sph_in(g,ti,lev)
             this%cect_col(c, lev) = cect_in(g,ti,lev)
             this%ceca_col(c, lev) = ceca_in(g,ti,lev)
@@ -675,13 +676,12 @@ contains
             calc_logkm = .true.
           else
             do c = bounds%begc, bounds%endc
-               do lev = 1,mixing_layer
+               do lev = 1,nlevsoi
                   this%log_km_col(c,lev,a) = logkm_in(g,ti,lev)
                end do
             end do
           end if
        end do
-
        deallocate(sph_in, cect_in, cece_in, ceca_in, logkm_in, kaolinite_in, calcite_in)
     end if
 
@@ -957,31 +957,33 @@ contains
                         kex_al = (/2.752, 2.841, 5.471, 3.894/)
                      end if
 
-                     ! Ca2+
-                     this%log_km_col(c,lev,1) = - ((kex_ca(1)*this%cellsand_col(c, lev) &
-                        + kex_ca(3)*this%cellclay_col(c,lev) &
-                        + kex_ca(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) &
-                     ) * (1 - om_frac) / 100._r8 + kex_ca(4)*om_frac)
-                     ! Mg2+
-                     this%log_km_col(c,lev,2) = - ((kex_mg(1)*this%cellsand_col(c, lev) &
-                        + kex_mg(3)*this%cellclay_col(c,lev) &
-                        + kex_mg(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) & 
-                     ) * (1 - om_frac) / 100._r8 + kex_mg(4)*om_frac)
-                     ! Na+
-                     this%log_km_col(c,lev,3) = - ((kex_na(1)*this%cellsand_col(c, lev) &
-                        + kex_na(3)*this%cellclay_col(c,lev) &
-                        + kex_na(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) & 
-                     ) * (1 - om_frac) / 100._r8 + kex_na(4)*om_frac)
-                     ! K+
-                     this%log_km_col(c,lev,4) = - ((kex_k(1)*this%cellsand_col(c, lev) &
-                        + kex_k(3)*this%cellclay_col(c,lev) &
-                        + kex_k(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) & 
-                     ) * (1 - om_frac) / 100._r8 + kex_k(4)*om_frac)
-                     ! Al3+
-                     this%log_km_col(c,lev,5) = - ((kex_al(1)*this%cellsand_col(c, lev) &
-                        + kex_al(3)*this%cellclay_col(c,lev) &
-                        + kex_al(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) & 
-                     ) * (1 - om_frac) / 100._r8 + kex_al(4)*om_frac)
+                     if (lev <= nlevsoi) then
+                        ! Ca2+
+                        this%log_km_col(c,lev,1) = - ((kex_ca(1)*this%cellsand_col(c, lev) &
+                           + kex_ca(3)*this%cellclay_col(c,lev) &
+                           + kex_ca(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) &
+                        ) * (1 - om_frac) / 100._r8 + kex_ca(4)*om_frac)
+                        ! Mg2+
+                        this%log_km_col(c,lev,2) = - ((kex_mg(1)*this%cellsand_col(c, lev) &
+                           + kex_mg(3)*this%cellclay_col(c,lev) &
+                           + kex_mg(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) & 
+                        ) * (1 - om_frac) / 100._r8 + kex_mg(4)*om_frac)
+                        ! Na+
+                        this%log_km_col(c,lev,3) = - ((kex_na(1)*this%cellsand_col(c, lev) &
+                           + kex_na(3)*this%cellclay_col(c,lev) &
+                           + kex_na(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) & 
+                        ) * (1 - om_frac) / 100._r8 + kex_na(4)*om_frac)
+                        ! K+
+                        this%log_km_col(c,lev,4) = - ((kex_k(1)*this%cellsand_col(c, lev) &
+                           + kex_k(3)*this%cellclay_col(c,lev) &
+                           + kex_k(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) & 
+                        ) * (1 - om_frac) / 100._r8 + kex_k(4)*om_frac)
+                        ! Al3+
+                        this%log_km_col(c,lev,5) = - ((kex_al(1)*this%cellsand_col(c, lev) &
+                           + kex_al(3)*this%cellclay_col(c,lev) &
+                           + kex_al(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) & 
+                        ) * (1 - om_frac) / 100._r8 + kex_al(4)*om_frac)
+                     end if
                   end if
                 end if
              end if
