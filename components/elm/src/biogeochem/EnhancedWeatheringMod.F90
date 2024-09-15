@@ -1223,6 +1223,7 @@ contains
           keq_list(icat) = 10**soilstate_vars%log_km_col(c,j,icat)
         end do
         soil_ph(c,j) = solve_eq(net_charge_vr(c,j), co2_atm, beta_list, keq_list, EWParamsInst%cations_valence)
+        ! write (iulog, *) 'solve_eq', c, j, beta_list(1), beta_list(2), beta_list(3), beta_list(4), beta_list(5)
 
         ! calculate the implications on HCO3- & CO3 --
         bicarbonate_vr(c,j) = ph_to_hco3(soil_ph(c,j), co2_atm)
