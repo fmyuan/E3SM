@@ -957,8 +957,8 @@ contains
                         kex_al = (/2.752, 2.841, 5.471, 3.894/)
                      end if
 
+                     ! Ca2+
                      if (lev <= nlevsoi) then
-                        ! Ca2+
                         this%log_km_col(c,lev,1) = - ((kex_ca(1)*this%cellsand_col(c, lev) &
                            + kex_ca(3)*this%cellclay_col(c,lev) &
                            + kex_ca(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) &

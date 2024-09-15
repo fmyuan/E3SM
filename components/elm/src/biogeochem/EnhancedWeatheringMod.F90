@@ -312,9 +312,7 @@ contains
     associate( &
          soil_ph                        => col_ms%soil_ph                 , & ! Input:  [real(r8) (:,:)] calculated soil pH (1:nlevgrnd)
          h2osoi_vol                     => col_ws%h2osoi_vol              , & ! Input:  [real(r8) (:)] volumetric soil water content, ice + water (m3 m-3)
-
          nlev2bed                       => col_pp%nlevbed                 , & ! Input:  [integer  (:)   ]  number of layers to bedrock
-
          proton_vr                      => col_ms%proton_vr               , & ! Output: calculated soil H+ concentration in soil water each soil layer (1:nlevgrnd) (g m-3 soil [not water])
          bicarbonate_vr                 => col_ms%bicarbonate_vr          , & ! Output: [real(r8) (:,:)] calculated HCO3- concentration in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd)
          carbonate_vr                   => col_ms%carbonate_vr            , & ! Output: [real(r8) (:,:)] calculated CO3 2- concentration in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd)
@@ -399,15 +397,14 @@ contains
 
     !
     ! !LOCAL VARIABLES:
-    integer  :: fc,c,j
+    integer  :: fc,c,j, nlevbed
     integer  :: m, isec, icat          ! indices
     integer  :: kyr                    ! current year
     integer  :: kmo                    ! month of year  (1, ..., 12)
     integer  :: kda                    ! day of month   (1, ..., 31)
     integer  :: mcsec                  ! seconds 
     integer  :: current_date
-    integer  :: nlevbed
-    real(r8) :: equilibria_conc(0:mixing_layer)
+    real(r8) :: equilibria_conc(1:nlevsoi)
     real(r8) :: beta_h, beta_cation, keq, h
     real(r8) :: dt
     real(r8) :: log_k_dissolve_acid, log_k_dissolve_neutral, log_k_dissolve_base
@@ -485,7 +482,8 @@ contains
          !
          ! Other related
          !
-         tsoi                          => col_es%t_soisno     , &
+         nlev2bed                      => col_pp%nlevbed      , & ! Input:  [integer  (:)   ]  number of layers to bedrock
+         tsoi                          => col_es%t_soisno     , & ! Input: [real(r8) (:,:) ] soil temperature [K]
          qin                           => col_wf%qin          , & ! Input: [real(r8) (:,:) ] flux of water into soil layer [mm h2o/s]
          qout                          => col_wf%qout         , & ! Input: [real(r8) (:,:) ] flux of water out of soil layer [mm h2o/s]
          qflx_drain                    => col_wf%qflx_drain   , & ! Input:  [real(r8) (:)   ]  sub-surface runoff (mm H2O /s)                    
@@ -598,7 +596,7 @@ contains
         dzsum = dzsum + dz(c,j)
       end do
 
-      do icat = 1, ncations
+      do icat = 1,ncations
         ! rainwater, mg/L => mol/kg
         ! equilibria_conc(0) = rain_chem(c,icat) * 1e-3 / EWParamsInst%cations_mass(icat)
         do j = 1,nlevbed
@@ -659,7 +657,7 @@ contains
       end do
 
       do j = 1,nlevbed
-        if ((j > mixing_layer) .or. (h2osoi_liqvol(c,j) < 1e-6)) then
+        if (j > mixing_layer .or. h2osoi_liqvol(c,j) < 1e-6) then
           do m = 1,nminerals
             r_dissolve_vr(c,j,m) = 0._r8
           end do
@@ -911,12 +909,11 @@ contains
     real(r8) :: drain_tot                              ! total drainage flux (mm H2O /s)
     real(r8), parameter :: depth_runoff_Mloss = 0.05   ! (m) depth over which runoff mixes with soil water for ions loss to runoff; same as nitrogen runoff depth
     real(r8) :: rain_proton, rain_cations(1:ncations)  ! surface boundary condition (g m-3 H2O)
-    real(r8) :: sourcesink_cations(1:nlevgrnd,1:ncations) ! (g m-3 soil s-1)
-    real(r8) :: initial_cations(1:nlevgrnd)        ! (g m-3 soil)
-    real(r8) :: adv_water(1:nlevgrnd+1)            ! m H2O / s, negative downward
-    real(r8) :: diffus(1:nlevgrnd)                 ! m2/s
-    real(r8) :: rho(1:nlevgrnd)                    ! "density" factor using soil water content
-    real(r8) :: dcation_dt(1:nlevgrnd, 1:ncations) ! cation concentration rate, g m-3 s-1
+    real(r8) :: sourcesink_proton(1:nlevsoi), sourcesink_cations(1:nlevsoi,1:ncations) ! (g m-3 soil s-1)
+    real(r8) :: adv_water(1:nlevsoi+1)                 ! m H2O / s, negative downward
+    real(r8) :: diffus(1:nlevsoi)                      ! m2/s
+    real(r8) :: rho(1:nlevsoi)                         ! "density" factor using soil water content
+    real(r8) :: dcation_dt(1:nlevsoi, 1:ncations)      ! cation concentration rate, g m-3 s-1
 
     !-----------------------------------------------------------------------
 
@@ -1002,16 +999,22 @@ contains
       ! Calculate the vertical transport
       !------------------------------------------------------------------------------
       do icat = 1,ncations
-        diffus(1:nlevbed) = EWParamsInst%cations_diffusivity(icat)
+        diffus(1:nlevsoi) = EWParamsInst%cations_diffusivity(icat)
         do j = 1,nlevbed
           ! note the flux rate is negative downward
           adv_water(j) = -1.0e-3_r8 * qin(c,j)
         end do
-        adv_water(nlevbed+1) = - 1.0e-3_r8 * qout(c,nlevbed)
-        initial_cations(1:nlevbed) = cation_vr(c,1:nlevbed,icat)
+        adv_water(nlevbed + 1) = qin(c,j+1)
+
+        !write (iulog, *) 'pre-adv', c, icat, cation_vr(c,1:mixing_layer, icat)
+        !write (iulog, *) 'adv_water', c, adv_water(1:mixing_layer)
+        !write (iulog, *) 'diffus', c, icat, diffus(1:mixing_layer)
+        !write (iulog, *) 'sourcesink', c, icat, sourcesink_cations(1:mixing_layer,icat)
+        !write (iulog, *) 'rain_cations', c, icat, rain_cations(icat)
+        !write (iulog, *) 'rho', c, icat, rho(1:mixing_layer)
 
         call advection_diffusion( & 
-          initial_cations(1:nlevsoi), adv_water(1:nlevsoi+1), diffus(1:nlevsoi), &
+          cation_vr(c,1:nlevsoi, icat), adv_water(1:nlevsoi+1), diffus(1:nlevsoi), &
           sourcesink_cations(1:nlevsoi,icat), rain_cations(icat), nlevbed, dt, &
           h2osoi_liqvol(c,1:nlevsoi), &
           dcation_dt(1:nlevsoi, icat) &
@@ -1020,15 +1023,6 @@ contains
 
       !------------------------------------------------------------------------------
       ! Update the cation concentrations using the vertical transport
-      !------------------------------------------------------------------------------
-      do icat = 1,ncations
-        do j = 1,nlevbed
-          cation_vr(c, j, icat) = cation_vr(c, j, icat) + dcation_dt(j, icat) * dt
-        end do
-      end do
-
-      !------------------------------------------------------------------------------
-      ! Fill the boundary variables for balance check purpose
       !------------------------------------------------------------------------------
       do j = 1, nlevbed
         proton_infl_vr(c,j) = 0._r8
@@ -1040,6 +1034,16 @@ contains
           cation_infl_vr(c,j,icat) = dcation_dt(j, icat) - sourcesink_cations(j,icat)
           cation_oufl_vr(c,j,icat) = 0._r8
         end do
+      end do
+
+      !------------------------------------------------------------------------------
+      ! Update the cation concentrations using the vertical transport
+      !------------------------------------------------------------------------------
+      do icat = 1,ncations
+        do j = 1,nlevbed
+          cation_vr(c, j, icat) = cation_vr(c, j, icat) + dcation_dt(j, icat) * dt
+        end do
+        !write (iulog, *) 'post-adv', c, icat, cation_vr(c,1:mixing_layer, icat)
       end do
 
       !------------------------------------------------------------------------------
@@ -1151,7 +1155,7 @@ contains
 
     !
     ! !LOCAL VARIABLES:
-    integer  :: fc,c,t,j
+    integer  :: fc,c,t,j,nlevbed
     integer  :: icat                   ! indices
     real(r8) :: co2_atm                ! CO2 partial pressure in atm
     real(r8) :: cece(1:ncations)       ! temporary container (meq 100g-1 soil)
@@ -1163,6 +1167,7 @@ contains
 
     associate( &
         net_charge_vr                       => col_ms%net_charge_vr           , & ! Input:  [real(r8) (:,:)] net charge of the tracked ions in the soil solution system, constant over time (1:nlevgrnd) (mol kg-1)
+        nlev2bed                            => col_pp%nlevbed                 , & ! Input:  [integer (:)    ]  number of layers to bedrock
 
         soil_ph                             => col_ms%soil_ph                 , & ! Input:  [real(r8) (:,:)] calculated soil pH (1:nlevgrnd)
         proton_vr                           => col_ms%proton_vr               , & ! Input: [real (r8) (:,:)] calculated soil H+ concentration in soil water each soil layer (1:nlevgrnd) (g m-3 soil [not water])
@@ -1183,16 +1188,16 @@ contains
     do fc = 1,num_soilc
       c = filter_soilc(fc)
       t = col_pp%topounit(c)
+      nlevbed = min(nlev2bed(c), nlevsoi)
 
       co2_atm = top_as%pco2bot(t) / 101325
 
-      do j = 1,nlevgrnd
+      do j = 1,nlevbed
+
         ! use grid search to find the pH
         do icat = 1,ncations
-          cece(icat) = mass_to_meq(cec_cation_vr(c,j,icat), &
-                                EWParamsInst%cations_valence(icat), &
-                                EWParamsInst%cations_mass(icat), &
-                                soilstate_vars%bd_col(c,j))
+          cece(icat) = mass_to_meq(cec_cation_vr(c,j,icat), EWParamsInst%cations_valence(icat), &
+            EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j))
           beta_list(icat) = cece(icat) / soilstate_vars%cect_col(c,j)
           keq_list(icat) = 10**soilstate_vars%log_km_col(c,j,icat)
         end do
@@ -1219,8 +1224,8 @@ contains
         do icat = 1,ncations
           conc(icat) = beta_list(icat)/(beta_h*keq_list(icat)/10**(-soil_ph(c,j)))**EWParamsInst%cations_valence(icat)
           ! the reaction happens in the liquid water part only
-          cec_cation_flux_vr(c,j,icat) = (mol_to_mass(conc(icat), EWParamsInst%cations_mass(icat), h2osoi_liqvol(c,j)) - &
-                                       cation_vr(c,j,icat)*h2osoi_liqvol(c,j)/h2osoi_vol(c,j)) / dt
+          cec_cation_flux_vr(c,j,icat) = (mol_to_mass(conc(icat), EWParamsInst%cations_mass(icat), &
+            h2osoi_liqvol(c,j)) - cation_vr(c,j,icat)*h2osoi_liqvol(c,j)/h2osoi_vol(c,j)) / dt
         end do
 
       end do

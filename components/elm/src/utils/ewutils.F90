@@ -300,11 +300,11 @@ contains
     use elm_varpar       , only : nlevsoi
     use abortutils       , only : endrun
 
-    integer, intent(in)  :: nlevbed
     real(r8), intent(in) :: conc_trcr(1:nlevsoi)  ! Bulk concentration (e.g. mol/m3)
     real(r8), intent(in) :: adv_flux(1:nlevsoi+1) ! (m/s), vertical into layer (down is negative)
     real(r8), intent(in) :: diffus(1:nlevsoi)  ! diffusivity (m2/s)
     real(r8), intent(in) :: source(1:nlevsoi)  ! Source term (mol/m3/s)
+    integer , intent(in) :: nlevbed ! Number of hydrologically active layers
 
     real(r8), intent(in) :: surf_bc                 ! Surface boundary layer concentration (for infiltration)
     real(r8), intent(in) :: dtime                   ! Time step (s)
@@ -338,13 +338,13 @@ contains
 
     ! Set the distance between the node and the one ABOVE it   
     dz_node(1) = zsoi(1)
-    do j = 2,nlevbed+1
+    do j = 2,nlevsoi+1
       dz_node(j)= zsoi(j) - zsoi(j-1)
     enddo
 
-    !write(iulog,*) 'adv_flux',adv_flux(1:nlevbed+1)
-    !write(iulog,*) 'diffus',diffus(1:nlevbed)
-    !write(iulog,*) 'source',source(1:nlevbed)
+    !write(iulog,*) 'adv_flux',adv_flux(1:nlevsoi+1)
+    !write(iulog,*) 'diffus',diffus(1:nlevsoi)
+    !write(iulog,*) 'source',source(1:nlevsoi)
 
     ! Calculate the D and F terms in the Patankar algorithm
     ! d: diffusivity
@@ -408,6 +408,7 @@ contains
           pe_p1(j) = f_p1(j) / d_p1_zp1(j) ! Peclet #
       end if
     enddo ! j; nlevbed
+
 
     ! Calculate the tridiagonal coefficients
     ! Coefficients of tridiagonal problem: a_i*x_(i-1) + b_i*(x_i) + c_i*x_(i+1) = r_i
@@ -478,12 +479,11 @@ contains
 
     !write (iulog,*) 'conc_before',conc_trcr
     !write (iulog,*) 'conc_after',conc_after
-    !write (iulog,*) 'Diff=',sum((conc_after(1:nlevbed)-conc_trcr)*dzsoi_decomp)
-    !write (iulog,*) 'Flow',adv_flux(1:nlevbed+1)
+    !write (iulog,*) 'Diff=',sum((conc_after(1:nlevsoi)-conc_trcr)*dzsoi_decomp)
+    !write (iulog,*) 'Flow',adv_flux(1:nlevsoi+1)
     !write (iulog,*) 'Diffus',diffus
     !write (iulog,*) 'dz',dzsoi_decomp
     !write (iulog,*) 'dznode',dz_node
-
     do j = 1,nlevbed
       conc_change_rate(j) = (conc_after(j)-conc_trcr(j))/dtime
     end do

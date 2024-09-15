@@ -6055,18 +6055,18 @@ contains
                this%carbonate_vr(c,n) = 0._r8
             end do
 
-            this%primary_mineral_vr      (c,1:nlevgrnd,1:nminerals ) = 0._r8
-            this%silica_vr               (c,1:nlevgrnd             ) = 1e-10_r8 ! need a small nonzero number to avoid initializing to infinity
-            this%primary_residue_vr      (c,1:nlevgrnd,1:nminerals ) = 0._r8
-            this%armor_thickness_vr      (c,1:nlevgrnd             ) = 0._r8
+            this%primary_mineral_vr      (c,1:nlevsoi,1:nminerals ) = 0._r8
+            this%silica_vr               (c,1:nlevsoi             ) = 1e-10_r8 ! need a small nonzero number to avoid initializing to infinity
+            this%primary_residue_vr      (c,1:nlevsoi,1:nminerals ) = 0._r8
+            this%armor_thickness_vr      (c,1:nlevsoi             ) = 0._r8
             this%ssa                     (c,1:nminerals            ) = 0._r8
-            this%secondary_mineral_vr    (c,1:nlevgrnd,1:nminsecs   ) = 0._r8
+            this%secondary_mineral_vr    (c,1:nlevsoi,1:nminsecs   ) = 0._r8
 
             ! will be re-initialized after hydrology reaches equilibrium
-            this%cec_proton_vr           (c,1:nlevgrnd             ) = 0._r8
-            this%cec_cation_vr           (c,1:nlevgrnd,1:ncations  ) = 0._r8
+            this%cec_proton_vr           (c,1:nlevsoi             ) = 0._r8
+            this%cec_cation_vr           (c,1:nlevsoi,1:ncations  ) = 0._r8
             this%cation_vr               (c,1:nlevgrnd,1:ncations      ) = 0._r8
-            this%net_charge_vr           (c,1:nlevgrnd             ) = 0._r8
+            this%net_charge_vr           (c,1:nlevsoi             ) = 0._r8
 
             this%primary_mineral         (c,1:nminerals            ) = 0._r8
             this%proton                  (c                        ) = 0._r8
@@ -6306,8 +6306,8 @@ contains
          c = filter_soilc(fc)
          nlevbed = min(col_pp%nlevbed(c), nlevsoi)
 
-         do j = 1,nlevbed
-            do a = 1,nminerals
+         do j = 1,nlevsoi
+            do a = 1, nminerals
                this%primary_mineral(c,a) = &
                   this%primary_mineral(c,a) + this%primary_mineral_vr(c,j,a) * col_pp%dz(c,j)
                this%primary_residue(c,a) = &
@@ -12905,41 +12905,41 @@ contains
 
          ! must be vegetated/bare land or crop
          !if (lun_pp%itype(l)==istsoil .or. lun_pp%itype(l)==istcrop) then
-            this%background_weathering_vr        (c,1:nlevgrnd,1:ncations ) = 0._r8
-            this%primary_added_vr                (c,1:nlevgrnd,1:nminerals) = 0._r8
-            this%primary_dissolve_vr             (c,1:nlevgrnd,1:nminerals) = 0._r8
-            this%primary_proton_flux_vr          (c,1:nlevgrnd            ) = 0._r8
-            this%primary_cation_flux_vr          (c,1:nlevgrnd,1:ncations ) = 0._r8
-            this%primary_h2o_flux_vr             (c,1:nlevgrnd            ) = 0._r8
-            this%primary_silica_flux_vr          (c,1:nlevgrnd            ) = 0._r8
-            this%primary_residue_flux_vr         (c,1:nlevgrnd,1:nminerals) = 0._r8
-            this%primary_prelease_vr             (c,1:nlevgrnd            ) = 0._r8
+            this%background_weathering_vr        (c,1:nlevsoi,1:ncations ) = 0._r8
+            this%primary_added_vr                (c,1:nlevsoi,1:nminerals) = 0._r8
+            this%primary_dissolve_vr             (c,1:nlevsoi,1:nminerals) = 0._r8
+            this%primary_proton_flux_vr          (c,1:nlevsoi            ) = 0._r8
+            this%primary_cation_flux_vr          (c,1:nlevsoi,1:ncations ) = 0._r8
+            this%primary_h2o_flux_vr             (c,1:nlevsoi            ) = 0._r8
+            this%primary_silica_flux_vr          (c,1:nlevsoi            ) = 0._r8
+            this%primary_residue_flux_vr         (c,1:nlevsoi,1:nminerals) = 0._r8
+            this%primary_prelease_vr             (c,1:nlevsoi            ) = 0._r8
 
-            this%r_dissolve_vr                   (c,1:nlevgrnd,1:nminerals) = 0._r8
-            this%log_omega_vr                    (c,1:nlevgrnd,1:nminerals) = 0._r8
+            this%r_dissolve_vr                   (c,1:nlevsoi,1:nminerals) = 0._r8
+            this%log_omega_vr                    (c,1:nlevsoi,1:nminerals) = 0._r8
 
-            this%secondary_mineral_flux_vr       (c,1:nlevgrnd,1:nminsecs  ) = 0._r8
-            this%secondary_cation_flux_vr        (c,1:nlevgrnd,1:ncations ) = 0._r8
-            this%secondary_silica_flux_vr        (c,1:nlevgrnd            ) = 0._r8
-            this%r_precip_vr                     (c,1:nlevgrnd,1:nminsecs  ) = 0._r8
+            this%secondary_mineral_flux_vr       (c,1:nlevsoi,1:nminsecs  ) = 0._r8
+            this%secondary_cation_flux_vr        (c,1:nlevsoi,1:ncations ) = 0._r8
+            this%secondary_silica_flux_vr        (c,1:nlevsoi            ) = 0._r8
+            this%r_precip_vr                     (c,1:nlevsoi,1:nminsecs  ) = 0._r8
 
-            this%cec_cation_flux_vr              (c,1:nlevgrnd,1:ncations ) = 0._r8
-            this%cec_proton_flux_vr              (c,1:nlevgrnd            ) = 0._r8
+            this%cec_cation_flux_vr              (c,1:nlevsoi,1:ncations ) = 0._r8
+            this%cec_proton_flux_vr              (c,1:nlevsoi            ) = 0._r8
 
-            this%cec_limit_vr                   (c,1:nlevgrnd,1:ncations ) = 1._r8
-            this%proton_limit_vr                (c,1:nlevgrnd            ) = 1._r8
-            this%flux_limit_vr                  (c,1:nlevgrnd,1:ncations ) = 1._r8
+            this%cec_limit_vr                    (c,1:nlevsoi,1:ncations ) = 1._r8
+            this%proton_limit_vr                 (c,1:nlevsoi            ) = 1._r8
+            this%flux_limit_vr                   (c,1:nlevsoi,1:ncations ) = 1._r8
 
-            this%cation_infl_vr                  (c,1:nlevgrnd,1:ncations ) = 0._r8
-            this%cation_oufl_vr                  (c,1:nlevgrnd,1:ncations ) = 0._r8
-            this%cation_uptake_vr                (c,1:nlevgrnd,1:ncations ) = 0._r8
-            this%cation_leached_vr               (c,1:nlevgrnd,1:ncations ) = 0._r8
-            this%cation_runoff_vr                (c,1:nlevgrnd,1:ncations ) = 0._r8
-            this%proton_infl_vr                  (c,1:nlevgrnd            ) = 0._r8
-            this%proton_oufl_vr                  (c,1:nlevgrnd            ) = 0._r8
-            this%proton_uptake_vr                (c,1:nlevgrnd            ) = 0._r8
-            this%proton_leached_vr               (c,1:nlevgrnd            ) = 0._r8
-            this%proton_runoff_vr                (c,1:nlevgrnd            ) = 0._r8
+            this%cation_infl_vr                  (c,1:nlevsoi,1:ncations ) = 0._r8
+            this%cation_oufl_vr                  (c,1:nlevsoi,1:ncations ) = 0._r8
+            this%cation_uptake_vr                (c,1:nlevsoi,1:ncations ) = 0._r8
+            this%cation_leached_vr               (c,1:nlevsoi,1:ncations ) = 0._r8
+            this%cation_runoff_vr                (c,1:nlevsoi,1:ncations ) = 0._r8
+            this%proton_infl_vr                  (c,1:nlevsoi            ) = 0._r8
+            this%proton_oufl_vr                  (c,1:nlevsoi            ) = 0._r8
+            this%proton_uptake_vr                (c,1:nlevsoi            ) = 0._r8
+            this%proton_leached_vr               (c,1:nlevsoi            ) = 0._r8
+            this%proton_runoff_vr                (c,1:nlevsoi            ) = 0._r8
 
             this%background_weathering           (c,1:ncations            ) = 0._r8
 
@@ -13436,7 +13436,7 @@ contains
          do a = 1,ncations
             this%cation_infl(c,a) = 0._r8
             this%cation_oufl(c,a) = 0._r8
-            do j = 1,nlevbed
+            do j = 1,nlevsoi
                this%cation_infl(c,a) = this%cation_infl(c,a) + this%cation_infl_vr(c,j,a) * col_pp%dz(c,j)
                this%cation_oufl(c,a) = this%cation_oufl(c,a) + this%cation_oufl_vr(c,j,a) * col_pp%dz(c,j)
             end do
@@ -13445,7 +13445,7 @@ contains
          this%proton_oufl(c) = 0._r8
 
          ! vertical integrated flux
-         do j = 1,nlevbed
+         do j = 1,nlevsoi
             do a = 1,nminerals
                this%primary_added(c,a) = &
                   this%primary_added(c,a) + this%primary_added_vr(c,j,a) * col_pp%dz(c,j)
