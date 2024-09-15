@@ -9,6 +9,8 @@ module MineralStateUpdateMod
   use elm_varpar              , only : nminerals, ncations, nminsecs, nlevgrnd, nlevsoi
   use elm_varcon              , only : zisoi, dzsoi, mass_h
   use elm_varctl              , only : iulog
+  use shr_sys_mod             , only : shr_sys_flush
+  use spmdMod                 , only : masterproc
   use abortutils              , only : endrun
   use shr_log_mod             , only : errMsg => shr_log_errMsg
   use ewutils                 , only : mass_to_mol, mass_to_meq, mol_to_mass
@@ -18,7 +20,6 @@ module MineralStateUpdateMod
   use SoilStateType           , only : soilstate_type
   use EnhancedWeatheringMod   , only : EWParamsInst
   use domainMod               , only : ldomain ! debug print
-  use shr_sys_mod             , only : shr_sys_flush
   !
   implicit none
   save
@@ -214,70 +215,131 @@ contains
     integer  :: c,j,icat,m,g ! indices
     integer  :: fc        ! lake filter indices
     integer  :: nlevbed
-    real(r8) :: temp_in, temp_out
+    real(r8) :: residual_factor
+    real(r8) :: temp_delta_cece(1:num_soilc, 1:nlevsoi, 1:ncations)
+    real(r8) :: temp_delta_ceca(1:num_soilc, 1:nlevsoi)
+    real(r8) :: temp_delta1_cation(1:num_soilc, 1:nlevsoi, 1:ncations)
+    real(r8) :: temp_delta2_cation(1:num_soilc, 1:nlevsoi, 1:ncations)
+    real(r8) :: min_flux_limit(1:num_soilc, 1:nlevsoi)
+    logical  :: err_found
+    integer  :: err_fc, err_lev, err_icat, err_col
     character(len=32) :: subname = 'elm_erw_mineral_flux_limit'  ! subroutine name
     !-----------------------------------------------------------------------
 
+    ! ensure a tiny bit of cation is left due to numerical accuracy reasons
+    residual_factor = 0.99_r8
+
+    min_flux_limit(1:num_soilc, 1:nlevsoi) = 1._r8
+    err_found = .false.
+
     do fc = 1,num_soilc
       c = filter_soilc(fc)
-      g = col_pp%gridcell(c)
       nlevbed = min(col_pp%nlevbed(c), nlevsoi)
-
       do j = 1,nlevbed
+
+        ! Limit due to cation exchange capacity of individual non-proton cations
         do icat = 1,ncations
-
-          ! Limit due to cation exchange capacity
-          temp_in = 0._r8
-          temp_out = - col_mf%cec_cation_flux_vr(c,j,icat)*dt
-          if ((col_ms%cec_cation_vr(c,j,icat) + temp_in + temp_out) < 0._r8) then
-            ! ensure a tiny bit of cation is left due to numerical accuracy reasons
-            col_mf%cec_limit_vr(c,j,icat) = - (temp_in + col_ms%cec_cation_vr(c,j,icat)) / temp_out * 0.99_r8
-
-            col_mf%cec_cation_flux_vr(c,j,icat) = col_mf%cec_cation_flux_vr(c,j,icat) * col_mf%cec_limit_vr(c,j,icat)
-
-            write (iulog, *) 'Flux limit due to negative CEC cation: ', ldomain%latc(g), ldomain%lonc(g), g, c, j, icat, col_mf%cec_limit_vr(c,j,icat) ! , col_mf%cec_cation_flux_vr(c,j,icat)
+          ! cec_cation_flux_vr > 0 := flow from CEC to solution
+          temp_delta_cece(fc,j,icat) = - col_mf%cec_cation_flux_vr(c,j,icat)*dt
+          if ((col_ms%cec_cation_vr(c,j,icat) + temp_delta_cece(fc,j,icat)) < 0._r8) then
+            col_mf%cec_limit_vr(c,j,icat) = - col_ms%cec_cation_vr(c,j,icat) / &
+                                  temp_delta_cece(fc,j,icat) * residual_factor
+            col_mf%cec_cation_flux_vr(c,j,icat) = col_mf%cec_cation_flux_vr(c,j,icat) * & 
+                                  col_mf%cec_limit_vr(c,j,icat)
+            min_flux_limit(fc,j) = min(min_flux_limit(fc,j), col_mf%cec_limit_vr(c,j,icat))
+          else
+            col_mf%cec_limit_vr(c,j,icat) = 1._r8
           end if
         end do
 
+        ! Limit due to cation exchange capacity of H+
+        temp_delta_ceca(fc,j) = 0._r8
         do icat = 1,ncations
-          ! Limit due to soil solution cation concentration
-          temp_in = col_mf%background_weathering_vr(c,j,icat)*dt + &
+          temp_delta_ceca(fc,j) = temp_delta_ceca(fc,j) + col_mf%cec_cation_flux_vr(c,j,icat) & 
+            * dt / EWParamsInst%cations_mass(icat) * mass_h * EWParamsInst%cations_valence(icat)
+        end do
+        if ((col_ms%cec_proton_vr(c,j) + temp_delta_ceca(fc,j)) < 0._r8) then        
+          col_mf%proton_limit_vr(c,j) = - col_ms%cec_proton_vr(c,j) / temp_delta_ceca(fc,j) & 
+                              * residual_factor
+          do icat = 1,ncations
+            col_mf%cec_cation_flux_vr(c,j,icat) = col_mf%cec_cation_flux_vr(c,j,icat) * &
+                                      col_mf%proton_limit_vr(c,j)
+          end do
+          min_flux_limit(fc,j) = min(min_flux_limit(fc,j), col_mf%proton_limit_vr(c,j))
+        else
+          col_mf%proton_limit_vr(c,j) = 1._r8
+        end if
+
+        ! Limit due to soil solution cation concentration, after the previous two limits
+        ! have been applieds
+        do icat = 1,ncations
+          temp_delta1_cation(fc,j,icat) = col_mf%background_weathering_vr(c,j,icat)*dt + &
                     col_mf%primary_cation_flux_vr(c,j,icat)*dt + &
                     col_mf%cation_uptake_vr(c,j,icat)*dt
-          temp_out = - col_mf%secondary_cation_flux_vr(c,j,icat)*dt + & 
-                       col_mf%cec_cation_flux_vr(c,j,icat)*dt
+          temp_delta2_cation(fc,j,icat) = - col_mf%secondary_cation_flux_vr(c,j,icat)*dt + & 
+                    col_mf%cec_cation_flux_vr(c,j,icat)*dt
 
-          if (col_ms%cation_vr(c,j,icat) + temp_in < 0._r8) then
-            write (iulog, *) 'Problematic flushing rate: ', ldomain%latc(g), ldomain%lonc(g), g, c, j, icat, 'dt=', dt, 'initial cation=', col_ms%cation_vr(c,j,icat), 'terms=', col_mf%background_weathering_vr(c,j,icat)*dt, col_mf%primary_cation_flux_vr(c,j,icat)*dt, col_mf%cation_uptake_vr(c,j,icat)*dt
-            call endrun(msg=subname //':: ERROR: Negative cation balance'//errMsg(__FILE__, __LINE__))
-          else if ((col_ms%cation_vr(c,j,icat) + temp_in + temp_out) < 0._r8) then
+          if (col_ms%cation_vr(c,j,icat) + temp_delta1_cation(fc,j,icat) < 0._r8) then
+            err_found = .true.
+            err_fc = fc
+            err_col = filter_soilc(err_fc)
+            err_lev = j
+            err_icat = icat
+          else if ((col_ms%cation_vr(c,j,icat) + temp_delta1_cation(fc,j,icat) + & 
+                    temp_delta2_cation(fc,j,icat)) < 0._r8) then
             ! ensure a tiny bit of cation is left due to numerical accuracy reasons
-            col_mf%flux_limit_vr(c,j,icat) = - (temp_in + col_ms%cation_vr(c,j,icat)) / temp_out * 0.99_r8
+            col_mf%flux_limit_vr(c,j,icat) = - (temp_delta1_cation(fc,j,icat) + & 
+              col_ms%cation_vr(c,j,icat)) / temp_delta2_cation(fc,j,icat) * residual_factor
 
-            col_mf%secondary_cation_flux_vr(c,j,icat) = col_mf%secondary_cation_flux_vr(c,j,icat) * col_mf%flux_limit_vr(c,j,icat)
-            col_mf%cec_cation_flux_vr(c,j,icat) = col_mf%cec_cation_flux_vr(c,j,icat) * col_mf%flux_limit_vr(c,j,icat)
+            col_mf%secondary_cation_flux_vr(c,j,icat) = col_mf%secondary_cation_flux_vr(c,j,icat)*& 
+                  col_mf%flux_limit_vr(c,j,icat)
+            col_mf%cec_cation_flux_vr(c,j,icat) = col_mf%cec_cation_flux_vr(c,j,icat) * & 
+                  col_mf%flux_limit_vr(c,j,icat)
 
-            write (iulog, *) 'Flux limit due to negative cation concentration: ', ldomain%latc(g), ldomain%lonc(g), g, c, j, icat, col_mf%flux_limit_vr(c,j,icat) ! , col_mf%secondary_cation_flux_vr(c,j,icat), col_mf%cec_cation_flux_vr(c,j,icat)
+            min_flux_limit(fc,j) = min(min_flux_limit(fc,j), col_mf%flux_limit_vr(c,j,icat))
+          else
+            col_mf%flux_limit_vr(c,j,icat) = 1._r8
           end if
         end do
-
-        ! Limit due to acid exchange capacity
-        temp_out = 0._r8
-        do icat = 1,ncations
-          temp_out = temp_out + col_mf%cec_cation_flux_vr(c,j,icat)*dt/EWParamsInst%cations_mass(icat)*mass_h*EWParamsInst%cations_valence(icat)
-        end do
-        if ((col_ms%cec_proton_vr(c,j) + temp_out) < 0._r8) then        
-            ! ensure a tiny bit of H+ is left due to numerical accuracy reasons
-            col_mf%proton_limit_vr(c,j) = - col_ms%cec_proton_vr(c,j) / temp_out * 0.99_r8
-
-            do icat = 1,ncations
-              col_mf%cec_cation_flux_vr(c,j,icat) = col_mf%cec_cation_flux_vr(c,j,icat) * col_mf%proton_limit_vr(c,j)
-            end do
-
-            write (iulog, *) 'Flux limit due to negative CEC H+; factor = ', ldomain%latc(g), ldomain%lonc(g), g, c, j, col_mf%proton_limit_vr(c,j) ! , col_mf%cec_cation_flux_vr(c,j,1), col_mf%cec_cation_flux_vr(c,j,2), col_mf%cec_cation_flux_vr(c,j,3), col_mf%cec_cation_flux_vr(c,j,4), col_mf%cec_cation_flux_vr(c,j,5)
-        end if
       end do
     end do
+
+    if (masterproc) then
+
+      if (err_found) then
+        g = col_pp%gridcell(err_col)
+        write (iulog, *) 'Flushing rate diagnostics: ', ldomain%latc(g), ldomain%lonc(g), g, err_col, err_lev, err_icat
+        write (iulog, *) ' initial cation=', col_ms%cation_vr(err_col, err_lev, err_icat)
+        write (iulog, *) ' delta1=', temp_delta1_cation(err_fc, err_lev, err_icat)
+        write (iulog, *) ' terms/dt=', col_mf%background_weathering_vr(c,j,icat), &
+            col_mf%primary_cation_flux_vr(c,j,icat), col_mf%cation_uptake_vr(c,j,icat)
+        call endrun(msg=subname //':: ERROR: Problematic flushing rate'//errMsg(__FILE__, __LINE__))
+      end if
+
+      do fc = 1,num_soilc
+        c = filter_soilc(fc)
+        g = col_pp%gridcell(c)
+        do j = 1,nlevbed
+          if (min_flux_limit(fc,j) < 1._r8) then
+            write (iulog, *) '*** Flux limit diagnostics: ', ldomain%latc(g), ldomain%lonc(g), c, j, '***'
+            do icat = 1,ncations
+              if (col_mf%cec_limit_vr(c,j,icat) < 1._r8) then
+                write (iulog, *) '   negative CEC cation ', icat, col_mf%cec_limit_vr(c,j,icat), col_ms%cec_cation_vr(c,j,icat), temp_delta_cece(fc,j,icat)
+              end if
+            end do
+            if (col_mf%proton_limit_vr(c,j) < 1._r8) then
+              write (iulog, *) '   negative CEC H+ ', col_mf%proton_limit_vr(c,j), col_ms%cec_proton_vr(c,j), temp_delta_ceca(fc,j)
+            end if
+            do icat = 1,ncations
+              if (col_mf%flux_limit_vr(c,j,icat) < 1._r8) then
+                write (iulog, *) '   negative solution cation ', icat, col_mf%flux_limit_vr(c,j,icat), col_ms%cation_vr(c,j,icat), temp_delta1_cation(fc,j,icat), temp_delta2_cation(fc,j,icat)
+              end if
+            end do
+          end if
+        end do
+      end do
+    end if
+
   end subroutine MineralFluxLimit
 
 end module MineralStateUpdateMod

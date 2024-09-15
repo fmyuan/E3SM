@@ -23,7 +23,7 @@ module EnhancedWeatheringMod
   use SoilStateType       , only : soilstate_type
   use ewutils             , only : logmol_to_mass, mol_to_mass, meq_to_mass, mass_to_mol, mass_to_meq, advection_diffusion
   use ewutils             , only : mass_to_logmol, objective_solveq, solve_eq, ph_to_hco3, hco3_to_co3
-  use domainMod           , only: ldomain ! debug print
+  use domainMod           , only : ldomain ! debug print
   use shr_sys_mod         , only : shr_sys_flush
   use landunit_varcon , only : istsoil, istcrop
 
@@ -297,6 +297,7 @@ contains
     ! after soil hydrology is already initialized
     ! 
     ! !USES:
+    use spmdMod, only : masterproc
     !
     ! !ARGUMENTS:
     type(bounds_type)        , intent(in)    :: bounds
@@ -308,6 +309,8 @@ contains
     integer  :: fc,c,j,t,g,l,nlevbed
     integer  :: icat                   ! indices
     real(r8) :: co2_atm                ! CO2 partial pressure in atm
+    character(2) :: j_str
+    character(4) :: j_lev
 
     associate( &
          soil_ph                        => col_ms%soil_ph                 , & ! Input:  [real(r8) (:,:)] calculated soil pH (1:nlevgrnd)
@@ -367,13 +370,33 @@ contains
       end do
     end do
 
-    ! Write diagnostics
-    write (iulog, *) '*** Initialized soil pH and cation status for enhanced weathering: ***'
+    if ( masterproc)then
+      write (iulog, *) '***************************************************************************'
+      write (iulog, *) '*** Soil Initialization for Enhanced Weathering                       *****'
+      do fc = 1,num_soilc
+        c = filter_soilc(fc)
+        g = col_pp%gridcell(c)
 
-
-        ! write (iulog, *) 'initial proton_vr', c, j, proton_vr(c,j), soil_ph(c,j), h2osoi_vol(c,j), nlevbed, nlevsoi
-          ! write (iulog, *) 'cation_vr', ldomain%latc(g), ldomain%lonc(g), g, c, j, icat, cation_vr(c,j,icat), soil_ph(c,j), soilstate_vars%log_km_col(c,j,icat), soilstate_vars%ceca_col(c,j), soilstate_vars%cect_col(c,j), EWParamsInst%cations_valence(icat), soilstate_vars%cece_col(c,j,icat), h2osoi_vol(c,j)
-    write (iulog, *) '*********************************************************************'
+        ! Write diagnostics
+        write (iulog, *) '-------------------------------------------------------------------------'
+        write (iulog, *) 'grid and column: ', ldomain%latc(g), ldomain%lonc(g), g, c
+        write (iulog, *) 'soil pH, proton (g m-3), cation (g m-3):'
+        do j = 1,nlevbed
+          write (j_str, '(I2)') j
+          j_lev = 'j='//j_str
+          ! write (iulog, *) 'j=', j, soil_ph(c,j), h2osoi_vol(c,j), nlevbed, nlevsoi
+          write (iulog, *) j_lev, soil_ph(c,j), proton_vr(c,j), cation_vr(c,j,1:ncations)
+          ! write (iulog, *) 'cation_vr',  j, icat, cation_vr(c,j,icat), soil_ph(c,j), soilstate_vars%log_km_col(c,j,icat), soilstate_vars%ceca_col(c,j), soilstate_vars%cect_col(c,j), EWParamsInst%cations_valence(icat), soilstate_vars%cece_col(c,j,icat), h2osoi_vol(c,j)    
+        end do
+        write (iulog, *) 'cec total, beta H+, beta cation:'
+        do j = 1,nlevbed
+          write (j_str, '(I2)') j
+          j_lev = 'j='//j_str
+          write (iulog, *) j_lev, soilstate_vars%cect_col(c,j), soilstate_vars%ceca_col(c,j) / soilstate_vars%cect_col(c,j), soilstate_vars%cece_col(c,j,1:ncations) / soilstate_vars%cect_col(c,j)
+        end do
+      end do
+      write (iulog, *) '***************************************************************************'
+    end if
 
     end associate
   end subroutine MineralInit
@@ -401,7 +424,7 @@ contains
 
     !
     ! !LOCAL VARIABLES:
-    integer  :: fc,c,j, nlevbed
+    integer  :: fc,c,j,g,nlevbed
     integer  :: m, isec, icat          ! indices
     integer  :: kyr                    ! current year
     integer  :: kmo                    ! month of year  (1, ..., 12)
@@ -414,7 +437,6 @@ contains
     real(r8) :: log_k_dissolve_acid, log_k_dissolve_neutral, log_k_dissolve_base
     real(r8) :: saturation_ratio, log_silica, log_carbonate
     real(r8) :: k_tot
-    character(6):: n_str, m_str, c_str
     real(r8) :: qflx_drain_layer, qflx_surf_layer, dzsum
     real(r8), parameter :: depth_runoff_Mloss = 0.05   ! (m) depth over which runoff mixes with soil water for ions loss to runoff; same as nitrogen runoff depth
 
@@ -502,6 +524,7 @@ contains
 
     do fc = 1,num_soilc
       c = filter_soilc(fc)
+      g = col_pp%gridcell(c)
       !topo = col_pp%topounit(c)
       nlevbed = min(nlev2bed(c), nlevsoi)
 
@@ -683,17 +706,12 @@ contains
               if (log_omega_vr(c,j,m) >= 0._r8) then
                 r_dissolve_vr(c,j,m) = 0._r8
 
-                write (m_str, '(I6)') m
-                write (c_str, '(I6)') c
-                write (n_str, '(I6)') j
-
-                write (iulog,*) ' WARNING! Omega > 1 meaning dissolution reaction cannot proceed for mineral '//m_str//' column '//c_str//' layer '//n_str//':'
-
-                write (iulog, *) 'log_omega_vr part 1', soil_ph(c,j) * EWParamsInst%primary_stoi_proton(m) - EWParamsInst%log_keq_primary(m)
-                do icat = 1,ncations
-                  write (iulog, *) 'log_omega_vr cation', icat, EWParamsInst%cations_name(icat), EWParamsInst%primary_stoi_cations(m,icat) * &
-                  mass_to_logmol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j))
-                end do
+                write (iulog,*) ' WARNING! Omega > 1 meaning dissolution reaction cannot proceed', ldomain%latc(g), ldomain%lonc(g), g, c, j, m, log_omega_vr(c,j,m)
+                !write (iulog, *) 'log_omega_vr part 1', soil_ph(c,j) * EWParamsInst%primary_stoi_proton(m) - EWParamsInst%log_keq_primary(m)
+                !do icat = 1,ncations
+                !  write (iulog, *) 'log_omega_vr cation', icat, EWParamsInst%cations_name(icat), EWParamsInst%primary_stoi_cations(m,icat) * &
+                !  mass_to_logmol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j))
+                !end do
 
               else
                 ! log10 of the reaction rate constant by individual weathering agents (log10 mol m-2 s-1)
@@ -707,7 +725,7 @@ contains
                     EWParamsInst%n_primary(m,1) * soil_ph(c,j) + log10(1 - 10**log_omega_vr(c,j,m))
                   k_tot = k_tot + 10**log_k_dissolve_acid
 
-                  write (iulog, *) c, j, m, 'log_k_dissolve_acid', log_k_dissolve_acid, EWParamsInst%log_k_primary(m,1), EWParamsInst%e_primary(m,1), rgas, tsoi(c,j), EWParamsInst%n_primary(m,1), soil_ph(c,j), log_omega_vr(c,j,m)
+                  !write (iulog, *) 'log_k_dissolve_acid', ldomain%latc(g), ldomain%lonc(g), g, c, j, m, log_k_dissolve_acid, EWParamsInst%log_k_primary(m,1), EWParamsInst%e_primary(m,1), rgas, tsoi(c,j), EWParamsInst%n_primary(m,1), soil_ph(c,j), log_omega_vr(c,j,m)
                 end if
 
                 if (EWParamsInst%log_k_primary(m,2) > -9000) then
@@ -715,7 +733,7 @@ contains
                     (-1.0e6_r8 * EWParamsInst%e_primary(m,2) / rgas * (1/tsoi(c,j) - 1/298.15_r8)) + &
                     log10(1 - 10**log_omega_vr(c,j,m))
                   k_tot = k_tot + 10**log_k_dissolve_neutral
-                  write (iulog, *) c, j, m, 'log_k_dissolve_neutral', log_k_dissolve_neutral, EWParamsInst%log_k_primary(m,1), EWParamsInst%e_primary(m,1), rgas, tsoi(c,j), log_omega_vr(c,j,m)
+                  !write (iulog, *) 'log_k_dissolve_neutral', ldomain%latc(g), ldomain%lonc(g), g, c, j, m, log_k_dissolve_neutral, EWParamsInst%log_k_primary(m,1), EWParamsInst%e_primary(m,1), rgas, tsoi(c,j), log_omega_vr(c,j,m)
                 end if
 
                 if (EWParamsInst%log_k_primary(m,3) > -9000) then
@@ -723,7 +741,7 @@ contains
                     (-1.0e6_r8 * EWParamsInst%e_primary(m,3) / rgas * (1/tsoi(c,j) - 1/298.15_r8)) - &
                     EWParamsInst%n_primary(m,3) * (14 - soil_ph(c,j)) + log10(1 - 10**log_omega_vr(c,j,m))
                   k_tot = k_tot + 10**log_k_dissolve_base
-                  write (iulog, *) c, j, m, 'log_k_dissolve_base', log_k_dissolve_base, EWParamsInst%log_k_primary(m,3), EWParamsInst%e_primary(m,3), rgas, tsoi(c,j), EWParamsInst%n_primary(m,3), soil_ph(c,j), log_omega_vr(c,j,m)
+                  ! write (iulog, *) 'log_k_dissolve_base', ldomain%latc(g), ldomain%lonc(g), g, c, j, m, log_k_dissolve_base, EWParamsInst%log_k_primary(m,3), EWParamsInst%e_primary(m,3), rgas, tsoi(c,j), EWParamsInst%n_primary(m,3), soil_ph(c,j), log_omega_vr(c,j,m)
                 end if
 
                 ! further scale down the reaction rate by soil moisture, use liquid only

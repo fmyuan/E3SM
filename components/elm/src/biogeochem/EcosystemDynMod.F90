@@ -634,7 +634,6 @@ contains
     ! Enhanced weathering reactions
     if (use_ew) then
       if (spinup_state == 1 .and. year == year_start_ew .and. mon == 1 .and. day == 1 .and. secs_curr == 0) then
-         write (iulog, *) "secs_curr", secs_curr
          call MineralInit(bounds, num_soilc, filter_soilc, soilstate_vars)
       end if
       if (spinup_state == 0 .or. year >= year_start_ew) then

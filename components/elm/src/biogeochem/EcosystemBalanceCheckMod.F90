@@ -1042,10 +1042,6 @@ contains
       end if
    end if
 
-   if (year == year_start_ew .and. mon_curr == 1 .and. day_curr > 1 .and. secs_curr > 0)) then
-   else
-   end if
-
     end associate
 
   end subroutine ColMBalanceCheck
