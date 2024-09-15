@@ -623,7 +623,7 @@ contains
           end if
 
           do c = bounds%begc, bounds%endc
-             do lev = 1,mixing_layer
+             do lev = 1,nlevsoi
                 this%cece_col(c,lev,a) = cece_in(g,ti,lev)
              end do
           end do
@@ -654,7 +654,7 @@ contains
           t = col_pp%topounit(c)
           topi = grc_pp%topi(g)
           ti = t - topi + 1
-          do lev = 1,mixing_layer
+          do lev = 1,nlevsoi
             this%sph     (c, lev) =  sph_in(g,ti,lev)
             this%cect_col(c, lev) = cect_in(g,ti,lev)
             this%ceca_col(c, lev) = ceca_in(g,ti,lev)
@@ -675,7 +675,7 @@ contains
             calc_logkm = .true.
           else
             do c = bounds%begc, bounds%endc
-               do lev = 1,mixing_layer
+               do lev = 1,nlevsoi
                   this%log_km_col(c,lev,a) = logkm_in(g,ti,lev)
                end do
             end do
@@ -958,30 +958,32 @@ contains
                      end if
 
                      ! Ca2+
-                     this%log_km_col(c,lev,1) = - ((kex_ca(1)*this%cellsand_col(c, lev) &
-                        + kex_ca(3)*this%cellclay_col(c,lev) &
-                        + kex_ca(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) &
-                     ) * (1 - om_frac) / 100._r8 + kex_ca(4)*om_frac)
-                     ! Mg2+
-                     this%log_km_col(c,lev,2) = - ((kex_mg(1)*this%cellsand_col(c, lev) &
-                        + kex_mg(3)*this%cellclay_col(c,lev) &
-                        + kex_mg(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) & 
-                     ) * (1 - om_frac) / 100._r8 + kex_mg(4)*om_frac)
-                     ! Na+
-                     this%log_km_col(c,lev,3) = - ((kex_na(1)*this%cellsand_col(c, lev) &
-                        + kex_na(3)*this%cellclay_col(c,lev) &
-                        + kex_na(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) & 
-                     ) * (1 - om_frac) / 100._r8 + kex_na(4)*om_frac)
-                     ! K+
-                     this%log_km_col(c,lev,4) = - ((kex_k(1)*this%cellsand_col(c, lev) &
-                        + kex_k(3)*this%cellclay_col(c,lev) &
-                        + kex_k(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) & 
-                     ) * (1 - om_frac) / 100._r8 + kex_k(4)*om_frac)
-                     ! Al3+
-                     this%log_km_col(c,lev,5) = - ((kex_al(1)*this%cellsand_col(c, lev) &
-                        + kex_al(3)*this%cellclay_col(c,lev) &
-                        + kex_al(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) & 
-                     ) * (1 - om_frac) / 100._r8 + kex_al(4)*om_frac)
+                     if (lev <= nlevsoi) then
+                        this%log_km_col(c,lev,1) = - ((kex_ca(1)*this%cellsand_col(c, lev) &
+                           + kex_ca(3)*this%cellclay_col(c,lev) &
+                           + kex_ca(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) &
+                        ) * (1 - om_frac) / 100._r8 + kex_ca(4)*om_frac)
+                        ! Mg2+
+                        this%log_km_col(c,lev,2) = - ((kex_mg(1)*this%cellsand_col(c, lev) &
+                           + kex_mg(3)*this%cellclay_col(c,lev) &
+                           + kex_mg(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) & 
+                        ) * (1 - om_frac) / 100._r8 + kex_mg(4)*om_frac)
+                        ! Na+
+                        this%log_km_col(c,lev,3) = - ((kex_na(1)*this%cellsand_col(c, lev) &
+                           + kex_na(3)*this%cellclay_col(c,lev) &
+                           + kex_na(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) & 
+                        ) * (1 - om_frac) / 100._r8 + kex_na(4)*om_frac)
+                        ! K+
+                        this%log_km_col(c,lev,4) = - ((kex_k(1)*this%cellsand_col(c, lev) &
+                           + kex_k(3)*this%cellclay_col(c,lev) &
+                           + kex_k(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) & 
+                        ) * (1 - om_frac) / 100._r8 + kex_k(4)*om_frac)
+                        ! Al3+
+                        this%log_km_col(c,lev,5) = - ((kex_al(1)*this%cellsand_col(c, lev) &
+                           + kex_al(3)*this%cellclay_col(c,lev) &
+                           + kex_al(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) & 
+                        ) * (1 - om_frac) / 100._r8 + kex_al(4)*om_frac)
+                     end if
                   end if
                 end if
              end if
