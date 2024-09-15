@@ -6306,7 +6306,7 @@ contains
          c = filter_soilc(fc)
          nlevbed = min(col_pp%nlevbed(c), nlevsoi)
 
-         do j = 1,nlevsoi
+         do j = 1,nlevbed
             do a = 1, nminerals
                this%primary_mineral(c,a) = &
                   this%primary_mineral(c,a) + this%primary_mineral_vr(c,j,a) * col_pp%dz(c,j)
@@ -13436,7 +13436,7 @@ contains
          do a = 1,ncations
             this%cation_infl(c,a) = 0._r8
             this%cation_oufl(c,a) = 0._r8
-            do j = 1,nlevsoi
+            do j = 1,nlevbed
                this%cation_infl(c,a) = this%cation_infl(c,a) + this%cation_infl_vr(c,j,a) * col_pp%dz(c,j)
                this%cation_oufl(c,a) = this%cation_oufl(c,a) + this%cation_oufl_vr(c,j,a) * col_pp%dz(c,j)
             end do
@@ -13445,7 +13445,7 @@ contains
          this%proton_oufl(c) = 0._r8
 
          ! vertical integrated flux
-         do j = 1,nlevsoi
+         do j = 1,nlevbed
             do a = 1,nminerals
                this%primary_added(c,a) = &
                   this%primary_added(c,a) + this%primary_added_vr(c,j,a) * col_pp%dz(c,j)

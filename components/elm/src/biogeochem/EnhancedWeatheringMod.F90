@@ -9,7 +9,7 @@ module EnhancedWeatheringMod
   !
   ! !USES:
   use shr_kind_mod        , only : r8 => shr_kind_r8
-  use elm_varctl          , only : iulog, spinup_state, nyears_before_ew
+  use elm_varctl          , only : iulog
   use elm_varcon          , only : log_keq_co3, log_keq_hco3, log_keq_sio2am
   use elm_varcon          , only : mass_co3, mass_hco3, mass_co2, mass_h2o, mass_sio2, mass_h
   use elm_varcon          , only : zisoi
@@ -336,8 +336,6 @@ contains
         ! soil pH has been initialized at cold-start
         proton_vr(c,j) = logmol_to_mass(-soil_ph(c,j), mass_h, h2osoi_vol(c,j))
 
-        ! write (iulog, *) 'initial proton_vr', c, j, proton_vr(c,j), soil_ph(c,j), h2osoi_vol(c,j), nlevbed, nlevsoi
-
         ! for the sake of initial charge balance, calculate from soil pH
         bicarbonate_vr(c,j) = mol_to_mass( ph_to_hco3(soil_ph(c,j), co2_atm), mass_hco3, h2osoi_vol(c,j) )
         carbonate_vr(c,j) = mol_to_mass( hco3_to_co3(ph_to_hco3(soil_ph(c,j), co2_atm), soil_ph(c,j)), mass_co3, h2osoi_vol(c,j) )
@@ -355,8 +353,6 @@ contains
           cation_vr(c,j,icat) = cation_vr(c,j,icat) * &
             (soilstate_vars%cece_col(c,j,icat)/soilstate_vars%cect_col(c,j))
           cation_vr(c,j,icat) = mol_to_mass(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j))
-
-          ! write (iulog, *) 'cation_vr', ldomain%latc(g), ldomain%lonc(g), g, c, j, icat, cation_vr(c,j,icat), soil_ph(c,j), soilstate_vars%log_km_col(c,j,icat), soilstate_vars%ceca_col(c,j), soilstate_vars%cect_col(c,j), EWParamsInst%cations_valence(icat), soilstate_vars%cece_col(c,j,icat), h2osoi_vol(c,j)
         end do
 
         ! calculate the net charge balance during initializaiong
@@ -370,6 +366,14 @@ contains
         end do
       end do
     end do
+
+    ! Write diagnostics
+    write (iulog, *) '*** Initialized soil pH and cation status for enhanced weathering: ***'
+
+
+        ! write (iulog, *) 'initial proton_vr', c, j, proton_vr(c,j), soil_ph(c,j), h2osoi_vol(c,j), nlevbed, nlevsoi
+          ! write (iulog, *) 'cation_vr', ldomain%latc(g), ldomain%lonc(g), g, c, j, icat, cation_vr(c,j,icat), soil_ph(c,j), soilstate_vars%log_km_col(c,j,icat), soilstate_vars%ceca_col(c,j), soilstate_vars%cect_col(c,j), EWParamsInst%cations_valence(icat), soilstate_vars%cece_col(c,j,icat), h2osoi_vol(c,j)
+    write (iulog, *) '*********************************************************************'
 
     end associate
   end subroutine MineralInit
@@ -482,7 +486,6 @@ contains
          !
          ! Other related
          !
-         nlev2bed                      => col_pp%nlevbed      , & ! Input:  [integer  (:)   ]  number of layers to bedrock
          tsoi                          => col_es%t_soisno     , & ! Input: [real(r8) (:,:) ] soil temperature [K]
          qin                           => col_wf%qin          , & ! Input: [real(r8) (:,:) ] flux of water into soil layer [mm h2o/s]
          qout                          => col_wf%qout         , & ! Input: [real(r8) (:,:) ] flux of water out of soil layer [mm h2o/s]

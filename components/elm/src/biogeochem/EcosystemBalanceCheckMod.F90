@@ -12,7 +12,7 @@ module EcosystemBalanceCheckMod
   use decompMod           , only : bounds_type
   use abortutils          , only : endrun
   use elm_varctl          , only : iulog, use_fates, use_fan
-  use elm_varctl          , only : spinup_state, nyears_before_ew
+  use elm_varctl          , only : spinup_state, year_start_ew
   use elm_time_manager    , only : get_step_size,get_nstep
   use elm_varpar          , only : crop_prog
   use elm_varpar          , only : nlevdecomp
@@ -1009,35 +1009,41 @@ contains
          err_index = c
       end if
     end do ! end of columns loop
-   
-   if (spinup_state == 0 .or. year > nyears_before_ew) then
-      if (iserr_pm .or. iserr_in .or. iserr_sm .or. iserr_h) then
-         c = err_index
-         write(iulog,*)'column primary mineral balance error = ', err_pm(c), c
-         write(iulog,*)'column cations balance error = ', err_in(c), c
-         write(iulog,*)'column proton balance error = ', err_h(c), c
-         write(iulog,*)'column secondary mineral balance error = ', err_sm(c), c
 
-         write(iulog,*)'Latdeg,Londeg=',grc_pp%latdeg(col_pp%gridcell(c)),grc_pp%londeg(col_pp%gridcell(c))
+   if (spinup_state == 0 .or. year >= year_start_ew) then
+      if (year == year_start_ew .and. mon_curr == 1 .and. day_curr == 1 .and. secs_curr == 0) then
+         if (masterproc) then
+            write(iulog,*) '--WARNING-- skipping mineral balance check for initialization'
+         end if
+      else
+         if (iserr_pm .or. iserr_in .or. iserr_sm .or. iserr_h) then
+            c = err_index
+            write(iulog,*)'column primary mineral balance error = ', err_pm(c), c
+            write(iulog,*)'column cations balance error = ', err_in(c), c
+            write(iulog,*)'column proton balance error = ', err_h(c), c
+            write(iulog,*)'column secondary mineral balance error = ', err_sm(c), c
 
-         write(iulog,*)'primary mineral: delta, begin, end',end_pm(c) - beg_pm(c), beg_pm(c), end_pm(c)
-         write(iulog,*)'primary mineral: flux, in, out',(pm_add(c)-pm_loss(c))*dt, pm_add(c)*dt, pm_loss(c)*dt
+            write(iulog,*)'Latdeg,Londeg=',grc_pp%latdeg(col_pp%gridcell(c)),grc_pp%londeg(col_pp%gridcell(c))
 
-         write(iulog,*)'cations: delta, begin, end', end_in(c) - beg_in(c), beg_in(c), end_in(c)
-         write(iulog,*)'cations: flux, in, out', (in_add(c)-in_loss(c))*dt, in_add(c)*dt, in_loss(c)*dt
+            write(iulog,*)'primary mineral: delta, begin, end',end_pm(c) - beg_pm(c), beg_pm(c), end_pm(c)
+            write(iulog,*)'primary mineral: flux, in, out',(pm_add(c)-pm_loss(c))*dt, pm_add(c)*dt, pm_loss(c)*dt
 
-         write(iulog,*)'proton: delta, begin, end', end_h(c) - beg_h(c), beg_h(c), end_h(c)
-         write(iulog,*)'proton: flux, in, out', (h_add(c)-h_loss(c))*dt, h_add(c)*dt, h_loss(c)*dt
+            write(iulog,*)'cations: delta, begin, end', end_in(c) - beg_in(c), beg_in(c), end_in(c)
+            write(iulog,*)'cations: flux, in, out', (in_add(c)-in_loss(c))*dt, in_add(c)*dt, in_loss(c)*dt
 
-         write(iulog,*)'secondary mineral: delta, begin, end', end_sm(c) - beg_sm(c), beg_sm(c), end_sm(c)
-         write(iulog,*)'secondary mineral: flux, in, out', (sm_add(c)-sm_loss(c))*dt, sm_add(c)*dt, sm_loss(c)*dt
+            write(iulog,*)'proton: delta, begin, end', end_h(c) - beg_h(c), beg_h(c), end_h(c)
+            write(iulog,*)'proton: flux, in, out', (h_add(c)-h_loss(c))*dt, h_add(c)*dt, h_loss(c)*dt
 
-         call endrun(msg=errMsg(__FILE__, __LINE__))
+            write(iulog,*)'secondary mineral: delta, begin, end', end_sm(c) - beg_sm(c), beg_sm(c), end_sm(c)
+            write(iulog,*)'secondary mineral: flux, in, out', (sm_add(c)-sm_loss(c))*dt, sm_add(c)*dt, sm_loss(c)*dt
+
+            call endrun(msg=errMsg(__FILE__, __LINE__))
+         end if
       end if
+   end if
+
+   if (year == year_start_ew .and. mon_curr == 1 .and. day_curr > 1 .and. secs_curr > 0)) then
    else
-      if (masterproc) then
-         write(iulog,*) '--WARNING-- skipping mineral balance check for initialization'
-      end if
    end if
 
     end associate

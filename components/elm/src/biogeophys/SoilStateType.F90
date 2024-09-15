@@ -199,13 +199,13 @@ contains
     allocate(this%root_conductance_patch(begp:endp,1:nlevsoi))          ; this%root_conductance_patch (:,:) = spval
     allocate(this%soil_conductance_patch(begp:endp,1:nlevsoi))          ; this%soil_conductance_patch (:,:) = spval
 
-    allocate(this%sph                  (begc:endc,1:nlevsoi))           ; this%sph                 (:,:)   = spval
-    allocate(this%cect_col             (begc:endc,1:nlevsoi))           ; this%cect_col           (:,:)   = spval
-    allocate(this%cece_col             (begc:endc,1:nlevsoi,1:ncations)); this%cece_col          (:,:,:)   = spval
-    allocate(this%ceca_col             (begc:endc,1:nlevsoi))           ; this%ceca_col             (:,:)   = spval
-    allocate(this%log_km_col           (begc:endc,1:nlevsoi,1:ncations)); this%log_km_col         (:,:,:) = spval
-    allocate(this%kaolinite_col        (begc:endc,1:nlevsoi))           ; this%kaolinite_col      (:,:)   = spval
-    allocate(this%calcite_col          (begc:endc,1:nlevsoi))           ; this%calcite_col        (:,:)   = spval
+    allocate(this%sph                  (begc:endc,1:nlevgrnd))          ; this%sph                 (:,:)   = spval
+    allocate(this%cect_col             (begc:endc,1:nlevgrnd))          ; this%cect_col           (:,:)   = spval
+    allocate(this%cece_col             (begc:endc,1:nlevgrnd,1:ncations)); this%cece_col          (:,:,:)   = spval
+    allocate(this%ceca_col             (begc:endc,1:nlevgrnd))          ; this%ceca_col             (:,:)   = spval
+    allocate(this%log_km_col           (begc:endc,1:nlevgrnd,1:ncations)); this%log_km_col         (:,:,:) = spval
+    allocate(this%kaolinite_col        (begc:endc,1:nlevgrnd))          ; this%kaolinite_col      (:,:)   = spval
+    allocate(this%calcite_col          (begc:endc,1:nlevgrnd))          ; this%calcite_col        (:,:)   = spval
 
   end subroutine InitAllocate
 
@@ -605,13 +605,13 @@ contains
 
     ! Read cation exchange properties
     if (use_ew) then
-       allocate(sph_in(bounds%begg:bounds%endg,max_topounits,nlevsoi))
-       allocate(cect_in(bounds%begg:bounds%endg,max_topounits,nlevsoi))
-       allocate(cece_in(bounds%begg:bounds%endg,max_topounits,nlevsoi))
-       allocate(ceca_in(bounds%begg:bounds%endg,max_topounits,nlevsoi))
-       allocate(logkm_in(bounds%begg:bounds%endg,max_topounits,nlevsoi))
-       allocate(kaolinite_in(bounds%begg:bounds%endg,max_topounits,nlevsoi))
-       allocate(calcite_in(bounds%begg:bounds%endg,max_topounits,nlevsoi))
+       allocate(sph_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
+       allocate(cect_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
+       allocate(cece_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
+       allocate(ceca_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
+       allocate(logkm_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
+       allocate(kaolinite_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
+       allocate(calcite_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
 
        do a = 1,ncations
           write (a_str, '(I6)') a

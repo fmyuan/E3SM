@@ -8,8 +8,8 @@ module EcosystemDynMod
   use shr_kind_mod        , only : r8 => shr_kind_r8
   use shr_sys_mod         , only : shr_sys_flush
   use elm_varctl          , only : use_c13, use_c14, use_fates, use_dynroot, use_fan
-  use elm_varctl          , only : use_ew
-  use elm_varctl          , only : spinup_state, nyears_before_ew
+  use elm_varctl          , only : use_ew, iulog
+  use elm_varctl          , only : spinup_state, year_start_ew
   use decompMod           , only : bounds_type
   use perf_mod            , only : t_startf, t_stopf
   use spmdMod             , only : masterproc
@@ -217,7 +217,7 @@ contains
      call PhosphorusLeaching(bounds, num_soilc, filter_soilc, dt)
 
      if (use_ew) then
-       if (spinup_state == 0 .or. year > nyears_before_ew) then
+       if (spinup_state == 0 .or. year >= year_start_ew) then
           call MineralLeaching(bounds, num_soilc, filter_soilc, dt)
           ! !!!!!!!!!!!!!!!!!!!!! Do this later
           ! call MineralEquilibria(bounds, num_soilc, filter_soilc, soilstate_vars)
@@ -238,7 +238,7 @@ contains
     call t_stop_lnd(event)
 
     if (use_ew) then
-       if (spinup_state == 0 .or. year > nyears_before_ew) then
+       if (spinup_state == 0 .or. year >= year_start_ew) then
           event = 'MUpdateLeaching'
           call t_start_lnd(event)
           call MineralStateUpdate(num_soilc, filter_soilc, col_ms, col_mf, dt, soilstate_vars)
@@ -633,10 +633,11 @@ contains
     !----------------------------------------------------------------
     ! Enhanced weathering reactions
     if (use_ew) then
-      if (spinup_state == 1 .and. year == nyears_before_ew .and. mon == 12 .and. day == 31) then
+      if (spinup_state == 1 .and. year == year_start_ew .and. mon == 1 .and. day == 1 .and. secs_curr == 0) then
+         write (iulog, *) "secs_curr", secs_curr
          call MineralInit(bounds, num_soilc, filter_soilc, soilstate_vars)
       end if
-      if (spinup_state == 0 .or. year > nyears_before_ew) then
+      if (spinup_state == 0 .or. year >= year_start_ew) then
          call MineralDynamics(bounds, num_soilc, filter_soilc, soilstate_vars)
          call MineralEquilibria(bounds, num_soilc, filter_soilc, soilstate_vars)
          call MineralFluxLimit(num_soilc, filter_soilc, col_ms, col_mf, dt)
