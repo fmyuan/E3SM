@@ -32,12 +32,13 @@ module EnhancedWeatheringMod
   private
   !
   ! !PUBLIC MEMBER FUNCTIONS:
-  public :: MineralInit
-  public :: MineralDynamics
-  public :: MineralEquilibria
-  public :: MineralLeaching
   public :: elm_erw_readnl
   public :: readEnhancedWeatheringParams
+  public :: MineralInit
+  public :: MineralDynamics
+  public :: MineralVerticalMovement
+  public :: MineralLeaching
+  public :: MineralEquilibria
 
   type, public :: EWParamsType
      character(len=40), pointer  :: minerals_name      (:)      => null()
@@ -370,7 +371,7 @@ contains
       end do
     end do
 
-    if ( masterproc)then
+    !if ( masterproc)then
       write (iulog, *) '***************************************************************************'
       write (iulog, *) '*** Soil Initialization for Enhanced Weathering                       *****'
       do fc = 1,num_soilc
@@ -396,7 +397,7 @@ contains
         end do
       end do
       write (iulog, *) '***************************************************************************'
-    end if
+    !end if
 
     end associate
   end subroutine MineralInit
@@ -903,12 +904,11 @@ contains
 
 
   !-----------------------------------------------------------------------
-  subroutine MineralLeaching(bounds, num_soilc, filter_soilc, dt)
+  subroutine MineralVerticalMovement(bounds, num_soilc, filter_soilc, dt)
     !
     ! !DESCRIPTION:
     ! On the radiation time step, update the boundary conditions of
-    ! soil ions (H+, cations) caused by vertical movement and
-    ! subsurface & surface runoff
+    ! soil ions (H+, cations) caused by vertical movement of soil water
     !
     ! !USES:
     !$acc routine seq
@@ -939,45 +939,30 @@ contains
     !-----------------------------------------------------------------------
 
     associate( &
-         h2osoi_liq             => col_ws%h2osoi_liq                      , & ! Input:  [real(r8) (:,:) ]  liquid water (kg/m2) (new) (-nlevsno+1:nlevgrnd)
-         qflx_drain             => col_wf%qflx_drain                      , & ! Input:  [real(r8) (:)   ]  sub-surface runoff (mm H2O /s)                    
-         qflx_surf              => col_wf%qflx_surf                       , & ! Input:  [real(r8) (:)   ]  surface runoff (mm H2O /s)
-
-         cation_leached_vr      => col_mf%cation_leached_vr               , & ! Output: [real(r8) (:,:,:) ]  rate of cation leaching (g m-3 s-1)
-         cation_runoff_vr       => col_mf%cation_runoff_vr                , & ! Output: [real(r8) (:,:,:) ]  rate of cation loss with runoff (g m-3 s-1)
-         proton_leached_vr      => col_mf%proton_leached_vr               , & ! Output: [real(r8) (:,:,:) ]  rate of H+ leaching (g m-3 s-1)
-         proton_runoff_vr       => col_mf%proton_runoff_vr                , & ! Output: [real(r8) (:,:,:) ]  rate of H+ loss with runoff (g m-3 s-1)
-
          qin                            => col_wf%qin                     , & ! Input: [real(r8) (:,:) ] flux of water into soil layer [mm h2o/s]
          qout                           => col_wf%qout                    , & ! Input: [real(r8) (:,:) ] flux of water out of soil layer [mm h2o/s]
-         h2osoi_liqvol                  => col_ws%h2osoi_liqvol           , & ! Input:  [real(r8) (:)] volumetric soil water content, liquid only (m3 m-3)
          h2osoi_vol                     => col_ws%h2osoi_vol              , & ! Input:  [real(r8) (:)] volumetric soil water content, ice + water (m3 m-3)
 
-         dz                             => col_pp%dz                      , & ! Input:  [real(r8) (:,:) ]  layer thickness (m)
          nlev2bed                       => col_pp%nlevbed                 , & ! Input:  [integer  (:)   ]  number of layers to bedrock
 
          rain_ph                        => col_ew%rain_ph                 , & ! Output: [real(r8) (:)] pH of rain water
          rain_chem                      => col_ew%rain_chem               , & ! Output: [real(r8) (:,:)] cation concentration in rain water (excluding H+) (g m-3 rain water) (1:ncations)
 
-         proton_vr                      => col_ms%proton_vr               , & ! Input: calculated soil H+ concentration in soil water each soil layer (1:nlevgrnd) (g m-3 soil [not water])
          cation_vr                      => col_ms%cation_vr               , & ! Output [real(r8) (:,:,:)] cation mass in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd, 1:ncations)
 
          proton_infl_vr                 => col_mf%proton_infl_vr          , & ! Output: [real(r8) (:,:)] proton flux carried from infiltration above (g m-3 soil s-1 [not water]) (1:nlevgrnd)
-         cation_infl_vr                 => col_mf%cation_infl_vr          , & ! Output: [real(r8) (:,:,:)] cation flux carried from infiltration above (g m-3 soil s-1 [not water]) (1:nlevgrnd, 1:ncations)
+         proton_oufl_vr                 => col_mf%proton_oufl_vr          , & ! Output: [real(r8) (:,:)] proton flux carried away by infiltration (g m-3 soil s-1 [not water]) (1:nlevgrnd)
          proton_uptake_vr               => col_mf%proton_uptake_vr        , & ! Output: [real(r8) (:,:)] proton flux uptake by plants (g m-3 soil s-1 [not water]) (1:nlevgrnd)
 
-         proton_oufl_vr                 => col_mf%proton_oufl_vr          , & ! Output: [real(r8) (:,:)] proton flux carried away by infiltration (g m-3 soil s-1 [not water]) (1:nlevgrnd)
+         cation_infl_vr                 => col_mf%cation_infl_vr          , & ! Output: [real(r8) (:,:,:)] cation flux carried from infiltration above (g m-3 soil s-1 [not water]) (1:nlevgrnd, 1:ncations)
          cation_oufl_vr                 => col_mf%cation_oufl_vr          , & ! Output: [real(r8) (:,:,:)] cation flux carried away by infiltration (g m-3 soil s-1 [not water]) (1:nlevgrnd, 1:ncations)
-
          cation_uptake_vr               => col_mf%cation_uptake_vr        , & ! Output: [real(r8) (:,:,:)] cation flux uptaken by plants (g m-3 soil s-1 [not water]) (1:nlevgrnd, 1:ncations)
          cec_cation_flux_vr             => col_mf%cec_cation_flux_vr      , & ! Output: [real(r8) (:,:,:)] rate at which adsorbed cation is released into water (negative for adsorption into soil) (vertically resolved) (1:nlevgrnd, 1:ncations) (g m-3 s-1)
 
          primary_proton_flux_vr         => col_mf%primary_proton_flux_vr  , & ! Output [real(r8) (:,:)] consumed H+ due to all the dissolution reactions (g m-3 s-1) (1:nlevgrnd)
          primary_cation_flux_vr         => col_mf%primary_cation_flux_vr  , & ! Output [real(r8) (:,:,:) cations produced due to all the dissolution reactions (g m-3 s-1) (1:nlevgrnd, 1:ncations)
          background_weathering_vr       => col_mf%background_weathering_vr, & ! Output: [real(r8) (:)] background weathering rate (g m-3 s-1)
-         secondary_cation_flux_vr       => col_mf%secondary_cation_flux_vr, & ! Output [real(r8) (:,:,:) cations consumed due to precipitation of secondary minerals (g m-3 s-1) (1:nlevgrnd, 1:ncations)
-
-         qflx_rootsoi_col               =>    col_wf%qflx_rootsoi         & ! Input: [real(r8) (:,:) ]  vegetation/soil water exchange (mm H2O/s) (+ = to atm)
+         secondary_cation_flux_vr       => col_mf%secondary_cation_flux_vr & ! Output [real(r8) (:,:,:) cations consumed due to precipitation of secondary minerals (g m-3 s-1) (1:nlevgrnd, 1:ncations)
     )
 
     do fc = 1,num_soilc
@@ -1005,6 +990,7 @@ contains
         !------------------------------------------------------------------------------
         ! uptake by vegetation - set to zero, assuming litterfall balances out uptake
         !------------------------------------------------------------------------------
+        proton_uptake_vr(c,j) = 0._r8
         do icat = 1,ncations
           cation_uptake_vr(c,j,icat) = 0._r8 ! mol_to_mass(mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j)), EWParamsInst%cations_mass(icat), 1e-3_r8 * qflx_rootsoi_col(c,j) / dz(c,j))
         end do
@@ -1037,8 +1023,7 @@ contains
         call advection_diffusion( & 
           cation_vr(c,1:nlevsoi, icat), adv_water(1:nlevsoi+1), diffus(1:nlevsoi), &
           sourcesink_cations(1:nlevsoi,icat), rain_cations(icat), nlevbed, dt, &
-          h2osoi_liqvol(c,1:nlevsoi), &
-          dcation_dt(1:nlevsoi, icat) &
+          h2osoi_vol(c,1:nlevsoi), dcation_dt(1:nlevsoi, icat) &
         )
       end do
 
@@ -1057,15 +1042,76 @@ contains
         end do
       end do
 
-      !------------------------------------------------------------------------------
-      ! Update the cation concentrations using the vertical transport
-      !------------------------------------------------------------------------------
-      do icat = 1,ncations
-        do j = 1,nlevbed
-          cation_vr(c, j, icat) = cation_vr(c, j, icat) + dcation_dt(j, icat) * dt
-        end do
-        !write (iulog, *) 'post-adv', c, icat, cation_vr(c,1:mixing_layer, icat)
-      end do
+    end do ! end soil column loop
+
+    end associate
+  end subroutine MineralVerticalMovement
+
+
+  !-----------------------------------------------------------------------
+  subroutine MineralLeaching(bounds, num_soilc, filter_soilc, dt)
+    !
+    ! !DESCRIPTION:
+    ! On the radiation time step, update the boundary conditions of
+    ! soil ions (H+, cations) caused by subsurface & surface runoff
+    !
+    ! !USES:
+    !$acc routine seq
+    !
+    ! !ARGUMENTS:
+    type(bounds_type)        , intent(in)    :: bounds
+    integer                  , intent(in)    :: num_soilc       ! number of soil columns in filter
+    integer                  , intent(in)    :: filter_soilc(:) ! filter for soil columns
+    real(r8)                 , intent(in)    :: dt              ! radiation time step (seconds)
+
+    !
+    ! !LOCAL VARIABLES:
+    integer  :: j,c,fc,g,l
+    integer  :: icat                                   ! indices
+    integer  :: nlevbed                                ! number of layers to bedrock
+    real(r8) :: frac_thickness                         ! deal with the fractional layer between last layer and max allowed depth
+    real(r8) :: tot_water                              ! total column liquid water (kg water/m2)
+    real(r8) :: surface_water                          ! liquid water to shallow surface depth (kg water/m2)
+    real(r8) :: drain_tot                              ! total drainage flux (mm H2O /s)
+    real(r8) :: temp_drain_pct, temp_surf_pct          ! percentage loss per second
+    real(r8), parameter :: depth_runoff_Mloss = 0.05   ! (m) depth over which runoff mixes with soil water for ions loss to runoff; same as nitrogen runoff depth
+    real(r8) :: rain_proton, rain_cations(1:ncations)  ! surface boundary condition (g m-3 H2O)
+    real(r8) :: sourcesink_proton(1:nlevsoi), sourcesink_cations(1:nlevsoi,1:ncations) ! (g m-3 soil s-1)
+    real(r8) :: adv_water(1:nlevsoi+1)                 ! m H2O / s, negative downward
+    real(r8) :: diffus(1:nlevsoi)                      ! m2/s
+    real(r8) :: rho(1:nlevsoi)                         ! "density" factor using soil water content
+    real(r8) :: dcation_dt(1:nlevsoi, 1:ncations)      ! cation concentration rate, g m-3 s-1
+
+    !-----------------------------------------------------------------------
+
+    associate( &
+         h2osoi_liq             => col_ws%h2osoi_liq                      , & ! Input:  [real(r8) (:,:) ]  liquid water (kg/m2) (new) (-nlevsno+1:nlevgrnd)
+         qflx_drain             => col_wf%qflx_drain                      , & ! Input:  [real(r8) (:)   ]  sub-surface runoff (mm H2O /s)                    
+         qflx_surf              => col_wf%qflx_surf                       , & ! Input:  [real(r8) (:)   ]  surface runoff (mm H2O /s)
+
+         cation_leached_vr      => col_mf%cation_leached_vr               , & ! Output: [real(r8) (:,:,:) ]  rate of cation leaching (g m-3 s-1)
+         cation_runoff_vr       => col_mf%cation_runoff_vr                , & ! Output: [real(r8) (:,:,:) ]  rate of cation loss with runoff (g m-3 s-1)
+         proton_leached_vr      => col_mf%proton_leached_vr               , & ! Output: [real(r8) (:,:,:) ]  rate of H+ leaching (g m-3 s-1)
+         proton_runoff_vr       => col_mf%proton_runoff_vr                , & ! Output: [real(r8) (:,:,:) ]  rate of H+ loss with runoff (g m-3 s-1)
+
+         dz                             => col_pp%dz                      , & ! Input:  [real(r8) (:,:) ]  layer thickness (m)
+         nlev2bed                       => col_pp%nlevbed                 , & ! Input:  [integer  (:)   ]  number of layers to bedrock
+
+         rain_ph                        => col_ew%rain_ph                 , & ! Output: [real(r8) (:)] pH of rain water
+         rain_chem                      => col_ew%rain_chem               , & ! Output: [real(r8) (:,:)] cation concentration in rain water (excluding H+) (g m-3 rain water) (1:ncations)
+
+         proton_vr                      => col_ms%proton_vr               , & ! Input: calculated soil H+ concentration in soil water each soil layer (1:nlevgrnd) (g m-3 soil [not water])
+         cation_vr                      => col_ms%cation_vr               , & ! Output [real(r8) (:,:,:)] cation mass in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd, 1:ncations)
+
+         qflx_rootsoi_col               =>    col_wf%qflx_rootsoi         & ! Input: [real(r8) (:,:) ]  vegetation/soil water exchange (mm H2O/s) (+ = to atm)
+    )
+
+    do fc = 1,num_soilc
+      c = filter_soilc(fc)
+      g = col_pp%gridcell(c)
+      ! l = col_pp%landunit(c)
+      ! write (iulog, *) lun_pp%itype(l) == istsoil
+      nlevbed = min(nlev2bed(c), nlevsoi)
 
       !------------------------------------------------------------------------------
       ! Leaching (subsurface runoff) and surface runoff losses
@@ -1075,6 +1121,8 @@ contains
       do j = 1,nlevbed
         tot_water = tot_water + h2osoi_liq(c,j)
       end do
+      ! (drain_tot / tot_water) is the fraction water lost per second
+      temp_drain_pct = qflx_drain(c) / tot_water
 
       ! for runoff calculation; calculate total water to a given depth
       surface_water = 0._r8
@@ -1086,61 +1134,56 @@ contains
             surface_water = surface_water + h2osoi_liq(c,j) * frac_thickness
         end if
       end do
+      ! (qflx_surf / tot_water) is the fraction water lost per second
+      temp_surf_pct = qflx_surf(c) / surface_water
 
       do j = 1,nlevbed
-        ! calculate the leaching flux as a function of the dissolved
-        ! concentration (g cation/kg water) and the sub-surface drainage flux
 
         if (h2osoi_liq(c,j) > 0._r8) then
-          ! (drain_tot / tot_water) is the fraction water lost per second
-          proton_leached_vr(c,j) = proton_vr(c,j) * qflx_drain(c) / tot_water
-          ! ensure the rate is not larger than the soil pool and positive
-          proton_leached_vr(c,j) = max(min(proton_vr(c,j) / dt, proton_leached_vr(c,j)), 0._r8)
-        else
-          proton_leached_vr(c,j) = 0._r8
-        end if
+          ! calculate the leaching flux as a function of the dissolved
+          ! concentration (g cation/kg water) and the sub-surface drainage flux
 
-        do icat = 1,ncations
-          if (h2osoi_liq(c,j) > 0._r8) then
-            ! (drain_tot / tot_water) is the fraction water lost per second
-            cation_leached_vr(c,j,icat) = cation_vr(c,j,icat) * qflx_drain(c) / tot_water
-            ! ensure the rate is not larger than the soil pool and positive
-            cation_leached_vr(c,j,icat) = max(min(cation_vr(c,j,icat) / dt, cation_leached_vr(c,j,icat)), 0._r8)
+          ! use the analytical solution if the flushing rate is too large
+          if (temp_drain_pct*dt > 0.1_r8) then
+            proton_leached_vr(c,j) = proton_vr(c,j)*(1._r8-exp(-temp_drain_pct*dt))/dt
+            do icat = 1,ncations
+              cation_leached_vr(c,j,icat) = cation_vr(c,j,icat)*(1._r8-exp(-temp_drain_pct*dt))/dt
+            end do
           else
-            cation_leached_vr(c,j,icat) = 0._r8
+            proton_leached_vr(c,j) = proton_vr(c,j) * temp_drain_pct
+            do icat = 1,ncations
+              cation_leached_vr(c,j,icat) = cation_vr(c,j,icat) * temp_drain_pct
+            end do
           end if
-        end do
 
-        ! calculate the loss from surface runoff, assuming a shallow mixing of surface waters into soil and removal based on runoff
-
-        if (h2osoi_liq(c,j) > 0._r8) then
+          ! calculate the loss from surface runoff, assuming a shallow mixing of surface waters into soil and removal based on runoff
           if ( zisoi(j) <= depth_runoff_Mloss )  then
-            proton_runoff_vr(c,j) = proton_vr(c,j) * qflx_surf(c) / surface_water
+            frac_thickness = 1._r8
           else if ( zisoi(j-1) < depth_runoff_Mloss )  then
             frac_thickness = (depth_runoff_Mloss - zisoi(j-1)) / dz(c,j)
-            proton_runoff_vr(c,j) = proton_vr(c,j) * qflx_surf(c) / surface_water * frac_thickness
           end if
-          ! ensure the rate is not larger than the soil pool and positive
-          proton_runoff_vr(c,j) = max(min(proton_vr(c,j) / dt, proton_runoff_vr(c,j)), 0._r8)
-        else
-          proton_runoff_vr(c,j) = 0._r8
-        end if
-
-        do icat = 1,ncations
-          if (h2osoi_liq(c,j) > 0._r8) then
-            if ( zisoi(j) <= depth_runoff_Mloss )  then
-              cation_runoff_vr(c,j,icat) = cation_vr(c,j,icat) * qflx_surf(c) / surface_water
-            else if ( zisoi(j-1) < depth_runoff_Mloss )  then
-              frac_thickness = (depth_runoff_Mloss - zisoi(j-1)) / dz(c,j)
-              cation_runoff_vr(c,j,icat) = cation_vr(c,j,icat) * qflx_surf(c) / surface_water * frac_thickness
-            end if
-
-            ! ensure the rate is not larger than the soil pool and positive
-            cation_runoff_vr(c,j,icat) = max(min(cation_vr(c,j,icat) / dt, cation_runoff_vr(c,j,icat)), 0._r8)
+          if (temp_surf_pct*dt*frac_thickness > 0.1_r8) then
+            proton_runoff_vr(c,j) = proton_vr(c,j)*(1._r8 - &
+                  exp(-temp_surf_pct*dt*frac_thickness)) / dt
+            do icat = 1,ncations
+              cation_runoff_vr(c,j,icat) = cation_vr(c,j,icat)*(1._r8- & 
+                  exp(-temp_surf_pct*dt*frac_thickness)) / dt
+            end do
           else
-            cation_runoff_vr(c,j,icat) = 0._r8
+            proton_runoff_vr(c,j) = proton_vr(c,j) * qflx_surf(c) / surface_water * frac_thickness
+            do icat = 1,ncations
+              cation_runoff_vr(c,j,icat) = cation_vr(c,j,icat) * qflx_surf(c) / surface_water * frac_thickness
+            end do
           end if
-        end do
+
+        else
+          proton_leached_vr(c,j) = 0._r8
+          proton_runoff_vr(c,j) = 0._r8
+          do icat = 1,ncations
+            cation_leached_vr(c,j,icat) = 0._r8
+            cation_runoff_vr(c,j,icat) = 0._r8
+          end do
+        end if
 
       end do ! end soil level loop
 
