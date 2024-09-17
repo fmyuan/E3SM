@@ -369,6 +369,10 @@ contains
             avgflag='A', long_name='percentage naturally occuring CaCO3 in soil', &
             ptr_col=this%calcite_col, default='inactive')
 
+      ! This is needed to convert CEC to meq 100g-1 soil
+      call hist_addfld2d(fname='bd_col', units='kg cm-3', type2d='levgrnd', &
+           avgflag='A', long_name='bulk density of soil', ptr_col=this%bd_col, default='inactive')
+
     end if
 
   end subroutine InitHistory

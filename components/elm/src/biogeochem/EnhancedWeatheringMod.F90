@@ -494,11 +494,6 @@ contains
          r_dissolve_vr                  => col_mf%r_dissolve_vr          , & ! Output [real(r8) (:,:)] rate at which the dissolution reaction happens (mol m-3 s-1) (1:nlevgrnd, 1:nminerals)
          log_omega_vr                   => col_mf%log_omega_vr           , & ! Output [real(r8) (:,:)] omega parameter in the dissolution equation (1:nlevgrnd, 1:nminerals)
 
-         !
-         ! Secondary mineral state
-         ! 
-         secondary_mineral_vr           => col_ms%secondary_mineral_vr      , & ! Output [real(r8) (:,:,:)] secondary mineral mass in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd, 1:nminsecs)
-
          ! 
          ! Secondary mineral flux
          ! 
