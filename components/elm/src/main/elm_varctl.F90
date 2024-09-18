@@ -195,7 +195,7 @@ module elm_varctl
   !$acc declare create(carbonnitrogen_only  )
   !$acc declare create(carbonphosphorus_only)
 
-  integer, public  :: nyears_before_ew = 1
+  integer, public  :: year_start_ew = 2
   !----------------------------------------------------------
   ! Physics
   !----------------------------------------------------------

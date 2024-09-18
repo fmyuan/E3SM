@@ -293,21 +293,21 @@ contains
                         if ( abs(som_adv_coef(c,j)) * spinup_term < epsilon ) then
                            adv_flux(c,j) = epsilon
                         else
-			   if (spinup_term > 1 .and. year >= 40 .and. spinup_state .eq. 1) then
+               			   if (spinup_term > 1 .and. year >= 40 .and. spinup_state .eq. 1) then
                              adv_flux(c,j) = som_adv_coef(c,j) * spinup_term / cnstate_vars%scalaravg_col(c,j)
- 			   else
+                			   else
                              adv_flux(c,j) = som_adv_coef(c,j) * spinup_term
-			   end if
-                        endif
+			                  end if
+                        end if
                         !
                         if ( abs(som_diffus_coef(c,j)) * spinup_term < epsilon ) then
                            diffus(c,j) = epsilon
                         else
-			   if (spinup_term > 1 .and. year >= 40 .and. spinup_state .eq. 1) then
+               			   if (spinup_term > 1 .and. year >= 40 .and. spinup_state .eq. 1) then
                              diffus(c,j) = som_diffus_coef(c,j) * spinup_term / cnstate_vars%scalaravg_col(c,j)
                            else
                              diffus(c,j) = som_diffus_coef(c,j) * spinup_term
-			   end if
+               			   end if
                         endif
                         !
                      end do

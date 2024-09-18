@@ -11,7 +11,7 @@ module SoilStateType
   use ncdio_pio       , only : ncd_pio_openfile, ncd_inqfdims, ncd_pio_closefile, ncd_inqdid, ncd_inqdlen
   use elm_varpar      , only : more_vertlayers, numpft, numrad
   use elm_varpar      , only : nlevsoi, nlevgrnd, nlevlak, nlevsoifl, nlayer, nlayert, nlevurb, nlevsno
-  use elm_varpar      , only : ncations, mixing_layer
+  use elm_varpar      , only : ncations
   use landunit_varcon , only : istice, istdlak, istwet, istsoil, istcrop, istice_mec
   use column_varcon   , only : icol_roof, icol_sunwall, icol_shadewall, icol_road_perv, icol_road_imperv 
   use elm_varcon      , only : zsoi, dzsoi, zisoi, spval, namet, grlnd
@@ -22,6 +22,7 @@ module SoilStateType
   use elm_varctl      , only : use_erosion, use_ew
   use elm_varctl      , only : use_var_soil_thick
   use elm_varctl      , only : iulog, fsurdat, hist_wrtch4diag
+  use shr_sys_mod     , only : shr_sys_flush
   use CH4varcon       , only : allowlakeprod
   use LandunitType    , only : lun_pp                
   use ColumnType      , only : col_pp                
@@ -368,6 +369,10 @@ contains
             avgflag='A', long_name='percentage naturally occuring CaCO3 in soil', &
             ptr_col=this%calcite_col, default='inactive')
 
+      ! This is needed to convert CEC to meq 100g-1 soil
+      call hist_addfld2d(fname='bd_col', units='kg cm-3', type2d='levgrnd', &
+           avgflag='A', long_name='bulk density of soil', ptr_col=this%bd_col, default='inactive')
+
     end if
 
   end subroutine InitHistory
@@ -623,7 +628,7 @@ contains
           end if
 
           do c = bounds%begc, bounds%endc
-             do lev = 1,mixing_layer
+             do lev = 1,nlevsoi
                 this%cece_col(c,lev,a) = cece_in(g,ti,lev)
              end do
           end do
@@ -654,7 +659,7 @@ contains
           t = col_pp%topounit(c)
           topi = grc_pp%topi(g)
           ti = t - topi + 1
-          do lev = 1,mixing_layer
+          do lev = 1,nlevsoi
             this%sph     (c, lev) =  sph_in(g,ti,lev)
             this%cect_col(c, lev) = cect_in(g,ti,lev)
             this%ceca_col(c, lev) = ceca_in(g,ti,lev)
@@ -675,13 +680,12 @@ contains
             calc_logkm = .true.
           else
             do c = bounds%begc, bounds%endc
-               do lev = 1,mixing_layer
+               do lev = 1,nlevsoi
                   this%log_km_col(c,lev,a) = logkm_in(g,ti,lev)
                end do
             end do
           end if
        end do
-
        deallocate(sph_in, cect_in, cece_in, ceca_in, logkm_in, kaolinite_in, calcite_in)
     end if
 
@@ -958,30 +962,32 @@ contains
                      end if
 
                      ! Ca2+
-                     this%log_km_col(c,lev,1) = - ((kex_ca(1)*this%cellsand_col(c, lev) &
-                        + kex_ca(3)*this%cellclay_col(c,lev) &
-                        + kex_ca(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) &
-                     ) * (1 - om_frac) / 100._r8 + kex_ca(4)*om_frac)
-                     ! Mg2+
-                     this%log_km_col(c,lev,2) = - ((kex_mg(1)*this%cellsand_col(c, lev) &
-                        + kex_mg(3)*this%cellclay_col(c,lev) &
-                        + kex_mg(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) & 
-                     ) * (1 - om_frac) / 100._r8 + kex_mg(4)*om_frac)
-                     ! Na+
-                     this%log_km_col(c,lev,3) = - ((kex_na(1)*this%cellsand_col(c, lev) &
-                        + kex_na(3)*this%cellclay_col(c,lev) &
-                        + kex_na(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) & 
-                     ) * (1 - om_frac) / 100._r8 + kex_na(4)*om_frac)
-                     ! K+
-                     this%log_km_col(c,lev,4) = - ((kex_k(1)*this%cellsand_col(c, lev) &
-                        + kex_k(3)*this%cellclay_col(c,lev) &
-                        + kex_k(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) & 
-                     ) * (1 - om_frac) / 100._r8 + kex_k(4)*om_frac)
-                     ! Al3+
-                     this%log_km_col(c,lev,5) = - ((kex_al(1)*this%cellsand_col(c, lev) &
-                        + kex_al(3)*this%cellclay_col(c,lev) &
-                        + kex_al(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) & 
-                     ) * (1 - om_frac) / 100._r8 + kex_al(4)*om_frac)
+                     if (lev <= nlevsoi) then
+                        this%log_km_col(c,lev,1) = - ((kex_ca(1)*this%cellsand_col(c, lev) &
+                           + kex_ca(3)*this%cellclay_col(c,lev) &
+                           + kex_ca(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) &
+                        ) * (1 - om_frac) / 100._r8 + kex_ca(4)*om_frac)
+                        ! Mg2+
+                        this%log_km_col(c,lev,2) = - ((kex_mg(1)*this%cellsand_col(c, lev) &
+                           + kex_mg(3)*this%cellclay_col(c,lev) &
+                           + kex_mg(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) & 
+                        ) * (1 - om_frac) / 100._r8 + kex_mg(4)*om_frac)
+                        ! Na+
+                        this%log_km_col(c,lev,3) = - ((kex_na(1)*this%cellsand_col(c, lev) &
+                           + kex_na(3)*this%cellclay_col(c,lev) &
+                           + kex_na(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) & 
+                        ) * (1 - om_frac) / 100._r8 + kex_na(4)*om_frac)
+                        ! K+
+                        this%log_km_col(c,lev,4) = - ((kex_k(1)*this%cellsand_col(c, lev) &
+                           + kex_k(3)*this%cellclay_col(c,lev) &
+                           + kex_k(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) & 
+                        ) * (1 - om_frac) / 100._r8 + kex_k(4)*om_frac)
+                        ! Al3+
+                        this%log_km_col(c,lev,5) = - ((kex_al(1)*this%cellsand_col(c, lev) &
+                           + kex_al(3)*this%cellclay_col(c,lev) &
+                           + kex_al(2)*(100._r8-this%cellsand_col(c,lev)-this%cellclay_col(c,lev)) & 
+                        ) * (1 - om_frac) / 100._r8 + kex_al(4)*om_frac)
+                     end if
                   end if
                 end if
              end if

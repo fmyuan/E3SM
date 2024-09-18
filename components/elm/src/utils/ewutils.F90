@@ -8,6 +8,7 @@ module ewutils
   use elm_varcon  , only: log_keq_hco3, log_keq_co3
   use elm_varpar  , only: ncations
   use elm_varctl  , only: iulog
+  use shr_sys_mod , only: shr_sys_flush
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -93,7 +94,7 @@ contains
     ! g m-3 soil s-1). Log transformation. 
     !
     ! !ARGUMENTS: 
-    real(r8), intent(in) :: log_mol_conc ! mol kg-1 water
+    real(r8), intent(in) :: log_mol_conc ! mol kg-1 waterfad
     real(r8), intent(in) :: molar_mass ! g mol-1, molar mass of the cation or solid
     real(r8), intent(in) :: h2o ! m3 m-3, volumetric soil water content
     real(r8) :: mass_conc ! g m-3 soil
@@ -288,26 +289,27 @@ contains
   end function solve_eq
 
 
-  subroutine advection_diffusion(conc_trcr,adv_flux,diffus,source,surf_bc,dtime,vwc,conc_change_rate)
+  subroutine advection_diffusion(conc_trcr,adv_flux,diffus,source,surf_bc,nlevbed,dtime,vwc,conc_change_rate)
     ! From B. Sulman; edited layer depth; soil bulk concentration can use g/m3
     ! 
     ! Advection and diffusion for a single tracer in one column given diffusion coefficient, flow, and source-sink terms
     ! Based on SoilLittVertTranspMod, which implements S. V. Patankar, Numerical Heat Transfer and Fluid Flow, Series in Computational Methods in Mechanics and Thermal Sciences, Hemisphere Publishing Corp., 1980. Chapter 5
     ! Not sure if this belongs here or somewhere else. Is it bad to do this in the EMI subroutine?
 
-    use elm_varpar       , only : mixing_layer
     use elm_varcon       , only : zsoi, zisoi, dzsoi_decomp
+    use elm_varpar       , only : nlevsoi
     use abortutils       , only : endrun
 
-    real(r8), intent(in) :: conc_trcr(1:mixing_layer)  ! Bulk concentration (e.g. mol/m3)
-    real(r8), intent(in) :: adv_flux(1:mixing_layer+1) ! (m/s), vertical into layer (down is negative)
-    real(r8), intent(in) :: diffus(1:mixing_layer)  ! diffusivity (m2/s)
-    real(r8), intent(in) :: source(1:mixing_layer)  ! Source term (mol/m3/s)
+    real(r8), intent(in) :: conc_trcr(1:nlevsoi)  ! Bulk concentration (e.g. mol/m3)
+    real(r8), intent(in) :: adv_flux(1:nlevsoi+1) ! (m/s), vertical into layer (down is negative)
+    real(r8), intent(in) :: diffus(1:nlevsoi)  ! diffusivity (m2/s)
+    real(r8), intent(in) :: source(1:nlevsoi)  ! Source term (mol/m3/s)
+    integer , intent(in) :: nlevbed ! Number of hydrologically active layers
 
     real(r8), intent(in) :: surf_bc                 ! Surface boundary layer concentration (for infiltration)
     real(r8), intent(in) :: dtime                   ! Time step (s)
-    real(r8), intent(in) :: vwc(1:mixing_layer)     ! Volumetric soil moisture in layer (m3/m3)
-    real(r8), intent(out):: conc_change_rate(1:mixing_layer) ! Bulk concentration (e.g. mol/m3/s)
+    real(r8), intent(in) :: vwc(1:nlevsoi)     ! Volumetric soil moisture in layer (m3/m3)
+    real(r8), intent(out):: conc_change_rate(1:nlevsoi) ! Bulk concentration (e.g. mol/m3/s)
 
     ! Local variables
     real(r8) :: aaa                          ! "A" function in Patankar
@@ -315,19 +317,19 @@ contains
     real(r8) :: w_m1, w_p1                   ! Weights for calculating harmonic mean of diffusivity
     real(r8) :: d_m1, d_p1                   ! Harmonic mean of diffusivity
     real(r8) :: vwc_m1, vwc_p1                ! Harmonic mean of soil moisture
-    real(r8) :: a_tri(0:mixing_layer+1)      ! "a" vector for tridiagonal matrix
-    real(r8) :: b_tri(0:mixing_layer+1)      ! "b" vector for tridiagonal matrix
-    real(r8) :: c_tri(0:mixing_layer+1)      ! "c" vector for tridiagonal matrix
-    real(r8) :: r_tri(0:mixing_layer+1)      ! "r" vector for tridiagonal solution
-    real(r8) :: d_p1_zp1(1:mixing_layer+1)   ! diffusivity/delta_z for next j  (set to zero for no diffusion)
-    real(r8) :: d_m1_zm1(1:mixing_layer+1)   ! diffusivity/delta_z for previous j (set to zero for no diffusion)
-    real(r8) :: f_p1(1:mixing_layer+1)       ! water flux for next j
-    real(r8) :: f_m1(1:mixing_layer+1)       ! water flux for previous j
-    real(r8) :: pe_p1(1:mixing_layer+1)      ! Peclet # for next j
-    real(r8) :: pe_m1(1:mixing_layer+1)      ! Peclet # for previous j
-    real(r8) :: dz_node(1:mixing_layer+1)    ! difference between nodes
+    real(r8) :: a_tri(0:nlevsoi+1)      ! "a" vector for tridiagonal matrix
+    real(r8) :: b_tri(0:nlevsoi+1)      ! "b" vector for tridiagonal matrix
+    real(r8) :: c_tri(0:nlevsoi+1)      ! "c" vector for tridiagonal matrix
+    real(r8) :: r_tri(0:nlevsoi+1)      ! "r" vector for tridiagonal solution
+    real(r8) :: d_p1_zp1(1:nlevsoi+1)   ! diffusivity/delta_z for next j  (set to zero for no diffusion)
+    real(r8) :: d_m1_zm1(1:nlevsoi+1)   ! diffusivity/delta_z for previous j (set to zero for no diffusion)
+    real(r8) :: f_p1(1:nlevsoi+1)       ! water flux for next j
+    real(r8) :: f_m1(1:nlevsoi+1)       ! water flux for previous j
+    real(r8) :: pe_p1(1:nlevsoi+1)      ! Peclet # for next j
+    real(r8) :: pe_m1(1:nlevsoi+1)      ! Peclet # for previous j
+    real(r8) :: dz_node(1:nlevsoi+1)    ! difference between nodes
     real(r8) :: a_p_0
-    real(r8) :: conc_after(0:mixing_layer+1)
+    real(r8) :: conc_after(0:nlevsoi+1)
 
     integer :: j, info
 
@@ -336,7 +338,7 @@ contains
 
     ! Set the distance between the node and the one ABOVE it   
     dz_node(1) = zsoi(1)
-    do j = 2,mixing_layer+1
+    do j = 2,nlevsoi+1
       dz_node(j)= zsoi(j) - zsoi(j-1)
     enddo
 
@@ -346,7 +348,7 @@ contains
     ! m: layer above
     ! p: layer below
     ! pe: Peclet number (ratio of convection to diffusion)
-    do j = 1,mixing_layer
+    do j = 1,nlevbed
       if (j == 1) then
         d_m1_zm1(j) = 0._r8
         w_p1 = (zsoi(j+1) - zisoi(j)) / dz_node(j+1)
@@ -362,7 +364,7 @@ contains
         f_p1(j) = adv_flux(j+1) / vwc_p1
         pe_m1(j) = 0._r8
         pe_p1(j) = f_p1(j) / d_p1_zp1(j) ! Peclet #
-      elseif (j == mixing_layer) then
+      elseif (j == nlevbed) then
           ! At the bottom, assume no gradient in d_z (i.e., they're the same)
           w_m1 = (zisoi(j-1) - zsoi(j-1)) / dz_node(j)
           if ( diffus(j) > 0._r8 .and. diffus(j-1) > 0._r8) then
@@ -401,7 +403,7 @@ contains
           pe_m1(j) = f_m1(j) / d_m1_zm1(j) ! Peclet #
           pe_p1(j) = f_p1(j) / d_p1_zp1(j) ! Peclet #
       end if
-    enddo ! j; mixing_layer
+    enddo ! j; nlevbed
 
 
     ! Calculate the tridiagonal coefficients
@@ -413,9 +415,9 @@ contains
     ! b_tri = a_above+a_below+rho*dz/dt
     ! -c_tri = D_below*A(Pe)+max(F_below,0); D_below = diffus_below/dz
     ! r_tri = b = source_const*dz + conc*rho*dz/dt
-    do j = 0,mixing_layer +1
+    do j = 0,nlevbed +1
 
-      if (j > 0 .and. j < mixing_layer+1) then
+      if (j > 0 .and. j < nlevbed+1) then
           a_p_0 =  dzsoi_decomp(j) / dtime / vwc(j) ! Should this be multiplied by layer water content (for vwc)?
       endif
 
@@ -437,30 +439,32 @@ contains
             r_tri(j) = r_tri(j) - adv_flux(j)*conc_trcr(j)
           endif
           
-      elseif (j < mixing_layer+1) then
+      elseif (j < nlevbed+1) then
           a_tri(j) = -(d_m1_zm1(j) * aaa(pe_m1(j)) + max( f_m1(j), 0._r8)) ! Eqn 5.47 Patankar
           c_tri(j) = -(d_p1_zp1(j) * aaa(pe_p1(j)) + max(-f_p1(j), 0._r8))
           b_tri(j) = -a_tri(j) - c_tri(j) + a_p_0
           r_tri(j) = source(j) * dzsoi_decomp(j) + a_p_0 * conc_trcr(j) ! Eq. 5.57
-      else ! j==mixing_layer+1; 0 concentration gradient at bottom
+      else ! j==nlevbed+1; 0 concentration gradient at bottom
           a_tri(j) = -1._r8
           b_tri(j) = 1._r8
           c_tri(j) = 0._r8 
           r_tri(j) = 0._r8
       endif
-    enddo ! j; mixing_layer
+    enddo ! j; nlevbed
 
     ! Solve for the concentration profile for this time step
-    ! call Tridiagonal(0, mixing_layer+1, 0, a_tri, b_tri, c_tri, r_tri, conc_after)
+    ! call Tridiagonal(0, nlevbed+1, 0, a_tri, b_tri, c_tri, r_tri, conc_after)
     ! This is the LAPACK tridiagonal solver which gave more accurate results in my testing
-    call dgtsv( mixing_layer+2, 1, c_tri(0:mixing_layer), b_tri, a_tri(1:mixing_layer+1),  & 
-                r_tri, mixing_layer+2, info )
+    call dgtsv( nlevbed+2, 1, c_tri(0:nlevbed), b_tri, a_tri(1:nlevbed+1),  & 
+                r_tri, nlevbed+2, info )
 
     if(info < 0) call endrun(msg='dgtsv error in adv_diff line __LINE__: illegal argument')
     if(info > 0) call endrun(msg='dgtsv error in adv_diff line __LINE__: singular matrix')
     conc_after = r_tri
 
-    conc_change_rate = (conc_after(1:mixing_layer)-conc_trcr)/dtime
+    do j = 1,nlevbed
+      conc_change_rate(j) = (conc_after(j)-conc_trcr(j))/dtime
+    end do
 
   end subroutine advection_diffusion
 
