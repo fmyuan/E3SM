@@ -298,7 +298,7 @@ contains
     ! after soil hydrology is already initialized
     ! 
     ! !USES:
-    use spmdMod, only : masterproc
+    use spmdMod, only : iam
     !
     ! !ARGUMENTS:
     type(bounds_type)        , intent(in)    :: bounds
@@ -372,31 +372,31 @@ contains
     end do
 
     !if ( masterproc)then
-      write (iulog, *) '***************************************************************************'
-      write (iulog, *) '*** Soil Initialization for Enhanced Weathering                       *****'
+      write (100+iam, *) '*************************************************************************'
+      write (100+iam, *) '*** Soil Initialization for Enhanced Weathering                       ***'
       do fc = 1,num_soilc
         c = filter_soilc(fc)
         g = col_pp%gridcell(c)
 
         ! Write diagnostics
-        write (iulog, *) '-------------------------------------------------------------------------'
-        write (iulog, *) 'grid and column: ', ldomain%latc(g), ldomain%lonc(g), g, c
-        write (iulog, *) 'soil pH, proton (g m-3), cation (g m-3):'
+        write (100+iam, *) '-----------------------------------------------------------------------'
+        write (100+iam, *) 'grid and column: ', ldomain%latc(g), ldomain%lonc(g), g, c
+        write (100+iam, *) 'soil pH, proton (g m-3), cation (g m-3):'
         do j = 1,nlevbed
           write (j_str, '(I2)') j
           j_lev = 'j='//j_str
           ! write (iulog, *) 'j=', j, soil_ph(c,j), h2osoi_vol(c,j), nlevbed, nlevsoi
-          write (iulog, *) j_lev, soil_ph(c,j), proton_vr(c,j), cation_vr(c,j,1:ncations)
+          write (100+iam, *) j_lev, soil_ph(c,j), proton_vr(c,j), cation_vr(c,j,1:ncations)
           ! write (iulog, *) 'cation_vr',  j, icat, cation_vr(c,j,icat), soil_ph(c,j), soilstate_vars%log_km_col(c,j,icat), soilstate_vars%ceca_col(c,j), soilstate_vars%cect_col(c,j), EWParamsInst%cations_valence(icat), soilstate_vars%cece_col(c,j,icat), h2osoi_vol(c,j)    
         end do
-        write (iulog, *) 'cec total, beta H+, beta cation:'
+        write (100+iam, *) 'cec total, beta H+, beta cation:'
         do j = 1,nlevbed
           write (j_str, '(I2)') j
           j_lev = 'j='//j_str
-          write (iulog, *) j_lev, soilstate_vars%cect_col(c,j), soilstate_vars%ceca_col(c,j) / soilstate_vars%cect_col(c,j), soilstate_vars%cece_col(c,j,1:ncations) / soilstate_vars%cect_col(c,j)
+          write (100+iam, *) j_lev, soilstate_vars%cect_col(c,j), soilstate_vars%ceca_col(c,j) / soilstate_vars%cect_col(c,j), soilstate_vars%cece_col(c,j,1:ncations) / soilstate_vars%cect_col(c,j)
         end do
       end do
-      write (iulog, *) '***************************************************************************'
+      write (100+iam, *) '*************************************************************************'
     !end if
 
     end associate
@@ -415,6 +415,7 @@ contains
     use elm_time_manager , only : get_step_size, get_curr_date
     use abortutils       , only : endrun
     use SharedParamsMod  , only : ParamsShareInst
+    use spmdMod          , only : iam
     use timeinfoMod
     !
     ! !ARGUMENTS:
@@ -702,7 +703,7 @@ contains
               if (log_omega_vr(c,j,m) >= 0._r8) then
                 r_dissolve_vr(c,j,m) = 0._r8
 
-                write (iulog,*) ' WARNING! Omega > 1 meaning dissolution reaction cannot proceed', ldomain%latc(g), ldomain%lonc(g), g, c, j, m, log_omega_vr(c,j,m)
+                write (100+iam,*) ' WARNING! Omega > 1 meaning dissolution reaction cannot proceed', ldomain%latc(g), ldomain%lonc(g), g, c, j, m, log_omega_vr(c,j,m)
                 !write (iulog, *) 'log_omega_vr part 1', soil_ph(c,j) * EWParamsInst%primary_stoi_proton(m) - EWParamsInst%log_keq_primary(m)
                 !do icat = 1,ncations
                 !  write (iulog, *) 'log_omega_vr cation', icat, EWParamsInst%cations_name(icat), EWParamsInst%primary_stoi_cations(m,icat) * &
