@@ -221,7 +221,7 @@ contains
        !if (spinup_state == 0 .or. year >= year_start_ew) then
           call MineralVerticalMovement(bounds, num_soilc, filter_soilc, dt)
           call MineralStateUpdate2(num_soilc, filter_soilc, col_ms, col_mf, dt)
-          call MineralLeaching(bounds, num_soilc, filter_soilc, dt)
+          !call MineralLeaching(bounds, num_soilc, filter_soilc, dt)
           ! !!!!!!!!!!!!!!!!!!!!! Do this later
           ! call MineralEquilibria(bounds, num_soilc, filter_soilc, soilstate_vars)
        !end if
@@ -643,7 +643,8 @@ contains
       end if
 
          call MineralDynamics(bounds, num_soilc, filter_soilc, soilstate_vars)
-         call MineralEquilibria(bounds, num_soilc, filter_soilc, soilstate_vars)
+         ! moving into EnhancedWeatherMod: MineralMineralDynamics() and other
+         !call MineralEquilibria(bounds, num_soilc, filter_soilc, soilstate_vars)
          call MineralFluxLimit(num_soilc, filter_soilc, col_ms, col_mf, dt)
          call MineralStateUpdate1(num_soilc, filter_soilc, col_ms, col_mf, dt)
     end if

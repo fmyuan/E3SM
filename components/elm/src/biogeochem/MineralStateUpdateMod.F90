@@ -6,9 +6,9 @@ module MineralStateUpdateMod
   ! !USES:
   use shr_kind_mod            , only : r8 => shr_kind_r8
   use decompMod               , only : bounds_type
+  use spmdMod                 , only : iam
   use elm_varpar              , only : nminerals, ncations, nminsecs, nlevgrnd, nlevsoi
   use elm_varcon              , only : zisoi, dzsoi, mass_h
-  use elm_varctl              , only : iulog
   use shr_sys_mod             , only : shr_sys_flush
   use spmdMod                 , only : masterproc
   use abortutils              , only : endrun
@@ -20,6 +20,7 @@ module MineralStateUpdateMod
   use SoilStateType           , only : soilstate_type
   use EnhancedWeatheringMod   , only : EWParamsInst
   use domainMod               , only : ldomain ! debug print
+  use elm_time_manager        , only : get_curr_time_string
   !
   implicit none
   save
@@ -84,7 +85,6 @@ contains
         !! col_ms%soil_ph(c,j) = - log10(mass_to_mol(col_ms%proton_vr(c,j), 1._r8, col_ws%h2osoi_vol(c,j)))
         col_ms%proton_vr(c,j) = mol_to_mass(10**(-col_ms%soil_ph(c,j)), mass_h, col_ws%h2osoi_vol(c,j))
 
-        !write (iulog, *) 'soil_ph', c, j, col_ms%soil_ph(c,j), col_ms%proton_vr(c,j), col_ws%h2osoi_vol(c,j)
 
         ! primary mineral
         do m = 1,nminerals
@@ -143,7 +143,6 @@ contains
             col_mf%secondary_cation_flux_vr(c,j,icat) - col_mf%cation_uptake_vr(c,j,icat) + & 
             col_mf%cation_infl_vr(c,j,icat) - col_mf%cation_oufl_vr(c,j,icat) ) * dt
         end do
-        !write (iulog, *) 'post-adv', c, icat, cation_vr(c,1:mixing_layer, icat)
       end do
     end do
   end subroutine MineralStateUpdate2
@@ -202,22 +201,6 @@ contains
       col_mf%r_sequestration(c) = col_mf%r_sequestration(c) * 12._r8
     end do
 
-    ! Negative check
-    !if (masterproc) then
-      do fc = 1,num_soilc
-        c = filter_soilc(fc)
-        g = col_pp%gridcell(c)
-        do j = 1,nlevbed
-          do icat = 1,ncations
-            if (col_ms%cation_vr(c,j,icat) < 0) then
-              write (iulog, *) 'cation_vr diagnostics:', ldomain%latc(g), ldomain%lonc(g), g, c, j, icat, col_ms%cation_vr(c,j,icat)
-              call endrun(msg='cation_vr < 0')
-            end if
-          end do
-        end do
-      end do
-    !end if
-
   end subroutine MineralStateUpdate3
 
   !-----------------------------------------------------------------------
@@ -246,6 +229,7 @@ contains
     real(r8) :: min_flux_limit(1:num_soilc, 1:nlevsoi)
     logical  :: err_found
     integer  :: err_fc, err_lev, err_icat, err_col
+    character(len=256) :: dateTimeString
     character(len=32) :: subname = 'elm_erw_mineral_flux_limit'  ! subroutine name
     !-----------------------------------------------------------------------
 
@@ -327,43 +311,42 @@ contains
       end do
     end do
 
-    !if (masterproc) then
+    if (err_found) then
+      g = col_pp%gridcell(err_col)
+      write (100+iam, *) 'Flushing rate diagnostics: ', ldomain%latc(g), ldomain%lonc(g), err_col, err_lev, err_icat, trim(dateTimeString)
+      write (100+iam, *) ' initial cation=', col_ms%cation_vr(err_col, err_lev, err_icat)
+      write (100+iam, *) ' delta1=', temp_delta1_cation(err_fc, err_lev, err_icat)
+      write (100+iam, *) ' terms/dt=', col_mf%background_weathering_vr(c,j,icat), &
+          col_mf%primary_cation_flux_vr(c,j,icat), col_mf%cation_uptake_vr(c,j,icat)
+      call endrun(msg=subname //':: ERROR: Problematic flushing rate'//errMsg(__FILE__, __LINE__))
+    end if
 
-      if (err_found) then
-        g = col_pp%gridcell(err_col)
-        write (iulog, *) 'Flushing rate diagnostics: ', ldomain%latc(g), ldomain%lonc(g), g, err_col, err_lev, err_icat
-        write (iulog, *) ' initial cation=', col_ms%cation_vr(err_col, err_lev, err_icat)
-        write (iulog, *) ' delta1=', temp_delta1_cation(err_fc, err_lev, err_icat)
-        write (iulog, *) ' terms/dt=', col_mf%background_weathering_vr(c,j,icat), &
-            col_mf%primary_cation_flux_vr(c,j,icat), col_mf%cation_uptake_vr(c,j,icat)
-        call endrun(msg=subname //':: ERROR: Problematic flushing rate'//errMsg(__FILE__, __LINE__))
-      end if
+    call get_curr_time_string(dateTimeString)
+    do fc = 1,num_soilc
+      c = filter_soilc(fc)
+      g = col_pp%gridcell(c)
+      do j = 1,nlevbed
+        if (min_flux_limit(fc,j) < 1._r8) then
+          write (100+iam, *) 'Flux limit diagnostics: ', ldomain%latc(g), ldomain%lonc(g), j, trim(dateTimeString)
+          call shr_sys_flush(100+iam)
 
-      do fc = 1,num_soilc
-        c = filter_soilc(fc)
-        g = col_pp%gridcell(c)
-        do j = 1,nlevbed
-          if (min_flux_limit(fc,j) < 1._r8) then  
-            write (iulog, *) '*** Flux limit diagnostics: ', ldomain%latc(g), ldomain%lonc(g), c, j, '***'
-            do icat = 1,ncations
-              if (col_mf%cec_limit_vr(c,j,icat) < 1._r8) then
-                write (iulog, *) '   negative CEC cation ', icat, col_mf%cec_limit_vr(c,j,icat), col_ms%cec_cation_vr(c,j,icat), temp_delta_cece(fc,j,icat)
-              end if
-            end do
-            if (col_mf%proton_limit_vr(c,j) < 1._r8) then
-              write (iulog, *) '   negative CEC H+ ', col_mf%proton_limit_vr(c,j), col_ms%cec_proton_vr(c,j), temp_delta_ceca(fc,j)
+          do icat = 1,ncations
+            if (col_mf%cec_limit_vr(c,j,icat) < 1._r8) then
+              write (100+iam, *) '   negative CEC cation ', icat, col_mf%cec_limit_vr(c,j,icat), col_ms%cec_cation_vr(c,j,icat), temp_delta_cece(fc,j,icat)
             end if
-            do icat = 1,ncations
-              if (col_mf%flux_limit_vr(c,j,icat) < 1._r8) then
-                write (iulog, *) '   negative solution cation ', icat, col_mf%flux_limit_vr(c,j,icat), col_ms%cation_vr(c,j,icat), temp_delta1_cation(fc,j,icat), temp_delta2_cation(fc,j,icat)
-              end if
-            end do
+          end do
+          if (col_mf%proton_limit_vr(c,j) < 1._r8) then
+            write (100+iam, *) '   negative CEC H+ ', col_mf%proton_limit_vr(c,j), col_ms%cec_proton_vr(c,j), temp_delta_ceca(fc,j)
           end if
-        end do
+          do icat = 1,ncations
+            if (col_mf%flux_limit_vr(c,j,icat) < 1._r8) then
+              write (100+iam, *) '   negative solution cation ', icat, col_mf%flux_limit_vr(c,j,icat), col_ms%cation_vr(c,j,icat), temp_delta1_cation(fc,j,icat), temp_delta2_cation(fc,j,icat)
+            end if
+          end do
+        end if
       end do
-    !end if
+    end do
 
   end subroutine MineralFluxLimit
-
 
 end module MineralStateUpdateMod
