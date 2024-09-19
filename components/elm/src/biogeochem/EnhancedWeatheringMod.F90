@@ -1258,6 +1258,9 @@ contains
           cece(icat) = mass_to_meq(cec_cation_vr(c,j,icat), EWParamsInst%cations_valence(icat), &
             EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j))
           beta_list(icat) = cece(icat) / soilstate_vars%cect_col(c,j)
+          ! if too tiny or zero, e.g. due to tiny or zero cec_cation_vr,
+          ! the following 'solve_eq' function for soil pH won't work well.
+          beta_list(icat) = max(1.0e-5, beta_list(icat))
           keq_list(icat) = 10**soilstate_vars%log_km_col(c,j,icat)
         end do
         soil_ph(c,j) = solve_eq(net_charge_vr(c,j), co2_atm, beta_list, keq_list, EWParamsInst%cations_valence)
