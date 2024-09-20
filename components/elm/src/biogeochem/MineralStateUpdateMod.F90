@@ -9,7 +9,6 @@ module MineralStateUpdateMod
   use spmdMod                 , only : iam
   use elm_varpar              , only : nminerals, ncations, nminsecs, nlevgrnd, nlevsoi
   use elm_varcon              , only : zisoi, dzsoi, mass_h
-  use elm_varctl              , only : iulog
   use shr_sys_mod             , only : shr_sys_flush
   use spmdMod                 , only : masterproc
   use abortutils              , only : endrun
@@ -21,6 +20,7 @@ module MineralStateUpdateMod
   use SoilStateType           , only : soilstate_type
   use EnhancedWeatheringMod   , only : EWParamsInst
   use domainMod               , only : ldomain ! debug print
+  use elm_time_manager        , only : get_curr_time_string
   !
   implicit none
   save
@@ -85,7 +85,7 @@ contains
         !! col_ms%soil_ph(c,j) = - log10(mass_to_mol(col_ms%proton_vr(c,j), 1._r8, col_ws%h2osoi_vol(c,j)))
         col_ms%proton_vr(c,j) = mol_to_mass(10**(-col_ms%soil_ph(c,j)), mass_h, col_ws%h2osoi_vol(c,j))
 
-        !write (iulog, *) 'soil_ph', c, j, col_ms%soil_ph(c,j), col_ms%proton_vr(c,j), col_ws%h2osoi_vol(c,j)
+        !write (100+iam, *) 'soil_ph', c, j, col_ms%soil_ph(c,j), col_ms%proton_vr(c,j), col_ws%h2osoi_vol(c,j)
 
         ! primary mineral
         do m = 1,nminerals
@@ -144,7 +144,7 @@ contains
             col_mf%secondary_cation_flux_vr(c,j,icat) - col_mf%cation_uptake_vr(c,j,icat) + & 
             col_mf%cation_infl_vr(c,j,icat) - col_mf%cation_oufl_vr(c,j,icat) ) * dt
         end do
-        !write (iulog, *) 'post-adv', c, icat, cation_vr(c,1:mixing_layer, icat)
+        !write (100+iam, *) 'post-adv', c, icat, cation_vr(c,1:mixing_layer, icat)
       end do
     end do
   end subroutine MineralStateUpdate2
@@ -171,6 +171,8 @@ contains
     integer  :: c,p,j,k,icat,m,g ! indices
     integer  :: fp,fc         ! lake filter indices
     integer  :: nlevbed
+    logical  :: print_proton, print_cations, print_cec_proton, print_cec_cations ! flags to turn on debug printing
+    character(len=256) :: dateTimeString
     !-----------------------------------------------------------------------
 
     ! Update mineral state
@@ -203,98 +205,110 @@ contains
       col_mf%r_sequestration(c) = col_mf%r_sequestration(c) * 12._r8
     end do
 
-    ! Uncomment to show diagnostics
+    !------------------------------------------------------------------------------
+    ! Turn on flags to show diagnostics
+    call get_curr_time_string(dateTimeString)
+    print_proton = .false.
+    print_cations = .false.
+    print_cec_cations = .false.
+    print_cec_proton = .false.
 
-    !write (iulog, *) 'Post-reaction H+: '
-    !do fc = 1,num_soilc
-    !  c = filter_soilc(fc)
-    !  nlevbed = min(col_pp%nlevbed(c), nlevsoi)
-    !  do j = 1,nlevbed
-    !    write (iulog, *) c, j, col_ms%soil_ph(c,j), col_ms%proton_vr(c,j), & 
-    !      mass_to_mol(col_ms%proton_vr(c,j), mass_h, col_ws%h2osoi_vol(c,j))
-    !  end do
-    !end do
-      !!  - col_mf%primary_proton_flux_vr(c,j)*dt, & 
-      !!  col_mf%cec_proton_flux_vr(c,j)*dt, &
-      !!  col_mf%proton_infl_vr(c,j)*dt, &
-      !!  - col_mf%proton_oufl_vr(c,j)*dt, & 
-      !!  -col_mf%proton_uptake_vr(c,j)*dt, & 
-      !!  -col_mf%proton_leached_vr(c,j)*dt, &
-      !!  -col_mf%proton_runoff_vr(c,j)*dt
-
-    !write (iulog, *) 'Post-reaction cation: '
-    !do fc = 1,num_soilc
-    !  c = filter_soilc(fc)
-    !  nlevbed = min(col_pp%nlevbed(c), nlevsoi)
-
-      ! note: sourcesink_cations term in EnhancedWeatheringMod.F90
-      !       should be approximately matched to cation_infl_vr
-      ! leaching & runoff are the additionals
-    !  do icat = 1, ncations
-    !    do j = 1,nlevbed
-    !      write (iulog, *) c, j, icat, col_ms%cation_vr(c,j,icat), &
-    !        mass_to_mol(col_ms%cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), &
-    !                    col_ws%h2osoi_vol(c,j)), &
-    !        (col_mf%background_weathering_vr(c,j,icat) + col_mf%primary_cation_flux_vr(c,j,icat) & 
-    !         + col_mf%cec_cation_flux_vr(c,j,icat) - col_mf%secondary_cation_flux_vr(c,j,icat) &
-    !         - col_mf%cation_uptake_vr(c,j,icat))*dt, &
-    !        col_mf%cation_infl_vr(c,j,icat)*dt, &
-    !        - col_mf%cation_leached_vr(c,j,icat)*dt, &
-    !        - col_mf%cation_runoff_vr(c,j,icat)*dt
-    !    end do
-    !  end do
-    !end do
-
-    !write (iulog, *) 'Post-reaction cec H+: '
-    !do fc = 1,num_soilc
-    !  c = filter_soilc(fc)
-    !  nlevbed = min(col_pp%nlevbed(c), nlevsoi)
-    !  do j = 1,nlevbed
-        ! note: the change in CEC H+ is equal to the sum of other cations' influx
-    !    write (iulog, *) c, j, col_ms%cec_proton_vr(c,j), & 
-    !      mass_to_meq(col_ms%cec_proton_vr(c,j), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
-    !      mass_to_meq(col_mf%cec_cation_flux_vr(c,j,1)*dt/EWParamsInst%cations_mass(1) & 
-    !        *mass_h*EWParamsInst%cations_valence(1), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
-    !      mass_to_meq(col_mf%cec_cation_flux_vr(c,j,2)*dt/EWParamsInst%cations_mass(2) & 
-    !        *mass_h*EWParamsInst%cations_valence(2), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
-    !      mass_to_meq(col_mf%cec_cation_flux_vr(c,j,3)*dt/EWParamsInst%cations_mass(3) & 
-    !        *mass_h*EWParamsInst%cations_valence(3), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
-    !      mass_to_meq(col_mf%cec_cation_flux_vr(c,j,4)*dt/EWParamsInst%cations_mass(4) & 
-    !        *mass_h*EWParamsInst%cations_valence(4), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
-    !      mass_to_meq(col_mf%cec_cation_flux_vr(c,j,5)*dt/EWParamsInst%cations_mass(5) & 
-    !        *mass_h*EWParamsInst%cations_valence(5), 1._r8, mass_h, soilstate_vars%bd_col(c,j))
-    !  end do
-    !end do
-
-    !write (iulog, *) 'Post-reaction cec cation'
-    !do fc = 1,num_soilc
-    !  c = filter_soilc(fc)
-    !  nlevbed = min(col_pp%nlevbed(c), nlevsoi)
-    !  do j = 8,8! 1,nlevbed
-    !    do icat = 1,ncations
-    !      write (iulog, *) c, j, icat, col_ms%cec_cation_vr(c,j,icat), &
-    !        mass_to_meq(col_ms%cec_cation_vr(c,j,icat), EWParamsInst%cations_valence(icat), &
-    !                    EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j)), &
-    !        -col_mf%cec_cation_flux_vr(c,j,icat)*dt
-    !    end do
-    !  end do
-    !end do
-
-    ! Negative check
-    !if (masterproc) then
+    if (print_proton) then
+      write (100+iam, *) 'Post-reaction H+: ', ldomain%latc(g), ldomain%lonc(g), trim(dateTimeString)
       do fc = 1,num_soilc
         c = filter_soilc(fc)
-        g = col_pp%gridcell(c)
+        nlevbed = min(col_pp%nlevbed(c), nlevsoi)
         do j = 1,nlevbed
-          do icat = 1,ncations
-            if (col_ms%cation_vr(c,j,icat) < 0) then
-              write (100+iam, *) 'cation_vr diagnostics:', ldomain%latc(g), ldomain%lonc(g), g, c, j, icat, col_ms%cation_vr(c,j,icat)
-              call endrun(msg='cation_vr < 0')
-            end if
+          write (100+iam, *) c, j, col_ms%soil_ph(c,j), col_ms%proton_vr(c,j), & 
+            mass_to_mol(col_ms%proton_vr(c,j), mass_h, col_ws%h2osoi_vol(c,j))
+        end do
+      end do
+        !!  - col_mf%primary_proton_flux_vr(c,j)*dt, & 
+        !!  col_mf%cec_proton_flux_vr(c,j)*dt, &
+        !!  col_mf%proton_infl_vr(c,j)*dt, &
+        !!  - col_mf%proton_oufl_vr(c,j)*dt, & 
+        !!  -col_mf%proton_uptake_vr(c,j)*dt, & 
+        !!  -col_mf%proton_leached_vr(c,j)*dt, &
+        !!  -col_mf%proton_runoff_vr(c,j)*dt
+    end if
+
+    if (print_cations) then
+      write (100+iam, *) 'Post-reaction cation: ', ldomain%latc(g), ldomain%lonc(g), trim(dateTimeString)
+      do fc = 1,num_soilc
+        c = filter_soilc(fc)
+        nlevbed = min(col_pp%nlevbed(c), nlevsoi)
+        ! note: sourcesink_cations term in EnhancedWeatheringMod.F90
+        !       should be approximately matched to cation_infl_vr
+        ! leaching & runoff are the additionals
+        do icat = 1,ncations
+          do j = 1,nlevbed
+            write (100+iam, *) c, j, icat, col_ms%cation_vr(c,j,icat), &
+              mass_to_mol(col_ms%cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), &
+                          col_ws%h2osoi_vol(c,j)), &
+              (col_mf%background_weathering_vr(c,j,icat) + col_mf%primary_cation_flux_vr(c,j,icat) & 
+              + col_mf%cec_cation_flux_vr(c,j,icat) - col_mf%secondary_cation_flux_vr(c,j,icat) &
+              - col_mf%cation_uptake_vr(c,j,icat))*dt, &
+              col_mf%cation_infl_vr(c,j,icat)*dt, &
+              - col_mf%cation_leached_vr(c,j,icat)*dt, &
+              - col_mf%cation_runoff_vr(c,j,icat)*dt
           end do
         end do
       end do
-    !end if
+    end if
+
+    if (print_cec_proton) then
+      write (100+iam, *) 'Post-reaction cec H+: ', ldomain%latc(g), ldomain%lonc(g), trim(dateTimeString)
+      do fc = 1,num_soilc
+        c = filter_soilc(fc)
+        nlevbed = min(col_pp%nlevbed(c), nlevsoi)
+        do j = 1,nlevbed
+          ! note: the change in CEC H+ is equal to the sum of other cations' influx
+          write (100+iam, *) c, j, col_ms%cec_proton_vr(c,j), & 
+            mass_to_meq(col_ms%cec_proton_vr(c,j), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+            mass_to_meq(col_mf%cec_cation_flux_vr(c,j,1)*dt/EWParamsInst%cations_mass(1) & 
+              *mass_h*EWParamsInst%cations_valence(1), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+            mass_to_meq(col_mf%cec_cation_flux_vr(c,j,2)*dt/EWParamsInst%cations_mass(2) & 
+              *mass_h*EWParamsInst%cations_valence(2), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+            mass_to_meq(col_mf%cec_cation_flux_vr(c,j,3)*dt/EWParamsInst%cations_mass(3) & 
+              *mass_h*EWParamsInst%cations_valence(3), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+            mass_to_meq(col_mf%cec_cation_flux_vr(c,j,4)*dt/EWParamsInst%cations_mass(4) & 
+              *mass_h*EWParamsInst%cations_valence(4), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+            mass_to_meq(col_mf%cec_cation_flux_vr(c,j,5)*dt/EWParamsInst%cations_mass(5) & 
+            *mass_h*EWParamsInst%cations_valence(5), 1._r8, mass_h, soilstate_vars%bd_col(c,j))
+        end do
+      end do
+    end if
+
+    if (print_cec_cations) then
+      write (100+iam, *) 'Post-reaction cec cation: ', ldomain%latc(g), ldomain%lonc(g), trim(dateTimeString)
+      do fc = 1,num_soilc
+        c = filter_soilc(fc)
+        nlevbed = min(col_pp%nlevbed(c), nlevsoi)
+        do j = 1,nlevbed
+          do icat = 1,ncations
+            write (100+iam, *) c, j, icat, col_ms%cec_cation_vr(c,j,icat), &
+              mass_to_meq(col_ms%cec_cation_vr(c,j,icat), EWParamsInst%cations_valence(icat), &
+                          EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j)), &
+              -col_mf%cec_cation_flux_vr(c,j,icat)*dt
+          end do
+        end do
+      end do
+    end if
+    !------------------------------------------------------------------------------
+
+    ! Negative check
+    do fc = 1,num_soilc
+      c = filter_soilc(fc)
+      g = col_pp%gridcell(c)
+      do j = 1,nlevbed
+        do icat = 1,ncations
+          if (col_ms%cation_vr(c,j,icat) < 0) then
+            write (100+iam, *) 'cation_vr diagnostics:', ldomain%latc(g), ldomain%lonc(g), c, j, icat, col_ms%cation_vr(c,j,icat), trim(dateTimeString)
+            call endrun(msg='cation_vr < 0')
+          end if
+        end do
+      end do
+    end do
 
   end subroutine MineralStateUpdate3
 
@@ -324,6 +338,7 @@ contains
     real(r8) :: min_flux_limit(1:num_soilc, 1:nlevsoi)
     logical  :: err_found
     integer  :: err_fc, err_lev, err_icat, err_col
+    character(len=256) :: dateTimeString
     character(len=32) :: subname = 'elm_erw_mineral_flux_limit'  ! subroutine name
     !-----------------------------------------------------------------------
 
@@ -405,43 +420,42 @@ contains
       end do
     end do
 
-    !if (masterproc) then
+    if (err_found) then
+      g = col_pp%gridcell(err_col)
+      write (100+iam, *) 'Flushing rate diagnostics: ', ldomain%latc(g), ldomain%lonc(g), err_col, err_lev, err_icat, trim(dateTimeString)
+      write (100+iam, *) ' initial cation=', col_ms%cation_vr(err_col, err_lev, err_icat)
+      write (100+iam, *) ' delta1=', temp_delta1_cation(err_fc, err_lev, err_icat)
+      write (100+iam, *) ' terms/dt=', col_mf%background_weathering_vr(c,j,icat), &
+          col_mf%primary_cation_flux_vr(c,j,icat), col_mf%cation_uptake_vr(c,j,icat)
+      call endrun(msg=subname //':: ERROR: Problematic flushing rate'//errMsg(__FILE__, __LINE__))
+    end if
 
-      if (err_found) then
-        g = col_pp%gridcell(err_col)
-        write (100+iam, *) 'Flushing rate diagnostics: ', ldomain%latc(g), ldomain%lonc(g), g, err_col, err_lev, err_icat
-        write (100+iam, *) ' initial cation=', col_ms%cation_vr(err_col, err_lev, err_icat)
-        write (100+iam, *) ' delta1=', temp_delta1_cation(err_fc, err_lev, err_icat)
-        write (100+iam, *) ' terms/dt=', col_mf%background_weathering_vr(c,j,icat), &
-            col_mf%primary_cation_flux_vr(c,j,icat), col_mf%cation_uptake_vr(c,j,icat)
-        call endrun(msg=subname //':: ERROR: Problematic flushing rate'//errMsg(__FILE__, __LINE__))
-      end if
+    call get_curr_time_string(dateTimeString)
+    do fc = 1,num_soilc
+      c = filter_soilc(fc)
+      g = col_pp%gridcell(c)
+      do j = 1,nlevbed
+        if (min_flux_limit(fc,j) < 1._r8) then
+          write (100+iam, *) 'Flux limit diagnostics: ', ldomain%latc(g), ldomain%lonc(g), j, trim(dateTimeString)
+          call shr_sys_flush(100+iam)
 
-      do fc = 1,num_soilc
-        c = filter_soilc(fc)
-        g = col_pp%gridcell(c)
-        do j = 1,nlevbed
-          if (min_flux_limit(fc,j) < 1._r8) then  
-            write (100+iam, *) '*** Flux limit diagnostics: ', ldomain%latc(g), ldomain%lonc(g), c, j, '***'
-            do icat = 1,ncations
-              if (col_mf%cec_limit_vr(c,j,icat) < 1._r8) then
-                write (100+iam, *) '   negative CEC cation ', icat, col_mf%cec_limit_vr(c,j,icat), col_ms%cec_cation_vr(c,j,icat), temp_delta_cece(fc,j,icat)
-              end if
-            end do
-            if (col_mf%proton_limit_vr(c,j) < 1._r8) then
-              write (100+iam, *) '   negative CEC H+ ', col_mf%proton_limit_vr(c,j), col_ms%cec_proton_vr(c,j), temp_delta_ceca(fc,j)
+          do icat = 1,ncations
+            if (col_mf%cec_limit_vr(c,j,icat) < 1._r8) then
+              write (100+iam, *) '   negative CEC cation ', icat, col_mf%cec_limit_vr(c,j,icat), col_ms%cec_cation_vr(c,j,icat), temp_delta_cece(fc,j,icat)
             end if
-            do icat = 1,ncations
-              if (col_mf%flux_limit_vr(c,j,icat) < 1._r8) then
-                write (100+iam, *) '   negative solution cation ', icat, col_mf%flux_limit_vr(c,j,icat), col_ms%cation_vr(c,j,icat), temp_delta1_cation(fc,j,icat), temp_delta2_cation(fc,j,icat)
-              end if
-            end do
+          end do
+          if (col_mf%proton_limit_vr(c,j) < 1._r8) then
+            write (100+iam, *) '   negative CEC H+ ', col_mf%proton_limit_vr(c,j), col_ms%cec_proton_vr(c,j), temp_delta_ceca(fc,j)
           end if
-        end do
+          do icat = 1,ncations
+            if (col_mf%flux_limit_vr(c,j,icat) < 1._r8) then
+              write (100+iam, *) '   negative solution cation ', icat, col_mf%flux_limit_vr(c,j,icat), col_ms%cation_vr(c,j,icat), temp_delta1_cation(fc,j,icat), temp_delta2_cation(fc,j,icat)
+            end if
+          end do
+        end if
       end do
-    !end if
+    end do
 
   end subroutine MineralFluxLimit
-
 
 end module MineralStateUpdateMod

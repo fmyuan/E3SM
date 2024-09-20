@@ -25,7 +25,7 @@ module EnhancedWeatheringMod
   use ewutils             , only : mass_to_logmol, objective_solveq, solve_eq, ph_to_hco3, hco3_to_co3
   use domainMod           , only : ldomain ! debug print
   use shr_sys_mod         , only : shr_sys_flush
-  use landunit_varcon , only : istsoil, istcrop
+  use spmdMod             , only : iam
 
   implicit none
   save
@@ -298,7 +298,6 @@ contains
     ! after soil hydrology is already initialized
     ! 
     ! !USES:
-    use spmdMod, only : iam
     !
     ! !ARGUMENTS:
     type(bounds_type)        , intent(in)    :: bounds
@@ -331,7 +330,6 @@ contains
       t = col_pp%topounit(c)
       g = col_pp%gridcell(c)
       l = col_pp%landunit(c)
-      !write (iulog, *) lun_pp%itype(l) == istsoil
       nlevbed = min(nlev2bed(c), nlevsoi)
 
       co2_atm = top_as%pco2bot(t) / 101325
@@ -385,9 +383,9 @@ contains
         do j = 1,nlevbed
           write (j_str, '(I2)') j
           j_lev = 'j='//j_str
-          ! write (iulog, *) 'j=', j, soil_ph(c,j), h2osoi_vol(c,j), nlevbed, nlevsoi
+          ! write (100+iam, *) 'j=', j, soil_ph(c,j), h2osoi_vol(c,j), nlevbed, nlevsoi
           write (100+iam, *) j_lev, soil_ph(c,j), proton_vr(c,j), cation_vr(c,j,1:ncations)
-          ! write (iulog, *) 'cation_vr',  j, icat, cation_vr(c,j,icat), soil_ph(c,j), soilstate_vars%log_km_col(c,j,icat), soilstate_vars%ceca_col(c,j), soilstate_vars%cect_col(c,j), EWParamsInst%cations_valence(icat), soilstate_vars%cece_col(c,j,icat), h2osoi_vol(c,j)    
+          ! write (100+iam, *) 'cation_vr',  j, icat, cation_vr(c,j,icat), soil_ph(c,j), soilstate_vars%log_km_col(c,j,icat), soilstate_vars%ceca_col(c,j), soilstate_vars%cect_col(c,j), EWParamsInst%cations_valence(icat), soilstate_vars%cece_col(c,j,icat), h2osoi_vol(c,j)    
         end do
         write (100+iam, *) 'cec total, beta H+, beta cation:'
         do j = 1,nlevbed
@@ -415,7 +413,6 @@ contains
     use elm_time_manager , only : get_step_size, get_curr_date
     use abortutils       , only : endrun
     use SharedParamsMod  , only : ParamsShareInst
-    use spmdMod          , only : iam
     use timeinfoMod
     !
     ! !ARGUMENTS:
@@ -704,9 +701,9 @@ contains
                 r_dissolve_vr(c,j,m) = 0._r8
 
                 write (100+iam,*) ' WARNING! Omega > 1 meaning dissolution reaction cannot proceed', ldomain%latc(g), ldomain%lonc(g), g, c, j, m, log_omega_vr(c,j,m)
-                !write (iulog, *) 'log_omega_vr part 1', soil_ph(c,j) * EWParamsInst%primary_stoi_proton(m) - EWParamsInst%log_keq_primary(m)
+                !write (100+iam, *) 'log_omega_vr part 1', soil_ph(c,j) * EWParamsInst%primary_stoi_proton(m) - EWParamsInst%log_keq_primary(m)
                 !do icat = 1,ncations
-                !  write (iulog, *) 'log_omega_vr cation', icat, EWParamsInst%cations_name(icat), EWParamsInst%primary_stoi_cations(m,icat) * &
+                !  write (100+iam, *) 'log_omega_vr cation', icat, EWParamsInst%cations_name(icat), EWParamsInst%primary_stoi_cations(m,icat) * &
                 !  mass_to_logmol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j))
                 !end do
 
@@ -722,7 +719,7 @@ contains
                     EWParamsInst%n_primary(m,1) * soil_ph(c,j) + log10(1 - 10**log_omega_vr(c,j,m))
                   k_tot = k_tot + 10**log_k_dissolve_acid
 
-                  !write (iulog, *) 'log_k_dissolve_acid', ldomain%latc(g), ldomain%lonc(g), g, c, j, m, log_k_dissolve_acid, EWParamsInst%log_k_primary(m,1), EWParamsInst%e_primary(m,1), rgas, tsoi(c,j), EWParamsInst%n_primary(m,1), soil_ph(c,j), log_omega_vr(c,j,m)
+                  !write (100+iam, *) 'log_k_dissolve_acid', ldomain%latc(g), ldomain%lonc(g), g, c, j, m, log_k_dissolve_acid, EWParamsInst%log_k_primary(m,1), EWParamsInst%e_primary(m,1), rgas, tsoi(c,j), EWParamsInst%n_primary(m,1), soil_ph(c,j), log_omega_vr(c,j,m)
                 end if
 
                 if (EWParamsInst%log_k_primary(m,2) > -9000) then
@@ -730,7 +727,7 @@ contains
                     (-1.0e6_r8 * EWParamsInst%e_primary(m,2) / rgas * (1/tsoi(c,j) - 1/298.15_r8)) + &
                     log10(1 - 10**log_omega_vr(c,j,m))
                   k_tot = k_tot + 10**log_k_dissolve_neutral
-                  !write (iulog, *) 'log_k_dissolve_neutral', ldomain%latc(g), ldomain%lonc(g), g, c, j, m, log_k_dissolve_neutral, EWParamsInst%log_k_primary(m,1), EWParamsInst%e_primary(m,1), rgas, tsoi(c,j), log_omega_vr(c,j,m)
+                  !write (100+iam, *) 'log_k_dissolve_neutral', ldomain%latc(g), ldomain%lonc(g), g, c, j, m, log_k_dissolve_neutral, EWParamsInst%log_k_primary(m,1), EWParamsInst%e_primary(m,1), rgas, tsoi(c,j), log_omega_vr(c,j,m)
                 end if
 
                 if (EWParamsInst%log_k_primary(m,3) > -9000) then
@@ -738,7 +735,7 @@ contains
                     (-1.0e6_r8 * EWParamsInst%e_primary(m,3) / rgas * (1/tsoi(c,j) - 1/298.15_r8)) - &
                     EWParamsInst%n_primary(m,3) * (14 - soil_ph(c,j)) + log10(1 - 10**log_omega_vr(c,j,m))
                   k_tot = k_tot + 10**log_k_dissolve_base
-                  ! write (iulog, *) 'log_k_dissolve_base', ldomain%latc(g), ldomain%lonc(g), g, c, j, m, log_k_dissolve_base, EWParamsInst%log_k_primary(m,3), EWParamsInst%e_primary(m,3), rgas, tsoi(c,j), EWParamsInst%n_primary(m,3), soil_ph(c,j), log_omega_vr(c,j,m)
+                  ! write (100+iam, *) 'log_k_dissolve_base', ldomain%latc(g), ldomain%lonc(g), g, c, j, m, log_k_dissolve_base, EWParamsInst%log_k_primary(m,3), EWParamsInst%e_primary(m,3), rgas, tsoi(c,j), EWParamsInst%n_primary(m,3), soil_ph(c,j), log_omega_vr(c,j,m)
                 end if
 
                 ! further scale down the reaction rate by soil moisture, use liquid only
@@ -749,7 +746,7 @@ contains
                 ! calculate dissolution rate in mol m-3 s-1
                 r_dissolve_vr(c,j,m) = ssa(c,m) * primary_mineral_vr(c,j,m) * k_tot
 
-                !write (iulog, *) c, j, m, 'r_dissolve_vr', r_dissolve_vr(c,j,m), k_tot, ssa(c,m), primary_mineral_vr(c,j,m)
+                !write (100+iam, *) c, j, m, 'r_dissolve_vr', r_dissolve_vr(c,j,m), k_tot, ssa(c,m), primary_mineral_vr(c,j,m)
               end if
             end if
           end do
@@ -964,8 +961,6 @@ contains
     do fc = 1,num_soilc
       c = filter_soilc(fc)
       g = col_pp%gridcell(c)
-      ! l = col_pp%landunit(c)
-      ! write (iulog, *) lun_pp%itype(l) == istsoil
       nlevbed = min(nlev2bed(c), nlevsoi)
 
       !------------------------------------------------------------------------------
@@ -1008,13 +1003,6 @@ contains
           adv_water(j) = -1.0e-3_r8 * qin(c,j)
         end do
         adv_water(nlevbed + 1) = qin(c,j+1)
-
-        !write (iulog, *) 'pre-adv', c, icat, cation_vr(c,1:mixing_layer, icat)
-        !write (iulog, *) 'adv_water', c, adv_water(1:mixing_layer)
-        !write (iulog, *) 'diffus', c, icat, diffus(1:mixing_layer)
-        !write (iulog, *) 'sourcesink', c, icat, sourcesink_cations(1:mixing_layer,icat)
-        !write (iulog, *) 'rain_cations', c, icat, rain_cations(icat)
-        !write (iulog, *) 'rho', c, icat, rho(1:mixing_layer)
 
         call advection_diffusion( & 
           cation_vr(c,1:nlevsoi, icat), adv_water(1:nlevsoi+1), diffus(1:nlevsoi), &
@@ -1070,6 +1058,7 @@ contains
     real(r8) :: surface_water                          ! liquid water to shallow surface depth (kg water/m2)
     real(r8) :: drain_tot                              ! total drainage flux (mm H2O /s)
     real(r8) :: temp_drain_pct, temp_surf_pct          ! percentage loss per second
+    real(r8) :: temp_tot_pct, tot_proton_flush, tot_cation_flush
     real(r8), parameter :: depth_runoff_Mloss = 0.05   ! (m) depth over which runoff mixes with soil water for ions loss to runoff; same as nitrogen runoff depth
     real(r8) :: rain_proton, rain_cations(1:ncations)  ! surface boundary condition (g m-3 H2O)
     real(r8) :: sourcesink_proton(1:nlevsoi), sourcesink_cations(1:nlevsoi,1:ncations) ! (g m-3 soil s-1)
@@ -1105,8 +1094,6 @@ contains
     do fc = 1,num_soilc
       c = filter_soilc(fc)
       g = col_pp%gridcell(c)
-      ! l = col_pp%landunit(c)
-      ! write (iulog, *) lun_pp%itype(l) == istsoil
       nlevbed = min(nlev2bed(c), nlevsoi)
 
       !------------------------------------------------------------------------------
@@ -1134,42 +1121,54 @@ contains
       temp_surf_pct = qflx_surf(c) / surface_water
 
       do j = 1,nlevbed
-
         if (h2osoi_liq(c,j) > 0._r8) then
+          ! use the analytical solution if the flushing rate is too large
+          ! need to calculate the total leaching and runoff flux, otherwise
+          ! they can be individually small, but still in total too large
+
+          ! calculate the loss from surface runoff, assuming a shallow mixing of surface waters into soil and removal based on runoff
+          ! &
           ! calculate the leaching flux as a function of the dissolved
           ! concentration (g cation/kg water) and the sub-surface drainage flux
 
-          ! use the analytical solution if the flushing rate is too large
-          if (temp_drain_pct*dt > 0.1_r8) then
-            proton_leached_vr(c,j) = proton_vr(c,j)*(1._r8-exp(-temp_drain_pct*dt))/dt
-            do icat = 1,ncations
-              cation_leached_vr(c,j,icat) = cation_vr(c,j,icat)*(1._r8-exp(-temp_drain_pct*dt))/dt
-            end do
+          if ( zisoi(j-1) < depth_runoff_Mloss ) then
+            if ( zisoi(j) <= depth_runoff_Mloss )  then
+              frac_thickness = 1._r8
+            else
+              frac_thickness = (depth_runoff_Mloss - zisoi(j-1)) / dz(c,j)
+            end if
+            temp_tot_pct = temp_surf_pct*frac_thickness + temp_drain_pct
+            if ( temp_tot_pct*dt > 0.1_r8 ) then
+              tot_proton_flush = proton_vr(c,j)*(1._r8-exp(-temp_tot_pct*dt))/dt
+              proton_leached_vr(c,j) = tot_proton_flush * temp_drain_pct / temp_tot_pct
+              proton_runoff_vr(c,j) = tot_proton_flush - proton_leached_vr(c,j)
+              do icat = 1,ncations
+                tot_cation_flush = cation_vr(c,j,icat)*(1._r8-exp(-temp_tot_pct*dt))/dt
+                cation_leached_vr(c,j,icat) = tot_cation_flush * temp_drain_pct / temp_tot_pct
+                cation_runoff_vr(c,j,icat) = tot_cation_flush - cation_leached_vr(c,j,icat)
+              end do
+            else
+              proton_leached_vr(c,j) = proton_vr(c,j) * temp_drain_pct
+              proton_runoff_vr(c,j) = proton_vr(c,j) * temp_surf_pct * frac_thickness
+              do icat = 1,ncations
+                cation_leached_vr(c,j,icat) = cation_vr(c,j,icat) * temp_drain_pct
+                cation_runoff_vr(c,j,icat) = cation_vr(c,j,icat) * temp_surf_pct * frac_thickness
+              end do
+            end if
           else
-            proton_leached_vr(c,j) = proton_vr(c,j) * temp_drain_pct
-            do icat = 1,ncations
-              cation_leached_vr(c,j,icat) = cation_vr(c,j,icat) * temp_drain_pct
-            end do
-          end if
-
-          ! calculate the loss from surface runoff, assuming a shallow mixing of surface waters into soil and removal based on runoff
-          if ( zisoi(j) <= depth_runoff_Mloss )  then
-            frac_thickness = 1._r8
-          else if ( zisoi(j-1) < depth_runoff_Mloss )  then
-            frac_thickness = (depth_runoff_Mloss - zisoi(j-1)) / dz(c,j)
-          end if
-          if (temp_surf_pct*dt*frac_thickness > 0.1_r8) then
-            proton_runoff_vr(c,j) = proton_vr(c,j)*(1._r8 - &
-                  exp(-temp_surf_pct*dt*frac_thickness)) / dt
-            do icat = 1,ncations
-              cation_runoff_vr(c,j,icat) = cation_vr(c,j,icat)*(1._r8- & 
-                  exp(-temp_surf_pct*dt*frac_thickness)) / dt
-            end do
-          else
-            proton_runoff_vr(c,j) = proton_vr(c,j) * qflx_surf(c) / surface_water * frac_thickness
-            do icat = 1,ncations
-              cation_runoff_vr(c,j,icat) = cation_vr(c,j,icat) * qflx_surf(c) / surface_water * frac_thickness
-            end do
+            proton_runoff_vr(c,j) = 0._r8
+            cation_runoff_vr(c,j,1:ncations) = 0._r8
+            if (temp_drain_pct*dt > 0.1_r8) then
+              proton_leached_vr(c,j) = proton_vr(c,j)*(1._r8-exp(-temp_drain_pct*dt))/dt
+              do icat = 1,ncations
+                cation_leached_vr(c,j,icat) = cation_vr(c,j,icat)*(1._r8-exp(-temp_drain_pct*dt))/dt
+              end do
+            else
+              proton_leached_vr(c,j) = proton_vr(c,j) * temp_drain_pct
+              do icat = 1,ncations
+                cation_leached_vr(c,j,icat) = cation_vr(c,j,icat) * temp_drain_pct
+              end do
+            end if
           end if
 
         else
@@ -1265,7 +1264,7 @@ contains
           keq_list(icat) = 10**soilstate_vars%log_km_col(c,j,icat)
         end do
         soil_ph(c,j) = solve_eq(net_charge_vr(c,j), co2_atm, beta_list, keq_list, EWParamsInst%cations_valence)
-        ! write (iulog, *) 'solve_eq', c, j, beta_list(1), beta_list(2), beta_list(3), beta_list(4), beta_list(5)
+        ! write (100+iam, *) 'solve_eq', c, j, beta_list(1), beta_list(2), beta_list(3), beta_list(4), beta_list(5)
 
         ! calculate the implications on HCO3- & CO3 --
         bicarbonate_vr(c,j) = ph_to_hco3(soil_ph(c,j), co2_atm)
