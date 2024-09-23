@@ -304,8 +304,14 @@ contains
       do j = 1,nlevbed
         do icat = 1,ncations
           if (col_ms%cation_vr(c,j,icat) < 0) then
-            write (100+iam, *) 'cation_vr diagnostics:', ldomain%latc(g), ldomain%lonc(g), c, j, icat, col_ms%cation_vr(c,j,icat), trim(dateTimeString)
-            call endrun(msg='cation_vr < 0')
+            if (col_ms%cation_vr(c,j,icat) > -1e-12_r8) then
+              ! Numerical accuracy problems can cause runoff to leach away all the cations
+              ! Reset to zero in this case. Balance Check will ignore everything smaller than 1e-12
+              col_ms%cation_vr(c,j,icat) = 0._r8
+            else
+              write (100+iam, *) 'cation_vr diagnostics:', ldomain%latc(g), ldomain%lonc(g), c, j, icat, col_ms%cation_vr(c,j,icat), trim(dateTimeString)
+              call endrun(msg='cation_vr < 0')
+            end if
           end if
         end do
       end do

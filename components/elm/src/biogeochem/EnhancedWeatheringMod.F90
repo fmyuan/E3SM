@@ -1138,6 +1138,7 @@ contains
               frac_thickness = (depth_runoff_Mloss - zisoi(j-1)) / dz(c,j)
             end if
             temp_tot_pct = temp_surf_pct*frac_thickness + temp_drain_pct
+
             if ( temp_tot_pct*dt > 0.1_r8 ) then
               tot_proton_flush = proton_vr(c,j)*(1._r8-exp(-temp_tot_pct*dt))/dt
               proton_leached_vr(c,j) = tot_proton_flush * temp_drain_pct / temp_tot_pct
