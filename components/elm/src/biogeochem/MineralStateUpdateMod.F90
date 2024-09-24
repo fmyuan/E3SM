@@ -206,8 +206,9 @@ contains
       col_mf%r_sequestration(c) = col_mf%r_sequestration(c) * 12._r8
     end do
 
+
     !------------------------------------------------------------------------------
-    ! Turn on flags to show diagnostics
+    ! Write mass balance diagnostics, verbose
     call get_curr_time_string(dateTimeString)
     print_proton = .false.
     print_cations = .false.
@@ -221,7 +222,7 @@ contains
         nlevbed = min(col_pp%nlevbed(c), nlevsoi)
         do j = 1,nlevbed
           write (100+iam, *) c, j, col_ms%soil_ph(c,j), col_ms%proton_vr(c,j), & 
-            mass_to_mol(col_ms%proton_vr(c,j), mass_h, col_ws%h2osoi_vol(c,j))
+             mass_to_mol(col_ms%proton_vr(c,j), mass_h, col_ws%h2osoi_vol(c,j))
         end do
       end do
         !!  - col_mf%primary_proton_flux_vr(c,j)*dt, & 
@@ -252,9 +253,9 @@ contains
               col_mf%cation_infl_vr(c,j,icat)*dt, &
               - col_mf%cation_leached_vr(c,j,icat)*dt, &
               - col_mf%cation_runoff_vr(c,j,icat)*dt
+            end do
           end do
         end do
-      end do
     end if
 
     if (print_cec_proton) then
@@ -301,6 +302,7 @@ contains
     do fc = 1,num_soilc
       c = filter_soilc(fc)
       g = col_pp%gridcell(c)
+      nlevbed = min(col_pp%nlevbed(c), nlevsoi)
       do j = 1,nlevbed
         do icat = 1,ncations
           if (col_ms%cation_vr(c,j,icat) < 0) then
@@ -309,7 +311,48 @@ contains
               ! Reset to zero in this case. Balance Check will ignore everything smaller than 1e-12
               col_ms%cation_vr(c,j,icat) = 0._r8
             else
-              write (100+iam, *) 'cation_vr diagnostics:', ldomain%latc(g), ldomain%lonc(g), c, j, icat, col_ms%cation_vr(c,j,icat), trim(dateTimeString)
+              ! write (100+iam, *) 'cation_vr diagnostics:', ldomain%latc(g), ldomain%lonc(g), c, j, icat, col_ms%cation_vr(c,j,icat), trim(dateTimeString)
+
+              !------------------------------------------------------------------------------
+              ! Write mass balance diagnostics like above
+              call get_curr_time_string(dateTimeString)
+
+              write (100+iam, *) 'Post-reaction H+: ', ldomain%latc(g), ldomain%lonc(g), trim(dateTimeString)
+              write (100+iam, *) c, j, col_ms%soil_ph(c,j), col_ms%proton_vr(c,j), & 
+                mass_to_mol(col_ms%proton_vr(c,j), mass_h, col_ws%h2osoi_vol(c,j))
+
+              write (100+iam, *) 'Post-reaction cation: ', ldomain%latc(g), ldomain%lonc(g), trim(dateTimeString)
+              write (100+iam, *) c, j, icat, col_ms%cation_vr(c,j,icat), &
+                mass_to_mol(col_ms%cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), &
+                            col_ws%h2osoi_vol(c,j)), &
+                (col_mf%background_weathering_vr(c,j,icat) + col_mf%primary_cation_flux_vr(c,j,icat) & 
+                + col_mf%cec_cation_flux_vr(c,j,icat) - col_mf%secondary_cation_flux_vr(c,j,icat) &
+                - col_mf%cation_uptake_vr(c,j,icat))*dt, &
+                col_mf%cation_infl_vr(c,j,icat)*dt, &
+                - col_mf%cation_leached_vr(c,j,icat)*dt, &
+                - col_mf%cation_runoff_vr(c,j,icat)*dt
+
+              write (100+iam, *) 'Post-reaction cec H+: ', ldomain%latc(g), ldomain%lonc(g), trim(dateTimeString)
+              write (100+iam, *) c, j, col_ms%cec_proton_vr(c,j), & 
+                mass_to_meq(col_ms%cec_proton_vr(c,j), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+                mass_to_meq(col_mf%cec_cation_flux_vr(c,j,1)*dt/EWParamsInst%cations_mass(1) & 
+                  *mass_h*EWParamsInst%cations_valence(1), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+                mass_to_meq(col_mf%cec_cation_flux_vr(c,j,2)*dt/EWParamsInst%cations_mass(2) & 
+                  *mass_h*EWParamsInst%cations_valence(2), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+                mass_to_meq(col_mf%cec_cation_flux_vr(c,j,3)*dt/EWParamsInst%cations_mass(3) & 
+                  *mass_h*EWParamsInst%cations_valence(3), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+                mass_to_meq(col_mf%cec_cation_flux_vr(c,j,4)*dt/EWParamsInst%cations_mass(4) & 
+                  *mass_h*EWParamsInst%cations_valence(4), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+                mass_to_meq(col_mf%cec_cation_flux_vr(c,j,5)*dt/EWParamsInst%cations_mass(5) & 
+                *mass_h*EWParamsInst%cations_valence(5), 1._r8, mass_h, soilstate_vars%bd_col(c,j))
+
+              write (100+iam, *) 'Post-reaction cec cation: ', ldomain%latc(g), ldomain%lonc(g), trim(dateTimeString)
+              write (100+iam, *) c, j, icat, col_ms%cec_cation_vr(c,j,icat), &
+                mass_to_meq(col_ms%cec_cation_vr(c,j,icat), EWParamsInst%cations_valence(icat), &
+                            EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j)), &
+                -col_mf%cec_cation_flux_vr(c,j,icat)*dt
+              !------------------------------------------------------------------------------
+
               call endrun(msg='cation_vr < 0')
             end if
           end if
@@ -346,6 +389,7 @@ contains
     logical  :: err_found
     integer  :: err_fc, err_lev, err_icat, err_col
     character(len=256) :: dateTimeString
+    logical  :: print_flux_limit
     character(len=32) :: subname = 'elm_erw_mineral_flux_limit'  ! subroutine name
     !-----------------------------------------------------------------------
 
@@ -437,31 +481,36 @@ contains
       call endrun(msg=subname //':: ERROR: Problematic flushing rate'//errMsg(__FILE__, __LINE__))
     end if
 
-    call get_curr_time_string(dateTimeString)
-    do fc = 1,num_soilc
-      c = filter_soilc(fc)
-      g = col_pp%gridcell(c)
-      do j = 1,nlevbed
-        if (min_flux_limit(fc,j) < 1._r8) then
-          write (100+iam, *) 'Flux limit diagnostics: ', ldomain%latc(g), ldomain%lonc(g), j, trim(dateTimeString)
-          call shr_sys_flush(100+iam)
+    ! -------------------------------------------------------------------------------------------
+    ! Controls if you want to print out flux limit factor on the fly
+    print_flux_limit = .false.
+    if (print_flux_limit) then
+      call get_curr_time_string(dateTimeString)
+      do fc = 1,num_soilc
+        c = filter_soilc(fc)
+        g = col_pp%gridcell(c)
+        do j = 1,nlevbed
+          if (min_flux_limit(fc,j) < 1._r8) then
+            write (100+iam, *) 'Flux limit diagnostics: ', ldomain%latc(g), ldomain%lonc(g), j, trim(dateTimeString)
+            call shr_sys_flush(100+iam)
 
-          do icat = 1,ncations
-            if (col_mf%cec_limit_vr(c,j,icat) < 1._r8) then
-              write (100+iam, *) '   negative CEC cation ', icat, col_mf%cec_limit_vr(c,j,icat), col_ms%cec_cation_vr(c,j,icat), temp_delta_cece(fc,j,icat)
+            do icat = 1,ncations
+              if (col_mf%cec_limit_vr(c,j,icat) < 1._r8) then
+                write (100+iam, *) '   negative CEC cation ', icat, col_mf%cec_limit_vr(c,j,icat), col_ms%cec_cation_vr(c,j,icat), temp_delta_cece(fc,j,icat)
+              end if
+            end do
+            if (col_mf%proton_limit_vr(c,j) < 1._r8) then
+              write (100+iam, *) '   negative CEC H+ ', col_mf%proton_limit_vr(c,j), col_ms%cec_proton_vr(c,j), temp_delta_ceca(fc,j)
             end if
-          end do
-          if (col_mf%proton_limit_vr(c,j) < 1._r8) then
-            write (100+iam, *) '   negative CEC H+ ', col_mf%proton_limit_vr(c,j), col_ms%cec_proton_vr(c,j), temp_delta_ceca(fc,j)
+            do icat = 1,ncations
+              if (col_mf%flux_limit_vr(c,j,icat) < 1._r8) then
+                write (100+iam, *) '   negative solution cation ', icat, col_mf%flux_limit_vr(c,j,icat), col_ms%cation_vr(c,j,icat), temp_delta1_cation(fc,j,icat), temp_delta2_cation(fc,j,icat)
+              end if
+            end do
           end if
-          do icat = 1,ncations
-            if (col_mf%flux_limit_vr(c,j,icat) < 1._r8) then
-              write (100+iam, *) '   negative solution cation ', icat, col_mf%flux_limit_vr(c,j,icat), col_ms%cation_vr(c,j,icat), temp_delta1_cation(fc,j,icat), temp_delta2_cation(fc,j,icat)
-            end if
-          end do
-        end if
+        end do
       end do
-    end do
+    end if
 
   end subroutine MineralFluxLimit
 

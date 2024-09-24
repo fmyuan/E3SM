@@ -395,6 +395,7 @@ contains
         end do
       end do
       write (100+iam, *) '*************************************************************************'
+      call shr_sys_flush(100+iam)
     !end if
 
     end associate
