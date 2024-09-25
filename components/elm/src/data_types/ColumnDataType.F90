@@ -6756,6 +6756,11 @@ contains
        if (lun_pp%itype(l) == istsoil .or. lun_pp%itype(l) == istcrop) then
           this%qflx_drain(c) = 0._r8
           this%qflx_surf(c)  = 0._r8
+          !
+          this%qin(c,:) = 0._r8
+          this%qout(c,:) = 0._r8
+          this%qin_external(c,:) = 0._r8
+          this%qout_external(c,:) = 0._r8
        end if
     end do
 

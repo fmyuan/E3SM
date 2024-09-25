@@ -144,7 +144,7 @@ contains
     use PrecisionControlMod  , only: PrecisionControl
     use perf_mod             , only: t_startf, t_stopf
     use PhosphorusDynamicsMod         , only: PhosphorusBiochemMin_balance
-    use EnhancedWeatheringMod         , only: MineralVerticalMovement, MineralLeaching
+    use EnhancedWeatheringMod         , only: MineralVerticalMovement
     use MineralStateUpdateMod         , only: MineralStateUpdate2, MineralStateUpdate3
 
     !
@@ -221,9 +221,8 @@ contains
        !if (spinup_state == 0 .or. year >= year_start_ew) then
           call MineralVerticalMovement(bounds, num_soilc, filter_soilc, dt)
           call MineralStateUpdate2(num_soilc, filter_soilc, col_ms, col_mf, dt)
-          !call MineralLeaching(bounds, num_soilc, filter_soilc, dt)
-          ! !!!!!!!!!!!!!!!!!!!!! Do this later
-          ! call MineralEquilibria(bounds, num_soilc, filter_soilc, soilstate_vars)
+          ! moving the following into 'MineralVerticalMovement'
+          ! call MineralLeaching(bounds, num_soilc, filter_soilc, dt)
        !end if
      end if
     end if !(.not. (pf_cmode .and. pf_hmode))
@@ -563,7 +562,7 @@ contains
     use RootDynamicsMod        , only: RootDynamics
     use SoilLittDecompMod            , only: SoilLittDecompAlloc
     use SoilLittDecompMod            , only: SoilLittDecompAlloc2 !after SoilLittDecompAlloc
-    use EnhancedWeatheringMod        , only: MineralInit, MineralEquilibria, MineralDynamics
+    use EnhancedWeatheringMod        , only: MineralInit, MineralDynamics
     use MineralStateUpdateMod        , only: MineralFluxLimit, MineralStateUpdate1
     !
     ! !ARGUMENTS:
