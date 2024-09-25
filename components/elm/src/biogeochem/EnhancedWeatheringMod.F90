@@ -1252,9 +1252,17 @@ contains
           beta_list(icat) = cece(icat) / soilstate_vars%cect_col(c,j)
           ! if too tiny or zero, e.g. due to tiny or zero cec_cation_vr,
           ! the following 'solve_eq' function for soil pH won't work well.
-          beta_list(icat) = max(1.0e-5, beta_list(icat))
+          beta_list(icat) = max(1.0e-5_r8, beta_list(icat))
           keq_list(icat) = 10**soilstate_vars%log_km_col(c,j,icat)
         end do
+
+        if (sum(beta_list)>=(1.0_r8-2.0e-4_r8)) then
+          ! if sum(beta_list)>=1.0, it will cause mathematic issue in following 'beta_h' calculation;
+          !   and it will also cause 'solve_eq' issue.
+          ! the limit of '1.-2e-4' would likely constrain soil pH of up to ~8.6.
+          beta_list = beta_list * ((1.0_r8-2.0e-4_r8)/sum(beta_list))
+        end if
+
         soil_ph(c,j) = solve_eq(net_charge_vr(c,j), co2_atm, beta_list, keq_list, EWParamsInst%cations_valence)
 
         ! calculate the implications on HCO3- & CO3 --
