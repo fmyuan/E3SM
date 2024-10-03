@@ -101,6 +101,25 @@ else()
 endif()
 
 # Set Alquimia info if it is being used
+# 'ELM_USE_ALQUIMIA' cannot set up IF not change 'cime/build.py'
+# So, the following is a workaround.
+set(ALQUIMIA_PATH "$ENV{ALQUIMIA_PATH}")
+if (NOT ${ALQUIMIA_PATH} STREQUAL "")
+  set(ELM_USE_ALQUIMIA TRUE)
+  message("ALQUIMIA_PATH: ${ALQUIMIA_PATH}, and ELM_USE_ALQUIMIA = ${ELM_USE_ALQUIMIA}")
+
+  set(ALQUIMIA_INC "${ALQUIMIA_PATH}/include")
+  set(ALQUIMIA_LIB "${ALQUIMIA_PATH}/lib")
+
+  # Set pflotran/petsc info
+  set(PFLOTRAN_PATH "$ENV{PFLOTRAN_PATH}/src/pflotran")
+  set(PETSC_PATH "$ENV{PETSC_DIR}")
+
+  set(CPPDEFS "${CPPDEFS} -DUSE_ALQUIMIA_LIB")
+
+endif()
+
+
 if (ELM_USE_ALQUIMIA)
   if (NOT ALQUIMIA_PATH)
     message(FATAL_ERROR "ALQUIMIA_PATH must be defined when ELM_USE_ALQUIMIA is TRUE")
@@ -136,10 +155,6 @@ endif()
 #===============================================================================
 list(APPEND INCLDIR "${INSTALL_SHAREDPATH}/include" "${INSTALL_SHAREDPATH}/${COMP_INTERFACE}/${ESMFDIR}/${NINST_VALUE}/include")
 
-  if (ALQUIMIA_INC)
-    list(APPEND INCLDIR "${ALQUIMIA_INC}")
-  endif()
-
 string(FIND "${CAM_CONFIG_OPTS}" "-cosp" HAS_COSP)
 if (NOT HAS_COSP EQUAL -1)
   # The following is for the COSP simulator code:
@@ -147,5 +162,15 @@ if (NOT HAS_COSP EQUAL -1)
 endif()
 
 if (ELM_USE_ALQUIMIA)
-  set(SLIBS "${SLIBS} -L${ALQUIMIA_LIB} -lalquimia -Wl,-rpath,${ALQUIMIA_LIB}")
+  # the following should be in build_model.cmake (TODO)
+  if (ALQUIMIA_INC)
+    list(APPEND INCLDIR "${ALQUIMIA_INC}")
+  endif()
+
+  string(APPEND CMAKE_EXE_LINKER_FLAGS " -L${ALQUIMIA_PATH}/lib -lalquimia -Wl,-rpath,${ALQUIMIA_PATH}/lib")
+  string(APPEND CMAKE_EXE_LINKER_FLAGS " -L${PFLOTRAN_PATH} -lpflotranchem -Wl,-rpath,${PFLOTRAN_PATH}")
+  # if PETSC libs not loaded yet
+  if (NOT USE_PETSC)
+    string(APPEND CMAKE_EXE_LINKER_FLAGS " -L${PETSC_PATH}/lib -lpetsc -Wl,-rpath,${PETSC_PATH}/lib")
+  endif()
 endif()
