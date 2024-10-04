@@ -12,7 +12,7 @@ module histFileMod
   use shr_sys_mod    , only : shr_sys_flush
   use spmdMod        , only : masterproc
   use abortutils     , only : endrun
-  use elm_varctl     , only : iulog, use_vertsoilc, use_ew, use_fates, use_extrasnowlayers
+  use elm_varctl     , only : iulog, use_vertsoilc, use_erw, use_fates, use_extrasnowlayers
   use elm_varcon     , only : spval, ispval, dzsoi_decomp 
   use elm_varcon     , only : grlnd, nameg, namet, namel, namec, namep
   use decompMod      , only : get_proc_bounds, get_proc_global, bounds_type
@@ -1927,7 +1927,7 @@ contains
     call ncd_defdim(lnfid, 'string_length', hist_dim_name_length, strlen_dimid)
     call ncd_defdim( lnfid, 'levdcmp', nlevdecomp_full, dimid)
     call ncd_defdim( lnfid, 'levtrc', nlevtrc_full, dimid)    
-    if (use_ew) then
+    if (use_erw) then
       call ncd_defdim( lnfid, 'minerals', nminerals, dimid)
       call ncd_defdim( lnfid, 'cations', ncations, dimid)
       call ncd_defdim( lnfid, 'minsec', nminsecs, dimid)

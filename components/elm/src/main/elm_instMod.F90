@@ -7,7 +7,7 @@ module elm_instMod
   use abortutils                 , only : endrun
   use decompMod                  , only : bounds_type, get_proc_bounds
   use elm_varctl                 , only : use_cn, use_voc, use_c13, use_c14, use_fates, use_betr
-  use elm_varctl                 , only: use_ew
+  use elm_varctl                 , only: use_erw
   !-----------------------------------------
   ! Definition of component types
   !-----------------------------------------
@@ -246,7 +246,7 @@ contains
     end if
 
     ! Initialize the enhanced weathering module
-    if (use_ew) then
+    if (use_erw) then
       call col_ew%Init(begc, endc)
       call col_ms%Init(begc, endc, soilstate_vars)
       call col_mf%Init(begc, endc)

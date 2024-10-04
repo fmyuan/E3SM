@@ -278,7 +278,7 @@ contains
 
     namelist /elm_inparm / use_lai_streams
 
-    namelist /elm_inparm / use_ew
+    namelist /elm_inparm / use_erw
 
     namelist /elm_inparm/  &
          use_c14_bombspike, atm_c14_filename
@@ -707,7 +707,7 @@ contains
     endif
 
     ! elm ERW parameter file
-    if (use_ew) then
+    if (use_erw) then
        call elm_erw_readnl(NLFilename)
     endif
 
@@ -1017,7 +1017,7 @@ contains
     call mpi_bcast (use_modified_infil, 1, MPI_LOGICAL, 0, mpicom, ier)
 
     ! use erw functions
-    call mpi_bcast (use_ew, 1, MPI_LOGICAL, 0, mpicom, ier)
+    call mpi_bcast (use_erw, 1, MPI_LOGICAL, 0, mpicom, ier)
 
   end subroutine control_spmd
 

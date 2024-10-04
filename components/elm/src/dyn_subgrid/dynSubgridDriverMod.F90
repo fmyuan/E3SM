@@ -79,7 +79,7 @@ contains
     use dynpftFileMod     , only : dynpft_init
     use dynHarvestMod     , only : dynHarvest_init
     use dynpftFileMod     , only : dynpft_interp
-    use elm_varctl        , only : use_ew
+    use elm_varctl        , only : use_erw
     use elm_varpar        , only : nminerals
     !
     ! !ARGUMENTS:
@@ -132,7 +132,7 @@ contains
 
     ! soil amendments application, e.g. basalt rock powder
     ! when prescribed transient pft/crop patches are on
-    if ( use_ew .and. (get_do_transient_pfts() .or. get_do_transient_crops()) ) then
+    if ( use_erw .and. (get_do_transient_pfts() .or. get_do_transient_crops()) ) then
        ! currently rocky powder application data is with flanduse_timeseries
        ! can be separated if needed.
        call dynsoilamendments_init(bounds, dynsoilamendments_filename=get_flanduse_timeseries(), &
@@ -192,7 +192,7 @@ contains
 
     ! rocky powder application for enhanced rock weathering modules
     ! here application is one type of soil amendments
-    use elm_varctl           , only : use_ew
+    use elm_varctl           , only : use_erw
     use ColumnDataType       , only : col_ew
     !
     ! !ARGUMENTS:
@@ -273,7 +273,7 @@ contains
 
     ! soil amendments application, e.g. basalt rock powder
     ! when prescribed transient pft/crop patches are on
-    if ( use_ew .and. (get_do_transient_pfts() .or. get_do_transient_crops()) ) then
+    if ( use_erw .and. (get_do_transient_pfts() .or. get_do_transient_crops()) ) then
        ! currently rocky powder application data is with flanduse_timeseries
        ! can be separated if needed.
        call dynsoilamendments_appl(bounds_proc, col_ew%forc_app, col_ew%forc_gra, col_ew%forc_min)

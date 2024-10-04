@@ -19,7 +19,7 @@ module SoilStateType
   use landunit_varcon , only : istice, istdlak, istwet, istsoil, istcrop, istice_mec
   use column_varcon   , only : icol_roof, icol_sunwall, icol_shadewall, icol_road_perv, icol_road_imperv
   use elm_varctl      , only : use_cn, use_lch4,use_dynroot, use_fates
-  use elm_varctl      , only : use_erosion, use_ew
+  use elm_varctl      , only : use_erosion, use_erw
   use elm_varctl      , only : use_var_soil_thick
   use elm_varctl      , only : iulog, fsurdat, hist_wrtch4diag
   use shr_sys_mod     , only : shr_sys_flush
@@ -331,7 +331,7 @@ contains
             ptr_col=this%watfc_col, default='inactive')
     end if
 
-    if (use_ew) then
+    if (use_erw) then
       call hist_addfld2d(fname='cect_col', units='meq 100g-1 dry soil', type2d='levgrnd', &
             avgflag='A', long_name='total cation exchange capacity', &
             ptr_col=this%cect_col, default='inactive')
@@ -608,7 +608,7 @@ contains
     end if
 
     ! Read cation exchange properties
-    if (use_ew) then
+    if (use_erw) then
        allocate(sph_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
        allocate(cect_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
        allocate(cece_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
@@ -933,7 +933,7 @@ contains
                 ! 10-30cm, 30-60cm, 60-100cm of Table 28-Table 31 ("Gapon")
                 ! Vries, W. de, & Posch, M. (2003). Derivation of cation exchange constants for  sand, loess, clay and peat soils on the basis of field measurements in the Netherlands. Retrieved from https://research.wur.nl/en/publications/derivation-of-cation-exchange-constants-for-sand-loess-clay-and-p
                 ! Their "Gapon" equations are the "Gaines-Thomas" equation
-                if (use_ew) then
+                if (use_erw) then
                   if (calc_logkm) then
                      if (zsoi(lev) <= 0.1_r8) then
                         kex_ca = (/3.194, 3.238, 3.728, 2.778/)
@@ -1166,7 +1166,7 @@ contains
             col_pp%nlevbed(bounds%begc:bounds%endc), &
             this%rootfr_patch(bounds%begp:bounds%endp,1:nlevgrnd))
     end if
-    if (use_ew) then
+    if (use_erw) then
       call restartvar(ncid=ncid, flag=flag, varname='cect_col', xtype=ncd_double,  &
             dim1name='column', dim2name='levgrnd', switchdim=.true., &
             long_name='total cation exchange capacity', units='meq 100g-1 dry soil', &

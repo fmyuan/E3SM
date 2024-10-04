@@ -35,6 +35,7 @@ module EnhancedWeatheringMod
   public :: elm_erw_readnl
   public :: readEnhancedWeatheringParams
   public :: MineralInit
+  public :: MineralBackground
   public :: MineralDynamics
   public :: MineralVerticalMovement
   public :: MineralLeaching
@@ -87,8 +88,8 @@ contains
   !
   ! !USES:
     use elm_varctl    , only : iulog
-    use elm_varctl    , only : elm_erw_paramfile
-    use spmdMod       , only : masterproc, mpicom, MPI_CHARACTER
+    use elm_varctl    , only : year_start_erw, elm_erw_paramfile, use_erw_verbose, builtin_site
+    use spmdMod       , only : masterproc, mpicom, MPI_CHARACTER, MPI_INTEGER
     use shr_log_mod   , only : errMsg => shr_log_errMsg
     use fileutils     , only : getavu, relavu, opnfil
     use abortutils    , only : endrun
@@ -109,7 +110,7 @@ contains
     character(len=32) :: subname = 'elm_erw_readnl'  ! subroutine name
   !EOP
   !-----------------------------------------------------------------------
-    namelist / elm_erw_inparm / elm_erw_paramfile
+    namelist / elm_erw_inparm / year_start_erw, elm_erw_paramfile, use_erw_verbose, builtin_site
 
     ! ----------------------------------------------------------------------
     ! Read namelist from standard namelist file.
@@ -121,26 +122,31 @@ contains
        write(iulog,*) 'Read in elm-erw namelist'
        call opnfil (NLFilename, unitn, 'F')
        call shr_nl_find_group_name(unitn, 'elm_erw_inparm', status=ierr)
-       if (ierr == 0) then
-          read(unitn, elm_erw_inparm, iostat=ierr)
-          if (ierr /= 0) then
-             ! get the error line of namelist
-             backspace(unitn)
-             read(unitn,fmt='(A)') errline
-             print *, 'Invalid line: ', trim(errline), ' in namelist file: ', trim(NLFilename)
+       if ( ierr == 0 ) then
+         read(unitn, elm_erw_inparm, iostat=ierr)
+         if (ierr /= 0) then
+           ! get the error line of namelist
+           backspace(unitn)
+           read(unitn,fmt='(A)') errline
+           print *, 'Invalid line: ', trim(errline), ' in namelist file: ', trim(NLFilename)
 
-             call endrun(msg=subname //':: ERROR: reading elm_erw_inparm namelist.'//&
-                         errMsg(__FILE__, __LINE__))
-          end if
+           call endrun(msg=subname //':: ERROR: reading elm_erw_inparm namelist.'//&
+                       errMsg(__FILE__, __LINE__))
+         end if
        end if
        call relavu( unitn )
        write(iulog, '(/, A)') " elm-erw namelist:"
+       write(iulog, '(A, " : ", I0,/)') "   elm-erw beginning year ", year_start_erw
        write(iulog, '(A, " : ", A,/)') "   elm-erw parameter file ", trim(elm_erw_paramfile)
+       write(iulog, '(A, " : ", I0,/)') "   verbose logs ", use_erw_verbose
+       write(iulog, '(A, " : ", I0,/)') "   built-in validation site ", builtin_site
     end if
 
     ! Broadcast namelist variables read in
-    call mpi_bcast (elm_erw_paramfile, len(elm_erw_paramfile) , MPI_CHARACTER, 0, mpicom, ierr)
-    !
+    call mpi_bcast (year_start_erw, 1, MPI_INTEGER, 0, mpicom, ierr)
+    call mpi_bcast (elm_erw_paramfile, len(elm_erw_paramfile), MPI_CHARACTER, 0, mpicom, ierr)
+    call mpi_bcast (use_erw_verbose, 1, MPI_INTEGER, 0, mpicom, ierr)
+    call mpi_bcast (builtin_site, 1, MPI_INTEGER, 0, mpicom, ierr)
   end subroutine elm_erw_readnl
 
   !-----------------------------------------------------------------------
@@ -298,6 +304,7 @@ contains
     ! after soil hydrology is already initialized
     ! 
     ! !USES:
+    use elm_varctl, only : use_erw_verbose
     !
     ! !ARGUMENTS:
     type(bounds_type)        , intent(in)    :: bounds
@@ -369,7 +376,7 @@ contains
       end do
     end do
 
-    !if ( masterproc)then
+    if (use_erw_verbose > 0) then
       write (100+iam, *) '*************************************************************************'
       write (100+iam, *) '*** Soil Initialization for Enhanced Weathering                       ***'
       do fc = 1,num_soilc
@@ -396,21 +403,190 @@ contains
       end do
       write (100+iam, *) '*************************************************************************'
       call shr_sys_flush(100+iam)
-    !end if
+    end if
 
     end associate
   end subroutine MineralInit
+
+
+  !-----------------------------------------------------------------------
+  subroutine MineralBackground(bounds, num_soilc, filter_soilc, soilstate_vars)
+    !
+    ! !DESCRIPTION: 
+    ! Calculate the background weathering fluxes. 
+    ! 
+    ! !USES:
+    use elm_varcon       , only : spval, secspday
+    use elm_varctl       , only : builtin_site
+    use elm_time_manager , only : get_step_size, get_curr_date
+    use abortutils       , only : endrun
+    use timeinfoMod
+    !
+    ! !ARGUMENTS:
+    type(bounds_type)        , intent(in)    :: bounds
+    integer                  , intent(in)    :: num_soilc       ! number of soil columns in filter
+    integer                  , intent(in)    :: filter_soilc(:) ! filter for soil columns
+    type(soilstate_type)     , intent(in)    :: soilstate_vars
+
+    !
+    ! !LOCAL VARIABLES:
+    integer  :: fc,c,j,g,nlevbed
+    integer  :: m, isec, icat          ! indices
+    real(r8) :: dt
+
+    real(r8) :: equilibria_conc(1:nlevsoi, 1:ncations) ! (mol kg-1) soil pore water cation concentration based on observed CEC and soil pH
+    real(r8) :: beta_h, beta_cation, keq, h
+
+    real(r8) :: equilibria_mass(1:nlevsoi)               ! (g m-3 soil) equilibria_conc converted to per soil volume unit
+    real(r8) :: sourcesink(1:nlevsoi)                    ! (g m-3 soil s-1)
+    real(r8) :: adv_water(1:nlevsoi+1)                   ! m H2O / s, negative downward
+    real(r8) :: diffus(1:nlevsoi)                        ! m2/s
+    real(r8) :: rho(1:nlevsoi)                           ! "density" factor using soil water content
+    real(r8) :: dcation_dt(1:nlevsoi, 1:ncations)        ! cation concentration rate, g m-3 s-1
+
+    real(r8) :: qflx_drain_layer, qflx_surf_layer        ! (g m-3 s-1) runoff from soil layer
+    real(r8) :: dzsum                                    ! (m) soil column total depth
+    real(r8), parameter :: depth_runoff_Mloss = 0.05     ! (m) depth over which runoff mixes with soil water for ions loss to runoff; same as nitrogen runoff depth
+
+    associate( &
+         qin                            => col_wf%qin                     , & ! Input: [real(r8) (:,:) ] flux of water into soil layer [mm h2o/s]
+         h2osoi_vol                     => col_ws%h2osoi_vol              , & ! Input:  [real(r8) (:)] volumetric soil water content, ice + water (m3 m-3)
+         qflx_drain                     => col_wf%qflx_drain              , & ! Input:  [real(r8) (:)   ]  sub-surface runoff (mm H2O /s)                    
+         qflx_surf                      => col_wf%qflx_surf               , & ! Input:  [real(r8) (:)   ]  surface runoff (mm H2O /s)
+         qflx_rootsoi_col               => col_wf%qflx_rootsoi            , & ! Input: [real(r8) (:,:) ]  vegetation/soil water exchange (mm H2O/s) (+ = to atm)
+
+         nlev2bed                       => col_pp%nlevbed                 , & ! Input:  [integer  (:)   ]  number of layers to bedrock
+         dz                             => col_pp%dz                      , & ! Input:  [real(r8) (:,:) ]  layer thickness (m)
+
+         rain_ph                        => col_ew%rain_ph                 , & ! Input:  [real(r8) (:)] pH of rain water
+         rain_chem                      => col_ew%rain_chem               , & ! Input:  [real(r8) (:,:)] cation concentration in rain water (excluding H+) (g m-3 rain water) (1:ncations)
+
+         background_weathering_vr       => col_mf%background_weathering_vr  & ! Output: [real(r8) (:)] background weathering rate (g m-3 s-1)
+    )
+
+    dt      = real( get_step_size(), r8 )
+
+    do fc = 1,num_soilc
+      c = filter_soilc(fc)
+      g = col_pp%gridcell(c)
+      nlevbed = min(nlev2bed(c), nlevsoi)
+
+      if (builtin_site == 1) then
+        ! Hubbard Brook
+        ! rain pH data from the monitoring station in Hubbard Brook, 
+        ! National Atmospheric Deposition Program
+        ! https://nadp.slh.wisc.edu/sites/ntn-NH02/
+        rain_ph(c) = 4.8_r8
+        ! Ca = 0.055 mg/L, Mg = 0.015 mg/L, Na = 0.075 mg/L, K = 0.014 mg/L, Al = 0
+        rain_chem(c, 1) = 0.055_r8
+        rain_chem(c, 2) = 0.015_r8
+        rain_chem(c, 3) = 0.075_r8
+        rain_chem(c, 4) = 0.014_r8
+        rain_chem(c, 5) = 0._r8
+
+      else if (builtin_site == 2) then
+        ! U.C. Davis
+        ! rain pH data from the monitoring station in Davis,  
+        ! National Atmospheric Deposition Program
+        ! https://nadp.slh.wisc.edu/sites/ntn-CA88/
+        rain_ph(c) = 6.2_r8
+        ! Ca = 0.055 mg/L, Mg = 0.015 mg/L, Na = 0.075 mg/L, K = 0.014 mg/L, Al = 0
+        rain_chem(c, 1) = 0.06_r8
+        rain_chem(c, 2) = 0.06_r8
+        rain_chem(c, 3) = 0.025_r8
+        rain_chem(c, 4) = 0.04_r8
+        rain_chem(c, 5) = 0._r8
+
+     else
+        !
+        rain_ph(c) = 5.6_r8
+        rain_chem(c, :) = 0.0_r8 ! in the new setup, rain_chem should no longer matter
+      end if
+
+      !------------------------------------------------------------------------------
+      ! Pure background weathering
+      ! - At long-term equilibrium, assume soil solution concentration is balanced
+      !   with cation exchange. Also, assume no inter-soil-layer movement of cations.
+      ! - There is only loss via (plant uptake + surface & subsurface runoff + 
+      !                           vertical soil drainage).
+      ! - Background weathering rate only replenishes that loss. 
+      !------------------------------------------------------------------------------
+
+      ! obtain the equilibrium concentration in each layer according to observed data
+      do icat = 1,ncations
+        ! rainwater, mg/L => mol/kg
+        ! equilibria_conc(0,icat) = rain_chem(c,icat) * 1e-3 / EWParamsInst%cations_mass(icat)
+        do j = 1,nlevbed
+          h = 10**(-soilstate_vars%sph(c,j))
+          beta_h = soilstate_vars%ceca_col(c,j) / soilstate_vars%cect_col(c,j)
+          beta_cation = soilstate_vars%cece_col(c,j,icat) / soilstate_vars%cect_col(c,j)
+          keq = 10**soilstate_vars%log_km_col(c,j,icat)
+          equilibria_conc(j,icat) = beta_cation/(beta_h*keq/h)**EWParamsInst%cations_valence(icat)
+        end do
+      end do
+
+      ! calculate the counterfactual advection-diffusion rate at equilibrium concentration
+      ! but this time step's loss rate
+      do icat = 1,ncations
+        sourcesink(1:nlevsoi) = 0._r8
+        diffus(1:nlevsoi) = EWParamsInst%cations_diffusivity(icat)
+        do j = 1,nlevbed
+          equilibria_mass(j) = mol_to_mass(equilibria_conc(j,icat), &
+                                           EWParamsInst%cations_mass(icat), h2osoi_vol(c,j))
+          adv_water(j) = -1.0e-3_r8 * qin(c,j) ! note the flux rate is negative downward
+        end do
+        adv_water(nlevbed + 1) = qin(c,j+1)
+
+        call advection_diffusion( equilibria_mass(1:nlevsoi), &
+          adv_water(1:nlevsoi+1), diffus(1:nlevsoi), &
+          sourcesink(1:nlevsoi), rain_chem(c,icat), nlevbed, dt, &
+          h2osoi_vol(c,1:nlevsoi), dcation_dt(1:nlevsoi, icat) &
+        )
+      end do
+
+      ! calculate the runoff losses and add up to get total background weathering rate
+      dzsum = 0._r8
+      do j = 1,nlevbed
+        dzsum = dzsum + dz(c,j)
+      end do
+      do icat = 1,ncations
+        ! mol kg-1 * g mol-1 * mm s-1 = g m-2 s-1,divide by dz to get g m-3 s-1
+        do j = 1,nlevbed
+          qflx_drain_layer = qflx_drain(c) / dzsum
+          if (zisoi(j) < depth_runoff_Mloss) then
+            qflx_surf_layer = qflx_surf(c) / depth_runoff_Mloss
+          else
+            qflx_surf_layer = 0._r8
+          end if
+
+          background_weathering_vr(c,j,icat) = &
+              mol_to_mass(equilibria_conc(j,icat), EWParamsInst%cations_mass(icat), &
+                          1e-3_r8 * (qflx_drain_layer + qflx_surf_layer + qflx_rootsoi_col(c,j))) &
+              - dcation_dt(j,icat)
+        end do
+      end do
+
+      !------------------------------------------------------------------------------
+      ! Add the weathering of pre-existing calcite in the soil
+      !------------------------------------------------------------------------------
+      ! soilstate_vars%bd_col(c,j) * soilstate_vars%calcite_col(c,j)/100._r8
+    end do ! end column loop
+
+    end associate
+
+  end subroutine MineralBackground
+
 
   !-----------------------------------------------------------------------
   subroutine MineralDynamics(bounds, num_soilc, filter_soilc, soilstate_vars)
     !
     ! !DESCRIPTION: 
-    ! Calculate the background weathering, primary mineral dissolution, and
-    ! secondary mineral precipitation fluxes. 
+    ! Calculate primary mineral dissolution, and secondary mineral precipitation fluxes. 
     ! 
     ! !USES:
     ! rgas = universal gas constant [= 8314.467 J/K/kmole]
     use elm_varcon       , only : spval, rgas, secspday
+    use elm_varctl       , only : use_erw_verbose, builtin_site
     use elm_time_manager , only : get_step_size, get_curr_date
     use abortutils       , only : endrun
     use SharedParamsMod  , only : ParamsShareInst
@@ -431,17 +607,11 @@ contains
     integer  :: kda                    ! day of month   (1, ..., 31)
     integer  :: mcsec                  ! seconds 
     integer  :: current_date
-    real(r8) :: equilibria_conc(1:nlevsoi)
-    real(r8) :: beta_h, beta_cation, keq, h
     real(r8) :: dt
     real(r8) :: log_k_dissolve_acid, log_k_dissolve_neutral, log_k_dissolve_base
     real(r8) :: saturation_ratio, log_silica, log_carbonate
     real(r8) :: k_tot
-    real(r8) :: qflx_drain_layer, qflx_surf_layer, dzsum
     real(r8), parameter :: depth_runoff_Mloss = 0.05   ! (m) depth over which runoff mixes with soil water for ions loss to runoff; same as nitrogen runoff depth
-
-    ! TEMPORARY - pick site
-    integer :: site_id
 
     associate( &
          !
@@ -451,13 +621,6 @@ contains
          forc_min                       => col_ew%forc_min                 , & ! Input:  [real(r8) (:,:) weight percentage of minerals in rock (1:nminerals) (kg mineral kg-1 rock)
          forc_pho                       => col_ew%forc_pho                 , & ! Input:  [real(r8) (:)] weight percentage of phosphorus content in rock (gP kg-1 rock)
          forc_gra                       => col_ew%forc_gra                 , & ! Input:  [real(r8) (:,:)] grain size (1:nminerals) (um diameter)
-         rain_ph                        => col_ew%rain_ph                  , & ! Input:  [real(r8) (:)] pH of rain water
-         rain_chem                      => col_ew%rain_chem                , & ! Input:  [real(r8) (:,:)] cation concentration in rain water (excluding H+) (g m-3 rain water) (1:ncations)
-
-         !
-         ! Background weathering flux
-         !
-         background_weathering_vr       => col_mf%background_weathering_vr , & ! Output: [real(r8) (:)] background weathering rate (g m-3 s-1)
 
          !
          ! soil pH and ionic states 
@@ -504,15 +667,9 @@ contains
          ! Other related
          !
          tsoi                          => col_es%t_soisno     , & ! Input: [real(r8) (:,:) ] soil temperature [K]
-         qin                           => col_wf%qin          , & ! Input: [real(r8) (:,:) ] flux of water into soil layer [mm h2o/s]
-         qout                          => col_wf%qout         , & ! Input: [real(r8) (:,:) ] flux of water out of soil layer [mm h2o/s]
-         qflx_drain                    => col_wf%qflx_drain   , & ! Input:  [real(r8) (:)   ]  sub-surface runoff (mm H2O /s)                    
-         qflx_surf                     => col_wf%qflx_surf    , & ! Input:  [real(r8) (:)   ]  surface runoff (mm H2O /s)
-         qflx_rootsoi_col              => col_wf%qflx_rootsoi , & ! Input: [real(r8) (:,:) ]  vegetation/soil water exchange (mm H2O/s) (+ = to atm)
          h2osoi_vol                    => col_ws%h2osoi_vol   , & ! Input:  [real(r8) (:)] volumetric soil water content, ice + water (m3 m-3)
          h2osoi_liqvol                 => col_ws%h2osoi_liqvol, & ! Input:  [real(r8) (:)] volumetric soil water content, liquid only (m3 m-3)
-         nlev2bed                       => col_pp%nlevbed     , & ! Input:  [integer  (:)   ]  number of layers to bedrock
-         dz                            => col_pp%dz             & ! Input:  [real(r8) (:,:) ]  layer thickness (m)
+         nlev2bed                       => col_pp%nlevbed      & ! Input:  [integer  (:)   ]  number of layers to bedrock
     )
 
     dt      = real( get_step_size(), r8 )
@@ -523,27 +680,14 @@ contains
       !topo = col_pp%topounit(c)
       nlevbed = min(nlev2bed(c), nlevsoi)
 
-      !------------------------------------------------------------------------------
-      ! Propagate inputs
-      !------------------------------------------------------------------------------
+      ! ---------------------------------------------------------------
+      ! site-specific over-write of forcing
+      ! ---------------------------------------------------------------
       call get_curr_date(kyr, kmo, kda, mcsec)
       current_date = kyr*10000 + kmo*100 + kda
 
-      site_id = 0  ! 0: read-in, 1: HB site hard-wired, 2: uc-davis site hard-wired
-
-      if (site_id == 1) then
-        ! Hubbard Brook
-        ! rain pH data from the monitoring station in Hubbard Brook, 
-        ! National Atmospheric Deposition Program
-        ! https://nadp.slh.wisc.edu/sites/ntn-NH02/
-        rain_ph(c) = 4.8_r8
-        ! Ca = 0.055 mg/L, Mg = 0.015 mg/L, Na = 0.075 mg/L, K = 0.014 mg/L, Al = 0
-        rain_chem(c, 1) = 0.055_r8
-        rain_chem(c, 2) = 0.015_r8
-        rain_chem(c, 3) = 0.075_r8
-        rain_chem(c, 4) = 0.014_r8
-        rain_chem(c, 5) = 0._r8
-
+      ! if builtin_site > 0, manually overwrite the read-in values
+      if (builtin_site == 1) then
         if (current_date .eq. 19991019) then
             ! 55 tons / 11.8 ha = 0.466 kg / m2, applied over one day
             forc_app(c) = 0.466_r8
@@ -552,22 +696,11 @@ contains
         end if
         forc_min(c, 1:nminerals) = 0._r8
         forc_min(c, 1) = 1._r8
-        forc_pho(c   ) = 0._r8
         forc_gra(c, 1:nminerals) = 9.6_r8 ! 9.6 um
 
-      else if (site_id == 2) then
-        ! U.C. Davis
-        ! rain pH data from the monitoring station in Davis,  
-        ! National Atmospheric Deposition Program
-        ! https://nadp.slh.wisc.edu/sites/ntn-CA88/
-        rain_ph(c) = 6.2_r8
-        ! Ca = 0.055 mg/L, Mg = 0.015 mg/L, Na = 0.075 mg/L, K = 0.014 mg/L, Al = 0
-        rain_chem(c, 1) = 0.06_r8
-        rain_chem(c, 2) = 0.06_r8
-        rain_chem(c, 3) = 0.025_r8
-        rain_chem(c, 4) = 0.04_r8
-        rain_chem(c, 5) = 0._r8
+        forc_pho(c   ) = 0._r8
 
+      else if (builtin_site == 2) then
         if ((kyr .eq. 2019) .or. (kyr .eq. 2020)) then
           if ((kmo .eq. 9) .or. (kmo .eq. 10) .or. (kmo .eq. 11)) then
            ! 40 t ha-1 = 4 kg / m2, applied over 3 months, convert to per day
@@ -578,76 +711,25 @@ contains
         else
           forc_app(c) = 0._r8
         end if
-
-        !! overwrite in the control case
-        forc_app(c) = 0._r8
-
-        ! manually overwrite the mineral content
         forc_min(c,1:nminerals) = 0._r8
         forc_min(c,3) = 0.334_r8
         forc_min(c,5) = 0.143_r8
         forc_min(c,4) = 0.334_r8
         forc_gra(c, 1:nminerals) = 105._r8
 
-     else
-        !
-        rain_ph(c) = 5.6_r8
-        rain_chem(c, :) = 0.0_r8 ! in the new setup, rain_chem should no longer matter
+        forc_pho(c   ) = 0._r8
 
+      else
         ! from read-in data of soil amendment application
         !print *, nstep_mod, jday_mod, secs_curr, forc_app(c)
         !do m = 1, nminerals
         !  print *, m, forc_min(c, m), forc_gra(c, m)
         !end do
 
-        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         ! Need P content to affect NEE
         forc_pho(c) = 0._r8  ! (TODO) 0~namendnutr element(s) from soil amend application, by given index of phosphrous
+
       end if
-
-      !------------------------------------------------------------------------------
-      ! Pure background weathering
-      ! - At long-term equilibrium, assume soil solution concentration is balanced
-      !   with cation exchange. Also, assume no inter-soil-layer movement of cations.
-      ! - There is only loss via (plant uptake + surface & subsurface runoff). 
-      ! - Background weathering rate only replenishes that loss. 
-      !------------------------------------------------------------------------------
-      dzsum = 0._r8
-      do j = 1,nlevbed
-        dzsum = dzsum + dz(c,j)
-      end do
-
-      do icat = 1,ncations
-        ! rainwater, mg/L => mol/kg
-        ! equilibria_conc(0) = rain_chem(c,icat) * 1e-3 / EWParamsInst%cations_mass(icat)
-        do j = 1,nlevbed
-          h = 10**(-soilstate_vars%sph(c,j))
-          beta_h = soilstate_vars%ceca_col(c,j) / soilstate_vars%cect_col(c,j)
-          beta_cation = soilstate_vars%cece_col(c,j,icat) / soilstate_vars%cect_col(c,j)
-          keq = 10**soilstate_vars%log_km_col(c,j,icat)
-          equilibria_conc(j) = beta_cation/(beta_h*keq/h)**EWParamsInst%cations_valence(icat)
-        end do
-
-        ! mol kg-1 * g mol-1 * mm s-1 = g m-2 s-1,divide by dz to get g m-3 s-1
-        do j = 1,nlevbed
-          qflx_drain_layer = qflx_drain(c) / dzsum
-          if (zisoi(j) < depth_runoff_Mloss) then
-            qflx_surf_layer = qflx_surf(c) / depth_runoff_Mloss
-          else
-            qflx_surf_layer = 0._r8
-          end if
-
-          background_weathering_vr(c,j,icat) = &
-              mol_to_mass(equilibria_conc(j), & !  - equilibria_conc(j-1)
-                EWParamsInst%cations_mass(icat), 1e-3_r8 * (qflx_drain_layer + & 
-                qflx_surf_layer + qflx_rootsoi_col(c,j)))
-        end do
-      end do
-
-      !------------------------------------------------------------------------------
-      ! Add the weathering of pre-existing calcite in the soil
-      !------------------------------------------------------------------------------
-      ! soilstate_vars%bd_col(c,j) * soilstate_vars%calcite_col(c,j)/100._r8
 
       ! ---------------------------------------------------------------
       ! Apply the primary minerals
@@ -701,12 +783,15 @@ contains
               if (log_omega_vr(c,j,m) >= 0._r8) then
                 r_dissolve_vr(c,j,m) = 0._r8
 
-                write (100+iam,*) ' WARNING! Omega > 1 meaning dissolution reaction cannot proceed', ldomain%latc(g), ldomain%lonc(g), g, c, j, m, log_omega_vr(c,j,m)
-                !write (100+iam, *) 'log_omega_vr part 1', soil_ph(c,j) * EWParamsInst%primary_stoi_proton(m) - EWParamsInst%log_keq_primary(m)
-                !do icat = 1,ncations
-                !  write (100+iam, *) 'log_omega_vr cation', icat, EWParamsInst%cations_name(icat), EWParamsInst%primary_stoi_cations(m,icat) * &
-                !  mass_to_logmol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j))
-                !end do
+                if (use_erw_verbose > 0) then
+                  write (100+iam,*) ' WARNING! Omega > 1 meaning dissolution reaction cannot proceed', ldomain%latc(g), ldomain%lonc(g), g, c, j, m, log_omega_vr(c,j,m)
+
+                  !write (100+iam, *) 'log_omega_vr part 1', soil_ph(c,j) * EWParamsInst%primary_stoi_proton(m) - EWParamsInst%log_keq_primary(m)
+                  !do icat = 1,ncations
+                  !  write (100+iam, *) 'log_omega_vr cation', icat, EWParamsInst%cations_name(icat), EWParamsInst%primary_stoi_cations(m,icat) * &
+                  !  mass_to_logmol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j))
+                  !end do
+                end if
 
               else
                 ! log10 of the reaction rate constant by individual weathering agents (log10 mol m-2 s-1)
@@ -1006,9 +1091,9 @@ contains
         adv_water(nlevbed + 1) = qin(c,j+1)
 
         call advection_diffusion( & 
-          cation_vr(c,1:nlevsoi, icat), adv_water(1:nlevsoi+1), diffus(1:nlevsoi), &
-          sourcesink_cations(1:nlevsoi,icat), rain_cations(icat), nlevbed, dt, &
-          h2osoi_vol(c,1:nlevsoi), dcation_dt(1:nlevsoi, icat) &
+          cation_vr(c, 1:nlevsoi, icat), adv_water(1:nlevsoi+1), diffus(1:nlevsoi), &
+          sourcesink_cations(1:nlevsoi, icat), rain_cations(icat), nlevbed, dt, &
+          h2osoi_vol(c, 1:nlevsoi), dcation_dt(1:nlevsoi, icat) &
         )
       end do
 

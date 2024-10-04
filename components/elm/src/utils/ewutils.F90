@@ -444,7 +444,7 @@ contains
             r_tri(j) = r_tri(j) - adv_flux(j)*conc_trcr(j)
             ! write (iulog,*) __LINE__,adv_flux(j),conc_trcr(j),adv_flux(j)*conc_trcr(j)
           endif
-          
+
       elseif (j < nlevbed+1) then
           a_tri(j) = -(d_m1_zm1(j) * aaa(pe_m1(j)) + max( f_m1(j), 0._r8)) ! Eqn 5.47 Patankar
           c_tri(j) = -(d_p1_zp1(j) * aaa(pe_p1(j)) + max(-f_p1(j), 0._r8))

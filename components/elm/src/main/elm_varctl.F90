@@ -195,7 +195,6 @@ module elm_varctl
   !$acc declare create(carbonnitrogen_only  )
   !$acc declare create(carbonphosphorus_only)
 
-  integer, public  :: year_start_ew = 2
   !----------------------------------------------------------
   ! Physics
   !----------------------------------------------------------
@@ -263,9 +262,20 @@ module elm_varctl
   ! enhanced weathering streams switch
   !----------------------------------------------------------
 
-  logical, public :: use_ew = .false. ! true => calculate enhanced weathering
+  logical, public :: use_erw = .false. ! true => calculate enhanced weathering
+
+  integer, public :: year_start_erw = 2 ! by default start from year 2 of ad-spinup, override in namelist
 
   character(len=fname_len), public :: elm_erw_paramfile  = ' '        ! ASCII data file with minerals' constants in rocky powder appl.
+
+  integer, public :: use_erw_verbose = 0 ! 1, 2 => write extra diagnostic log files
+
+  ! whether is a built-in validation site
+  ! 0 - not a built-in site, read rock application from land use time series file
+  ! 1 - Hubbard Brook, wollastonite, 1999
+  ! 2 - UC-Davis, metabasalt, 2020s
+  ! 3 - University of Illinois Energy Farm, basalt, 2020s
+  integer, public :: builtin_site = 0
 
   !----------------------------------------------------------
   ! plant hydraulic stress switch

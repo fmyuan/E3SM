@@ -73,7 +73,7 @@ module ColumnDataType
   !------------------------------------------------------------------------
   ! Define the data structure that holds enhanced weathering forcing information
   !------------------------------------------------------------------------
-  type, public :: column_ew_forcing
+  type, public :: column_erw_forcing
       real(r8), pointer :: forc_app         (:)   => null() ! application rate (kg m-2 s-1)
       real(r8), pointer :: forc_min       (:,:)   => null() ! weight percentage of minerals in rock (1:nminerals) (% as kg mineral kg-1 rock)
       real(r8), pointer :: forc_pho         (:)   => null() ! weight percentage of phosphorus content in rock (gP kg-1 rock)
@@ -84,7 +84,7 @@ module ColumnDataType
      procedure, public  :: Init    => col_ew_init
      procedure, public  :: Restart => col_ew_restart
      procedure, public  :: Clean   => col_ew_clean
-  end type column_ew_forcing
+  end type column_erw_forcing
 
   !-----------------------------------------------------------------------
   ! Define the data structure that holds energy state information at the column level.
@@ -1207,7 +1207,7 @@ module ColumnDataType
   ! declare the public instances of column-level data types
   !-----------------------------------------------------------------------
   ! State types
-  type(column_ew_forcing)            , public, target :: col_ew     ! enhanced weathering forcing
+  type(column_erw_forcing)            , public, target :: col_ew     ! enhanced weathering forcing
   type(column_energy_state)          , public, target :: col_es     ! column energy state
   type(column_water_state)           , public, target :: col_ws     ! column water state
   type(column_carbon_state)          , public, target :: col_cs     ! column carbon state
@@ -1253,7 +1253,7 @@ contains
    subroutine col_ew_init(this, begc, endc)
       !
       ! !ARGUMENTS:
-      class(column_ew_forcing) :: this
+      class(column_erw_forcing) :: this
       integer, intent(in) :: begc,endc
       !------------------------------------------------------------------------
       !
@@ -1330,7 +1330,7 @@ contains
       use ncdio_pio
       !
       ! !ARGUMENTS:
-      class(column_ew_forcing) :: this
+      class(column_erw_forcing) :: this
       type(bounds_type), intent(in)    :: bounds  
       type(file_desc_t), intent(inout) :: ncid
       character(len=*) , intent(in)    :: flag
@@ -1377,7 +1377,7 @@ contains
   subroutine col_ew_clean(this)
     !
     ! !ARGUMENTS:
-    class(column_ew_forcing) :: this
+    class(column_erw_forcing) :: this
     !------------------------------------------------------------------------
   end subroutine col_ew_clean
 

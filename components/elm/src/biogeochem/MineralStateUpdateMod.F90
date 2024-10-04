@@ -9,6 +9,7 @@ module MineralStateUpdateMod
   use spmdMod                 , only : iam
   use elm_varpar              , only : nminerals, ncations, nminsecs, nlevgrnd, nlevsoi
   use elm_varcon              , only : zisoi, dzsoi, mass_h
+  use elm_varctl              , only : use_erw_verbose
   use shr_sys_mod             , only : shr_sys_flush
   use spmdMod                 , only : masterproc
   use abortutils              , only : endrun
@@ -84,8 +85,6 @@ contains
         !! col_ms%proton_vr(c,j) = col_ms%proton_vr(c,j) - col_mf%primary_proton_flux_vr(c,j)*dt + col_mf%cec_proton_flux_vr(c,j)*dt + col_mf%proton_infl_vr(c,j)*dt - col_mf%proton_oufl_vr(c,j)*dt - col_mf%proton_uptake_vr(c,j)*dt - col_mf%proton_leached_vr(c,j)*dt - col_mf%proton_runoff_vr(c,j)*dt
         !! col_ms%soil_ph(c,j) = - log10(mass_to_mol(col_ms%proton_vr(c,j), 1._r8, col_ws%h2osoi_vol(c,j)))
         col_ms%proton_vr(c,j) = mol_to_mass(10**(-col_ms%soil_ph(c,j)), mass_h, col_ws%h2osoi_vol(c,j))
-
-        !write (100+iam, *) 'soil_ph', c, j, col_ms%soil_ph(c,j), col_ms%proton_vr(c,j), col_ws%h2osoi_vol(c,j)
 
         ! primary mineral
         do m = 1,nminerals
@@ -208,14 +207,11 @@ contains
 
 
     !------------------------------------------------------------------------------
-    ! Write mass balance diagnostics, verbose
-    call get_curr_time_string(dateTimeString)
-    print_proton = .false.
-    print_cations = .false.
-    print_cec_cations = .false.
-    print_cec_proton = .false.
+    ! Write mass balance diagnostics only if verbose level is set to high
+    if (use_erw_verbose == 2) then
+      call get_curr_time_string(dateTimeString)
 
-    if (print_proton) then
+      ! print soil solution proton
       write (100+iam, *) 'Post-reaction H+: ', ldomain%latc(g), ldomain%lonc(g), trim(dateTimeString)
       do fc = 1,num_soilc
         c = filter_soilc(fc)
@@ -225,16 +221,15 @@ contains
              mass_to_mol(col_ms%proton_vr(c,j), mass_h, col_ws%h2osoi_vol(c,j))
         end do
       end do
-        !!  - col_mf%primary_proton_flux_vr(c,j)*dt, & 
-        !!  col_mf%cec_proton_flux_vr(c,j)*dt, &
-        !!  col_mf%proton_infl_vr(c,j)*dt, &
-        !!  - col_mf%proton_oufl_vr(c,j)*dt, & 
-        !!  -col_mf%proton_uptake_vr(c,j)*dt, & 
-        !!  -col_mf%proton_leached_vr(c,j)*dt, &
-        !!  -col_mf%proton_runoff_vr(c,j)*dt
-    end if
+      !!  - col_mf%primary_proton_flux_vr(c,j)*dt, & 
+      !!  col_mf%cec_proton_flux_vr(c,j)*dt, &
+      !!  col_mf%proton_infl_vr(c,j)*dt, &
+      !!  - col_mf%proton_oufl_vr(c,j)*dt, & 
+      !!  -col_mf%proton_uptake_vr(c,j)*dt, & 
+      !!  -col_mf%proton_leached_vr(c,j)*dt, &
+      !!  -col_mf%proton_runoff_vr(c,j)*dt
 
-    if (print_cations) then
+      ! print soil solution cations
       write (100+iam, *) 'Post-reaction cation: ', ldomain%latc(g), ldomain%lonc(g), trim(dateTimeString)
       do fc = 1,num_soilc
         c = filter_soilc(fc)
@@ -256,9 +251,8 @@ contains
             end do
           end do
         end do
-    end if
 
-    if (print_cec_proton) then
+      ! print CEC protons
       write (100+iam, *) 'Post-reaction cec H+: ', ldomain%latc(g), ldomain%lonc(g), trim(dateTimeString)
       do fc = 1,num_soilc
         c = filter_soilc(fc)
@@ -279,9 +273,8 @@ contains
             *mass_h*EWParamsInst%cations_valence(5), 1._r8, mass_h, soilstate_vars%bd_col(c,j))
         end do
       end do
-    end if
 
-    if (print_cec_cations) then
+      ! print CEC cations
       write (100+iam, *) 'Post-reaction cec cation: ', ldomain%latc(g), ldomain%lonc(g), trim(dateTimeString)
       do fc = 1,num_soilc
         c = filter_soilc(fc)
@@ -298,7 +291,8 @@ contains
     end if
     !------------------------------------------------------------------------------
 
-    ! Negative check
+    !------------------------------------------------------------------------------
+    ! Negative cation concentration check
     do fc = 1,num_soilc
       c = filter_soilc(fc)
       g = col_pp%gridcell(c)
@@ -314,7 +308,7 @@ contains
               ! write (100+iam, *) 'cation_vr diagnostics:', ldomain%latc(g), ldomain%lonc(g), c, j, icat, col_ms%cation_vr(c,j,icat), trim(dateTimeString)
 
               !------------------------------------------------------------------------------
-              ! Write mass balance diagnostics like above
+              ! Print out the mass balance diagnostics like above
               call get_curr_time_string(dateTimeString)
 
               write (100+iam, *) 'Post-reaction H+: ', ldomain%latc(g), ldomain%lonc(g), trim(dateTimeString)
@@ -359,6 +353,7 @@ contains
         end do
       end do
     end do
+    !------------------------------------------------------------------------------
 
   end subroutine MineralStateUpdate3
 
@@ -482,9 +477,8 @@ contains
     end if
 
     ! -------------------------------------------------------------------------------------------
-    ! Controls if you want to print out flux limit factor on the fly
-    print_flux_limit = .false.
-    if (print_flux_limit) then
+    ! Print out flux limit factor on the fly if verbose mode
+    if (use_erw_verbose > 0) then
       call get_curr_time_string(dateTimeString)
       do fc = 1,num_soilc
         c = filter_soilc(fc)

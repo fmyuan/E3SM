@@ -8,8 +8,8 @@ module EcosystemDynMod
   use shr_kind_mod        , only : r8 => shr_kind_r8
   use shr_sys_mod         , only : shr_sys_flush
   use elm_varctl          , only : use_c13, use_c14, use_fates, use_dynroot, use_fan
-  use elm_varctl          , only : use_ew, iulog
-  use elm_varctl          , only : spinup_state, year_start_ew
+  use elm_varctl          , only : use_erw, iulog
+  use elm_varctl          , only : spinup_state, year_start_erw
   use decompMod           , only : bounds_type
   use perf_mod            , only : t_startf, t_stopf
   use spmdMod             , only : masterproc
@@ -216,8 +216,8 @@ contains
 
      call PhosphorusLeaching(bounds, num_soilc, filter_soilc, dt)
 
-     if (use_ew) then
-       if (spinup_state == 0 .or. year >= year_start_ew) then
+     if (use_erw) then
+       if (year >= year_start_erw) then
           call MineralVerticalMovement(bounds, num_soilc, filter_soilc, dt)
           call MineralStateUpdate2(num_soilc, filter_soilc, col_ms, col_mf, dt)
           call MineralLeaching(bounds, num_soilc, filter_soilc, dt)
@@ -239,8 +239,8 @@ contains
         cnstate_vars, dt)
     call t_stop_lnd(event)
 
-    if (use_ew) then
-       if (spinup_state == 0 .or. year >= year_start_ew) then
+    if (use_erw) then
+       if (year >= year_start_erw) then
           event = 'MUpdate3'
           call t_start_lnd(event)
           call MineralStateUpdate3(num_soilc, filter_soilc, col_ms, col_mf, dt, soilstate_vars)
@@ -299,7 +299,7 @@ contains
 
     call col_pf_Summary(col_pf,bounds, num_soilc, filter_soilc)
     call col_ps_Summary(col_ps,bounds, num_soilc, filter_soilc)
-    if (use_ew) then
+    if (use_erw) then
      call col_mf_summary(col_mf, bounds, num_soilc, filter_soilc)
      call col_ms_summary(col_ms, bounds, num_soilc, filter_soilc)
     end if
@@ -562,7 +562,7 @@ contains
     use RootDynamicsMod        , only: RootDynamics
     use SoilLittDecompMod            , only: SoilLittDecompAlloc
     use SoilLittDecompMod            , only: SoilLittDecompAlloc2 !after SoilLittDecompAlloc
-    use EnhancedWeatheringMod        , only: MineralInit, MineralEquilibria, MineralDynamics
+    use EnhancedWeatheringMod        , only: MineralInit, MineralEquilibria, MineralDynamics, MineralBackground
     use MineralStateUpdateMod        , only: MineralFluxLimit, MineralStateUpdate1
     !
     ! !ARGUMENTS:
@@ -634,16 +634,19 @@ contains
 
     !----------------------------------------------------------------
     ! Enhanced weathering reactions
-    if (use_ew) then
-      if (spinup_state == 1 .and. year == year_start_ew .and. mon == 1 .and. day == 1 .and. secs_curr == 0) then
+    if (use_erw) then
+      ! initialize during normal spin-up or transient, not ad-spinup
+      if (spinup_state == 0 .and. year == year_start_erw .and. mon == 1 .and. day == 1 .and. secs_curr == 0) then
          call MineralInit(bounds, num_soilc, filter_soilc, soilstate_vars)
       end if
-      if (spinup_state == 0 .or. year >= year_start_ew) then
+      if (year >= year_start_erw) then
+         call MineralBackground(bounds, num_soilc, filter_soilc, soilstate_vars)
          call MineralDynamics(bounds, num_soilc, filter_soilc, soilstate_vars)
          call MineralEquilibria(bounds, num_soilc, filter_soilc, soilstate_vars)
          call MineralFluxLimit(num_soilc, filter_soilc, col_ms, col_mf, dt)
          call MineralStateUpdate1(num_soilc, filter_soilc, col_ms, col_mf, dt)
       end if
+
     end if
 
     !----------------------------------------------------------------
