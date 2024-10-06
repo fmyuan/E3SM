@@ -610,6 +610,8 @@ module ColumnDataType
     real(r8), pointer :: qout                 (:,:) => null() ! flux of internal column water out of a soil layer [mm h2o/s]
     real(r8), pointer :: qin_external         (:,:) => null() ! flux of external column water, e.g. water recharge/lateral in, excluding infiltration, into soil layer [mm h2o/s] (always non-negative)
     real(r8), pointer :: qout_external        (:,:) => null() ! flux of external column water, e.g. discharge, all sorts of drainage, excluding rootsoil evaptran,  out of soil layer [mm h2o/s] (always non-positive)
+    real(r8), pointer :: tempavg_qin_col      (:,:) => null() ! accumulator for the annual average flux of internal column water into a soil layer [mm h2o/s]
+    real(r8), pointer :: annavg_qin_col       (:,:) => null() ! annual average flux of internal column water into a soil layer [mm h2o/s]
 
   contains
     procedure, public :: Init    => col_wf_init
@@ -6597,6 +6599,8 @@ contains
     allocate(this%qout                   (begc:endc,1:nlevgrnd+1)); this%qout                 (:,:) = spval
     allocate(this%qin_external           (begc:endc,1:nlevgrnd))  ; this%qin_external         (:,:) = spval
     allocate(this%qout_external          (begc:endc,1:nlevgrnd))  ; this%qout_external        (:,:) = spval
+    allocate(this%tempavg_qin_col        (begc:endc,1:nlevgrnd))  ; this%tempavg_qin_col      (:,:) = 0._r8
+    allocate(this%annavg_qin_col         (begc:endc,1:nlevgrnd))  ; this%annavg_qin_col       (:,:) = 0._r8
 
     !-----------------------------------------------------------------------
     ! initialize history fields for select members of col_wf

@@ -7,8 +7,8 @@ module ewutils
   use shr_kind_mod, only: r8 => shr_kind_r8
   use elm_varcon  , only: log_keq_hco3, log_keq_co3
   use elm_varpar  , only: ncations
-  use elm_varctl  , only: iulog
   use shr_sys_mod , only: shr_sys_flush
+  use spmdMod     , only: iam
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -342,9 +342,9 @@ contains
       dz_node(j)= zsoi(j) - zsoi(j-1)
     enddo
 
-    !write(iulog,*) 'adv_flux',adv_flux(1:nlevsoi+1)
-    !write(iulog,*) 'diffus',diffus(1:nlevsoi)
-    !write(iulog,*) 'source',source(1:nlevsoi)
+    !write(100+iam,*) 'adv_flux',adv_flux(1:nlevsoi+1)
+    !write(100+iam,*) 'diffus',diffus(1:nlevsoi)
+    !write(100+iam,*) 'source',source(1:nlevsoi)
 
     ! Calculate the D and F terms in the Patankar algorithm
     ! d: diffusivity
@@ -439,10 +439,10 @@ contains
           r_tri(j) = source(j) * dzsoi_decomp(j) + a_p_0 * conc_trcr(j)
           if(adv_flux(j)<0) then ! downward flow (infiltration)
             r_tri(j) = r_tri(j) - adv_flux(j)*surf_bc
-            !  write (iulog,*) __LINE__,adv_flux(j),surf_bc,adv_flux(j)*surf_bc
+            !  write (100+iam,*) __LINE__,adv_flux(j),surf_bc,adv_flux(j)*surf_bc
           else ! upward flow to the surface
             r_tri(j) = r_tri(j) - adv_flux(j)*conc_trcr(j)
-            ! write (iulog,*) __LINE__,adv_flux(j),conc_trcr(j),adv_flux(j)*conc_trcr(j)
+            ! write (100+iam,*) __LINE__,adv_flux(j),conc_trcr(j),adv_flux(j)*conc_trcr(j)
           endif
 
       elseif (j < nlevbed+1) then
@@ -458,14 +458,14 @@ contains
       endif
     enddo ! j; nlevbed
 
-    ! write(iulog,'(11a18)'),'a','b','c','r','ap0','pe_m','pe_p','f_m','f_p','d_m','d_p'
+    ! write(100+iam,'(11a18)'),'a','b','c','r','ap0','pe_m','pe_p','f_m','f_p','d_m','d_p'
     ! j=0
-    ! write(iulog,'(i3,4e18.9)'),j,a_tri(j),b_tri(j),c_tri(j),r_tri(j)
+    ! write(100+iam,'(i3,4e18.9)'),j,a_tri(j),b_tri(j),c_tri(j),r_tri(j)
     ! do j=1,nlevbed
-    !   write(iulog,'(i3,11e18.9)'),j,a_tri(j),b_tri(j),c_tri(j),r_tri(j),dzsoi_decomp(j) / dtime * vwc(j) ,pe_m1(j),pe_p1(j),f_m1(j),f_p1(j),d_m1_zm1(j)*dz_node(j),d_p1_zp1(j)*dz_node(j+1)
+    !   write(100+iam,'(i3,11e18.9)'),j,a_tri(j),b_tri(j),c_tri(j),r_tri(j),dzsoi_decomp(j) / dtime * vwc(j) ,pe_m1(j),pe_p1(j),f_m1(j),f_p1(j),d_m1_zm1(j)*dz_node(j),d_p1_zp1(j)*dz_node(j+1)
     ! enddo
     ! j=nlevbed+1
-    ! write(iulog,'(i3,4e18.9)'),j,a_tri(j),b_tri(j),c_tri(j),r_tri(j)
+    ! write(100+iam,'(i3,4e18.9)'),j,a_tri(j),b_tri(j),c_tri(j),r_tri(j)
 
     ! Solve for the concentration profile for this time step
     ! call Tridiagonal(0, nlevbed+1, 0, a_tri, b_tri, c_tri, r_tri, conc_after)
@@ -477,13 +477,15 @@ contains
     if(info > 0) call endrun(msg='dgtsv error in adv_diff line __LINE__: singular matrix')
     conc_after = r_tri
 
-    !write (iulog,*) 'conc_before',conc_trcr
-    !write (iulog,*) 'conc_after',conc_after
-    !write (iulog,*) 'Diff=',sum((conc_after(1:nlevsoi)-conc_trcr)*dzsoi_decomp)
-    !write (iulog,*) 'Flow',adv_flux(1:nlevsoi+1)
-    !write (iulog,*) 'Diffus',diffus
-    !write (iulog,*) 'dz',dzsoi_decomp
-    !write (iulog,*) 'dznode',dz_node
+    !write (100+iam,*) 'conc_before',conc_trcr
+    !write (100+iam,*) 'conc_after',conc_after(1:nlevsoi)
+    !write (100+iam,*) 'dcation_dt',(conc_after(1:nlevsoi)-conc_trcr)/dtime
+    !write (100+iam,*) 'Diff=',sum((conc_after(1:nlevsoi)-conc_trcr)*dzsoi_decomp)
+    !write (100+iam,*) 'Flow',adv_flux(1:nlevsoi+1)
+    !write (100+iam,*) 'Diffus',diffus
+    !write (100+iam,*) 'dz',dzsoi_decomp
+    !write (100+iam,*) 'dznode',dz_node
+
     do j = 1,nlevbed
       conc_change_rate(j) = (conc_after(j)-conc_trcr(j))/dtime
     end do

@@ -434,26 +434,31 @@ contains
     integer  :: m, isec, icat          ! indices
     real(r8) :: dt
 
-    real(r8) :: equilibria_conc(1:nlevsoi, 1:ncations) ! (mol kg-1) soil pore water cation concentration based on observed CEC and soil pH
+    real(r8) :: equilibria_conc(1:nlevsoi, 1:ncations)   ! (mol kg-1) soil pore water cation concentration based on observed CEC and soil pH
     real(r8) :: beta_h, beta_cation, keq, h
 
-    real(r8) :: equilibria_mass(1:nlevsoi)               ! (g m-3 soil) equilibria_conc converted to per soil volume unit
+    real(r8) :: equilibria_mass(1:nlevsoi, 1:ncations)   ! (g m-3 soil) equilibria_conc converted to per soil volume unit
     real(r8) :: sourcesink(1:nlevsoi)                    ! (g m-3 soil s-1)
     real(r8) :: adv_water(1:nlevsoi+1)                   ! m H2O / s, negative downward
     real(r8) :: diffus(1:nlevsoi)                        ! m2/s
     real(r8) :: rho(1:nlevsoi)                           ! "density" factor using soil water content
     real(r8) :: dcation_dt(1:nlevsoi, 1:ncations)        ! cation concentration rate, g m-3 s-1
 
+    real(r8) :: fracday                                  ! fractional day per time step
+
     real(r8) :: qflx_drain_layer, qflx_surf_layer        ! (g m-3 s-1) runoff from soil layer
     real(r8) :: dzsum                                    ! (m) soil column total depth
     real(r8), parameter :: depth_runoff_Mloss = 0.05     ! (m) depth over which runoff mixes with soil water for ions loss to runoff; same as nitrogen runoff depth
 
     associate( &
-         qin                            => col_wf%qin                     , & ! Input: [real(r8) (:,:) ] flux of water into soil layer [mm h2o/s]
+         qin                            => col_wf%qin                     , & ! Input:  [real(r8) (:,:) ] flux of water into soil layer [mm h2o/s]
+         qout                           => col_wf%qout                    , & ! Input:  [real(r8) (:,:) ] flux of water out of soil layer [mm h2o/s]
          h2osoi_vol                     => col_ws%h2osoi_vol              , & ! Input:  [real(r8) (:)] volumetric soil water content, ice + water (m3 m-3)
          qflx_drain                     => col_wf%qflx_drain              , & ! Input:  [real(r8) (:)   ]  sub-surface runoff (mm H2O /s)                    
          qflx_surf                      => col_wf%qflx_surf               , & ! Input:  [real(r8) (:)   ]  surface runoff (mm H2O /s)
-         qflx_rootsoi_col               => col_wf%qflx_rootsoi            , & ! Input: [real(r8) (:,:) ]  vegetation/soil water exchange (mm H2O/s) (+ = to atm)
+         qflx_rootsoi_col               => col_wf%qflx_rootsoi            , & ! Input:  [real(r8) (:,:) ]  vegetation/soil water exchange (mm H2O/s) (+ = to atm)
+         tempavg_qin_col                => col_wf%tempavg_qin_col         , & ! Input:  [real(r8) (:,:) ]  accumulator for vertical flow into the layer (mm H2O/s)
+         annavg_qin_col                 => col_wf%annavg_qin_col          , & ! Input:  [real(r8) (:,:) ]  annual average vertical flow into the layer (mm H2O/s)
 
          nlev2bed                       => col_pp%nlevbed                 , & ! Input:  [integer  (:)   ]  number of layers to bedrock
          dz                             => col_pp%dz                      , & ! Input:  [real(r8) (:,:) ]  layer thickness (m)
@@ -465,6 +470,7 @@ contains
     )
 
     dt      = real( get_step_size(), r8 )
+    fracday = dt / secspday
 
     do fc = 1,num_soilc
       c = filter_soilc(fc)
@@ -504,6 +510,13 @@ contains
       end if
 
       !------------------------------------------------------------------------------
+      ! Update the annual average vertical flow accumulator
+      !------------------------------------------------------------------------------
+      do j = 1,nlevbed+1
+        tempavg_qin_col(c,j) = tempavg_qin_col(c,j) + qin(c,j) * fracday / dayspyr_mod
+      end do
+
+      !------------------------------------------------------------------------------
       ! Pure background weathering
       ! - At long-term equilibrium, assume soil solution concentration is balanced
       !   with cation exchange. Also, assume no inter-soil-layer movement of cations.
@@ -527,17 +540,22 @@ contains
 
       ! calculate the counterfactual advection-diffusion rate at equilibrium concentration
       ! but this time step's loss rate
+      do j = 1,nlevbed
+        adv_water(j) = 0._r8 ! -1.0e-3_r8 * annavg_qin_col(c,j) ! note the flux rate is negative downward
+      end do
+      adv_water(nlevbed + 1) = 0._r8 ! -1.0e-3_r8 * annavg_qin_col(c,j+1)
+
       do icat = 1,ncations
         sourcesink(1:nlevsoi) = 0._r8
         diffus(1:nlevsoi) = EWParamsInst%cations_diffusivity(icat)
         do j = 1,nlevbed
-          equilibria_mass(j) = mol_to_mass(equilibria_conc(j,icat), &
-                                           EWParamsInst%cations_mass(icat), h2osoi_vol(c,j))
-          adv_water(j) = -1.0e-3_r8 * qin(c,j) ! note the flux rate is negative downward
+          equilibria_mass(j,icat) = mol_to_mass(equilibria_conc(j,icat), &
+              EWParamsInst%cations_mass(icat), h2osoi_vol(c,j))
         end do
-        adv_water(nlevbed + 1) = qin(c,j+1)
 
-        call advection_diffusion( equilibria_mass(1:nlevsoi), &
+        ! write (iam+100,*) '--------------------------------------------', c, icat
+
+        call advection_diffusion( equilibria_mass(1:nlevsoi,icat), &
           adv_water(1:nlevsoi+1), diffus(1:nlevsoi), &
           sourcesink(1:nlevsoi), rain_chem(c,icat), nlevbed, dt, &
           h2osoi_vol(c,1:nlevsoi), dcation_dt(1:nlevsoi, icat) &
@@ -563,6 +581,8 @@ contains
               mol_to_mass(equilibria_conc(j,icat), EWParamsInst%cations_mass(icat), &
                           1e-3_r8 * (qflx_drain_layer + qflx_surf_layer + qflx_rootsoi_col(c,j))) &
               - dcation_dt(j,icat)
+
+          ! write (100+iam, *) 'dcation_dt(j,icat)', c, j, icat, dcation_dt(j,icat), equilibria_mass(j,icat), annavg_qin_col(c,j), qin(c,j), qout(c,j)
         end do
       end do
 
@@ -1088,7 +1108,7 @@ contains
           ! note the flux rate is negative downward
           adv_water(j) = -1.0e-3_r8 * qin(c,j)
         end do
-        adv_water(nlevbed + 1) = qin(c,j+1)
+        adv_water(nlevbed + 1) = -1.0e-3_r8 * qin(c,j+1)
 
         call advection_diffusion( & 
           cation_vr(c, 1:nlevsoi, icat), adv_water(1:nlevsoi+1), diffus(1:nlevsoi), &
@@ -1347,7 +1367,7 @@ contains
           beta_list(icat) = cece(icat) / soilstate_vars%cect_col(c,j)
           ! if too tiny or zero, e.g. due to tiny or zero cec_cation_vr,
           ! the following 'solve_eq' function for soil pH won't work well.
-          beta_list(icat) = max(1.0e-5_r8, beta_list(icat))
+          beta_list(icat) = max(1.0e-5_r8, beta_list(icat)) ! TBC: 2*e-4
           keq_list(icat) = 10**soilstate_vars%log_km_col(c,j,icat)
         end do
 

@@ -1166,50 +1166,6 @@ contains
             col_pp%nlevbed(bounds%begc:bounds%endc), &
             this%rootfr_patch(bounds%begp:bounds%endp,1:nlevgrnd))
     end if
-    if (use_erw) then
-      call restartvar(ncid=ncid, flag=flag, varname='cect_col', xtype=ncd_double,  &
-            dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='total cation exchange capacity', units='meq 100g-1 dry soil', &
-            interpinic_flag='interp', readvar=readvar, data=this%cect_col)
-
-      do a = 1,ncations
-         write (a_str, '(I6)') a
-         a_str = adjustl(a_str)  ! Remove leading spaces
-         varname = 'cece_col_'//trim(a_str)
-         ptr2d => this%cece_col(:,:,a)
-         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double,  &
-               dim1name='column', dim2name='levgrnd', switchdim=.true., &
-               long_name='effective cation exchange capacity', units='meq 100g-1 dry soil', &
-               interpinic_flag='interp', readvar=readvar, data=ptr2d)
-      end do
-
-      call restartvar(ncid=ncid, flag=flag, varname='ceca_col', xtype=ncd_double,  &
-            dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='acid exchange capacity', units='meq 100g-1 dry soil', &
-            interpinic_flag='interp', readvar=readvar, data=this%ceca_col)
-
-      do a = 1,ncations
-         write (a_str, '(I6)') a
-         a_str = adjustl(a_str)  ! Remove leading spaces
-         varname = 'log_km_col_'//trim(a_str)
-         ptr2d => this%log_km_col(:,:,a)
-         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double,  &
-               dim1name='column', dim2name='levgrnd', switchdim=.true., &
-               long_name='Gaines-Thomas convention product between adsorbed and dissolved ions', units='', &
-               interpinic_flag='interp', readvar=readvar, data=ptr2d)
-      end do
-
-      call restartvar(ncid=ncid, flag=flag, varname='kaolinite_col', xtype=ncd_double,  &
-            dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='percentage naturall occurring kaolinite in soil', units='g 100g-1 dry soil', &
-            interpinic_flag='interp', readvar=readvar, data=this%kaolinite_col)
-
-      call restartvar(ncid=ncid, flag=flag, varname='calcite_col', xtype=ncd_double,  &
-            dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='percentage naturall occurring CaCO3 in soil', units='g g-1 dry soil', &
-            interpinic_flag='interp', readvar=readvar, data=this%calcite_col)
-
-    end if
   end subroutine Restart
 
 

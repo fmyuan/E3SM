@@ -7,7 +7,7 @@ module AnnualUpdateMod
   use shr_kind_mod     , only : r8 => shr_kind_r8
   use decompMod        , only : bounds_type
   use CNStateType      , only : cnstate_type
-  use ColumnDataType   , only : col_cf
+  use ColumnDataType   , only : col_cf, col_wf
   use VegetationDataType, only : veg_cf
 
   use timeinfoMod
@@ -34,6 +34,7 @@ contains
     ! !USES:
       !$acc routine seq
     use elm_varcon      , only: secspday
+    use elm_varpar      , only: nlevgrnd
     use SubgridAveMod   , only: p2c
     !
     ! !ARGUMENTS:
@@ -47,7 +48,7 @@ contains
 
     !
     ! !LOCAL VARIABLES:
-    integer :: c,p          ! indices
+    integer :: c,p,j        ! indices
     integer :: fp,fc        ! lake filter indices
     !-----------------------------------------------------------------------
     associate(&
@@ -63,9 +64,12 @@ contains
       annsum_npp                  => veg_cf%annsum_npp   , &
       tempsum_npp                 => veg_cf%tempsum_npp  , &
       annsum_npp_col              => col_cf%annsum_npp      , &
-      annavg_t2m_col              => cnstate_vars%annavg_t2m_col &
-      )
-      dt = dtime_mod 
+      annavg_t2m_col              => cnstate_vars%annavg_t2m_col, &
+      tempavg_qin_col             => col_wf%tempavg_qin_col, &
+      annavg_qin_col              => col_wf%annavg_qin_col &
+    )
+
+    dt = dtime_mod 
     ! column loop
     do fc = 1,num_soilc
        c = filter_soilc(fc)
@@ -74,50 +78,59 @@ contains
 
     if (num_soilc > 0) then
       if (annsum_counter_col(filter_soilc(1)) >= dayspyr_mod * secspday) then
-          ! patch loop
-          do fp = 1,num_soilp
-             p = filter_soilp(fp)
+        ! patch loop
+        do fp = 1,num_soilp
+            p = filter_soilp(fp)
 
-             ! update annual plant ndemand accumulator
-             annsum_potential_gpp_patch(p)  = tempsum_potential_gpp_patch(p)
-             tempsum_potential_gpp_patch(p) = 0._r8
+            ! update annual plant ndemand accumulator
+            annsum_potential_gpp_patch(p)  = tempsum_potential_gpp_patch(p)
+            tempsum_potential_gpp_patch(p) = 0._r8
 
-             ! update annual total N retranslocation accumulator
-             annmax_retransn_patch(p)  = tempmax_retransn_patch(p)
-             tempmax_retransn_patch(p) = 0._r8
+            ! update annual total N retranslocation accumulator
+            annmax_retransn_patch(p)  = tempmax_retransn_patch(p)
+            tempmax_retransn_patch(p) = 0._r8
 
-             ! update annual total P retranslocation accumulator
-             annmax_retransp_patch(p)  = tempmax_retransp_patch(p)
-             tempmax_retransp_patch(p) = 0._r8
+            ! update annual total P retranslocation accumulator
+            annmax_retransp_patch(p)  = tempmax_retransp_patch(p)
+            tempmax_retransp_patch(p) = 0._r8
 
-             ! update annual average 2m air temperature accumulator
-             annavg_t2m_patch(p)  = tempavg_t2m_patch(p)
-             tempavg_t2m_patch(p) = 0._r8
+            ! update annual average 2m air temperature accumulator
+            annavg_t2m_patch(p)  = tempavg_t2m_patch(p)
+            tempavg_t2m_patch(p) = 0._r8
 
-             ! update annual NPP accumulator, convert to annual total
-             annsum_npp(p) = tempsum_npp(p) * dt
-             tempsum_npp(p) = 0._r8
+            ! update annual NPP accumulator, convert to annual total
+            annsum_npp(p) = tempsum_npp(p) * dt
+            tempsum_npp(p) = 0._r8
 
-          end do
-          ! use p2c routine to get selected column-average pft-level fluxes and states
+        end do
 
-          call p2c(bounds, num_soilc, filter_soilc, &
-               annsum_npp(bounds%begp:bounds%endp), &
-               annsum_npp_col(bounds%begc:bounds%endc))
+        ! use p2c routine to get selected column-average pft-level fluxes and states
 
-          call p2c(bounds, num_soilc, filter_soilc, &
-               annavg_t2m_patch(bounds%begp:bounds%endp), &
-               annavg_t2m_col(bounds%begc:bounds%endc))
-       end if
+        call p2c(bounds, num_soilc, filter_soilc, &
+              annsum_npp(bounds%begp:bounds%endp), &
+              annsum_npp_col(bounds%begc:bounds%endc))
+
+        call p2c(bounds, num_soilc, filter_soilc, &
+              annavg_t2m_patch(bounds%begp:bounds%endp), &
+              annavg_t2m_col(bounds%begc:bounds%endc))
+      end if
 
     end if
 
     ! column loop
     do fc = 1,num_soilc
-       c = filter_soilc(fc)
-       if (annsum_counter_col(c) >= dayspyr_mod * secspday) then
-           annsum_counter_col(c) = 0._r8
-       end if
+      c = filter_soilc(fc)
+      if (annsum_counter_col(c) >= dayspyr_mod * secspday) then
+
+        ! update annual vertical water flow accumulator
+        do j = 1,nlevgrnd
+          annavg_qin_col(c,j) = tempavg_qin_col(c,j)
+          tempavg_qin_col(c,j) = 0._r8
+        end do
+
+        ! reset annual counter
+        annsum_counter_col(c) = 0._r8
+      end if
     end do
 
   end associate

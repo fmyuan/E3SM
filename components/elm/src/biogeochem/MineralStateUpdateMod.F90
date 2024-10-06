@@ -174,6 +174,8 @@ contains
     character(len=256) :: dateTimeString
     !-----------------------------------------------------------------------
 
+    call get_curr_time_string(dateTimeString)
+
     ! Update mineral state
     do fc = 1,num_soilc
       c = filter_soilc(fc)
@@ -205,12 +207,9 @@ contains
       col_mf%r_sequestration(c) = col_mf%r_sequestration(c) * 12._r8
     end do
 
-
     !------------------------------------------------------------------------------
     ! Write mass balance diagnostics only if verbose level is set to high
     if (use_erw_verbose == 2) then
-      call get_curr_time_string(dateTimeString)
-
       ! print soil solution proton
       write (100+iam, *) 'Post-reaction H+: ', ldomain%latc(g), ldomain%lonc(g), trim(dateTimeString)
       do fc = 1,num_soilc
@@ -309,8 +308,6 @@ contains
 
               !------------------------------------------------------------------------------
               ! Print out the mass balance diagnostics like above
-              call get_curr_time_string(dateTimeString)
-
               write (100+iam, *) 'Post-reaction H+: ', ldomain%latc(g), ldomain%lonc(g), trim(dateTimeString)
               write (100+iam, *) c, j, col_ms%soil_ph(c,j), col_ms%proton_vr(c,j), & 
                 mass_to_mol(col_ms%proton_vr(c,j), mass_h, col_ws%h2osoi_vol(c,j))
@@ -387,6 +384,8 @@ contains
     logical  :: print_flux_limit
     character(len=32) :: subname = 'elm_erw_mineral_flux_limit'  ! subroutine name
     !-----------------------------------------------------------------------
+
+    call get_curr_time_string(dateTimeString)
 
     ! ensure a tiny bit of cation is left due to numerical accuracy reasons
     residual_factor = 0.99_r8
@@ -471,15 +470,16 @@ contains
       write (100+iam, *) 'Flushing rate diagnostics: ', ldomain%latc(g), ldomain%lonc(g), err_col, err_lev, err_icat, trim(dateTimeString)
       write (100+iam, *) ' initial cation=', col_ms%cation_vr(err_col, err_lev, err_icat)
       write (100+iam, *) ' delta1=', temp_delta1_cation(err_fc, err_lev, err_icat)
-      write (100+iam, *) ' terms/dt=', col_mf%background_weathering_vr(c,j,icat), &
-          col_mf%primary_cation_flux_vr(c,j,icat), col_mf%cation_uptake_vr(c,j,icat)
+      write (100+iam, *) ' terms/dt=', &
+        col_mf%background_weathering_vr(err_col, err_lev, err_icat), &
+        col_mf%primary_cation_flux_vr(err_col, err_lev, err_icat), &
+        col_mf%cation_uptake_vr(err_col, err_lev, err_icat)
       call endrun(msg=subname //':: ERROR: Problematic flushing rate'//errMsg(__FILE__, __LINE__))
     end if
 
     ! -------------------------------------------------------------------------------------------
     ! Print out flux limit factor on the fly if verbose mode
     if (use_erw_verbose > 0) then
-      call get_curr_time_string(dateTimeString)
       do fc = 1,num_soilc
         c = filter_soilc(fc)
         g = col_pp%gridcell(c)
