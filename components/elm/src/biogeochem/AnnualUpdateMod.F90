@@ -7,8 +7,9 @@ module AnnualUpdateMod
   use shr_kind_mod     , only : r8 => shr_kind_r8
   use decompMod        , only : bounds_type
   use CNStateType      , only : cnstate_type
-  use ColumnDataType   , only : col_cf, col_wf
+  use ColumnDataType   , only : col_cf, col_wf, col_mf
   use VegetationDataType, only : veg_cf
+  use elm_varctl       , only : use_erw, year_start_erw
 
   use timeinfoMod
   !
@@ -34,7 +35,7 @@ contains
     ! !USES:
       !$acc routine seq
     use elm_varcon      , only: secspday
-    use elm_varpar      , only: nlevgrnd
+    use elm_varpar      , only: nlevgrnd, ncations
     use SubgridAveMod   , only: p2c
     !
     ! !ARGUMENTS:
@@ -48,7 +49,7 @@ contains
 
     !
     ! !LOCAL VARIABLES:
-    integer :: c,p,j        ! indices
+    integer :: c,p,j,icat   ! indices
     integer :: fp,fc        ! lake filter indices
     !-----------------------------------------------------------------------
     associate(&
@@ -65,11 +66,13 @@ contains
       tempsum_npp                 => veg_cf%tempsum_npp  , &
       annsum_npp_col              => col_cf%annsum_npp      , &
       annavg_t2m_col              => cnstate_vars%annavg_t2m_col, &
-      tempavg_qin_col             => col_wf%tempavg_qin_col, &
-      annavg_qin_col              => col_wf%annavg_qin_col &
+      annavg_qin_col              => col_wf%annavg_qin_col, &
+      tempavg_qin_col             => col_mf%tempavg_qin_col, &
+      annavg_vert_delta           => col_mf%annavg_vert_delta, &
+      tempavg_vert_delta          => col_mf%tempavg_vert_delta &
     )
 
-    dt = dtime_mod 
+    dt = dtime_mod
     ! column loop
     do fc = 1,num_soilc
        c = filter_soilc(fc)
@@ -117,17 +120,25 @@ contains
 
     end if
 
+    ! update annual cation vertical transport accumulator
+    if (use_erw) then
+      do fc = 1,num_soilc
+        do j = 1,nlevgrnd
+          if (annsum_counter_col(c) >= dayspyr_mod * secspday) then
+            annavg_qin_col(c,j) = tempavg_qin_col(c,j)
+            tempavg_qin_col(c,j) = 0._r8
+
+            annavg_vert_delta(c,j,1:ncations) = tempavg_vert_delta(c,j,1:ncations)
+            tempavg_vert_delta(c,j,1:ncations) = 0._r8
+          end if
+        end do
+      end do
+    end if
+
     ! column loop
     do fc = 1,num_soilc
       c = filter_soilc(fc)
       if (annsum_counter_col(c) >= dayspyr_mod * secspday) then
-
-        ! update annual vertical water flow accumulator
-        do j = 1,nlevgrnd
-          annavg_qin_col(c,j) = tempavg_qin_col(c,j)
-          tempavg_qin_col(c,j) = 0._r8
-        end do
-
         ! reset annual counter
         annsum_counter_col(c) = 0._r8
       end if

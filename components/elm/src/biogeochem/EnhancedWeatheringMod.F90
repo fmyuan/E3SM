@@ -318,17 +318,19 @@ contains
     real(r8) :: co2_atm                ! CO2 partial pressure in atm
     character(2) :: j_str
     character(4) :: j_lev
+    real(r8) :: beta_h, beta_cation, keq, h ! temporary variables related to soil cation concentration
 
     associate( &
          soil_ph                        => col_ms%soil_ph                 , & ! Input:  [real(r8) (:,:)] calculated soil pH (1:nlevgrnd)
          h2osoi_vol                     => col_ws%h2osoi_vol              , & ! Input:  [real(r8) (:)] volumetric soil water content, ice + water (m3 m-3)
-         nlev2bed                       => col_pp%nlevbed                 , & ! Input:  [integer  (:)   ]  number of layers to bedrock
-         proton_vr                      => col_ms%proton_vr               , & ! Output: calculated soil H+ concentration in soil water each soil layer (1:nlevgrnd) (g m-3 soil [not water])
-         bicarbonate_vr                 => col_ms%bicarbonate_vr          , & ! Output: [real(r8) (:,:)] calculated HCO3- concentration in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd)
-         carbonate_vr                   => col_ms%carbonate_vr            , & ! Output: [real(r8) (:,:)] calculated CO3 2- concentration in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd)
+         nlev2bed                       => col_pp%nlevbed                 , & ! Input:  [integer  (:)   ] number of layers to bedrock
+         proton_vr                      => col_ms%proton_vr               , & ! Output: [real(r8)(:)   ] calculated soil H+ concentration in soil water each soil layer (1:nlevgrnd) (g m-3 soil [not water])
+         bicarbonate_vr                 => col_ms%bicarbonate_vr          , & ! Output:  [real(r8) (:,:)] calculated HCO3- concentration in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd)
+         carbonate_vr                   => col_ms%carbonate_vr            , & ! Output:  [real(r8) (:,:)] calculated CO3 2- concentration in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd)
          cec_cation_vr                  => col_ms%cec_cation_vr           , & ! Output: [real(r8) (:,:,:)] adsorbed cation concentration each soil layer (1:nlevgrnd,1:ncations) (g m-3 soil [not dry soil])
          cec_proton_vr                  => col_ms%cec_proton_vr           , & ! Output: [real(r8) (:,:,:)] adsorbed H+ concentration each soil layer (1:nlevgrnd) (g m-3 soil [not dry soil])
          net_charge_vr                  => col_ms%net_charge_vr           , & ! Output:  [real(r8) (:,:)] net charge of the tracked ions in the soil solution system, constant over time (1:nlevgrnd) (mol kg-1)
+         equilibria_conc                => col_ms%equilibria_conc         , & ! Output:  [real(r8) (:,:,:)] soil pore water cation concentration implied by the input soil CEC status and exchange coefficients (mol kg-1)
          cation_vr                      => col_ms%cation_vr               & ! Output [real(r8) (:,:,:)] cation mass in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd, 1:ncations)
     )
 
@@ -346,22 +348,31 @@ contains
         proton_vr(c,j) = logmol_to_mass(-soil_ph(c,j), mass_h, h2osoi_vol(c,j))
 
         ! for the sake of initial charge balance, calculate from soil pH
-        bicarbonate_vr(c,j) = mol_to_mass( ph_to_hco3(soil_ph(c,j), co2_atm), mass_hco3, h2osoi_vol(c,j) )
-        carbonate_vr(c,j) = mol_to_mass( hco3_to_co3(ph_to_hco3(soil_ph(c,j), co2_atm), soil_ph(c,j)), mass_co3, h2osoi_vol(c,j) )
+        bicarbonate_vr(c,j) = mol_to_mass( ph_to_hco3(soil_ph(c,j), co2_atm), mass_hco3, &
+                                           h2osoi_vol(c,j) )
+        carbonate_vr(c,j) = mol_to_mass( hco3_to_co3(ph_to_hco3(soil_ph(c,j), co2_atm), &
+                                           soil_ph(c,j)), mass_co3, h2osoi_vol(c,j) )
 
-        cec_proton_vr(c,j) = meq_to_mass(soilstate_vars%ceca_col(c,j), 1._r8, mass_h, soilstate_vars%bd_col(c,j))
+        ! initial CEC H+ and cation status
+        cec_proton_vr(c,j) = meq_to_mass(soilstate_vars%ceca_col(c,j), 1._r8, mass_h, &
+                                         soilstate_vars%bd_col(c,j))
         do icat = 1, ncations
-          cec_cation_vr(c,j,icat) = meq_to_mass(soilstate_vars%cece_col(c,j,icat), EWParamsInst%cations_valence(icat), EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j))
+          cec_cation_vr(c,j,icat) = meq_to_mass(soilstate_vars%cece_col(c,j,icat), &
+                                                EWParamsInst%cations_valence(icat), &
+                                                EWParamsInst%cations_mass(icat), &
+                                                soilstate_vars%bd_col(c,j))
         end do
 
         ! calculate initial soil solution concentration using the equilibrium with CEC
         do icat = 1,ncations
-          cation_vr(c,j,icat) = ( 10**(-soil_ph(c,j)-soilstate_vars%log_km_col(c,j,icat)) / &
-               (soilstate_vars%ceca_col(c,j)/soilstate_vars%cect_col(c,j)) ) &
-              **EWParamsInst%cations_valence(icat)
-          cation_vr(c,j,icat) = cation_vr(c,j,icat) * &
-            (soilstate_vars%cece_col(c,j,icat)/soilstate_vars%cect_col(c,j))
-          cation_vr(c,j,icat) = mol_to_mass(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j))
+          h = 10**(-soilstate_vars%sph(c,j))
+          beta_h = soilstate_vars%ceca_col(c,j) / soilstate_vars%cect_col(c,j)
+          beta_cation = soilstate_vars%cece_col(c,j,icat) / soilstate_vars%cect_col(c,j)
+          keq = 10**soilstate_vars%log_km_col(c,j,icat)
+
+          equilibria_conc(c,j,icat) = beta_cation/(beta_h*keq/h)**EWParamsInst%cations_valence(icat)
+          cation_vr(c,j,icat) = mol_to_mass(equilibria_conc(c,j,icat), & 
+                                            EWParamsInst%cations_mass(icat), h2osoi_vol(c,j))
         end do
 
         ! calculate the net charge balance during initializaiong
@@ -434,10 +445,7 @@ contains
     integer  :: m, isec, icat          ! indices
     real(r8) :: dt
 
-    real(r8) :: equilibria_conc(1:nlevsoi, 1:ncations)   ! (mol kg-1) soil pore water cation concentration based on observed CEC and soil pH
-    real(r8) :: beta_h, beta_cation, keq, h
-
-    real(r8) :: equilibria_mass(1:nlevsoi, 1:ncations)   ! (g m-3 soil) equilibria_conc converted to per soil volume unit
+    real(r8) :: equilibria_mass(1:nlevsoi)               ! (g m-3 soil) equilibria_conc converted to per soil volume unit
     real(r8) :: sourcesink(1:nlevsoi)                    ! (g m-3 soil s-1)
     real(r8) :: adv_water(1:nlevsoi+1)                   ! m H2O / s, negative downward
     real(r8) :: diffus(1:nlevsoi)                        ! m2/s
@@ -457,14 +465,21 @@ contains
          qflx_drain                     => col_wf%qflx_drain              , & ! Input:  [real(r8) (:)   ]  sub-surface runoff (mm H2O /s)                    
          qflx_surf                      => col_wf%qflx_surf               , & ! Input:  [real(r8) (:)   ]  surface runoff (mm H2O /s)
          qflx_rootsoi_col               => col_wf%qflx_rootsoi            , & ! Input:  [real(r8) (:,:) ]  vegetation/soil water exchange (mm H2O/s) (+ = to atm)
-         tempavg_qin_col                => col_wf%tempavg_qin_col         , & ! Input:  [real(r8) (:,:) ]  accumulator for vertical flow into the layer (mm H2O/s)
-         annavg_qin_col                 => col_wf%annavg_qin_col          , & ! Input:  [real(r8) (:,:) ]  annual average vertical flow into the layer (mm H2O/s)
+
+         tempavg_qin_col                => col_wf%tempavg_qin_col         , & ! Input:  [real(r8) (:,:) ]  accumulator for the annual average rate of vertical water movement (mm H2O / s)
+         annavg_qin_col                 => col_wf%annavg_qin_col          , & ! Input:  [real(r8) (:,:) ]  annual average rate of vertical water movement (mm H2O / s)
+         mixing_fraction                => col_mf%mixing_fraction         , & ! Input:  [real(r8) (:,:) ]  fraction of vertical water flow that participated in mineral reactions (-)
 
          nlev2bed                       => col_pp%nlevbed                 , & ! Input:  [integer  (:)   ]  number of layers to bedrock
          dz                             => col_pp%dz                      , & ! Input:  [real(r8) (:,:) ]  layer thickness (m)
 
          rain_ph                        => col_ew%rain_ph                 , & ! Input:  [real(r8) (:)] pH of rain water
          rain_chem                      => col_ew%rain_chem               , & ! Input:  [real(r8) (:,:)] cation concentration in rain water (excluding H+) (g m-3 rain water) (1:ncations)
+
+         equilibria_conc                => col_ms%equilibria_conc         , & ! Input:  [real(r8) (:,:,:)] soil pore water cation concentration implied by the input soil CEC status and exchange coefficients (mol kg-1)
+
+         tempavg_vert_delta             => col_mf%tempavg_vert_delta       , & ! Input:  [real(r8) (:,:,:)] temporal accumulator for tempavg_vert_delta (g m-3 soil [not dry soil])
+         annavg_vert_delta              => col_mf%annavg_vert_delta       , & ! Input:  [real(r8) (:,:,:)] annual average rate of change in soil cation concentration under equilibrium conditions due to vertical water water movement (g m-3 soil [not dry soil])
 
          background_weathering_vr       => col_mf%background_weathering_vr  & ! Output: [real(r8) (:)] background weathering rate (g m-3 s-1)
     )
@@ -510,13 +525,6 @@ contains
       end if
 
       !------------------------------------------------------------------------------
-      ! Update the annual average vertical flow accumulator
-      !------------------------------------------------------------------------------
-      do j = 1,nlevbed+1
-        tempavg_qin_col(c,j) = tempavg_qin_col(c,j) + qin(c,j) * fracday / dayspyr_mod
-      end do
-
-      !------------------------------------------------------------------------------
       ! Pure background weathering
       ! - At long-term equilibrium, assume soil solution concentration is balanced
       !   with cation exchange. Also, assume no inter-soil-layer movement of cations.
@@ -525,44 +533,43 @@ contains
       ! - Background weathering rate only replenishes that loss. 
       !------------------------------------------------------------------------------
 
-      ! obtain the equilibrium concentration in each layer according to observed data
-      do icat = 1,ncations
-        ! rainwater, mg/L => mol/kg
-        ! equilibria_conc(0,icat) = rain_chem(c,icat) * 1e-3 / EWParamsInst%cations_mass(icat)
-        do j = 1,nlevbed
-          h = 10**(-soilstate_vars%sph(c,j))
-          beta_h = soilstate_vars%ceca_col(c,j) / soilstate_vars%cect_col(c,j)
-          beta_cation = soilstate_vars%cece_col(c,j,icat) / soilstate_vars%cect_col(c,j)
-          keq = 10**soilstate_vars%log_km_col(c,j,icat)
-          equilibria_conc(j,icat) = beta_cation/(beta_h*keq/h)**EWParamsInst%cations_valence(icat)
-        end do
-      end do
+      ! (1) vertical soil drainage part: conduct annual averaging to avoid negative
+      !     situation
 
       ! calculate the counterfactual advection-diffusion rate at equilibrium concentration
-      ! but this time step's loss rate
+      ! but this time step's soil water content and vertical water flow rate
       do j = 1,nlevbed
-        adv_water(j) = 0._r8 ! -1.0e-3_r8 * annavg_qin_col(c,j) ! note the flux rate is negative downward
+        mixing_fraction(c,j) = min(annavg_qin_col(c,j) / qin(c,j), 1._r8)
+        adv_water(j) = -1.0e-3_r8 * qin(c,j) * mixing_fraction(c,j) ! note the flux rate is negative downward
       end do
-      adv_water(nlevbed + 1) = 0._r8 ! -1.0e-3_r8 * annavg_qin_col(c,j+1)
+      mixing_fraction(c,nlevbed+1) = min(annavg_qin_col(c,nlevbed+1) / qin(c,nlevbed+1), 1._r8)
+      adv_water(nlevbed + 1) = -1.0e-3_r8 * qin(c,nlevbed+1) * mixing_fraction(c,nlevbed+1)
 
       do icat = 1,ncations
         sourcesink(1:nlevsoi) = 0._r8
         diffus(1:nlevsoi) = EWParamsInst%cations_diffusivity(icat)
         do j = 1,nlevbed
-          equilibria_mass(j,icat) = mol_to_mass(equilibria_conc(j,icat), &
+          equilibria_mass(j) = mol_to_mass(equilibria_conc(c, j, icat), &
               EWParamsInst%cations_mass(icat), h2osoi_vol(c,j))
         end do
 
-        ! write (iam+100,*) '--------------------------------------------', c, icat
-
-        call advection_diffusion( equilibria_mass(1:nlevsoi,icat), &
+        call advection_diffusion( equilibria_mass(1:nlevsoi), &
           adv_water(1:nlevsoi+1), diffus(1:nlevsoi), &
           sourcesink(1:nlevsoi), rain_chem(c,icat), nlevbed, dt, &
           h2osoi_vol(c,1:nlevsoi), dcation_dt(1:nlevsoi, icat) &
         )
       end do
 
-      ! calculate the runoff losses and add up to get total background weathering rate
+      ! accumulate to the annual average
+      do j = 1,nlevbed+1
+        tempavg_qin_col(c,j) = tempavg_qin_col(c,j) + qin(c,j) * fracday / dayspyr_mod
+        do icat = 1,ncations
+          tempavg_vert_delta(c,j,icat) = tempavg_vert_delta(c,j,icat) + &
+            dcation_dt(j,icat) * fracday / dayspyr_mod
+        end do
+      end do
+
+      ! (2) calculate the runoff losses and add up to get total background weathering rate
       dzsum = 0._r8
       do j = 1,nlevbed
         dzsum = dzsum + dz(c,j)
@@ -578,11 +585,9 @@ contains
           end if
 
           background_weathering_vr(c,j,icat) = &
-              mol_to_mass(equilibria_conc(j,icat), EWParamsInst%cations_mass(icat), &
+              mol_to_mass(equilibria_conc(c,j,icat), EWParamsInst%cations_mass(icat), &
                           1e-3_r8 * (qflx_drain_layer + qflx_surf_layer + qflx_rootsoi_col(c,j))) &
-              - dcation_dt(j,icat)
-
-          ! write (100+iam, *) 'dcation_dt(j,icat)', c, j, icat, dcation_dt(j,icat), equilibria_mass(j,icat), annavg_qin_col(c,j), qin(c,j), qout(c,j)
+              - annavg_vert_delta(c,j,icat)
         end do
       end do
 
@@ -1047,6 +1052,8 @@ contains
          rain_ph                        => col_ew%rain_ph                 , & ! Output: [real(r8) (:)] pH of rain water
          rain_chem                      => col_ew%rain_chem               , & ! Output: [real(r8) (:,:)] cation concentration in rain water (excluding H+) (g m-3 rain water) (1:ncations)
 
+         mixing_fraction                => col_mf%mixing_fraction         , & ! Input:  [real(r8) (:,:) ] fraction of vertical water flow that participated in mineral reactions (-)
+
          cation_vr                      => col_ms%cation_vr               , & ! Output [real(r8) (:,:,:)] cation mass in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd, 1:ncations)
 
          proton_infl_vr                 => col_mf%proton_infl_vr          , & ! Output: [real(r8) (:,:)] proton flux carried from infiltration above (g m-3 soil s-1 [not water]) (1:nlevgrnd)
@@ -1106,9 +1113,9 @@ contains
         diffus(1:nlevsoi) = EWParamsInst%cations_diffusivity(icat)
         do j = 1,nlevbed
           ! note the flux rate is negative downward
-          adv_water(j) = -1.0e-3_r8 * qin(c,j)
+          adv_water(j) = -1.0e-3_r8 * qin(c,j) * mixing_fraction(c,j)
         end do
-        adv_water(nlevbed + 1) = -1.0e-3_r8 * qin(c,j+1)
+        adv_water(nlevbed + 1) = -1.0e-3_r8 * qin(c,nlevbed+1) * mixing_fraction(c,nlevbed+1)
 
         call advection_diffusion( & 
           cation_vr(c, 1:nlevsoi, icat), adv_water(1:nlevsoi+1), diffus(1:nlevsoi), &
@@ -1367,7 +1374,7 @@ contains
           beta_list(icat) = cece(icat) / soilstate_vars%cect_col(c,j)
           ! if too tiny or zero, e.g. due to tiny or zero cec_cation_vr,
           ! the following 'solve_eq' function for soil pH won't work well.
-          beta_list(icat) = max(1.0e-5_r8, beta_list(icat)) ! TBC: 2*e-4
+          beta_list(icat) = max(2.0e-4_r8, beta_list(icat))
           keq_list(icat) = 10**soilstate_vars%log_km_col(c,j,icat)
         end do
 

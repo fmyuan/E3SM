@@ -433,6 +433,7 @@ module ColumnDataType
       real(r8), pointer :: proton_vr               (:,:)   => null() ! calculated soil H+ concentration in soil water each soil layer (1:nlevgrnd) (g m-3 soil [not water])
       real(r8), pointer :: bicarbonate_vr          (:,:)   => null() ! calculated HCO3- concentration in soil water each soil layer (1:nlevgrnd) (g m-3 soil [not water])
       real(r8), pointer :: carbonate_vr            (:,:)   => null() ! calculated CO3 2- concentration in soil water each soil layer (1:nlevgrnd) (g m-3 soil [not water])
+      real(r8), pointer :: equilibria_conc         (:,:,:) => null() ! soil pore water cation concentration implied by the input soil CEC status and exchange coefficients (mol kg-1)
       real(r8), pointer :: primary_mineral_vr      (:,:,:) => null() ! primary mineral concentration in solid phase each soil layer (1:nlevgrnd,1:nminerals) (g m-3)
       real(r8), pointer :: cation_vr               (:,:,:) => null() ! cation concentration in soil water in each soil layer (1:nlevgrnd,1:ncations) (g m-3 soil [not water])
       real(r8), pointer :: silica_vr               (:,:)   => null() ! SiO2 concentration in soil water in each soil layer (1:nlevgrnd) (g m-3 soil [not water])
@@ -610,9 +611,8 @@ module ColumnDataType
     real(r8), pointer :: qout                 (:,:) => null() ! flux of internal column water out of a soil layer [mm h2o/s]
     real(r8), pointer :: qin_external         (:,:) => null() ! flux of external column water, e.g. water recharge/lateral in, excluding infiltration, into soil layer [mm h2o/s] (always non-negative)
     real(r8), pointer :: qout_external        (:,:) => null() ! flux of external column water, e.g. discharge, all sorts of drainage, excluding rootsoil evaptran,  out of soil layer [mm h2o/s] (always non-positive)
-    real(r8), pointer :: tempavg_qin_col      (:,:) => null() ! accumulator for the annual average flux of internal column water into a soil layer [mm h2o/s]
-    real(r8), pointer :: annavg_qin_col       (:,:) => null() ! annual average flux of internal column water into a soil layer [mm h2o/s]
-
+    real(r8), pointer :: annavg_qin_col       (:,:) => null() ! annual average flux of qin (mm h2o/s)
+    real(r8), pointer :: tempavg_qin_col      (:,:) => null() ! accumulator for the annual average flux of qin (mm h2o/s)
   contains
     procedure, public :: Init    => col_wf_init
     procedure, public :: Restart => col_wf_restart
@@ -1125,6 +1125,10 @@ module ColumnDataType
    !-----------------------------------------------------------------------
    type, public :: column_mineral_flux
       real(r8), pointer :: background_weathering_vr     (:,:,:)   => null() ! background weathering rate (1:nlevgrnd, 1:ncations) (g m-3 s-1)
+      real(r8), pointer :: tempavg_vert_delta           (:,:,:)   => null() ! temporal accumulator for tempavg_vert_delta (g m-3 soil s-1 [not dry soil])
+      real(r8), pointer :: annavg_vert_delta            (:,:,:)   => null() ! annual average rate of change in soil cation concentration under equilibrium conditions due to vertical water water movement (g m-3 soil s-1 [not dry soil])
+
+      real(r8), pointer :: mixing_fraction              (:,:)     => null() ! fraction of vertical water flow that participated in mineral reactions (-)
 
       real(r8), pointer :: primary_added_vr             (:,:,:)   => null() ! rate at which primary mineral is added (1:nlevgrnd, 1:nminerals) (g m-3 s-1)
       real(r8), pointer :: primary_dissolve_vr          (:,:,:)   => null() ! rate at which primary mineral is dissolved (1:nlevgrnd, 1:nminerals) (g m-3 s-1)
@@ -5852,6 +5856,7 @@ contains
       allocate(this%proton_vr           (begc:endc,1:nlevgrnd            ))       ; this%proton_vr              (:,:) = spval
       allocate(this%bicarbonate_vr      (begc:endc,1:nlevgrnd            ))       ; this%bicarbonate_vr         (:,:) = spval
       allocate(this%carbonate_vr        (begc:endc,1:nlevgrnd            ))       ; this%carbonate_vr           (:,:) = spval
+      allocate(this%equilibria_conc     (begc:endc,1:nlevgrnd,1:ncations ))       ; this%equilibria_conc        (:,:,:) = spval
       allocate(this%primary_mineral_vr  (begc:endc,1:nlevgrnd,1:nminerals))       ; this%primary_mineral_vr     (:,:,:) = spval
       allocate(this%cation_vr           (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cation_vr              (:,:,:) = spval
       allocate(this%silica_vr           (begc:endc,1:nlevgrnd            ))       ; this%silica_vr              (:,:) = spval
@@ -5909,6 +5914,17 @@ contains
       call hist_addfld2d (fname='carbonate_vr',  units='g m-3', type2d='levgrnd', &
          avgflag='A', long_name='dissolved CO3 2- concentration (vertically resolved)', &
          ptr_col=data2dptr, l2g_scale_type='veg')
+
+      this%equilibria_conc(begc:endc,1:nlevgrnd,1:nminerals) = spval
+      do a = 1,ncations
+         data2dptr => this%equilibria_conc(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'equilibria_conc_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname, units='mol kg-1', type2d='levgrnd', &
+            avgflag='A', long_name='soil pore water cation concentration implied by the input soil CEC status and exchange coefficients (vertically resolved)', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
+      end do
 
       this%primary_mineral_vr(begc:endc,1:nlevgrnd,1:nminerals) = spval
       do a = 1,nminerals
@@ -6137,6 +6153,17 @@ contains
          dim1name='column', dim2name='levgrnd', switchdim=.true., &
          long_name='calculated CO3 2- concentration (vertically resolved)', units='g m-3', &
          interpinic_flag='interp', readvar=readvar, data=ptr2d)
+
+      do a = 1, ncations
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'equilibria_conc_vr_'//trim(a_str)
+         ptr2d => this%equilibria_conc(:,:,a)
+         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double,   &
+            dim1name='column', dim2name='levgrnd', switchdim=.true., &
+            long_name='soil pore water cation concentration implied by the input soil CEC status and exchange coefficients (vertically resolved)', units='mol kg-1', fill_value=spval, &
+            interpinic_flag='interp', readvar=readvar, data=ptr2d)
+      end do
 
       do a = 1, nminerals
          write (a_str, '(I6)') a
@@ -6599,8 +6626,8 @@ contains
     allocate(this%qout                   (begc:endc,1:nlevgrnd+1)); this%qout                 (:,:) = spval
     allocate(this%qin_external           (begc:endc,1:nlevgrnd))  ; this%qin_external         (:,:) = spval
     allocate(this%qout_external          (begc:endc,1:nlevgrnd))  ; this%qout_external        (:,:) = spval
-    allocate(this%tempavg_qin_col        (begc:endc,1:nlevgrnd))  ; this%tempavg_qin_col      (:,:) = 0._r8
-    allocate(this%annavg_qin_col         (begc:endc,1:nlevgrnd))  ; this%annavg_qin_col       (:,:) = 0._r8
+    allocate(this%annavg_qin_col         (begc:endc,1:nlevgrnd+1)); this%annavg_qin_col       (:,:) = spval
+    allocate(this%tempavg_qin_col        (begc:endc,1:nlevgrnd+1)); this%tempavg_qin_col      (:,:) = spval
 
     !-----------------------------------------------------------------------
     ! initialize history fields for select members of col_wf
@@ -12440,6 +12467,10 @@ contains
       ! allocate for each member of col_mf
       !-----------------------------------------------------------------------
       allocate(this%background_weathering_vr       (begc:endc,1:nlevgrnd,1:ncations ))       ; this%background_weathering_vr    (:,:,:) = spval
+      allocate(this%tempavg_vert_delta             (begc:endc,1:nlevgrnd,1:ncations ))       ; this%tempavg_vert_delta          (:,:,:) = spval
+      allocate(this%annavg_vert_delta              (begc:endc,1:nlevgrnd,1:ncations ))       ; this%annavg_vert_delta           (:,:,:) = spval
+
+      allocate(this%mixing_fraction                (begc:endc,1:nlevgrnd))                   ; this%mixing_fraction             (:,:,:) = spval
 
       allocate(this%primary_added_vr               (begc:endc,1:nlevgrnd,1:nminerals))       ; this%primary_added_vr            (:,:,:) = spval
       allocate(this%primary_dissolve_vr            (begc:endc,1:nlevgrnd,1:nminerals))       ; this%primary_dissolve_vr         (:,:,:) = spval
@@ -12528,6 +12559,22 @@ contains
             avgflag='A', long_name='rate at which background weathering produces cations (vertically resolved)', &
             ptr_col=data2dptr, l2g_scale_type='veg')
       end do
+
+      this%annavg_vert_delta(begc:endc,:,:) = spval
+      do a = 1,ncations
+         data2dptr => this%annavg_vert_delta(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'annavg_vert_delta_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname,  units='g m-3 s-1', type2d='levgrnd', &
+            avgflag='A', long_name='annual average rate of change in soil cation concentration under equilibrium conditions due to vertical water water movement (vertically resolved)', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
+      end do
+
+      this%mixing_fraction(begc:endc,:) = spval
+      call hist_addfld2d (fname='mixing_fraction',  units='', type2d='levgrnd', &
+         avgflag='A', long_name='fraction of vertical water flow that participated in mineral reactions', &
+         ptr_col=this%mixing_fraction, l2g_scale_type='veg')
 
       this%primary_added_vr(begc:endc,:,:) = spval
       do a = 1,nminerals
@@ -12915,6 +12962,9 @@ contains
          ! must be vegetated/bare land or crop
          !if (lun_pp%itype(l)==istsoil .or. lun_pp%itype(l)==istcrop) then
             this%background_weathering_vr        (c,1:nlevsoi,1:ncations ) = 0._r8
+            this%tempavg_vert_delta              (c,1:nlevsoi,1:ncations ) = 0._r8
+            this%annavg_vert_delta               (c,1:nlevsoi,1:ncations ) = 0._r8
+
             this%primary_added_vr                (c,1:nlevsoi,1:nminerals) = 0._r8
             this%primary_dissolve_vr             (c,1:nlevsoi,1:nminerals) = 0._r8
             this%primary_proton_flux_vr          (c,1:nlevsoi            ) = 0._r8
@@ -13018,6 +13068,28 @@ contains
          call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double,   &
             dim1name='column', dim2name='levgrnd', switchdim=.true., &
             long_name='rate at which background weathering produces cations (vertically resolved)', units='g m-3 s-1', &
+            interpinic_flag='interp', readvar=readvar, data=ptr2d)
+      end do
+
+      do a = 1,ncations
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'tempavg_vert_delta_vr_'//trim(a_str)
+         ptr2d => this%tempavg_vert_delta(:,:,a)
+         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double,   &
+            dim1name='column', dim2name='levgrnd', switchdim=.true., &
+            long_name='temporal accumulator for tempavg_vert_delta (vertically resolved)', units='g m-3 s-1', &
+            interpinic_flag='interp', readvar=readvar, data=ptr2d)
+      end do
+
+      do a = 1,ncations
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'annavg_vert_delta_vr_'//trim(a_str)
+         ptr2d => this%annavg_vert_delta(:,:,a)
+         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double,   &
+            dim1name='column', dim2name='levgrnd', switchdim=.true., &
+            long_name='annual average rate of change in soil cation concentration under equilibrium conditions due to vertical water water movement (vertically resolved)', units='g m-3 s-1', &
             interpinic_flag='interp', readvar=readvar, data=ptr2d)
       end do
 
