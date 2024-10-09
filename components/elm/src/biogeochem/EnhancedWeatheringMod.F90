@@ -9,7 +9,7 @@ module EnhancedWeatheringMod
   !
   ! !USES:
   use shr_kind_mod        , only : r8 => shr_kind_r8
-  use elm_varctl          , only : iulog
+  use elm_varctl          , only : iulog, year_start_erw
   use elm_varcon          , only : log_keq_co3, log_keq_hco3, log_keq_sio2am
   use elm_varcon          , only : mass_co3, mass_hco3, mass_co2, mass_h2o, mass_sio2, mass_h
   use elm_varcon          , only : zisoi
@@ -371,8 +371,10 @@ contains
           keq = 10**soilstate_vars%log_km_col(c,j,icat)
 
           equilibria_conc(c,j,icat) = beta_cation/(beta_h*keq/h)**EWParamsInst%cations_valence(icat)
-          cation_vr(c,j,icat) = mol_to_mass(equilibria_conc(c,j,icat), & 
-                                            EWParamsInst%cations_mass(icat), h2osoi_vol(c,j))
+
+          cation_vr(c,j,icat) = mol_to_mass(equilibria_conc(c,j,icat), &
+                                            EWParamsInst%cations_mass(icat), &
+                                            h2osoi_vol(c,j))
         end do
 
         ! calculate the net charge balance during initializaiong
@@ -444,44 +446,22 @@ contains
     integer  :: fc,c,j,g,nlevbed
     integer  :: m, isec, icat          ! indices
     real(r8) :: dt
-
-    real(r8) :: equilibria_mass(1:nlevsoi)               ! (g m-3 soil) equilibria_conc converted to per soil volume unit
-    real(r8) :: sourcesink(1:nlevsoi)                    ! (g m-3 soil s-1)
-    real(r8) :: adv_water(1:nlevsoi+1)                   ! m H2O / s, negative downward
-    real(r8) :: diffus(1:nlevsoi)                        ! m2/s
-    real(r8) :: rho(1:nlevsoi)                           ! "density" factor using soil water content
-    real(r8) :: dcation_dt(1:nlevsoi, 1:ncations)        ! cation concentration rate, g m-3 s-1
-
-    real(r8) :: fracday                                  ! fractional day per time step
-
-    real(r8) :: qflx_drain_layer, qflx_surf_layer        ! (g m-3 s-1) runoff from soil layer
-    real(r8) :: dzsum                                    ! (m) soil column total depth
-    real(r8), parameter :: depth_runoff_Mloss = 0.05     ! (m) depth over which runoff mixes with soil water for ions loss to runoff; same as nitrogen runoff depth
+    real(r8) :: fracday                ! fractional day per time step
+    real(r8) :: temp_sum(1:ncations), temp_cec_sum(1:ncations)
+    real(r8) :: temp_flux_sum(1:ncations), temp_flux_cec_sum(1:ncations)
 
     associate( &
-         qin                            => col_wf%qin                     , & ! Input:  [real(r8) (:,:) ] flux of water into soil layer [mm h2o/s]
-         qout                           => col_wf%qout                    , & ! Input:  [real(r8) (:,:) ] flux of water out of soil layer [mm h2o/s]
-         h2osoi_vol                     => col_ws%h2osoi_vol              , & ! Input:  [real(r8) (:)] volumetric soil water content, ice + water (m3 m-3)
-         qflx_drain                     => col_wf%qflx_drain              , & ! Input:  [real(r8) (:)   ]  sub-surface runoff (mm H2O /s)                    
-         qflx_surf                      => col_wf%qflx_surf               , & ! Input:  [real(r8) (:)   ]  surface runoff (mm H2O /s)
-         qflx_rootsoi_col               => col_wf%qflx_rootsoi            , & ! Input:  [real(r8) (:,:) ]  vegetation/soil water exchange (mm H2O/s) (+ = to atm)
-
-         tempavg_qin_col                => col_wf%tempavg_qin_col         , & ! Input:  [real(r8) (:,:) ]  accumulator for the annual average rate of vertical water movement (mm H2O / s)
-         annavg_qin_col                 => col_wf%annavg_qin_col          , & ! Input:  [real(r8) (:,:) ]  annual average rate of vertical water movement (mm H2O / s)
-         mixing_fraction                => col_mf%mixing_fraction         , & ! Input:  [real(r8) (:,:) ]  fraction of vertical water flow that participated in mineral reactions (-)
-
          nlev2bed                       => col_pp%nlevbed                 , & ! Input:  [integer  (:)   ]  number of layers to bedrock
          dz                             => col_pp%dz                      , & ! Input:  [real(r8) (:,:) ]  layer thickness (m)
 
          rain_ph                        => col_ew%rain_ph                 , & ! Input:  [real(r8) (:)] pH of rain water
          rain_chem                      => col_ew%rain_chem               , & ! Input:  [real(r8) (:,:)] cation concentration in rain water (excluding H+) (g m-3 rain water) (1:ncations)
 
-         equilibria_conc                => col_ms%equilibria_conc         , & ! Input:  [real(r8) (:,:,:)] soil pore water cation concentration implied by the input soil CEC status and exchange coefficients (mol kg-1)
+         annavg_tot_delta               => col_mf%annavg_tot_delta        , & ! Output: [real(r8) (:)] annual average rate of change in total (solute and adsorbed phases) cation concentration before mineral application (g m-3 soil s-1 [not dry soil])
+         annavg_cec_delta               => col_mf%annavg_cec_delta        , & ! Output: [real(r8) (:)] annual average rate of change in adsorbed cation concentration before mineral application (g m-3 soil s-1 [not dry soil])
 
-         tempavg_vert_delta             => col_mf%tempavg_vert_delta       , & ! Input:  [real(r8) (:,:,:)] temporal accumulator for tempavg_vert_delta (g m-3 soil [not dry soil])
-         annavg_vert_delta              => col_mf%annavg_vert_delta       , & ! Input:  [real(r8) (:,:,:)] annual average rate of change in soil cation concentration under equilibrium conditions due to vertical water water movement (g m-3 soil [not dry soil])
-
-         background_weathering_vr       => col_mf%background_weathering_vr  & ! Output: [real(r8) (:)] background weathering rate (g m-3 s-1)
+         background_flux_vr             => col_mf%background_flux_vr      , & ! Output: [real(r8) (:)] background flux rate in/out of soil solution (g m-3 s-1)
+         background_cec_vr              => col_mf%background_cec_vr         & ! Output: [real(r8) (:)] background flux rate in/out of adsorbed cations (g m-3 s-1)
     )
 
     dt      = real( get_step_size(), r8 )
@@ -492,6 +472,9 @@ contains
       g = col_pp%gridcell(c)
       nlevbed = min(nlev2bed(c), nlevsoi)
 
+      !------------------------------------------------------------------------------
+      ! Define rainfall chemistry
+      !------------------------------------------------------------------------------
       if (builtin_site == 1) then
         ! Hubbard Brook
         ! rain pH data from the monitoring station in Hubbard Brook, 
@@ -525,71 +508,68 @@ contains
       end if
 
       !------------------------------------------------------------------------------
-      ! Pure background weathering
-      ! - At long-term equilibrium, assume soil solution concentration is balanced
-      !   with cation exchange. Also, assume no inter-soil-layer movement of cations.
-      ! - There is only loss via (plant uptake + surface & subsurface runoff + 
-      !                           vertical soil drainage).
-      ! - Background weathering rate only replenishes that loss. 
+      ! Background weathering
+      ! - goal: prevent forever loss of cations from soil
+      ! - solution: replenish both the solute and cation exchange (adsorbed) phase
+      !             cations using calibrated long-term average
       !------------------------------------------------------------------------------
+      if (year_curr < (year_start_erw + 3)) then
 
-      ! (1) vertical soil drainage part: conduct annual averaging to avoid negative
-      !     situation
+        background_flux_vr(c,1:nlevbed,1:ncations) = 0._r8
+        background_cec_vr(c,1:nlevbed,1:ncations) = 0._r8
 
-      ! calculate the counterfactual advection-diffusion rate at equilibrium concentration
-      ! but this time step's soil water content and vertical water flow rate
-      do j = 1,nlevbed
-        mixing_fraction(c,j) = min(annavg_qin_col(c,j) / qin(c,j), 1._r8)
-        adv_water(j) = -1.0e-3_r8 * qin(c,j) * mixing_fraction(c,j) ! note the flux rate is negative downward
-      end do
-      mixing_fraction(c,nlevbed+1) = min(annavg_qin_col(c,nlevbed+1) / qin(c,nlevbed+1), 1._r8)
-      adv_water(nlevbed + 1) = -1.0e-3_r8 * qin(c,nlevbed+1) * mixing_fraction(c,nlevbed+1)
+      else if (year_curr == (year_start_erw + 3)) then
 
-      do icat = 1,ncations
-        sourcesink(1:nlevsoi) = 0._r8
-        diffus(1:nlevsoi) = EWParamsInst%cations_diffusivity(icat)
+        temp_cec_sum(1:ncations) = 0._r8
+        temp_flux_cec_sum(1:ncations) = 0._r8
         do j = 1,nlevbed
-          equilibria_mass(j) = mol_to_mass(equilibria_conc(c, j, icat), &
-              EWParamsInst%cations_mass(icat), h2osoi_vol(c,j))
+          do icat = 1,ncations
+            temp_cec_sum(icat) = temp_cec_sum(icat) - annavg_cec_delta(c,j,icat)*dz(c,j)
+            background_cec_vr(c,j,icat) = max(0._r8, - annavg_cec_delta(c,j,icat))
+            temp_flux_cec_sum(icat) = temp_flux_cec_sum(icat) + background_cec_vr(c,j,icat)*dz(c,j)
+          end do
         end do
 
-        call advection_diffusion( equilibria_mass(1:nlevsoi), &
-          adv_water(1:nlevsoi+1), diffus(1:nlevsoi), &
-          sourcesink(1:nlevsoi), rain_chem(c,icat), nlevbed, dt, &
-          h2osoi_vol(c,1:nlevsoi), dcation_dt(1:nlevsoi, icat) &
-        )
-      end do
-
-      ! accumulate to the annual average
-      do j = 1,nlevbed+1
-        tempavg_qin_col(c,j) = tempavg_qin_col(c,j) + qin(c,j) * fracday / dayspyr_mod
+        ! re-scale the background weathering rate so that the column total equals
+        ! the column total of annavg_cec_delta, which may contain negative numbers
         do icat = 1,ncations
-          tempavg_vert_delta(c,j,icat) = tempavg_vert_delta(c,j,icat) + &
-            dcation_dt(j,icat) * fracday / dayspyr_mod
-        end do
-      end do
-
-      ! (2) calculate the runoff losses and add up to get total background weathering rate
-      dzsum = 0._r8
-      do j = 1,nlevbed
-        dzsum = dzsum + dz(c,j)
-      end do
-      do icat = 1,ncations
-        ! mol kg-1 * g mol-1 * mm s-1 = g m-2 s-1,divide by dz to get g m-3 s-1
-        do j = 1,nlevbed
-          qflx_drain_layer = qflx_drain(c) / dzsum
-          if (zisoi(j) < depth_runoff_Mloss) then
-            qflx_surf_layer = qflx_surf(c) / depth_runoff_Mloss
+          if (temp_cec_sum(icat) <= 0._r8 .or. temp_flux_cec_sum(icat) <= 0._r8) then
+            background_cec_vr(c,1:nlevbed,icat) = 0._r8
           else
-            qflx_surf_layer = 0._r8
+            do j = 1,nlevbed
+              background_cec_vr(c,j,icat) = background_cec_vr(c,j,icat) &
+                * temp_cec_sum(icat) / temp_flux_cec_sum(icat)
+            end do
           end if
-
-          background_weathering_vr(c,j,icat) = &
-              mol_to_mass(equilibria_conc(c,j,icat), EWParamsInst%cations_mass(icat), &
-                          1e-3_r8 * (qflx_drain_layer + qflx_surf_layer + qflx_rootsoi_col(c,j))) &
-              - annavg_vert_delta(c,j,icat)
         end do
-      end do
+
+        temp_sum(1:ncations) = 0._r8
+        temp_flux_sum(1:ncations) = 0._r8
+        do j = 1,nlevbed
+          do icat = 1,ncations
+            temp_sum(icat) = temp_sum(icat) &
+                             - annavg_tot_delta(c,j,icat)*dz(c,j) &
+                             - background_cec_vr(c,j,icat)*dz(c,j)
+            background_flux_vr(c,j,icat) = max(0._r8, &
+              - annavg_tot_delta(c,j,icat) - background_cec_vr(c,j,icat))
+            temp_flux_sum(icat) = temp_flux_sum(icat) + background_flux_vr(c,j,icat)*dz(c,j)
+          end do
+        end do
+
+        ! re-scale the background weathering rate so that the column total equals
+        ! the column total of (annavg_tot_delta - background_cec), which may 
+        ! contain negative numbers
+        do icat = 1,ncations
+          if (temp_sum(icat) <= 0._r8 .or. temp_flux_sum(icat) <= 0._r8) then
+            background_flux_vr(c,1:nlevbed,icat) = 0._r8
+          else
+            do j = 1,nlevbed
+              background_flux_vr(c,j,icat) = background_flux_vr(c,j,icat) &
+                * temp_sum(icat) / temp_flux_sum(icat)
+            end do
+          end if
+        end do
+      end if
 
       !------------------------------------------------------------------------------
       ! Add the weathering of pre-existing calcite in the soil
@@ -1052,6 +1032,7 @@ contains
          rain_ph                        => col_ew%rain_ph                 , & ! Output: [real(r8) (:)] pH of rain water
          rain_chem                      => col_ew%rain_chem               , & ! Output: [real(r8) (:,:)] cation concentration in rain water (excluding H+) (g m-3 rain water) (1:ncations)
 
+         annavg_qin_col                 => col_wf%annavg_qin_col          , & ! Input:  [real(r8) (:,:) ]  annual average rate of vertical water movement (mm H2O / s)
          mixing_fraction                => col_mf%mixing_fraction         , & ! Input:  [real(r8) (:,:) ] fraction of vertical water flow that participated in mineral reactions (-)
 
          cation_vr                      => col_ms%cation_vr               , & ! Output [real(r8) (:,:,:)] cation mass in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd, 1:ncations)
@@ -1067,7 +1048,7 @@ contains
 
          primary_proton_flux_vr         => col_mf%primary_proton_flux_vr  , & ! Output [real(r8) (:,:)] consumed H+ due to all the dissolution reactions (g m-3 s-1) (1:nlevgrnd)
          primary_cation_flux_vr         => col_mf%primary_cation_flux_vr  , & ! Output [real(r8) (:,:,:) cations produced due to all the dissolution reactions (g m-3 s-1) (1:nlevgrnd, 1:ncations)
-         background_weathering_vr       => col_mf%background_weathering_vr, & ! Output: [real(r8) (:)] background weathering rate (g m-3 s-1)
+         background_flux_vr       => col_mf%background_flux_vr, & ! Output: [real(r8) (:)] background weathering rate (g m-3 s-1)
          secondary_cation_flux_vr       => col_mf%secondary_cation_flux_vr & ! Output [real(r8) (:,:,:) cations consumed due to precipitation of secondary minerals (g m-3 s-1) (1:nlevgrnd, 1:ncations)
     )
 
@@ -1100,11 +1081,28 @@ contains
         end do
 
         do icat = 1,ncations
-          sourcesink_cations(j,icat) = background_weathering_vr(c,j,icat) + & 
+          sourcesink_cations(j,icat) = background_flux_vr(c,j,icat) + & 
             primary_cation_flux_vr(c,j,icat) + cec_cation_flux_vr(c,j,icat) - &
             secondary_cation_flux_vr(c,j,icat) - cation_uptake_vr(c,j,icat)
         end do
       end do
+
+      !------------------------------------------------------------------------------
+      ! use the vertical flow rate tocalculate the mixing ratio between incoming water
+      ! and soil cations
+      !------------------------------------------------------------------------------
+      do j = 1,nlevbed
+        if (abs(qin(c,j)) <= annavg_qin_col(c,j)) then
+          mixing_fraction(c,j) = 1._r8
+        else
+          mixing_fraction(c,j) = annavg_qin_col(c,j) / abs(qin(c,j))
+        end if
+      end do
+      if (abs(qin(c,nlevbed+1)) <= annavg_qin_col(c,nlevbed+1)) then
+        mixing_fraction(c,nlevbed+1) = 1._r8
+      else
+        mixing_fraction(c,nlevbed+1) = annavg_qin_col(c,nlevbed+1) / abs(qin(c,nlevbed+1))
+      end if
 
       !------------------------------------------------------------------------------
       ! Calculate the vertical transport

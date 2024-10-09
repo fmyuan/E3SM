@@ -9,7 +9,7 @@ module AnnualUpdateMod
   use CNStateType      , only : cnstate_type
   use ColumnDataType   , only : col_cf, col_wf, col_mf
   use VegetationDataType, only : veg_cf
-  use elm_varctl       , only : use_erw, year_start_erw
+  use elm_varctl       , only : use_erw, year_start_erw, spinup_state
 
   use timeinfoMod
   !
@@ -67,9 +67,11 @@ contains
       annsum_npp_col              => col_cf%annsum_npp      , &
       annavg_t2m_col              => cnstate_vars%annavg_t2m_col, &
       annavg_qin_col              => col_wf%annavg_qin_col, &
-      tempavg_qin_col             => col_mf%tempavg_qin_col, &
-      annavg_vert_delta           => col_mf%annavg_vert_delta, &
-      tempavg_vert_delta          => col_mf%tempavg_vert_delta &
+      tempavg_qin_col             => col_wf%tempavg_qin_col, &
+      annavg_tot_delta            => col_mf%annavg_tot_delta, &
+      tempavg_tot_delta           => col_mf%tempavg_tot_delta, &
+      annavg_cec_delta            => col_mf%annavg_cec_delta, &
+      tempavg_cec_delta           => col_mf%tempavg_cec_delta &
     )
 
     dt = dtime_mod
@@ -108,7 +110,6 @@ contains
         end do
 
         ! use p2c routine to get selected column-average pft-level fluxes and states
-
         call p2c(bounds, num_soilc, filter_soilc, &
               annsum_npp(bounds%begp:bounds%endp), &
               annsum_npp_col(bounds%begc:bounds%endc))
@@ -117,19 +118,27 @@ contains
               annavg_t2m_patch(bounds%begp:bounds%endp), &
               annavg_t2m_col(bounds%begc:bounds%endc))
       end if
-
     end if
 
-    ! update annual cation vertical transport accumulator
-    if (use_erw) then
+    ! Only during the self-calibration phase
+    if (use_erw .and. spinup_state == 0 .and. year_curr >= year_start_erw & 
+        .and. year_curr < (year_start_erw + 3)) then
       do fc = 1,num_soilc
+        c = filter_soilc(fc)
         do j = 1,nlevgrnd
           if (annsum_counter_col(c) >= dayspyr_mod * secspday) then
-            annavg_qin_col(c,j) = tempavg_qin_col(c,j)
+            ! calibrate the annual average flow rate for mixing fraction calibration
+            annavg_qin_col(c,j) = annavg_qin_col(c,j) + tempavg_qin_col(c,j) / 3._r8
             tempavg_qin_col(c,j) = 0._r8
 
-            annavg_vert_delta(c,j,1:ncations) = tempavg_vert_delta(c,j,1:ncations)
-            tempavg_vert_delta(c,j,1:ncations) = 0._r8
+            ! calibrate the annual average cation change rate for background weathering
+            annavg_tot_delta(c,j,1:ncations) = annavg_tot_delta(c,j,1:ncations) + &
+                  tempavg_tot_delta(c,j,1:ncations) / 3._r8
+            tempavg_tot_delta(c,j,1:ncations) = 0._r8
+
+            annavg_cec_delta(c,j,1:ncations) = annavg_cec_delta(c,j,1:ncations) + &
+                  tempavg_cec_delta(c,j,1:ncations) / 3._r8
+            tempavg_cec_delta(c,j,1:ncations) = 0._r8
           end if
         end do
       end do
