@@ -9,7 +9,8 @@ module AnnualUpdateMod
   use CNStateType      , only : cnstate_type
   use ColumnDataType   , only : col_cf, col_wf, col_mf
   use VegetationDataType, only : veg_cf
-  use elm_varctl       , only : use_erw, year_start_erw, spinup_state
+  use elm_varctl       , only : use_erw, year_start_erw, spinup_state, nyear_erw_calibrate
+  use spmdMod             , only : iam
 
   use timeinfoMod
   !
@@ -122,22 +123,22 @@ contains
 
     ! Only during the self-calibration phase
     if (use_erw .and. spinup_state == 0 .and. year_curr >= year_start_erw & 
-        .and. year_curr < (year_start_erw + 3)) then
+        .and. year_curr < (year_start_erw + nyear_erw_calibrate)) then
       do fc = 1,num_soilc
         c = filter_soilc(fc)
         do j = 1,nlevgrnd
           if (annsum_counter_col(c) >= dayspyr_mod * secspday) then
             ! calibrate the annual average flow rate for mixing fraction calibration
-            annavg_qin_col(c,j) = annavg_qin_col(c,j) + tempavg_qin_col(c,j) / 3._r8
+            annavg_qin_col(c,j) = annavg_qin_col(c,j) + tempavg_qin_col(c,j) / nyear_erw_calibrate
             tempavg_qin_col(c,j) = 0._r8
 
             ! calibrate the annual average cation change rate for background weathering
             annavg_tot_delta(c,j,1:ncations) = annavg_tot_delta(c,j,1:ncations) + &
-                  tempavg_tot_delta(c,j,1:ncations) / 3._r8
+                  tempavg_tot_delta(c,j,1:ncations) / nyear_erw_calibrate
             tempavg_tot_delta(c,j,1:ncations) = 0._r8
 
             annavg_cec_delta(c,j,1:ncations) = annavg_cec_delta(c,j,1:ncations) + &
-                  tempavg_cec_delta(c,j,1:ncations) / 3._r8
+                  tempavg_cec_delta(c,j,1:ncations) / nyear_erw_calibrate
             tempavg_cec_delta(c,j,1:ncations) = 0._r8
           end if
         end do

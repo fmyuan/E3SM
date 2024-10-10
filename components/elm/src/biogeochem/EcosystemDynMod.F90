@@ -9,7 +9,7 @@ module EcosystemDynMod
   use shr_sys_mod         , only : shr_sys_flush
   use elm_varctl          , only : use_c13, use_c14, use_fates, use_dynroot, use_fan
   use elm_varctl          , only : iulog
-  use elm_varctl          , only : spinup_state, use_erw, year_start_erw
+  use elm_varctl          , only : spinup_state, use_erw, year_start_erw, nyear_erw_calibrate
   use decompMod           , only : bounds_type
   use perf_mod            , only : t_startf, t_stopf
   use spmdMod             , only : masterproc
@@ -222,7 +222,8 @@ contains
           call MineralStateUpdate2(num_soilc, filter_soilc, col_ms, col_mf, dt)
           call MineralLeaching(bounds, num_soilc, filter_soilc, dt)
        end if
-      if (spinup_state == 0 .and. year >= year_start_erw .and. year < (year_start_erw + 3)) then
+      if (spinup_state == 0 .and. year >= year_start_erw .and. &
+          year < (year_start_erw + nyear_erw_calibrate)) then
          call MineralSelfCalibrate(num_soilc, filter_soilc, col_ms, col_mf, col_wf, dt)
       end if
      end if

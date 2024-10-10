@@ -266,6 +266,8 @@ module elm_varctl
 
   integer, public :: year_start_erw = 2 ! by default start from year 2 of ad-spinup, override in namelist
 
+  integer, public :: nyear_erw_calibrate = 3 ! by default use 3 years to calibrate the background weathering rate, override in namelist
+
   character(len=fname_len), public :: elm_erw_paramfile  = ' '        ! ASCII data file with minerals' constants in rocky powder appl.
 
   integer, public :: use_erw_verbose = 0 ! 1, 2 => write extra diagnostic log files

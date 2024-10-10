@@ -9,7 +9,7 @@ module EnhancedWeatheringMod
   !
   ! !USES:
   use shr_kind_mod        , only : r8 => shr_kind_r8
-  use elm_varctl          , only : iulog, year_start_erw
+  use elm_varctl          , only : iulog, year_start_erw, nyear_erw_calibrate
   use elm_varcon          , only : log_keq_co3, log_keq_hco3, log_keq_sio2am
   use elm_varcon          , only : mass_co3, mass_hco3, mass_co2, mass_h2o, mass_sio2, mass_h
   use elm_varcon          , only : zisoi
@@ -110,7 +110,7 @@ contains
     character(len=32) :: subname = 'elm_erw_readnl'  ! subroutine name
   !EOP
   !-----------------------------------------------------------------------
-    namelist / elm_erw_inparm / year_start_erw, elm_erw_paramfile, use_erw_verbose, builtin_site
+    namelist / elm_erw_inparm / year_start_erw, nyear_erw_calibrate, elm_erw_paramfile, use_erw_verbose, builtin_site
 
     ! ----------------------------------------------------------------------
     ! Read namelist from standard namelist file.
@@ -137,6 +137,7 @@ contains
        call relavu( unitn )
        write(iulog, '(/, A)') " elm-erw namelist:"
        write(iulog, '(A, " : ", I0,/)') "   elm-erw beginning year ", year_start_erw
+       write(iulog, '(A, " : ", I0,/)') "   elm-erw calibration years ", nyear_erw_calibrate
        write(iulog, '(A, " : ", A,/)') "   elm-erw parameter file ", trim(elm_erw_paramfile)
        write(iulog, '(A, " : ", I0,/)') "   verbose logs ", use_erw_verbose
        write(iulog, '(A, " : ", I0,/)') "   built-in validation site ", builtin_site
@@ -144,6 +145,7 @@ contains
 
     ! Broadcast namelist variables read in
     call mpi_bcast (year_start_erw, 1, MPI_INTEGER, 0, mpicom, ierr)
+    call mpi_bcast (nyear_erw_calibrate, 1, MPI_INTEGER, 0, mpicom, ierr)
     call mpi_bcast (elm_erw_paramfile, len(elm_erw_paramfile), MPI_CHARACTER, 0, mpicom, ierr)
     call mpi_bcast (use_erw_verbose, 1, MPI_INTEGER, 0, mpicom, ierr)
     call mpi_bcast (builtin_site, 1, MPI_INTEGER, 0, mpicom, ierr)
@@ -513,12 +515,14 @@ contains
       ! - solution: replenish both the solute and cation exchange (adsorbed) phase
       !             cations using calibrated long-term average
       !------------------------------------------------------------------------------
-      if (year_curr < (year_start_erw + 3)) then
+      if (year_curr < (year_start_erw + nyear_erw_calibrate)) then
+      !! performs less well: let background_flux co-evolve with cumulative loss
+      !! if (year_curr < year_start_erw) then
 
         background_flux_vr(c,1:nlevbed,1:ncations) = 0._r8
         background_cec_vr(c,1:nlevbed,1:ncations) = 0._r8
 
-      else if (year_curr == (year_start_erw + 3)) then
+      else
 
         temp_cec_sum(1:ncations) = 0._r8
         temp_flux_cec_sum(1:ncations) = 0._r8
