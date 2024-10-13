@@ -1092,21 +1092,26 @@ contains
       end do
 
       !------------------------------------------------------------------------------
-      ! use the vertical flow rate tocalculate the mixing ratio between incoming water
-      ! and soil cations
+      ! The fraction of incoming water that mixes with soil solution to carry away
+      ! cations
       !------------------------------------------------------------------------------
-      do j = 1,nlevbed
-        if (abs(qin(c,j)) <= annavg_qin_col(c,j)) then
-          mixing_fraction(c,j) = 1._r8
-        else
-          mixing_fraction(c,j) = annavg_qin_col(c,j) / abs(qin(c,j))
-        end if
-      end do
-      if (abs(qin(c,nlevbed+1)) <= annavg_qin_col(c,nlevbed+1)) then
-        mixing_fraction(c,nlevbed+1) = 1._r8
-      else
-        mixing_fraction(c,nlevbed+1) = annavg_qin_col(c,nlevbed+1) / abs(qin(c,nlevbed+1))
-      end if
+      !! use the vertical flow rate tocalculate the mixing ratio between incoming water
+      !! and soil cations
+      !do j = 1,nlevbed
+      !  if (abs(qin(c,j)) <= annavg_qin_col(c,j)) then
+      !    mixing_fraction(c,j) = 1._r8
+      !  else
+      !    mixing_fraction(c,j) = annavg_qin_col(c,j) / abs(qin(c,j))
+      !  end if
+      !end do
+      !if (abs(qin(c,nlevbed+1)) <= annavg_qin_col(c,nlevbed+1)) then
+      !  mixing_fraction(c,nlevbed+1) = 1._r8
+      !else
+      !  mixing_fraction(c,nlevbed+1) = annavg_qin_col(c,nlevbed+1) / abs(qin(c,nlevbed+1))
+      !end if
+
+      ! use placeholder => 1 for now
+      mixing_fraction(c,1:nlevbed+1) = 1._r8
 
       !------------------------------------------------------------------------------
       ! Calculate the vertical transport
@@ -1222,18 +1227,20 @@ contains
       ! (drain_tot / tot_water) is the fraction water lost per second
       temp_drain_pct = qflx_drain(c) / tot_water
 
-      ! for runoff calculation; calculate total water to a given depth
-      surface_water = 0._r8
-      do j = 1,nlevbed
-        if ( zisoi(j) <= depth_runoff_Mloss)  then
-            surface_water = surface_water + h2osoi_liq(c,j)
-        elseif ( zisoi(j-1) < depth_runoff_Mloss)  then
-            frac_thickness = (depth_runoff_Mloss - zisoi(j-1)) / dz(c,j)
-            surface_water = surface_water + h2osoi_liq(c,j) * frac_thickness
-        end if
-      end do
-      ! (qflx_surf / tot_water) is the fraction water lost per second
-      temp_surf_pct = qflx_surf(c) / surface_water
+      ! assume zero mixing between surface runoff and soil pore water
+      !! for runoff calculation; calculate total water to a given depth
+      !surface_water = 0._r8
+      !do j = 1,nlevbed
+      !  if ( zisoi(j) <= depth_runoff_Mloss)  then
+      !      surface_water = surface_water + h2osoi_liq(c,j)
+      !  elseif ( zisoi(j-1) < depth_runoff_Mloss)  then
+      !      frac_thickness = (depth_runoff_Mloss - zisoi(j-1)) / dz(c,j)
+      !      surface_water = surface_water + h2osoi_liq(c,j) * frac_thickness
+      !  end if
+      !end do
+      !! (qflx_surf / tot_water) is the fraction water lost per second
+      !temp_surf_pct = qflx_surf(c) / surface_water
+      temp_surf_pct = 0._r8
 
       do j = 1,nlevbed
         if (h2osoi_liq(c,j) > 0._r8) then
@@ -1388,7 +1395,9 @@ contains
         end if
 
         soil_ph(c,j) = solve_eq(net_charge_vr(c,j), co2_atm, beta_list, keq_list, EWParamsInst%cations_valence)
-        ! write (100+iam, *) 'solve_eq', c, j, beta_list(1), beta_list(2), beta_list(3), beta_list(4), beta_list(5)
+        !!write (100+iam, *) 'beta_list', c, j, beta_list(1), beta_list(2), beta_list(3), beta_list(4), beta_list(5)
+        !!write (100+iam, *) 'keq_list', c, j, keq_list(1), keq_list(2), keq_list(3), keq_list(4), keq_list(5)
+        !!write (100+iam, *) 'rest', c, j, soil_ph(c,j), net_charge_vr(c,j), co2_atm, EWParamsInst%cations_valence
 
         ! calculate the implications on HCO3- & CO3 --
         bicarbonate_vr(c,j) = ph_to_hco3(soil_ph(c,j), co2_atm)

@@ -695,7 +695,7 @@ contains
       !-----------------------------------------------
       mixing_layer = 1
       do n = 2,nlevgrnd
-         if (zisoi(n-1) < mixing_depth) then
+         if (zisoi(n) <= mixing_depth) then
             mixing_layer = n
          end if
       end do
