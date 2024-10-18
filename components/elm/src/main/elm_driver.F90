@@ -13,7 +13,7 @@ module elm_driver
   use shr_log_mod            , only : errMsg => shr_log_errMsg
   use elm_varpar             , only : nlevtrc_soil, nlevsoi
   use elm_varctl             , only : wrtdia, iulog, create_glacier_mec_landunit, use_fates, use_betr, use_extrasnowlayers
-  use elm_varctl             , only : use_ew
+  use elm_varctl             , only : use_erw
   use elm_varctl             , only : use_cn, use_lch4, use_voc, use_noio, use_c13, use_c14
   use elm_varctl             , only : use_erosion, use_fates_sp, use_fan
   use elm_varctl             , only : mpi_sync_nstep_freq
@@ -598,7 +598,7 @@ contains
                filter(nc)%num_soilc, filter(nc)%soilc, &
                col_ps)
 
-          if (use_ew) then
+          if (use_erw) then
             call col_ms%Summary(bounds_clump, &
                   filter(nc)%num_soilc, filter(nc)%soilc)
             call BeginColMBalance(bounds_clump, &
@@ -1359,7 +1359,7 @@ contains
                filter(nc)%num_soilc, filter(nc)%soilc, &
                col_ps, col_pf)
 
-          if (use_ew) then
+          if (use_erw) then
             call ColMBalanceCheck(bounds_clump, &
                   filter(nc)%num_soilc, filter(nc)%soilc, &
                   col_ms, col_mf)

@@ -9,7 +9,7 @@ module EcosystemDynMod
   use shr_sys_mod         , only : shr_sys_flush
   use elm_varctl          , only : use_c13, use_c14, use_fates, use_dynroot, use_fan
   use elm_varctl          , only : finidat
-  use elm_varctl          , only : use_ew, iulog
+  use elm_varctl          , only : use_erw, iulog
   use elm_varctl          , only : spinup_state, year_start_ew
   use decompMod           , only : bounds_type
   use perf_mod            , only : t_startf, t_stopf
@@ -32,7 +32,7 @@ module EcosystemDynMod
   use ColumnDataType      , only : col_cf, c13_col_cf, c14_col_cf
   use ColumnDataType      , only : col_ns, col_nf
   use ColumnDataType      , only : col_ps, col_pf
-  use ColumnDataType      , only : col_ms, col_mf
+  use ColumnDataType      , only : col_ms, col_mf, col_wf
   use VegetationDataType  , only : veg_cs, c13_veg_cs, c14_veg_cs
   use VegetationDataType  , only : veg_cf, c13_veg_cf, c14_veg_cf
   use VegetationDataType  , only : veg_ns, veg_nf
@@ -144,8 +144,9 @@ contains
     use PrecisionControlMod  , only: PrecisionControl
     use perf_mod             , only: t_startf, t_stopf
     use PhosphorusDynamicsMod         , only: PhosphorusBiochemMin_balance
-    use EnhancedWeatheringMod         , only: MineralVerticalMovement
+    use EnhancedWeatheringMod         , only: MineralVerticalMovement, MineralLeaching
     use MineralStateUpdateMod         , only: MineralStateUpdate2, MineralStateUpdate3
+    use MineralStateUpdateMod         , only: MineralStateDiags, MineralSelfCalibrate
 
     !
     ! !ARGUMENTS:
@@ -217,13 +218,19 @@ contains
 
      call PhosphorusLeaching(bounds, num_soilc, filter_soilc, dt)
 
-     if (use_ew) then
+     if (use_erw) then
        !if (spinup_state == 0 .or. year >= year_start_ew) then
           call MineralVerticalMovement(bounds, num_soilc, filter_soilc, dt)
           call MineralStateUpdate2(num_soilc, filter_soilc, col_ms, col_mf, dt)
           ! moving the following into 'MineralVerticalMovement'
           ! call MineralLeaching(bounds, num_soilc, filter_soilc, dt)
        !end if
+#ifdef 0
+      if (spinup_state == 0 .and. year >= year_start_erw .and. &
+          year < (year_start_erw + nyear_erw_calibrate)) then
+         call MineralSelfCalibrate(num_soilc, filter_soilc, col_ms, col_mf, col_wf, dt)
+      end if
+#endif
      end if
     end if !(.not. (pf_cmode .and. pf_hmode))
     !-----------------------------------------------------------------------
@@ -239,11 +246,12 @@ contains
         cnstate_vars, dt)
     call t_stop_lnd(event)
 
-    if (use_ew) then
-       !if (spinup_state == 0 .or. year >= year_start_ew) then
+    if (use_erw) then
+       !if (spinup_state == 0 .or. year >= year_start_erw) then
           event = 'MUpdate3'
           call t_start_lnd(event)
-          call MineralStateUpdate3(num_soilc, filter_soilc, col_ms, col_mf, dt, soilstate_vars)
+          call MineralStateUpdate3(num_soilc, filter_soilc, col_ms, col_mf, dt)
+          call MineralStateDiags(num_soilc, filter_soilc, col_ms, col_mf, dt, soilstate_vars)
           call t_stop_lnd(event)
        !end if
     end if
@@ -299,7 +307,7 @@ contains
 
     call col_pf_Summary(col_pf,bounds, num_soilc, filter_soilc)
     call col_ps_Summary(col_ps,bounds, num_soilc, filter_soilc)
-    if (use_ew) then
+    if (use_erw) then
      call col_mf_summary(col_mf, bounds, num_soilc, filter_soilc)
      call col_ms_summary(col_ms, bounds, num_soilc, filter_soilc)
     end if
@@ -634,7 +642,7 @@ contains
 
     !----------------------------------------------------------------
     ! Enhanced weathering reactions
-    if (use_ew) then
+    if (use_erw) then
       if (finidat == ' ' .and. nstep_mod <= 1) then
          ! if cold start, need to eq. soil cation states with soil CEC properties and other
          ! during the first time-step

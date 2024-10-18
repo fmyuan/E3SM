@@ -1915,7 +1915,7 @@ Specifies the method for decomposing CLM grids across processors.
 </entry>
 
 <!-- Namelist options for Enhanced Rock Weathering (ERW) module                          -->
-<entry id="use_ew" type="logical" category="default_settings"
+<entry id="use_erw" type="logical" category="default_settings"
     group="elm_inparm" valid_values="">
     Runtime flag to turn on/off Enhanced Rock Weathering (ERW) modules.
 </entry>
@@ -1923,6 +1923,26 @@ Specifies the method for decomposing CLM grids across processors.
 <entry id="elm_erw_paramfile" type="char*256" category="datasets"
     input_pathname="abs" group="elm_erw_inparm" valid_values="" >
     Full pathname datafile with rock powder composition of minerals and their constants for dissolution/precipitation in soil for ERW modules
+</entry>
+
+<entry id="year_start_erw" type="integer" category="default_settings"
+    group="elm_erw_inparm" valid_values="">
+    The first year to start enhanced rock weathering related calculations. If greater than or equal to 1850, will start during transient run. If smaller than 1850, will start during normal spinup run. 
+</entry>
+
+<entry id="nyear_erw_calibrate" type="integer" category="default_settings"
+    group="elm_erw_inparm" valid_values="">
+    The number of years at the start of enhanced weathering simulations to calibrate background weathering rates. 
+</entry>
+
+<entry id="use_erw_verbose" type="integer" category="default_settings"
+    group="elm_erw_inparm" valid_values="">
+    If 0, do not print extra diagnostic log files for enhanced weathering processes. If 1, print logs for non-standard situations. If 2, print the cation balances at the end of time step in addition to 1.
+</entry>
+
+<entry id="builtin_site" type="integer" category="default_settings"
+    group="elm_erw_inparm" valid_values="">
+    There are three built-in test sites: Hubbard Brook (1), UC-Davis (2), University of Illinois Energy Farm (3). The program will overwrite rock powder application information read from file. If set to 0, the information read from file will be used. 
 </entry>
 
 <!-- ========================================================================================  -->

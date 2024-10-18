@@ -16,7 +16,7 @@ module restFileMod
   use histFileMod          , only : hist_restart_ncd
   use elm_varpar           , only : crop_prog
   use elm_varctl           , only : use_cn, use_c13, use_c14, use_lch4, use_fates, use_betr
-  use elm_varctl           , only : use_ew
+  use elm_varctl           , only : use_erw
   use elm_varctl           , only : use_erosion
   use elm_varctl           , only : create_glacier_mec_landunit, iulog 
   use elm_varcon           , only : c13ratio, c14ratio
@@ -274,7 +274,7 @@ contains
 
     end if
 
-    if (use_ew) then
+    if (use_erw) then
       call col_ew%Restart(bounds, ncid, flag = 'define')
       call col_ms%Restart(bounds, ncid, flag = 'define')
       call col_mf%Restart(bounds, ncid, flag = 'define')
@@ -416,7 +416,7 @@ contains
     end if
 
 
-    if (use_ew) then
+    if (use_erw) then
        call col_ew%Restart(bounds, ncid, flag='write')
        call col_ms%Restart(bounds, ncid, flag='write')
        call col_mf%Restart(bounds, ncid, flag='write')
@@ -616,7 +616,7 @@ contains
         call col_pf%Restart(bounds, ncid, flag='read')
     end if
    
-    if (use_ew) then
+    if (use_erw) then
         call col_ew%Restart(bounds, ncid, flag = 'read')
         call col_ms%Restart(bounds, ncid, flag = 'read')
         call col_mf%Restart(bounds, ncid, flag = 'read')
@@ -979,7 +979,7 @@ contains
     call ncd_defdim(ncid , 'levtot'  , nlevsno+nlevgrnd, dimid)
     call ncd_defdim(ncid , 'numrad'  , numrad         ,  dimid)
     call ncd_defdim(ncid , 'levcan'  , nlevcan        ,  dimid)
-    if ( use_ew ) then
+    if ( use_erw ) then
       call ncd_defdim(ncid , 'minerals', nminerals    ,  dimid)
       call ncd_defdim(ncid , 'cations' , ncations     ,  dimid)
       call ncd_defdim(ncid , 'minsec'  , nminsecs      ,  dimid)

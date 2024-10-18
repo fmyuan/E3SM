@@ -873,9 +873,20 @@ contains
          if (j > jwt(c)) then !water table is in soil column
             qout2(c,j) = qout(c,j) + dqodw1(c,j)*dwat2(c,j)
             qin2(c,j) = qin(c,j) + dqidw0(c,j)*dwat2(c,j-1) + dqidw1(c,j)*dwat2(c,j)
+
+            qout2(c,j+1) = 0._r8
+            qin2(c,j+1) = 0._r8
          else
             qout2(c,j) = qout(c,j) + dqodw1(c,j)*dwat2(c,j) + dqodw2(c,j)*dwat2(c,j+1)
             qin2(c,j) = qin(c,j) + dqidw0(c,j)*dwat2(c,j-1) + dqidw1(c,j)*dwat2(c,j)
+
+            if (use_var_soil_thick) then
+               qout2(c,j+1) = 0._r8
+               qin2(c,j+1) = 0._r8
+            else
+               qout2(c,j+1) = dqodw1(c,j+1)*dwat2(c,j+1)
+               qin2(c,j+1) = qin(c,j+1) + dqidw0(c,j+1)*dwat2(c,j) + dqidw1(c,j+1)*dwat2(c,j+1)
+            end if
          end if
       end do
 

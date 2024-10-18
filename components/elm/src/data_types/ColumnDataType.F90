@@ -73,7 +73,7 @@ module ColumnDataType
   !------------------------------------------------------------------------
   ! Define the data structure that holds enhanced weathering forcing information
   !------------------------------------------------------------------------
-  type, public :: column_ew_forcing
+  type, public :: column_erw_forcing
       real(r8), pointer :: forc_app         (:)   => null() ! application rate (kg m-2 s-1)
       real(r8), pointer :: forc_min       (:,:)   => null() ! weight percentage of minerals in rock (1:nminerals) (% as kg mineral kg-1 rock)
       real(r8), pointer :: forc_pho         (:)   => null() ! weight percentage of phosphorus content in rock (gP kg-1 rock)
@@ -84,7 +84,7 @@ module ColumnDataType
      procedure, public  :: Init    => col_ew_init
      procedure, public  :: Restart => col_ew_restart
      procedure, public  :: Clean   => col_ew_clean
-  end type column_ew_forcing
+  end type column_erw_forcing
 
   !-----------------------------------------------------------------------
   ! Define the data structure that holds energy state information at the column level.
@@ -433,6 +433,7 @@ module ColumnDataType
       real(r8), pointer :: proton_vr               (:,:)   => null() ! calculated soil H+ concentration in soil water each soil layer (1:nlevgrnd) (g m-3 soil [not water])
       real(r8), pointer :: bicarbonate_vr          (:,:)   => null() ! calculated HCO3- concentration in soil water each soil layer (1:nlevgrnd) (g m-3 soil [not water])
       real(r8), pointer :: carbonate_vr            (:,:)   => null() ! calculated CO3 2- concentration in soil water each soil layer (1:nlevgrnd) (g m-3 soil [not water])
+      real(r8), pointer :: equilibria_conc         (:,:,:) => null() ! soil pore water cation concentration implied by the input soil CEC status and exchange coefficients (mol kg-1)
       real(r8), pointer :: primary_mineral_vr      (:,:,:) => null() ! primary mineral concentration in solid phase each soil layer (1:nlevgrnd,1:nminerals) (g m-3)
       real(r8), pointer :: cation_vr               (:,:,:) => null() ! cation concentration in soil water in each soil layer (1:nlevgrnd,1:ncations) (g m-3 soil [not water])
       real(r8), pointer :: silica_vr               (:,:)   => null() ! SiO2 concentration in soil water in each soil layer (1:nlevgrnd) (g m-3 soil [not water])
@@ -610,7 +611,8 @@ module ColumnDataType
     real(r8), pointer :: qout                 (:,:) => null() ! flux of internal column water out of a soil layer [mm h2o/s]
     real(r8), pointer :: qin_external         (:,:) => null() ! flux of external column water, e.g. water recharge/lateral in, excluding infiltration, into soil layer [mm h2o/s] (always non-negative)
     real(r8), pointer :: qout_external        (:,:) => null() ! flux of external column water, e.g. discharge, all sorts of drainage, excluding rootsoil evaptran,  out of soil layer [mm h2o/s] (always non-positive)
-
+    real(r8), pointer :: annavg_qin_col       (:,:) => null() ! annual average flux of qin (mm h2o/s)
+    real(r8), pointer :: tempavg_qin_col      (:,:) => null() ! accumulator for the annual average flux of qin (mm h2o/s)
   contains
     procedure, public :: Init    => col_wf_init
     procedure, public :: Restart => col_wf_restart
@@ -1122,7 +1124,15 @@ module ColumnDataType
    ! Define the data structure that holds mineral flux information at the column level.
    !-----------------------------------------------------------------------
    type, public :: column_mineral_flux
-      real(r8), pointer :: background_weathering_vr     (:,:,:)   => null() ! background weathering rate (1:nlevgrnd, 1:ncations) (g m-3 s-1)
+      real(r8), pointer :: background_flux_vr           (:,:,:)   => null() ! background flux rate in/out of soil solution (1:nlevgrnd, 1:ncations) (g m-3 s-1)
+      real(r8), pointer :: background_cec_vr            (:,:,:)   => null() ! background flux rate in/out of adsorbed cations (1:nlevgrnd, 1:ncations) (g m-3 s-1)
+
+      real(r8), pointer :: annavg_tot_delta             (:,:,:)   => null() ! annual average rate of change in total (solute and adsorbed phases) cation concentration before mineral application (g m-3 soil s-1 [not dry soil])
+      real(r8), pointer :: tempavg_tot_delta            (:,:,:)   => null() ! temporal accumulator for annavg_tot_delta  (g m-3 soil s-1 [not dry soil])
+      real(r8), pointer :: annavg_cec_delta             (:,:,:)   => null() ! annual average rate of change in adsorbed cation concentration before mineral application (g m-3 soil s-1 [not dry soil])
+      real(r8), pointer :: tempavg_cec_delta            (:,:,:)   => null() ! temporal accumulator for annavg_cec_delta  (g m-3 soil s-1 [not dry soil])
+
+      real(r8), pointer :: mixing_fraction              (:,:)     => null() ! fraction of vertical water flow that participated in mineral reactions (-)
 
       real(r8), pointer :: primary_added_vr             (:,:,:)   => null() ! rate at which primary mineral is added (1:nlevgrnd, 1:nminerals) (g m-3 s-1)
       real(r8), pointer :: primary_dissolve_vr          (:,:,:)   => null() ! rate at which primary mineral is dissolved (1:nlevgrnd, 1:nminerals) (g m-3 s-1)
@@ -1158,7 +1168,8 @@ module ColumnDataType
       real(r8), pointer :: proton_leached_vr            (:,:)     => null() ! rate at which H+ are lost to stream (1:nlevgrnd) (g m-3 s-1)
       real(r8), pointer :: proton_runoff_vr             (:,:)     => null() ! rate at which H+ are lost to stream (1:nlevgrnd) (g m-3 s-1)
 
-      real(r8), pointer :: background_weathering        (:,:)     => null() ! vertically integrated background weathering rate (1:ncations) (g m-2 s-1)
+      real(r8), pointer :: background_flux              (:,:)     => null() ! vertically integrated background flux rate in/out of soil solution (1:ncations) (g m-2 s-1)
+      real(r8), pointer :: background_cec               (:,:)     => null() ! vertically integrated background flux rate in/out of soil CEC phase (1:ncations) (g m-2 s-1)
 
       real(r8), pointer :: primary_added                (:,:)     => null() ! vertically integrated rate at which primary mineral is added (1:nminerals) (g m-2 s-1)
       real(r8), pointer :: primary_dissolve             (:,:)     => null() ! vertically integrated rate at which primary mineral is dissolved (1:nminerals) (g m-2 s-1)
@@ -1207,7 +1218,7 @@ module ColumnDataType
   ! declare the public instances of column-level data types
   !-----------------------------------------------------------------------
   ! State types
-  type(column_ew_forcing)            , public, target :: col_ew     ! enhanced weathering forcing
+  type(column_erw_forcing)            , public, target :: col_ew     ! enhanced weathering forcing
   type(column_energy_state)          , public, target :: col_es     ! column energy state
   type(column_water_state)           , public, target :: col_ws     ! column water state
   type(column_carbon_state)          , public, target :: col_cs     ! column carbon state
@@ -1253,7 +1264,7 @@ contains
    subroutine col_ew_init(this, begc, endc)
       !
       ! !ARGUMENTS:
-      class(column_ew_forcing) :: this
+      class(column_erw_forcing) :: this
       integer, intent(in) :: begc,endc
       !------------------------------------------------------------------------
       !
@@ -1330,7 +1341,7 @@ contains
       use ncdio_pio
       !
       ! !ARGUMENTS:
-      class(column_ew_forcing) :: this
+      class(column_erw_forcing) :: this
       type(bounds_type), intent(in)    :: bounds  
       type(file_desc_t), intent(inout) :: ncid
       character(len=*) , intent(in)    :: flag
@@ -1377,7 +1388,7 @@ contains
   subroutine col_ew_clean(this)
     !
     ! !ARGUMENTS:
-    class(column_ew_forcing) :: this
+    class(column_erw_forcing) :: this
     !------------------------------------------------------------------------
   end subroutine col_ew_clean
 
@@ -5850,6 +5861,7 @@ contains
       allocate(this%proton_vr           (begc:endc,1:nlevgrnd            ))       ; this%proton_vr              (:,:) = spval
       allocate(this%bicarbonate_vr      (begc:endc,1:nlevgrnd            ))       ; this%bicarbonate_vr         (:,:) = spval
       allocate(this%carbonate_vr        (begc:endc,1:nlevgrnd            ))       ; this%carbonate_vr           (:,:) = spval
+      allocate(this%equilibria_conc     (begc:endc,1:nlevgrnd,1:ncations ))       ; this%equilibria_conc        (:,:,:) = spval
       allocate(this%primary_mineral_vr  (begc:endc,1:nlevgrnd,1:nminerals))       ; this%primary_mineral_vr     (:,:,:) = spval
       allocate(this%cation_vr           (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cation_vr              (:,:,:) = spval
       allocate(this%silica_vr           (begc:endc,1:nlevgrnd            ))       ; this%silica_vr              (:,:) = spval
@@ -5907,6 +5919,17 @@ contains
       call hist_addfld2d (fname='carbonate_vr',  units='g m-3', type2d='levgrnd', &
          avgflag='A', long_name='dissolved CO3 2- concentration (vertically resolved)', &
          ptr_col=data2dptr, l2g_scale_type='veg')
+
+      this%equilibria_conc(begc:endc,1:nlevgrnd,1:nminerals) = spval
+      do a = 1,ncations
+         data2dptr => this%equilibria_conc(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'equilibria_conc_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname, units='mol kg-1', type2d='levgrnd', &
+            avgflag='A', long_name='soil pore water cation concentration implied by the input soil CEC status and exchange coefficients (vertically resolved)', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
+      end do
 
       this%primary_mineral_vr(begc:endc,1:nlevgrnd,1:nminerals) = spval
       do a = 1,nminerals
@@ -6135,6 +6158,17 @@ contains
          dim1name='column', dim2name='levgrnd', switchdim=.true., &
          long_name='calculated CO3 2- concentration (vertically resolved)', units='g m-3', &
          interpinic_flag='interp', readvar=readvar, data=ptr2d)
+
+      do a = 1, ncations
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'equilibria_conc_vr_'//trim(a_str)
+         ptr2d => this%equilibria_conc(:,:,a)
+         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double,   &
+            dim1name='column', dim2name='levgrnd', switchdim=.true., &
+            long_name='soil pore water cation concentration implied by the input soil CEC status and exchange coefficients (vertically resolved)', units='mol kg-1', fill_value=spval, &
+            interpinic_flag='interp', readvar=readvar, data=ptr2d)
+      end do
 
       do a = 1, nminerals
          write (a_str, '(I6)') a
@@ -6597,6 +6631,8 @@ contains
     allocate(this%qout                   (begc:endc,1:nlevgrnd+1)); this%qout                 (:,:) = spval
     allocate(this%qin_external           (begc:endc,1:nlevgrnd))  ; this%qin_external         (:,:) = spval
     allocate(this%qout_external          (begc:endc,1:nlevgrnd))  ; this%qout_external        (:,:) = spval
+    allocate(this%annavg_qin_col         (begc:endc,1:nlevgrnd+1)); this%annavg_qin_col       (:,:) = spval
+    allocate(this%tempavg_qin_col        (begc:endc,1:nlevgrnd+1)); this%tempavg_qin_col      (:,:) = spval
 
     !-----------------------------------------------------------------------
     ! initialize history fields for select members of col_wf
@@ -12440,7 +12476,16 @@ contains
       !-----------------------------------------------------------------------
       ! allocate for each member of col_mf
       !-----------------------------------------------------------------------
-      allocate(this%background_weathering_vr       (begc:endc,1:nlevgrnd,1:ncations ))       ; this%background_weathering_vr    (:,:,:) = spval
+      allocate(this%background_flux_vr             (begc:endc,1:nlevgrnd,1:ncations ))       ; this%background_flux_vr          (:,:,:) = spval
+      allocate(this%background_cec_vr              (begc:endc,1:nlevgrnd,1:ncations ))       ; this%background_cec_vr           (:,:,:) = spval
+
+      allocate(this%annavg_tot_delta               (begc:endc,1:nlevgrnd,1:ncations ))       ; this%annavg_tot_delta            (:,:,:) = spval
+      allocate(this%tempavg_tot_delta              (begc:endc,1:nlevgrnd,1:ncations ))       ; this%tempavg_tot_delta           (:,:,:) = spval
+
+      allocate(this%annavg_cec_delta               (begc:endc,1:nlevgrnd,1:ncations ))       ; this%annavg_cec_delta            (:,:,:) = spval
+      allocate(this%tempavg_cec_delta              (begc:endc,1:nlevgrnd,1:ncations ))       ; this%tempavg_cec_delta           (:,:,:) = spval
+
+      allocate(this%mixing_fraction                (begc:endc,1:nlevgrnd))                   ; this%mixing_fraction             (:,:)   = spval
 
       allocate(this%primary_added_vr               (begc:endc,1:nlevgrnd,1:nminerals))       ; this%primary_added_vr            (:,:,:) = spval
       allocate(this%primary_dissolve_vr            (begc:endc,1:nlevgrnd,1:nminerals))       ; this%primary_dissolve_vr         (:,:,:) = spval
@@ -12480,7 +12525,8 @@ contains
       allocate(this%proton_leached_vr             (begc:endc,1:nlevgrnd            ))       ; this%proton_leached_vr            (:,:)   = spval
       allocate(this%proton_runoff_vr              (begc:endc,1:nlevgrnd            ))       ; this%proton_runoff_vr             (:,:)   = spval
 
-      allocate(this%background_weathering          (begc:endc,1:ncations            ))       ; this%background_weathering       (:,:)   = spval
+      allocate(this%background_flux               (begc:endc,1:ncations            ))       ; this%background_flux              (:,:)   = spval
+      allocate(this%background_cec                (begc:endc,1:ncations            ))       ; this%background_cec               (:,:)   = spval
 
       allocate(this%primary_added                  (begc:endc,1:nminerals           ))       ; this%primary_added                 (:,:)   = spval
       allocate(this%primary_dissolve               (begc:endc,1:nminerals           ))       ; this%primary_dissolve              (:,:)   = spval
@@ -12519,16 +12565,54 @@ contains
       !-----------------------------------------------------------------------
       ! initialize history fields for select members of col_ms
       !-----------------------------------------------------------------------
-      this%background_weathering_vr(begc:endc,:,:) = spval
+      this%background_flux_vr(begc:endc,:,:) = spval
       do a = 1,ncations
-         data2dptr => this%background_weathering_vr(:,:,a)
+         data2dptr => this%background_flux_vr(:,:,a)
          write (a_str, '(I6)') a
          a_str = adjustl(a_str)  ! Remove leading spaces
-         fieldname = 'background_weathering_vr_'//trim(a_str)
+         fieldname = 'background_flux_vr_'//trim(a_str)
          call hist_addfld2d (fname=fieldname,  units='g m-3 s-1', type2d='levgrnd', &
-            avgflag='A', long_name='rate at which background weathering produces cations (vertically resolved)', &
+            avgflag='A', long_name='background flux rate of dissolved cations (e.g. through weathering) (vertically resolved)', &
             ptr_col=data2dptr, l2g_scale_type='veg')
       end do
+
+      this%background_cec_vr(begc:endc,:,:) = spval
+      do a = 1,ncations
+         data2dptr => this%background_cec_vr(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'background_cec_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname,  units='g m-3 s-1', type2d='levgrnd', &
+            avgflag='A', long_name='background flux rate of adsorbed cations (e.g. through weathering) (vertically resolved)', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
+      end do
+
+      this%annavg_tot_delta(begc:endc,:,:) = spval
+      do a = 1,ncations
+         data2dptr => this%annavg_tot_delta(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'annavg_tot_delta_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname,  units='g m-3 s-1', type2d='levgrnd', &
+            avgflag='A', long_name='annual average rate of change in total (solute and adsorbed phases) cation concentration before mineral application (vertically resolved)', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
+      end do
+
+      this%annavg_cec_delta(begc:endc,:,:) = spval
+      do a = 1,ncations
+         data2dptr => this%annavg_cec_delta(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'annavg_cec_delta_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname,  units='g m-3 s-1', type2d='levgrnd', &
+            avgflag='A', long_name='annual average rate of change in adsorbed cation concentration before mineral application (vertically resolved)', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
+      end do
+
+      this%mixing_fraction(begc:endc,:) = spval
+      call hist_addfld2d (fname='mixing_fraction',  units='', type2d='levgrnd', &
+         avgflag='A', long_name='fraction of vertical water flow that participated in mineral reactions', &
+         ptr_col=this%mixing_fraction, l2g_scale_type='veg')
 
       this%primary_added_vr(begc:endc,:,:) = spval
       do a = 1,nminerals
@@ -12782,10 +12866,15 @@ contains
          avgflag='A', long_name='rate at which protons are lost to stream (vertically resolved)', &
          ptr_col=this%proton_runoff_vr, l2g_scale_type='veg')
 
-      this%background_weathering(begc:endc,:) = spval
-      call hist_addfld2d (fname='background_weathering',  units='g m-2 s-1', type2d='cations', &
-         avgflag='A', long_name='vertically integrated rate at which background weathering produces cations', &
-         ptr_col=this%background_weathering, l2g_scale_type='veg')
+      this%background_flux(begc:endc,:) = spval
+      call hist_addfld2d (fname='background_flux',  units='g m-2 s-1', type2d='cations', &
+         avgflag='A', long_name='vertically integrated background flux rate of dissolved cations (e.g. through weathering)', &
+         ptr_col=this%background_flux, l2g_scale_type='veg')
+
+      this%background_cec(begc:endc,:) = spval
+      call hist_addfld2d (fname='background_cec',  units='g m-2 s-1', type2d='cations', &
+         avgflag='A', long_name='vertically integrated background flux rate of adsorbed cations (e.g. through weathering)', &
+         ptr_col=this%background_cec, l2g_scale_type='veg')
 
       this%primary_added(begc:endc,:) = spval
       call hist_addfld2d (fname='primary_added',  units='g m-2 s-1', type2d='minerals', &
@@ -12915,7 +13004,14 @@ contains
 
          ! must be vegetated/bare land or crop
          !if (lun_pp%itype(l)==istsoil .or. lun_pp%itype(l)==istcrop) then
-            this%background_weathering_vr        (c,1:nlevsoi,1:ncations ) = 0._r8
+            this%background_flux_vr              (c,1:nlevsoi,1:ncations ) = 0._r8
+            this%background_cec_vr               (c,1:nlevsoi,1:ncations ) = 0._r8
+
+            this%tempavg_tot_delta               (c,1:nlevsoi,1:ncations ) = 0._r8
+            this%annavg_tot_delta                (c,1:nlevsoi,1:ncations ) = 0._r8
+            this%tempavg_cec_delta               (c,1:nlevsoi,1:ncations ) = 0._r8
+            this%annavg_cec_delta                (c,1:nlevsoi,1:ncations ) = 0._r8
+
             this%primary_added_vr                (c,1:nlevsoi,1:nminerals) = 0._r8
             this%primary_dissolve_vr             (c,1:nlevsoi,1:nminerals) = 0._r8
             this%primary_proton_flux_vr          (c,1:nlevsoi            ) = 0._r8
@@ -12951,7 +13047,8 @@ contains
             this%proton_leached_vr               (c,1:nlevsoi            ) = 0._r8
             this%proton_runoff_vr                (c,1:nlevsoi            ) = 0._r8
 
-            this%background_weathering           (c,1:ncations            ) = 0._r8
+            this%background_flux                 (c,1:ncations            ) = 0._r8
+            this%background_cec                  (c,1:ncations            ) = 0._r8
 
             this%primary_added                   (c,1:nminerals           ) = 0._r8
             this%primary_dissolve                (c,1:nminerals           ) = 0._r8
@@ -13014,11 +13111,22 @@ contains
       do a = 1,ncations
          write (a_str, '(I6)') a
          a_str = adjustl(a_str)  ! Remove leading spaces
-         varname = 'background_weathering_vr_'//trim(a_str)
-         ptr2d => this%background_weathering_vr(:,:,a)
+         varname = 'annavg_tot_delta_vr_'//trim(a_str)
+         ptr2d => this%annavg_tot_delta(:,:,a)
          call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double,   &
             dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='rate at which background weathering produces cations (vertically resolved)', units='g m-3 s-1', &
+            long_name='annual average rate of change in total (solute and adsorbed phases) cation concentration before mineral application (vertically resolved)', units='g m-3 s-1', &
+            interpinic_flag='interp', readvar=readvar, data=ptr2d)
+      end do
+
+      do a = 1,ncations
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'annavg_cec_delta_vr_'//trim(a_str)
+         ptr2d => this%annavg_cec_delta(:,:,a)
+         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double,   &
+            dim1name='column', dim2name='levgrnd', switchdim=.true., &
+            long_name='annual average rate of change in adsorbed cation concentration before mineral application (vertically resolved)', units='g m-3 s-1', &
             interpinic_flag='interp', readvar=readvar, data=ptr2d)
       end do
 
@@ -13269,11 +13377,6 @@ contains
          long_name='rate at which protons are lost to stream (vertically resolved)', units='g m-3 s-1', &
          interpinic_flag='interp', readvar=readvar, data=this%proton_runoff_vr)
 
-      call restartvar(ncid=ncid, flag=flag, varname='background_weathering', xtype=ncd_double,  &
-         dim1name='column', dim2name='cations', switchdim=.true., &
-         long_name='vertically integrated rate at which background weathering produces cations', units='g m-3 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%background_weathering)
-
       call restartvar(ncid=ncid, flag=flag, varname='primary_added', xtype=ncd_double, &
          dim1name='column', dim2name='minerals', switchdim=.true., &
          long_name='rate at which primary mineral is added', units='g m-2 s-1', &
@@ -13409,7 +13512,8 @@ contains
       do fc = 1,num_soilc
          c = filter_soilc(fc)
 
-         this%background_weathering(c,:)       = 0._r8
+         this%background_flux(c,:)             = 0._r8
+         this%background_cec(c,:)              = 0._r8
          this%primary_added(c,:)               = 0._r8
          this%primary_dissolve(c,:)            = 0._r8
          this%primary_proton_flux(c)           = 0._r8
@@ -13466,8 +13570,10 @@ contains
             end do
 
             do a = 1,ncations
-               this%background_weathering(c,a) = this%background_weathering(c,a) + &
-                  this%background_weathering_vr(c,j,a) * col_pp%dz(c,j)
+               this%background_flux(c,a) = this%background_flux(c,a) + &
+                  this%background_flux_vr(c,j,a) * col_pp%dz(c,j)
+               this%background_cec(c,a) = this%background_cec(c,a) + &
+                  this%background_cec_vr(c,j,a) * col_pp%dz(c,j)
                this%primary_cation_flux(c,a) = &
                   this%primary_cation_flux(c,a) + this%primary_cation_flux_vr(c,j,a) * col_pp%dz(c,j)
                this%cec_cation_flux(c,a) = &

@@ -98,7 +98,7 @@ contains
     use PhotosynthesisMod        , only : params_inst
     
     ! elm ERW parameters
-    use elm_varctl               , only : use_ew, elm_erw_paramfile
+    use elm_varctl               , only : use_erw, elm_erw_paramfile
     use EnhancedWeatheringMod    , only : readEnhancedWeatheringParams
     !
     ! !ARGUMENTS:
@@ -181,7 +181,7 @@ contains
 
     ! Read enhanced weathering parameters from a separated file
     !
-    if (use_ew) then
+    if (use_erw) then
        if (masterproc) then
           write(iulog,*) 'readParamsMod.F90::'//trim(subname)//&
                       ' :: reading Enhanced Weathering parameter file'//&

@@ -7,8 +7,10 @@ module AnnualUpdateMod
   use shr_kind_mod     , only : r8 => shr_kind_r8
   use decompMod        , only : bounds_type
   use CNStateType      , only : cnstate_type
-  use ColumnDataType   , only : col_cf
+  use ColumnDataType   , only : col_cf, col_wf, col_mf
   use VegetationDataType, only : veg_cf
+  use elm_varctl       , only : use_erw, year_start_erw, spinup_state, nyear_erw_calibrate
+  use spmdMod             , only : iam
 
   use timeinfoMod
   !
@@ -34,6 +36,7 @@ contains
     ! !USES:
       !$acc routine seq
     use elm_varcon      , only: secspday
+    use elm_varpar      , only: nlevgrnd, ncations
     use SubgridAveMod   , only: p2c
     !
     ! !ARGUMENTS:
@@ -47,7 +50,7 @@ contains
 
     !
     ! !LOCAL VARIABLES:
-    integer :: c,p          ! indices
+    integer :: c,p,j,icat   ! indices
     integer :: fp,fc        ! lake filter indices
     !-----------------------------------------------------------------------
     associate(&
@@ -63,9 +66,16 @@ contains
       annsum_npp                  => veg_cf%annsum_npp   , &
       tempsum_npp                 => veg_cf%tempsum_npp  , &
       annsum_npp_col              => col_cf%annsum_npp      , &
-      annavg_t2m_col              => cnstate_vars%annavg_t2m_col &
-      )
-      dt = dtime_mod 
+      annavg_t2m_col              => cnstate_vars%annavg_t2m_col, &
+      annavg_qin_col              => col_wf%annavg_qin_col, &
+      tempavg_qin_col             => col_wf%tempavg_qin_col, &
+      annavg_tot_delta            => col_mf%annavg_tot_delta, &
+      tempavg_tot_delta           => col_mf%tempavg_tot_delta, &
+      annavg_cec_delta            => col_mf%annavg_cec_delta, &
+      tempavg_cec_delta           => col_mf%tempavg_cec_delta &
+    )
+
+    dt = dtime_mod
     ! column loop
     do fc = 1,num_soilc
        c = filter_soilc(fc)
@@ -74,50 +84,74 @@ contains
 
     if (num_soilc > 0) then
       if (annsum_counter_col(filter_soilc(1)) >= dayspyr_mod * secspday) then
-          ! patch loop
-          do fp = 1,num_soilp
-             p = filter_soilp(fp)
+        ! patch loop
+        do fp = 1,num_soilp
+            p = filter_soilp(fp)
 
-             ! update annual plant ndemand accumulator
-             annsum_potential_gpp_patch(p)  = tempsum_potential_gpp_patch(p)
-             tempsum_potential_gpp_patch(p) = 0._r8
+            ! update annual plant ndemand accumulator
+            annsum_potential_gpp_patch(p)  = tempsum_potential_gpp_patch(p)
+            tempsum_potential_gpp_patch(p) = 0._r8
 
-             ! update annual total N retranslocation accumulator
-             annmax_retransn_patch(p)  = tempmax_retransn_patch(p)
-             tempmax_retransn_patch(p) = 0._r8
+            ! update annual total N retranslocation accumulator
+            annmax_retransn_patch(p)  = tempmax_retransn_patch(p)
+            tempmax_retransn_patch(p) = 0._r8
 
-             ! update annual total P retranslocation accumulator
-             annmax_retransp_patch(p)  = tempmax_retransp_patch(p)
-             tempmax_retransp_patch(p) = 0._r8
+            ! update annual total P retranslocation accumulator
+            annmax_retransp_patch(p)  = tempmax_retransp_patch(p)
+            tempmax_retransp_patch(p) = 0._r8
 
-             ! update annual average 2m air temperature accumulator
-             annavg_t2m_patch(p)  = tempavg_t2m_patch(p)
-             tempavg_t2m_patch(p) = 0._r8
+            ! update annual average 2m air temperature accumulator
+            annavg_t2m_patch(p)  = tempavg_t2m_patch(p)
+            tempavg_t2m_patch(p) = 0._r8
 
-             ! update annual NPP accumulator, convert to annual total
-             annsum_npp(p) = tempsum_npp(p) * dt
-             tempsum_npp(p) = 0._r8
+            ! update annual NPP accumulator, convert to annual total
+            annsum_npp(p) = tempsum_npp(p) * dt
+            tempsum_npp(p) = 0._r8
 
-          end do
-          ! use p2c routine to get selected column-average pft-level fluxes and states
+        end do
 
-          call p2c(bounds, num_soilc, filter_soilc, &
-               annsum_npp(bounds%begp:bounds%endp), &
-               annsum_npp_col(bounds%begc:bounds%endc))
+        ! use p2c routine to get selected column-average pft-level fluxes and states
+        call p2c(bounds, num_soilc, filter_soilc, &
+              annsum_npp(bounds%begp:bounds%endp), &
+              annsum_npp_col(bounds%begc:bounds%endc))
 
-          call p2c(bounds, num_soilc, filter_soilc, &
-               annavg_t2m_patch(bounds%begp:bounds%endp), &
-               annavg_t2m_col(bounds%begc:bounds%endc))
-       end if
+        call p2c(bounds, num_soilc, filter_soilc, &
+              annavg_t2m_patch(bounds%begp:bounds%endp), &
+              annavg_t2m_col(bounds%begc:bounds%endc))
+      end if
+    end if
 
+    ! Only during the self-calibration phase
+    if (use_erw .and. spinup_state == 0 .and. year_curr >= year_start_erw & 
+        .and. year_curr < (year_start_erw + nyear_erw_calibrate)) then
+      do fc = 1,num_soilc
+        c = filter_soilc(fc)
+        do j = 1,nlevgrnd
+          if (annsum_counter_col(c) >= dayspyr_mod * secspday) then
+            ! calibrate the annual average flow rate for mixing fraction calibration
+            annavg_qin_col(c,j) = annavg_qin_col(c,j) + tempavg_qin_col(c,j) / nyear_erw_calibrate
+            tempavg_qin_col(c,j) = 0._r8
+
+            ! calibrate the annual average cation change rate for background weathering
+            annavg_tot_delta(c,j,1:ncations) = annavg_tot_delta(c,j,1:ncations) + &
+                  tempavg_tot_delta(c,j,1:ncations) / nyear_erw_calibrate
+            tempavg_tot_delta(c,j,1:ncations) = 0._r8
+
+            annavg_cec_delta(c,j,1:ncations) = annavg_cec_delta(c,j,1:ncations) + &
+                  tempavg_cec_delta(c,j,1:ncations) / nyear_erw_calibrate
+            tempavg_cec_delta(c,j,1:ncations) = 0._r8
+          end if
+        end do
+      end do
     end if
 
     ! column loop
     do fc = 1,num_soilc
-       c = filter_soilc(fc)
-       if (annsum_counter_col(c) >= dayspyr_mod * secspday) then
-           annsum_counter_col(c) = 0._r8
-       end if
+      c = filter_soilc(fc)
+      if (annsum_counter_col(c) >= dayspyr_mod * secspday) then
+        ! reset annual counter
+        annsum_counter_col(c) = 0._r8
+      end if
     end do
 
   end associate

@@ -7,8 +7,8 @@ module ewutils
   use shr_kind_mod, only: r8 => shr_kind_r8
   use elm_varcon  , only: log_keq_hco3, log_keq_co3
   use elm_varpar  , only: ncations
-  use elm_varctl  , only: iulog
   use shr_sys_mod , only: shr_sys_flush
+  use spmdMod     , only: iam
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -438,7 +438,7 @@ contains
           else ! upward flow to the surface
             r_tri(j) = r_tri(j) - adv_flux(j)*conc_trcr(j)
           endif
-          
+
       elseif (j < nlevbed+1) then
           a_tri(j) = -(d_m1_zm1(j) * aaa(pe_m1(j)) + max( f_m1(j), 0._r8)) ! Eqn 5.47 Patankar
           c_tri(j) = -(d_p1_zp1(j) * aaa(pe_p1(j)) + max(-f_p1(j), 0._r8))

@@ -12,7 +12,7 @@ module EcosystemBalanceCheckMod
   use decompMod           , only : bounds_type
   use abortutils          , only : endrun
   use elm_varctl          , only : iulog, use_fates, use_fan
-  use elm_varctl          , only : spinup_state, year_start_ew
+  use elm_varctl          , only : spinup_state, year_start_erw
   use elm_time_manager    , only : get_step_size,get_nstep
   use elm_varpar          , only : crop_prog
   use elm_varpar          , only : nlevdecomp
@@ -208,6 +208,7 @@ contains
 
          primary_mineral    => col_ms%primary_mineral     , & ! Input: [real(r8) (:,:)]
          cation             => col_ms%cation              , & ! Input: [real(r8) (:,:)]
+         cec_cation         => col_ms%cec_cation          , & ! Input: [real(r8) (:,:)]
          proton             => col_ms%proton              , & ! Input: [real(r8) (:)]
          secondary_mineral  => col_ms%secondary_mineral     & ! Input: [real(r8) (:,:)]
     )
@@ -223,7 +224,7 @@ contains
 
       beg_in(c) = 0._r8
       do m = 1, ncations
-         beg_in(c) = beg_in(c) + cation(c,m)
+         beg_in(c) = beg_in(c) + cation(c,m) + cec_cation(c,m)
       end do
 
       beg_h(c) = proton(c)
@@ -876,6 +877,7 @@ contains
 
          primary_mineral       => col_ms%primary_mineral      , &
          cation                => col_ms%cation               , &
+         cec_cation            => col_ms%cec_cation           , &
          proton                => col_ms%proton               , &
          secondary_mineral     => col_ms%secondary_mineral    , &
 
@@ -884,7 +886,8 @@ contains
          primary_cation_flux   => col_mf%primary_cation_flux  , &
          primary_proton_flux   => col_mf%primary_proton_flux  , &
 
-         background_weathering => col_mf%background_weathering, &
+         background_flux       => col_mf%background_flux, &
+         background_cec        => col_mf%background_cec, &
 
          secondary_mineral_flux=> col_mf%secondary_mineral_flux, &
          secondary_cation_flux => col_mf%secondary_cation_flux , &
@@ -945,7 +948,7 @@ contains
 
        end_in(c) = 0._r8
        do m = 1,ncations
-          end_in(c) = end_in(c) + cation(c,m)
+          end_in(c) = end_in(c) + cation(c,m) + cec_cation(c,m)
        end do
 
        end_h(c) = proton(c)
@@ -965,7 +968,7 @@ contains
 
       in_add(c) = 0._r8
       do a = 1, ncations
-         in_add  (c) = in_add(c) + background_weathering(c,a) + primary_cation_flux(c,a) + cation_infl(c,a) + cec_cation_flux(c,a)
+         in_add  (c) = in_add(c) + background_flux(c,a) + background_cec(c,a) + primary_cation_flux(c,a) + cation_infl(c,a) !  + cec_cation_flux(c,a)
       end do
 
       in_loss(c) = 0._r8
