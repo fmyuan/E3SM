@@ -1802,6 +1802,12 @@
         PRECTmms precn
       </value>
       <value  stream="ELMGSWP3w5e5.TPQW">
+        TBOT     tbot
+        WIND     wind
+        QBOT	 shum
+        PSRF     pbot
+        FLDS     lwdn
+      </value>
       <value  stream="CLMGSWP3v2.Solar">
         FSDS swdn
       </value>
