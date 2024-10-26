@@ -201,12 +201,13 @@ contains
     if (present(appl_nutrpct)) &
       call soilamend_nutrpct%get_current_data(appl_nutrpct_cur)    ! grid-level
 
-    ! output vars (already allocated memory, but may not zeroed)
-    appl_rate(bounds%begc:bounds%endc)        = 0._r8
-    appl_grainsize(bounds%begc:bounds%endc,:) = 1._r8 ! non-zero to avoid math issue. it's ok as long as rate is 0
-    appl_specpct(bounds%begc:bounds%endc, :)  = 0._r8
-    if (present(appl_nutrpct)) &
-      appl_nutrpct(bounds%begc:bounds%endc, :)  = 0._r8
+    !! output vars (already allocated memory, but may not zeroed)
+    !! comment out because zeroed in col_ew_init()
+    !appl_rate(bounds%begc:bounds%endc)        = 0._r8
+    !appl_grainsize(bounds%begc:bounds%endc,:) = 1._r8 ! non-zero to avoid math issue. it's ok as long as rate is 0
+    !appl_specpct(bounds%begc:bounds%endc, :)  = 0._r8
+    !!if (present(appl_nutrpct)) &
+    !  appl_nutrpct(bounds%begc:bounds%endc, :)  = 0._r8
     do p = bounds%begp, bounds%endp
        g = veg_pp%gridcell(p)
        l = veg_pp%landunit(p)
@@ -220,22 +221,25 @@ contains
 
           ! assuming application occurs at mid-day of the day of year
           ! this wouldn't make large impact, but if it is then needs more thoughts on when to add into column.
-          if (appl_doy_cur(g,ti,m) == jday_mod .and. &
-              (secs_curr>= 12._r8 .and. secs_curr < (12._r8+dtime_mod)) )then
+          if ( (appl_doy_cur(g,ti,m) == jday_mod) .and. & 
+               (secs_curr >= (12._r8*dtime_mod)) .and. & 
+               (secs_curr < (13._r8*dtime_mod)) ) then
              ! weighted sum of all active pft.
              ! So if really want to patch-level, must only allow one patch per column.
-             appl_rate(c) = appl_rate(c) + appl_rate_cur(g,ti,m) * veg_pp%wtcol(p)
-
-             ! assuming grain size is same for its mineral components at application
-             ! but which may be changeable during dissolution and upon mineral type
-             appl_grainsize(c,:) = appl_grainsize_cur(g,ti)
-
-             appl_specpct(c,:) = appl_specpct_cur(g,ti,:)
-
-             if (present(appl_nutrpct)) &
-               appl_nutrpct(c,:) = appl_nutrpct_cur(g,ti,:)
-
+            appl_rate(c) = appl_rate(c) + appl_rate_cur(g,ti,m) * veg_pp%wtcol(p)
+          else
+            appl_rate(c) = 0._r8
           end if
+
+          ! assuming grain size is same for its mineral components at application
+          ! but which may be changeable during dissolution and upon mineral type
+          appl_grainsize(c,:) = appl_grainsize_cur(g,ti)
+
+          appl_specpct(c,:) = appl_specpct_cur(g,ti,:)
+
+          if (present(appl_nutrpct)) &
+            appl_nutrpct(c,:) = appl_nutrpct_cur(g,ti,:)
+
        end if
     end do
 
