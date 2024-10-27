@@ -34,7 +34,7 @@ module SoilLittVertTranspMod
   !$acc declare create(SoilLittVertTranspParamsInst)
 
   !
-  real(r8), public :: som_adv_flux =  0._r8
+  real(r8), public :: som_adv_flux =  0._r8    ! m/s advection
   !$acc declare copyin(som_adv_flux)
   real(r8), public :: max_depth_cryoturb = 3._r8   ! (m) this is the maximum depth of cryoturbation
   !$acc declare copyin(max_depth_cryoturb)
@@ -73,6 +73,11 @@ contains
     !SoilLittVertTranspParamsInst%som_diffus=tempr
     ! FIX(SPM,032414) - can't be pulled out since division makes things not bfb
     SoilLittVertTranspParamsInst%som_diffus = 1e-4_r8 / (secspday * 365._r8)
+#if (defined HUM_HOL)
+    SoilLittVertTranspParamsInst%som_diffus = 5e-4_r8 / (secspday * 365._r8)
+#elif (defined MARSH || defined COL3RD)
+    SoilLittVertTranspParamsInst%som_diffus = 5e-4_r8 / (secspday * 365._r8)
+#endif
 
     tString='cryoturb_diffusion_k'
     call ncd_io(trim(tString),tempr, 'read', ncid, readvar=readv)

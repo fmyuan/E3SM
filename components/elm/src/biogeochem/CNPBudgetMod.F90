@@ -49,9 +49,12 @@ module CNPBudgetMod
   integer, parameter :: f_prod100c_loss        =  7
   integer, parameter :: f_som_c_leached        =  8
   integer, parameter :: f_som_c_yield          =  9
-  integer, parameter :: f_dwt_conv_cflux       = 10
-  integer, parameter :: f_dwt_seedc_to_leaf    = 11
-  integer, parameter :: f_dwt_seedc_to_deadstem= 12
+  integer, parameter :: f_DOC_runoff           = 10
+  integer, parameter :: f_DIC_runoff           = 11
+  integer, parameter :: f_dwt_conv_cflux       = 12
+  integer, parameter :: f_dwt_seedc_to_leaf    = 13
+  integer, parameter :: f_dwt_seedc_to_deadstem= 14
+
 
   integer, parameter, public :: c_f_size = f_dwt_seedc_to_deadstem
 
@@ -66,6 +69,8 @@ module CNPBudgetMod
        '      decomposition loss from 100-year product pool', &
        '                 SOM C loss from vertical transport', &
        '                                         SOM C loss', &
+       '                                        DOC leached', &
+       '                                        DIC leached', &
        '          flux to atmosphere due to dynamic weights', &
        '         seed source to leaf due to dynamic weights', &
        '   seed source to dead steam due to dynamic weights'  &
@@ -73,27 +78,27 @@ module CNPBudgetMod
        
        
   ! N inputs
-  integer, parameter :: f_ndep_to_sminn        = 13
-  integer, parameter :: f_nfix_to_ecosysn      = 14
-  integer, parameter :: f_nfix_to_sminn        = 15
-  integer, parameter :: f_supplement_to_sminn  = 16
-  integer, parameter :: f_fert_to_sminn        = 17
-  integer, parameter :: f_soyfixn_to_sminn     = 18
-  integer, parameter :: f_supplement_to_plantn = 19
-  integer, parameter :: f_nfert_dose           = 20
+  integer, parameter :: f_ndep_to_sminn        = 15
+  integer, parameter :: f_nfix_to_ecosysn      = 16
+  integer, parameter :: f_nfix_to_sminn        = 17
+  integer, parameter :: f_supplement_to_sminn  = 18
+  integer, parameter :: f_fert_to_sminn        = 19
+  integer, parameter :: f_soyfixn_to_sminn     = 20
+  integer, parameter :: f_supplement_to_plantn = 21
+  integer, parameter :: f_nfert_dose           = 22
 
   ! N outputs
-  integer, parameter :: f_denit                = 21
-  integer, parameter :: f_fire_ploss           = 22
-  integer, parameter :: f_n2o_nit              = 23
-  integer, parameter :: f_smin_no3_leached     = 24
-  integer, parameter :: f_smin_no3_runoff      = 25
-  integer, parameter :: f_sminn_leached        = 26
-  integer, parameter :: f_col_prod1n_loss      = 27
-  integer, parameter :: f_col_prod10n_loss     = 28
-  integer, parameter :: f_col_prod100n_loss    = 29
-  integer, parameter :: f_som_n_leached        = 30
-  integer, parameter :: f_som_n_yield          = 31
+  integer, parameter :: f_denit                = 23
+  integer, parameter :: f_fire_ploss           = 24
+  integer, parameter :: f_n2o_nit              = 25
+  integer, parameter :: f_smin_no3_leached     = 26
+  integer, parameter :: f_smin_no3_runoff      = 27
+  integer, parameter :: f_sminn_leached        = 28
+  integer, parameter :: f_col_prod1n_loss      = 29
+  integer, parameter :: f_col_prod10n_loss     = 30
+  integer, parameter :: f_col_prod100n_loss    = 31
+  integer, parameter :: f_som_n_leached        = 32
+  integer, parameter :: f_som_n_yield          = 33
 
   integer, parameter, public :: n_f_size = f_som_n_yield - f_dwt_seedc_to_deadstem
 
@@ -121,24 +126,24 @@ module CNPBudgetMod
        /)
 
   ! P inputs
-  integer, parameter :: f_primp_to_labilep     = 32
-  integer, parameter :: f_supplement_to_sminp  = 33
-  integer, parameter :: f_supplement_to_plantp = 34
-  integer, parameter :: f_pfert_dose           = 35
+  integer, parameter :: f_primp_to_labilep     = 34
+  integer, parameter :: f_supplement_to_sminp  = 35
+  integer, parameter :: f_supplement_to_plantp = 36
+  integer, parameter :: f_pfert_dose           = 37
 
   ! P outputs
-  integer, parameter :: f_secondp_to_occlp     = 36
-  integer, parameter :: f_sminp_leached        = 37
-  integer, parameter :: f_col_fire_ploss       = 38
-  integer, parameter :: f_solutionp            = 39
-  integer, parameter :: f_labilep              = 40
-  integer, parameter :: f_secondp              = 41
-  integer, parameter :: f_col_prod1p_loss      = 42
-  integer, parameter :: f_col_prod10p_loss     = 43
-  integer, parameter :: f_col_prod100p_loss    = 44
-  integer, parameter :: f_som_p_yield          = 45
-  integer, parameter :: f_labilep_yield        = 46
-  integer, parameter :: f_secondp_yield        = 47
+  integer, parameter :: f_secondp_to_occlp     = 38
+  integer, parameter :: f_sminp_leached        = 39
+  integer, parameter :: f_col_fire_ploss       = 40
+  integer, parameter :: f_solutionp            = 41
+  integer, parameter :: f_labilep              = 42
+  integer, parameter :: f_secondp              = 43
+  integer, parameter :: f_col_prod1p_loss      = 44
+  integer, parameter :: f_col_prod10p_loss     = 45
+  integer, parameter :: f_col_prod100p_loss    = 46
+  integer, parameter :: f_som_p_yield          = 47
+  integer, parameter :: f_labilep_yield        = 48
+  integer, parameter :: f_secondp_yield        = 49
 
   integer, parameter, public :: p_f_size = f_secondp_yield - f_som_n_yield
 
@@ -197,7 +202,7 @@ module CNPBudgetMod
        ' Total wood product', &
        '    Truncation sink', &
        '  Crop seed deficit', &
-       '              TOTAL'  &
+       '     Grid-level Err'  &
        /)
 
   ! N
@@ -387,21 +392,29 @@ contains
              budg_fluxL(:,ip)  = 0.0_r8
              budg_fluxG(:,ip)  = 0.0_r8
              budg_fluxN(:,ip)  = 0.0_r8
+             budg_stateL(:,ip) = 0.0_r8
+             budg_stateG(:,ip) = 0.0_r8
           endif
           if (ip==p_day .and. sec==0) then
              budg_fluxL(:,ip)  = 0.0_r8
              budg_fluxG(:,ip)  = 0.0_r8
              budg_fluxN(:,ip)  = 0.0_r8
+             budg_stateL(:,ip) = 0.0_r8
+             budg_stateG(:,ip) = 0.0_r8
           endif
           if (ip==p_mon .and. day==1 .and. sec==0) then
              budg_fluxL(:,ip)  = 0.0_r8
              budg_fluxG(:,ip)  = 0.0_r8
              budg_fluxN(:,ip)  = 0.0_r8
+             budg_stateL(:,ip) = 0.0_r8
+             budg_stateG(:,ip) = 0.0_r8
           endif
           if (ip==p_ann .and. mon==1 .and. day==1 .and. sec==0) then
              budg_fluxL(:,ip)  = 0.0_r8
              budg_fluxG(:,ip)  = 0.0_r8
              budg_fluxN(:,ip)  = 0.0_r8
+             budg_stateL(:,ip) = 0.0_r8
+             budg_stateG(:,ip) = 0.0_r8
           endif
        enddo
 
@@ -617,7 +630,7 @@ contains
          end_totprodc              => grc_cs%end_totprodc          , & ! Input: [real(r8) (:)] (gC/m2) total column wood product carbon
          end_ctrunc                => grc_cs%end_ctrunc            , & ! Input: [real(r8) (:)] (gC/m2) total column truncation carbon sink
          end_cropseedc_deficit     => grc_cs%end_cropseedc_deficit , & ! Input: [real(r8) (:)] (gC/m2) column carbon pool for seeding new growth
-         errcb                     => grc_cs%errcb                 , & ! Input: [real(r8) (:)] (gC/m^2/s)total SOM C loss by erosion
+         errcb                     => grc_cs%errcb                 , & ! Input: [real(r8) (:)] (gC/m^2) carbon mass balance error
          gpp                       => grc_cf%gpp                   , & ! Input: [real(r8) (:)] (gC/m2/s) gross primary production
          er                        => grc_cf%er                    , & ! Input: [real(r8) (:)] (gC/m2/s) total ecosystem respiration, autotrophic + heterotrophic
          fire_closs                => grc_cf%fire_closs            , & ! Input: [real(r8) (:)] (gC/m2/s) total column-level fire C loss
@@ -653,6 +666,8 @@ contains
          nf = f_dwt_conv_cflux        ; budg_fluxL(nf,ip) = budg_fluxL(nf,ip) - grc_dwt_conv_cflux(g)        *af
          nf = f_dwt_seedc_to_leaf     ; budg_fluxL(nf,ip) = budg_fluxL(nf,ip) + grc_dwt_seedc_to_leaf(g)     *af
          nf = f_dwt_seedc_to_deadstem ; budg_fluxL(nf,ip) = budg_fluxL(nf,ip) + grc_dwt_seedc_to_deadstem(g) *af
+         nf = f_DOC_runoff            ; budg_fluxL(nf,ip) = budg_fluxL(nf,ip) - grc_cf%DOC_runoff(g)         *af
+         nf = f_DIC_runoff            ; budg_fluxL(nf,ip) = budg_fluxL(nf,ip) - grc_cf%DIC_runoff(g)         *af
 
          ! states
          ns = s_totc_beg              ; budg_stateL(ns,ip) = budg_stateL(ns,ip) + beg_totc(g)              *af
@@ -852,7 +867,9 @@ contains
     ! !LOCAL VARIABLES:
     integer :: f, s, s_beg, s_end ! data array indicies
     real(r8) :: time_integrated_flux, state_net_change
+    real(r8) :: relative_error
     real(r8), parameter :: error_tol = 0.01_r8
+    real(r8), parameter :: relative_error_tol = 1.e-10_r8 ! [%]
 
     write(iulog,*   )''
     write(iulog,*   )'NET CARBON FLUXES : period ',trim(pname(ip)),': date = ',cdate,sec
@@ -888,7 +905,7 @@ contains
             budg_stateG(s_end,ip)*unit_conversion, &
             (budg_stateG(s_end,ip) - budg_stateG(s_beg,ip))*unit_conversion
     end do
-    write(iulog,C_FS_2)'Grid-level Err',0._r8, budg_stateG(s_c_error,ip) *unit_conversion, &
+    write(iulog,C_FS_2)c_s_name(c_s_name_size),0._r8, budg_stateG(s_c_error,ip) *unit_conversion, &
        budg_stateG(s_c_error,ip) *unit_conversion
 
 
@@ -909,10 +926,13 @@ contains
     state_net_change = (budg_stateG(s_totc_end, ip) - budg_stateG(s_totc_beg, ip))*unit_conversion + &
          budg_stateG(s_c_error,ip) *unit_conversion
 
-    if (abs(time_integrated_flux - state_net_change) > error_tol) then
+    relative_error = abs(time_integrated_flux - state_net_change)/(budg_stateG(s_totc_end, ip)*unit_conversion) * 100._r8
+
+    if (relative_error > relative_error_tol) then
        write(iulog,*)'time integrated flux = ',time_integrated_flux
        write(iulog,*)'net change in state  = ',state_net_change
-       write(iulog,*)'error                = ',abs(time_integrated_flux - state_net_change)
+       write(iulog,*)'current state        = ',budg_stateG(s_totc_end, ip)
+       write(iulog,*)'relative error [%]   = ',relative_error
        call endrun(msg=errMsg(__FILE__, __LINE__))
     endif
 

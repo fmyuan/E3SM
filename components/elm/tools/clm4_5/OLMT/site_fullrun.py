@@ -43,6 +43,8 @@ parser.add_option("--hist_nhtfrq_trans", dest="hist_nhtfrq", default="-24", \
                   help = 'output file timestep (transient only)')
 parser.add_option("--humhol", dest="humhol", default=False, \
                   help = 'Use hummock/hollow microtopography', action="store_true")
+parser.add_option("--marsh", dest="marsh", default=False, \
+                  help = 'Use marsh hydrology/elevation', action="store_true")
 parser.add_option("--machine", dest="machine", default = '', \
                   help = "machine to use")
 parser.add_option("--mpilib", dest="mpilib", default="mpi-serial", \
@@ -449,6 +451,8 @@ for row in AFdatareader:
             basecmd = basecmd+' --harvmod'
         if (options.humhol):
             basecmd = basecmd+' --humhol'
+        if (options.marsh):
+            basecmd = basecmd+' --marsh'
         if (options.nopftdyn):
             basecmd = basecmd+' --nopftdyn'
         if (options.no_dynroot):
@@ -760,7 +764,7 @@ for row in AFdatareader:
             
             mysubmit_type = 'qsub'
             groupnum = sitenum/npernode
-            if ('anvil' in options.machine or 'compy' in options.machine or 'cori' in options.machine):
+            if ('cades' in options.machine or 'anvil' in options.machine or 'compy' in options.machine or 'cori' in options.machine):
                 mysubmit_type = 'sbatch'
             if ('ubuntu' in options.machine):
                 mysubmit_type = ''
@@ -797,6 +801,10 @@ for row in AFdatareader:
                                     output.write('#SBATCH --partition=debug\n')
                                 else:
                                     output.write('#SBATCH --partition=regular\n')
+			    if ('cades' in options.machine):
+				output.write ('#SBATCH -A ccsi\n')
+				output.write ('#SBATCH -p burst\n')
+				output.write ('#SBATCH --mem=8G\n')
                     elif ("#" in s and "ppn" in s):
                         if ('cades' in options.machine):
                             #if ('diags' in c or 'iniadjust' in c):

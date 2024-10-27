@@ -68,6 +68,7 @@ module VegetationDataType
     real(r8), pointer :: t_ref2m_max_inst_u (:) => null() ! instantaneous daily max of average 2 m height surface air temp - urban (K)
     real(r8), pointer :: t_veg24            (:) => null() ! 24hr average vegetation temperature (K)
     real(r8), pointer :: t_veg240           (:) => null() ! 240hr average vegetation temperature (K)
+    real(r8), pointer :: t_2m3650           (:) => null() ! 10-year average 2-m temperature (K)
     real(r8), pointer :: gdd0               (:) => null() ! growing degree-days base  0C from planting  (ddays)
     real(r8), pointer :: gdd8               (:) => null() ! growing degree-days base  8C from planting  (ddays)
     real(r8), pointer :: gdd10              (:) => null() ! growing degree-days base 10C from planting  (ddays)
@@ -102,6 +103,8 @@ module VegetationDataType
     real(r8), pointer :: begwb        (:) => null() ! water mass begining of the time step
     real(r8), pointer :: endwb        (:) => null() ! water mass end of the time step
     real(r8), pointer :: errh2o       (:) => null() ! water conservation error (mm H2O)
+    real(r8), pointer :: h2o_moss_wc    (:) => null() ! Total water content of Sphagnum moss (relative to dry mass (relative to dry mass))
+    real(r8), pointer :: h2o_moss_inter (:) => null() ! Internal water content of Sphagnum moss (relative to dry mass (relative to dry mass))
   contains
     procedure, public :: Init    => veg_ws_init
     procedure, public :: Restart => veg_ws_restart
@@ -506,6 +509,7 @@ module VegetationDataType
     real(r8), pointer :: frootc_to_litter                    (:) => null()    ! fine root C litterfall (gC/m2/s)
     real(r8), pointer :: livestemc_to_litter                 (:) => null()    ! live stem C litterfall (gC/m2/s)
     real(r8), pointer :: grainc_to_food                      (:) => null()    ! grain C to food for prognostic crop(gC/m2/s)
+    real(r8), pointer :: livecrootc_to_litter                (:) => null()    ! live coarse root C litterfall (gC/m2/s)
 
     ! maintenance respiration fluxes
     real(r8), pointer :: leaf_mr                             (:) => null()    ! leaf maintenance respiration (gC/m2/s)
@@ -773,6 +777,7 @@ module VegetationDataType
     real(r8), pointer :: leafn_to_retransn                   (:)   => null()  ! leaf N to retranslocated N pool (gN/m2/s)
     real(r8), pointer :: frootn_to_retransn                  (:)   => null()  ! fine root N to retranslocated N pool (gN/m2/s)
     real(r8), pointer :: frootn_to_litter                    (:)   => null()  ! fine root N litterfall (gN/m2/s)
+    real(r8), pointer :: livecrootn_to_litter                (:)   => null()  ! live coarse root N litterfall (gN/m2/s)
     ! allocation fluxes
     real(r8), pointer :: retransn_to_npool                   (:)   => null()  ! deployment of retranslocated N (gN/m2/s)
     real(r8), pointer :: sminn_to_npool                      (:)   => null()  ! deployment of soil mineral N uptake (gN/m2/s)
@@ -950,6 +955,7 @@ module VegetationDataType
     real(r8), pointer :: leafp_to_retransp                   (:)     ! leaf P to retranslocated P pool (gP/m2/s)
     real(r8), pointer :: frootp_to_retransp                  (:)     ! fine root P to retranslocated P pool (gP/m2/s)
     real(r8), pointer :: frootp_to_litter                    (:)     ! fine root P litterfall (gP/m2/s)
+    real(r8), pointer :: livecrootp_to_litter                (:)     ! live coarse root P litterfall (gP/m2/s)
     real(r8), pointer :: retransp_to_ppool                   (:)     ! deployment of retranslocated P (gP/m2/s)
     real(r8), pointer :: sminp_to_ppool                      (:)     ! deployment of soil mineral P uptake (gP/m2/s)
     real(r8), pointer :: ppool_to_grainp                     (:)     ! allocation to grain P for prognostic crop (gP/m2/s)
@@ -1088,6 +1094,7 @@ module VegetationDataType
     allocate(this%t_ref2m_max_inst_u (begp:endp))                   ; this%t_ref2m_max_inst_u (:)   = nan
     allocate(this%t_veg24            (begp:endp))                   ; this%t_veg24            (:)   = nan
     allocate(this%t_veg240           (begp:endp))                   ; this%t_veg240           (:)   = nan
+    allocate(this%t_2m3650           (begp:endp))                   ; this%t_2m3650           (:)   = nan
     allocate(this%gdd0               (begp:endp))                   ; this%gdd0               (:)   = spval
     allocate(this%gdd8               (begp:endp))                   ; this%gdd8               (:)   = spval
     allocate(this%gdd10              (begp:endp))                   ; this%gdd10              (:)   = spval
@@ -1178,6 +1185,11 @@ module VegetationDataType
     call hist_addfld1d (fname='TV240', units='K',  &
          avgflag='A', long_name='vegetation temperature (last 240hrs)', &
          ptr_patch=this%t_veg240, default='inactive')
+
+    this%t_2m3650(begp:endp)  = spval
+    call hist_addfld1d (fname='T2M3650', units='K',  &
+         avgflag='A', long_name='air temperature (last 10yrs)', &
+         ptr_patch=this%t_2m3650, default='inactive')
 
     if (crop_prog) then
        this%gdd0(begp:endp) = spval
@@ -1438,6 +1450,11 @@ module VegetationDataType
          desc='240hr average of vegetation temperature',  accum_type='runmean', accum_period=-10,  &
          subgrid_type='pft', numlev=1, init_value=0._r8)
 
+    this%t_2m3650(bounds%begp:bounds%endp) = spval
+    call init_accum_field (name='T_2M3650', units='K',                                              &
+         desc='10-year average of 2m temperature',  accum_type='runmean', accum_period=-3650,  &
+         subgrid_type='pft', numlev=1, init_value=0._r8)
+
     if ( crop_prog )then
        call init_accum_field (name='TDM10', units='K', &
             desc='10-day running mean of min 2-m temperature', accum_type='runmean', accum_period=-10, &
@@ -1509,6 +1526,9 @@ module VegetationDataType
 
     call extract_accum_field ('T_VEG240', rbufslp, nstep)
     this%t_veg240(begp:endp) = rbufslp(begp:endp)
+
+    call extract_accum_field ('T_2M3650', rbufslp, nstep)
+    this%t_2m3650(begp:endp) = rbufslp(begp:endp)
 
     if (crop_prog) then
        call extract_accum_field ('TDM10', rbufslp, nstep)
@@ -1605,6 +1625,12 @@ module VegetationDataType
     call update_accum_field  ('T_VEG240', rbufslp       , nstep)
     call extract_accum_field ('T_VEG240', this%t_veg240 , nstep)
 
+    ! fill the temporary variable
+    do p = begp,endp
+       rbufslp(p) = this%t_ref2m(p)
+    end do
+    call update_accum_field  ('T_2M3650', rbufslp       , nstep)
+    call extract_accum_field ('T_2M3650', this%t_2m3650, nstep)
 
     ! Accumulate and extract TREFAV - hourly average 2m air temperature
     ! Used to compute maximum and minimum of hourly averaged 2m reference
@@ -1789,6 +1815,8 @@ module VegetationDataType
     allocate(this%begwb               (begp:endp))          ; this%begwb             (:) = nan
     allocate(this%endwb               (begp:endp))          ; this%endwb             (:) = nan
     allocate(this%errh2o              (begp:endp))          ; this%errh2o            (:) = nan
+    allocate(this%h2o_moss_wc         (begp:endp))          ; this%h2o_moss_wc       (:) = nan
+    allocate(this%h2o_moss_inter      (begp:endp))          ; this%h2o_moss_inter    (:) = nan
 
     !-----------------------------------------------------------------------
     ! initialize history fields for select members of veg_ws
@@ -1835,6 +1863,11 @@ module VegetationDataType
        call hist_addfld1d (fname='FDRY', units='proportion', &
             avgflag='A', long_name='fraction of foliage that is green and dry', &
             ptr_patch=this%fdry, default='inactive')
+
+       this%h2o_moss_wc(begp:endp) = spval
+       call hist_addfld1d (fname='H2O_MOSS_WC', units='proportion', &
+            avgflag='A', long_name='Relative water content of Moss', &
+            ptr_patch=this%h2o_moss_wc)
     end if
 
     !-----------------------------------------------------------------------
@@ -1943,6 +1976,7 @@ module VegetationDataType
        allocate(this%grainc_xfer        (begp :endp))   ;  this%grainc_xfer        (:)   = nan
        allocate(this%woodc              (begp :endp))   ;  this%woodc              (:)   = nan
        allocate(this%totvegc_abg        (begp :endp))   ;  this%totvegc_abg        (:)   = nan
+     ! allocate(this%osm_inhib          (begp :endp))   ;  this%osm_inhib          (:)   = nan
     endif  !  not use_fates
 
     allocate(this%begcb              (begp :endp))   ;  this%begcb              (:) = nan
@@ -2115,6 +2149,11 @@ module VegetationDataType
             avgflag='A', long_name='total aboveground vegetation carbon, excluding cpool', &
             ptr_patch=this%totvegc_abg)
 
+     !   this%osm_inhib(begc:endc) = spval
+     !   call hist_addfld1d (fname='OSM_INHIB',  units=' ',  &
+     !        avgflag='A', long_name='Factor to reduce growth due to salinity stress', &
+     !        ptr_col=this%osm_inhib)
+            
        ! end of c12 block
 
     else if ( carbon_type == 'c13' ) then
@@ -5752,6 +5791,7 @@ module VegetationDataType
        allocate(this%deadcrootc_xfer_to_deadcrootc       (begp:endp)) ;    this%deadcrootc_xfer_to_deadcrootc        (:) = nan
        allocate(this%leafc_to_litter                     (begp:endp)) ;    this%leafc_to_litter                      (:) = nan
        allocate(this%frootc_to_litter                    (begp:endp)) ;    this%frootc_to_litter                     (:) = nan
+       allocate(this%livecrootc_to_litter                (begp:endp)) ;    this%livecrootc_to_litter                 (:) = nan
        allocate(this%livestemc_to_litter                 (begp:endp)) ;    this%livestemc_to_litter                  (:) = nan
        allocate(this%grainc_to_food                      (begp:endp)) ;    this%grainc_to_food                       (:) = nan
        allocate(this%leaf_mr                             (begp:endp)) ;    this%leaf_mr                              (:) = nan
@@ -6291,6 +6331,11 @@ module VegetationDataType
        call hist_addfld1d (fname='FROOTC_TO_LITTER', units='gC/m^2/s', &
             avgflag='A', long_name='fine root C litterfall', &
             ptr_patch=this%frootc_to_litter, default='inactive')
+            
+       this%livecrootc_to_litter(begp:endp) = spval
+       call hist_addfld1d (fname='LIVECROOTC_TO_LITTER', units='gC/m^2/s', &
+            avgflag='A', long_name='live coarse root C litterfall', &
+            ptr_patch=this%livecrootc_to_litter, default='inactive')
 
        this%leaf_mr(begp:endp) = spval
        call hist_addfld1d (fname='LEAF_MR', units='gC/m^2/s', &
@@ -6953,6 +6998,11 @@ module VegetationDataType
             avgflag='A', long_name='C13 fine root C litterfall', &
             ptr_patch=this%frootc_to_litter, default='inactive')
 
+       this%livecrootc_to_litter(begp:endp) = spval
+       call hist_addfld1d (fname='C13_LIVECROOTC_TO_LITTER', units='gC13/m^2/s', &
+            avgflag='A', long_name='C13 live coarse root C litterfall', &
+            ptr_patch=this%livecrootc_to_litter, default='inactive')
+
        this%leaf_mr(begp:endp) = spval
        call hist_addfld1d (fname='C13_LEAF_MR', units='gC13/m^2/s', &
             avgflag='A', long_name='C13 leaf maintenance respiration', &
@@ -7548,6 +7598,11 @@ module VegetationDataType
             avgflag='A', long_name='C14 fine root C litterfall', &
             ptr_patch=this%frootc_to_litter, default='inactive')
 
+       this%livecrootc_to_litter(begp:endp) = spval
+       call hist_addfld1d (fname='C14_LIVECROOTC_TO_LITTER', units='gC14/m^2/s', &
+            avgflag='A', long_name='C14 live coarse root C litterfall', &
+            ptr_patch=this%livecrootc_to_litter, default='inactive')
+     
        this%leaf_mr(begp:endp) = spval
        call hist_addfld1d (fname='C14_LEAF_MR', units='gC14/m^2/s', &
             avgflag='A', long_name='C14 leaf maintenance respiration', &
@@ -8239,6 +8294,7 @@ module VegetationDataType
        this%litfall(p) = &
             this%leafc_to_litter(p)                     + &
             this%frootc_to_litter(p)                    + &
+            this%livecrootc_to_litter(p)                + &
             this%m_leafc_to_litter(p)                   + &
             this%m_leafc_storage_to_litter(p)           + &
             this%m_leafc_xfer_to_litter(p)              + &
@@ -8412,7 +8468,8 @@ module VegetationDataType
             this%hrv_livecrootc_xfer_to_litter(p)    + &
             this%hrv_deadcrootc_to_litter(p)         + &
             this%hrv_deadcrootc_storage_to_litter(p) + &
-            this%hrv_deadcrootc_xfer_to_litter(p)
+            this%hrv_deadcrootc_xfer_to_litter(p)    + &
+            this%livecrootc_to_litter(p)
        ! putting the harvested crop stem and grain in the wood loss bdrewniak
        if ( crop_prog .and. veg_pp%itype(p) >= npcropmin )then
           this%woodc_loss(p) = &
@@ -8691,6 +8748,7 @@ module VegetationDataType
           this%deadcrootc_xfer_to_deadcrootc(i)       = value_patch
           this%leafc_to_litter(i)                     = value_patch
           this%frootc_to_litter(i)                    = value_patch
+          this%livecrootc_to_litter(i)                = value_patch
           this%leaf_mr(i)                             = value_patch
           this%froot_mr(i)                            = value_patch
           this%livestem_mr(i)                         = value_patch
@@ -8923,6 +8981,7 @@ module VegetationDataType
     allocate(this%leafn_to_retransn                   (begp:endp)) ; this%leafn_to_retransn                   (:) = nan
     allocate(this%frootn_to_retransn                  (begp:endp)) ; this%frootn_to_retransn                  (:) = nan
     allocate(this%frootn_to_litter                    (begp:endp)) ; this%frootn_to_litter                    (:) = nan
+    allocate(this%livecrootn_to_litter                (begp:endp)) ; this%livecrootn_to_litter                (:) = nan
     allocate(this%retransn_to_npool                   (begp:endp)) ; this%retransn_to_npool                   (:) = nan
     allocate(this%sminn_to_npool                      (begp:endp)) ; this%sminn_to_npool                      (:) = nan
     allocate(this%npool_to_leafn                      (begp:endp)) ; this%npool_to_leafn                      (:) = nan
@@ -9249,6 +9308,11 @@ module VegetationDataType
     call hist_addfld1d (fname='FROOTN_TO_LITTER', units='gN/m^2/s', &
          avgflag='A', long_name='fine root N litterfall', &
          ptr_patch=this%frootn_to_litter, default='inactive')
+
+    this%livecrootn_to_litter(begp:endp) = spval
+    call hist_addfld1d (fname='LIVECROOTN_TO_LITTER', units='gN/m^2/s', &
+         avgflag='A', long_name='live coarse root N litterfall', &
+         ptr_patch=this%livecrootn_to_litter, default='inactive')     
 
     this%retransn_to_npool(begp:endp) = spval
     call hist_addfld1d (fname='RETRANSN_TO_NPOOL', units='gN/m^2/s', &
@@ -9719,6 +9783,7 @@ module VegetationDataType
        this%leafn_to_litter(i)                     = value_patch
        this%leafn_to_retransn(i)                   = value_patch
        this%frootn_to_litter(i)                    = value_patch
+       this%livecrootn_to_litter(i)                = value_patch
        this%retransn_to_npool(i)                   = value_patch
        this%sminn_to_npool(i)                      = value_patch
        this%npool_to_leafn(i)                      = value_patch
@@ -9910,7 +9975,8 @@ module VegetationDataType
       else
          this%sen_nloss_litter(p) = &
              this%leafn_to_litter(p)                + &
-             this%frootn_to_litter(p)
+             this%frootn_to_litter(p)               + &
+             this%livecrootn_to_litter(p)
       end if
 
     end do
@@ -10052,6 +10118,7 @@ module VegetationDataType
     allocate(this%leafp_to_retransp                   (begp:endp)) ; this%leafp_to_retransp                   (:) = nan
     allocate(this%frootp_to_retransp                  (begp:endp)) ; this%frootp_to_retransp                  (:) = nan
     allocate(this%frootp_to_litter                    (begp:endp)) ; this%frootp_to_litter                    (:) = nan
+    allocate(this%livecrootp_to_litter                (begp:endp)) ; this%livecrootp_to_litter                (:) = nan
     allocate(this%retransp_to_ppool                   (begp:endp)) ; this%retransp_to_ppool                   (:) = nan
     allocate(this%sminp_to_ppool                      (begp:endp)) ; this%sminp_to_ppool                      (:) = nan
     allocate(this%biochem_pmin_to_plant               (begp:endp)) ; this%biochem_pmin_to_plant               (:) = nan
@@ -10372,6 +10439,11 @@ module VegetationDataType
     call hist_addfld1d (fname='FROOTP_TO_LITTER', units='gP/m^2/s', &
          avgflag='A', long_name='fine root P litterfall', &
          ptr_patch=this%frootp_to_litter, default='inactive')
+
+    this%livecrootp_to_litter(begp:endp) = spval
+    call hist_addfld1d (fname='LIVECROOTP_TO_LITTER', units='gP/m^2/s', &
+         avgflag='A', long_name='live coarse root P litterfall', &
+         ptr_patch=this%livecrootp_to_litter, default='inactive')
 
     this%retransp_to_ppool(begp:endp) = spval
     call hist_addfld1d (fname='RETRANSP_TO_PPOOL', units='gP/m^2/s', &
@@ -10845,6 +10917,7 @@ module VegetationDataType
        this%leafp_to_litter(i)                     = value_patch
        this%leafp_to_retransp(i)                   = value_patch
        this%frootp_to_litter(i)                    = value_patch
+       this%livecrootp_to_litter(i)                = value_patch
        this%retransp_to_ppool(i)                   = value_patch
        this%sminp_to_ppool(i)                      = value_patch
        this%ppool_to_leafp(i)                      = value_patch
@@ -11030,7 +11103,8 @@ module VegetationDataType
       else
          this%sen_ploss_litter(p) = &
              this%leafp_to_litter(p)                + &
-             this%frootp_to_litter(p)
+             this%frootp_to_litter(p)               + &
+             this%livecrootp_to_litter(p)
       end if
 
     end do

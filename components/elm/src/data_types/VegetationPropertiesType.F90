@@ -65,6 +65,7 @@ module VegetationPropertiesType
      real(r8), pointer :: fr_flig       (:) => null()  ! fine root litter lignin fraction
      real(r8), pointer :: leaf_long     (:) => null()  ! leaf longevity (yrs)
      real(r8), pointer :: froot_long    (:) => null()  ! fine root longevity (yrs)
+     real(r8), pointer :: rhizome_long  (:) => null()  ! nonwoody rhizome longevity (yrs)
      real(r8), pointer :: evergreen     (:) => null()  ! binary flag for evergreen leaf habit (0 or 1)
      real(r8), pointer :: stress_decid  (:) => null()  ! binary flag for stress-deciduous leaf habit (0 or 1)
      real(r8), pointer :: season_decid  (:) => null()  ! binary flag for seasonal-deciduous leaf habit (0 or 1)
@@ -94,6 +95,9 @@ module VegetationPropertiesType
      real(r8), pointer :: deadwdcp      (:) => null()  ! dead wood (xylem and heartwood) C:P (gC/gP)
      real(r8), pointer :: graincp       (:) => null()  ! grain C:P (gC/gP) for prognostic crop model
 
+     real(r8), pointer :: Nfix_NPP_c1   (:) => null()  ! Pre-exponential parameter in NPP-based N fixation eqn
+     real(r8), pointer :: Nfix_NPP_c2   (:) => null()  ! Exponential parameter in NPP-based N fixation eqn
+
      ! pft dependent parameters for phosphorus for nutrient competition
      real(r8), pointer :: vmax_plant_nh4(:)      => null()   ! vmax for plant nh4 uptake
      real(r8), pointer :: vmax_plant_no3(:)      => null()   ! vmax for plant no3 uptake
@@ -116,7 +120,9 @@ module VegetationPropertiesType
      real(r8), pointer :: lamda_ptase              => null()! critical value that incur biochemical production
      real(r8), pointer :: i_vc(:)          => null()        ! intercept of photosynthesis vcmax ~ leaf n content regression model
      real(r8), pointer :: s_vc(:)          => null()        ! slope of photosynthesis vcmax ~ leaf n content regression model
-
+     real(r8), pointer :: nsc_rtime(:)     => null()        ! non-structural carbon residence time 
+     real(r8), pointer :: pinit_beta1(:)   => null()        ! shaping parameter for P initialization
+     real(r8), pointer :: pinit_beta2(:)   => null()        ! shaping parameter for P initialization
      real(r8), pointer :: alpha_nfix(:)    => null()        ! fraction of fixed N goes directly to plant
      real(r8), pointer :: alpha_ptase(:)   => null()        ! fraction of phosphatase produced P goes directly to plant
      real(r8), pointer :: ccost_nfix(:)    => null()        ! plant C cost per unit N produced by N2 fixation
@@ -141,8 +147,21 @@ module VegetationPropertiesType
      real(r8), pointer :: mbbopt(:)        => null()   !Ball-Berry stomatal conductance slope
      real(r8), pointer :: nstor(:)         => null()   !Nitrogen storage pool timescale
      real(r8), pointer :: br_xr(:)         => null()   !Base rate for excess respiration
+     real(r8), pointer :: crit_gdd1(:) => null()   !Deciduous pheonlogy critical GDD intercept
+     real(r8), pointer :: crit_gdd2(:) => null()   !Deciduous pheonlogy critical GDD slope
      real(r8), pointer :: tc_stress        => null()   !Critial temperature for moisture stress
 
+     !----------------------F.-M. Yuan (2018-03-23): user-defined parameter file ---------------------------------------------------------------------
+     integer, allocatable :: nonvascular(:)       ! nonvascular plant lifeform flag (0 or 1-moss or 2-lichen)
+     integer, allocatable :: nfixer(:)            ! N-fixer flag (0 or 1)
+     !----------------------F.-M. Yuan (2018-03-23): user-defined parameter file ---------------------------------------------------------------------
+     !salinity response parameters
+     real(r8), allocatable :: sal_threshold(:)       !Threshold for salinity effects (ppt)
+     real(r8), allocatable :: KM_salinity(:)         !Half saturation constant for omotic inhibition function (ppt)
+     real(r8), allocatable :: osm_inhib(:)           !Osmotic inhibition factor
+     real(r8), allocatable :: sal_opt(:)             !Salinity at which optimal biomass occurs (ppt)
+     real(r8), allocatable :: sal_tol(:)             !Salinity tolerance; width parameter for Gaussian distribution (ppt -1)
+     !real(r8), allocatable :: floodf(:)              !Growth inhibition factor due to flooding/inundation (0-1)
 
    contains
    procedure, public :: Init => veg_vp_init
@@ -163,10 +182,11 @@ contains
     use pftvarcon , only : c3psn, slatop, dsladlai, leafcn, flnr, woody
     use pftvarcon , only : lflitcn, frootcn, livewdcn, deadwdcn, froot_leaf, stem_leaf, croot_stem
     use pftvarcon , only : flivewd, fcur, lf_flab, lf_fcel, lf_flig, fr_flab, fr_fcel, fr_flig
-    use pftvarcon , only : leaf_long, froot_long, evergreen, stress_decid, season_decid
+    use pftvarcon , only : leaf_long, froot_long, rhizome_long, evergreen, stress_decid, season_decid
     use pftvarcon , only : fertnitro, graincn, fleafcn, ffrootcn, fstemcn, dwood
     use pftvarcon , only : presharv, convfact, fyield
     use pftvarcon , only : leafcp,lflitcp, frootcp, livewdcp, deadwdcp,graincp
+    use pftvarcon , only : Nfix_NPP_c1, Nfix_NPP_c2 
     use pftvarcon , only : vmax_plant_nh4, vmax_plant_no3, vmax_plant_p, vmax_minsurf_p_vr
     use pftvarcon , only : km_plant_nh4, km_plant_no3, km_plant_p, km_minsurf_p_vr
     use pftvarcon , only : km_decomp_nh4, km_decomp_no3, km_decomp_p, km_nit, km_den
@@ -174,14 +194,18 @@ contains
     use pftvarcon , only : vmax_nfix, km_nfix
     use pftvarcon , only : alpha_nfix, alpha_ptase,ccost_nfix,ccost_ptase
     use pftvarcon , only : vmax_ptase, km_ptase, lamda_ptase
-    use pftvarcon , only : i_vc, s_vc
+    use pftvarcon , only : i_vc, s_vc, nsc_rtime, pinit_beta1, pinit_beta2
     use pftvarcon , only : leafcn_obs, frootcn_obs, livewdcn_obs, deadwdcn_obs
     use pftvarcon , only : leafcp_obs, frootcp_obs, livewdcp_obs, deadwdcp_obs
     use pftvarcon , only : fnr, act25, kcha, koha, cpha, vcmaxha, jmaxha, tpuha
     use pftvarcon , only : lmrha, vcmaxhd, jmaxhd, tpuhd, lmrse, qe, theta_cj
-    use pftvarcon , only : bbbopt, mbbopt, nstor, br_xr, tc_stress, lmrhd
+    use pftvarcon , only : bbbopt, mbbopt, nstor, br_xr, tc_stress, lmrhd, crit_gdd1, crit_gdd2
+    use pftvarcon , only : sal_threshold, KM_salinity, osm_inhib, sal_opt, sal_tol !floodf
     !
-
+    !----------------------F.-M. Yuan (2018-03-23): user-defined parameter file ---------------------------------------------------------------------
+    use pftvarcon , only : nonvascular, nfixer
+    !----------------------F.-M. Yuan (2018-03-23): user-defined parameter file ---------------------------------------------------------------------
+    
     class (vegetation_properties_type) :: this
 
     !LOCAL VARIABLES:
@@ -228,6 +252,7 @@ contains
     allocate(this%fr_flig       (0:numpft))        ; this%fr_flig      (:)   =nan
     allocate(this%leaf_long     (0:numpft))        ; this%leaf_long    (:)   =nan
     allocate(this%froot_long    (0:numpft))        ; this%froot_long   (:)   =nan
+    allocate(this%rhizome_long  (0:numpft))        ; this%rhizome_long (:)   =nan
     allocate(this%evergreen     (0:numpft))        ; this%evergreen    (:)   =nan
     allocate(this%stress_decid  (0:numpft))        ; this%stress_decid (:)   =nan
     allocate(this%season_decid  (0:numpft))        ; this%season_decid (:)   =nan
@@ -250,6 +275,9 @@ contains
     allocate(this%livewdcp      (0:numpft))        ; this%livewdcp     (:)   =nan
     allocate(this%deadwdcp      (0:numpft))        ; this%deadwdcp     (:)   =nan
     allocate(this%graincp       (0:numpft))        ; this%graincp      (:)   =nan
+   
+    allocate(this%Nfix_NPP_c1   (0:numpft))        ; this%Nfix_NPP_c1   (:)   =nan
+    allocate(this%Nfix_NPP_c2   (0:numpft))        ; this%Nfix_NPP_c2   (:)   =nan
 
     allocate( this%alpha_nfix    (0:numpft))                     ; this%alpha_nfix    (:)        =nan
     allocate( this%alpha_ptase   (0:numpft))                     ; this%alpha_ptase   (:)        =nan
@@ -267,6 +295,9 @@ contains
     allocate( this%vmax_ptase(0:numpft))                         ; this%vmax_ptase(:)            =nan
     allocate( this%i_vc(0:numpft))                               ; this%i_vc(:)                  =nan
     allocate( this%s_vc(0:numpft))                               ; this%s_vc(:)                  =nan
+    allocate( this%nsc_rtime(0:numpft))                          ; this%nsc_rtime(:)             =nan
+    allocate( this%pinit_beta1(0:nsoilorder))                    ; this%pinit_beta1(:)           =nan
+    allocate( this%pinit_beta2(0:nsoilorder))                    ; this%pinit_beta2(:)           =nan
     allocate( this%vmax_nfix(0:numpft))                          ; this%vmax_nfix(:)             =nan
     allocate( this%km_nfix(0:numpft))                            ; this%km_nfix(:)               =nan
     allocate( this%fnr(0:numpft))                                ; this%fnr(:)                   =nan
@@ -302,6 +333,18 @@ contains
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
+    allocate( this%crit_gdd1(0:numpft))                          ; this%crit_gdd1(:)             =nan
+    allocate( this%crit_gdd2(0:numpft))                          ; this%crit_gdd2(:)             =nan
+    !----------------------F.-M. Yuan (2018-03-23): user-defined parameter file ---------------------------------------------------------------------
+    allocate(this%nonvascular(0:numpft))                         ; this%nonvascular(:)           =huge(1)
+    allocate(this%nfixer(0:numpft))                              ; this%nfixer(:)                =huge(1)
+ 
+    allocate( this%sal_threshold(0:numpft))        ; this%sal_threshold(:)       =nan
+    allocate( this%KM_salinity(0:numpft))          ; this%KM_salinity(:)         =nan
+    allocate( this%osm_inhib(0:numpft))            ; this%osm_inhib(:)           =nan
+    allocate( this%sal_opt(0:numpft))              ; this%sal_opt(:)             =nan
+    allocate( this%sal_tol(0:numpft))              ; this%sal_tol(:)             =nan   
+    !allocate( this%floodf(0:numpft))               ; this%floodf(:)              =nan
     do m = 0,numpft
 
        if (m <= ntree) then
@@ -348,6 +391,7 @@ contains
        this%fr_flig(m)      = fr_flig(m)
        this%leaf_long(m)    = leaf_long(m)
        this%froot_long(m)   = froot_long(m)
+       this%rhizome_long(m) = rhizome_long(m)
        this%evergreen(m)    = evergreen(m)
        this%stress_decid(m) = stress_decid(m)
        this%season_decid(m) = season_decid(m)
@@ -388,6 +432,17 @@ contains
        this%mbbopt(m)       = mbbopt(m)
        this%nstor(m)        = nstor(m)
        this%br_xr(m)        = br_xr(m)
+       this%crit_gdd1(m)    = crit_gdd1(m)
+       this%crit_gdd2(m)    = crit_gdd2(m)
+ 
+
+       this%Nfix_NPP_c1(m)  = Nfix_NPP_c1(m)
+       this%Nfix_NPP_c2(m)  = Nfix_NPP_c2(m)
+
+    !----------------------F.-M. Yuan (2018-03-23): user-defined parameter file ---------------------------------------------------------------------
+       this%nonvascular(m)  = nonvascular(m)
+       this%nfixer(m)       = nfixer(m)
+    !----------------------F.-M. Yuan (2018-03-23): user-defined parameter file ---------------------------------------------------------------------
 
     end do
 
@@ -404,9 +459,16 @@ contains
         this%km_plant_p(m)     = km_plant_p(m)
         this%i_vc(m)           = i_vc(m)
         this%s_vc(m)           = s_vc(m)
+        this%nsc_rtime(m)      = nsc_rtime(m)
         this%vmax_nfix(m)      = vmax_nfix(m)
         this%km_nfix(m)        = km_nfix(m)
         this%vmax_ptase(m)     = vmax_ptase(m)
+        this%sal_threshold(m)  = sal_threshold(m)
+        this%KM_salinity(m)    = KM_salinity(m)
+        this%osm_inhib(m)      = osm_inhib(m)
+        this%sal_opt(m)        = sal_opt(m)
+        this%sal_tol(m)        = sal_tol(m)
+        !this%floodf(m)         = floodf(m)
 
         do j = 1 , nlevdecomp
            this%decompmicc_patch_vr(m,j) = decompmicc_patch_vr(j,m)
@@ -425,6 +487,8 @@ contains
     end do
 
     do m = 0, nsoilorder
+       this%pinit_beta1(m) = pinit_beta1(m)
+       this%pinit_beta2(m) = pinit_beta2(m)
        do j = 1 , nlevdecomp
           this%vmax_minsurf_p_vr(m,j) = vmax_minsurf_p_vr(j,m)
           this%km_minsurf_p_vr(m,j) = km_minsurf_p_vr(j,m)

@@ -245,8 +245,14 @@ contains
           qflx_sl_top_soil           =>    col_wf%qflx_sl_top_soil        , & ! Input:  [real(r8) (:)   ]  liquid water + ice from layer above soil to top soil layer or sent to qflx_qrgwl (mm H2O/s)
           qflx_liq_dynbal            =>    grc_wf%qflx_liq_dynbal         , & ! Input:  [real(r8) (:)   ]  liq runoff due to dynamic land cover change (mm H2O /s)
           qflx_ice_dynbal            =>    grc_wf%qflx_ice_dynbal         , & ! Input:  [real(r8) (:)   ]  ice runoff due to dynamic land cover change (mm H2O /s)
-          snow_sources               =>    col_wf%snow_sources            , & ! Output: [real(r8) (:)   ]  snow sources (mm H2O /s)
-          snow_sinks                 =>    col_wf%snow_sinks              , & ! Output: [real(r8) (:)   ]  snow sinks (mm H2O /s)
+#if (defined HUM_HOL || defined MARSH || defined COL3RD)
+          qflx_lat_aqu               =>    col_wf%qflx_lat_aqu            , & ! Input:   [real(r8) (:)   ]  lateral flow between hummock and hollow (mm H2O /s)
+          qflx_tide                  =>    col_wf%qflx_tide               , & ! Input:   [real(r8) (:)   ]  tidal flux between consecutive timesteps (mm H2O /s)
+          qflx_surf_input            =>    col_wf%qflx_surf_input         , & ! Input:   [real(r8) (:)   ]  input to hollow surface water from hummock (mm H2O /s)
+          eflx_sh_tide               =>    col_ef%eflx_sh_tide            , & ! Input:   [real(r8) (:)   ]  sensible heat flux from tide
+#endif
+          snow_sources               =>    col_wf%snow_sources            , & ! Output: [real(r8) (:)   ]  snow sources (mm H2O /s)  
+          snow_sinks                 =>    col_wf%snow_sinks              , & ! Output: [real(r8) (:)   ]  snow sinks (mm H2O /s)    
           qflx_lateral               =>    col_wf%qflx_lateral            , & ! Input:  [real(r8) (:)   ]  lateral flux of water to neighboring column (mm H2O /s)
 
           eflx_lwrad_out             =>    veg_ef%eflx_lwrad_out       , & ! Input:  [real(r8) (:)   ]  emitted infrared (longwave) radiation (W/m**2)
@@ -315,11 +321,28 @@ contains
 
           ! add qflx_drain_perched and qflx_flood
           if (col_pp%active(c)) then
+#if (defined HUM_HOL)
+          ! add qflx_drain_perched and qflx_flood
+             ! HUM_HOL
+             errh2o(c) = endwb(c) - begwb(c) &
+                 - (forc_rain_col(c) + forc_snow_col(c)  + qflx_floodc(c) + qflx_irrig(c) &
+                  - qflx_evap_tot(c) - qflx_surf(c) + qflx_surf_input(c) - qflx_h2osfc_surf(c) &
+                  - qflx_qrgwl(c) - qflx_drain(c) - qflx_drain_perched(c) - qflx_snwcp_ice(c)  &
+                  + qflx_lat_aqu(c) - qflx_lateral(c)) * dtime
+#elif (defined MARSH || defined COL3RD)
+             errh2o(c) = endwb(c) - begwb(c) &
+                  - (forc_rain_col(c) + forc_snow_col(c)  + qflx_floodc(c) + qflx_irrig(c) &
+                  + qflx_tide(c) & !TAO qflx_tide added
+                  - qflx_evap_tot(c) - qflx_surf(c) + qflx_surf_input(c) - qflx_h2osfc_surf(c) &
+                  - qflx_qrgwl(c) - qflx_drain(c) - qflx_drain_perched(c) - qflx_snwcp_ice(c)  &
+                  + qflx_lat_aqu(c)) * dtime
+#else
              errh2o(c) = endwb(c) - begwb(c) &
                   - (forc_rain_col(c) + forc_snow_col(c)  + qflx_floodc(c) + qflx_surf_irrig_col(c) + qflx_over_supply_col(c) &
                   - qflx_evap_tot(c) - qflx_surf(c)  - qflx_h2osfc_surf(c) &
                   - qflx_qrgwl(c) - qflx_drain(c) - qflx_drain_perched(c) - qflx_snwcp_ice(c) &
                   - qflx_lateral(c)) * dtime
+#endif
              dwb(c) = (endwb(c)-begwb(c))/dtime
 
           else
@@ -419,6 +442,11 @@ contains
              write(iulog,*)'qflx_glcice_melt           = ',qflx_glcice_melt(indexc)
              write(iulog,*)'qflx_glcice_frz            = ',qflx_glcice_frz(indexc)
              write(iulog,*)'qflx_lateral               = ',qflx_lateral(indexc)
+#if (defined HUM_HOL || defined MARSH || defined COL3RD)
+             write(iulog,*)'qflx_lat_aqu               = ',qflx_lat_aqu(indexc)
+             write(iulog,*)'qflx_tide                  = ',qflx_tide(indexc)
+             write(iulog,*)'qflx_surf_input            = ',qflx_surf_input(indexc)
+#endif
              write(iulog,*)'total_plant_stored_h2o_col = ',total_plant_stored_h2o_col(indexc)
              write(iulog,*)'elm model is stopping'
              call endrun(decomp_index=indexc, elmlevel=namec, msg=errmsg(__FILE__, __LINE__))
@@ -598,8 +626,15 @@ contains
              ! and a separate check is done above for these terms.
 
              if (.not. lun_pp%urbpoi(l)) then
+             #if (defined HUM_HOL || defined MARSH || defined COL3RD)
                 errseb(p) = sabv(p) + sabg_chk(p) + forc_lwrad(t) - eflx_lwrad_out(p) &
-                     - eflx_sh_tot(p) - eflx_lh_tot(p) - eflx_soil_grnd(p)
+                     - eflx_sh_tot(p) - eflx_lh_tot(p) - eflx_soil_grnd(p) !+ eflx_sh_tide(c) note, Junyan disabled this for test !SL added eflx_sh_tide 5-5-22
+             ! not to include eflx_sh_tide(c) when not use HUM_HOL or COL3D ...                  
+             #else     
+               errseb(p) = sabv(p) + sabg_chk(p) + forc_lwrad(t) - eflx_lwrad_out(p) &
+                     - eflx_sh_tot(p) - eflx_lh_tot(p) - eflx_soil_grnd(p) !SL added eflx_sh_tide 5-5-22         
+             #endif
+                     
              else
                 errseb(p) = sabv(p) + sabg(p) &
                      - eflx_lwrad_net(p) &

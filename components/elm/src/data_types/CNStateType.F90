@@ -117,6 +117,8 @@ module CNStateType
      real(r8), pointer :: onset_gddflag_patch          (:)     ! patch onset flag for growing degree day sum
      real(r8), pointer :: onset_fdd_patch              (:)     ! patch onset freezing degree days counter
      real(r8), pointer :: onset_gdd_patch              (:)     ! patch onset growing degree days
+     real(r8), pointer :: onset_chil_patch             (:)
+     real(r8), pointer :: dayl_temp                    (:)
      real(r8), pointer :: onset_swi_patch              (:)     ! patch onset soil water index
      real(r8), pointer :: offset_flag_patch            (:)     ! patch offset flag
      real(r8), pointer :: offset_counter_patch         (:)     ! patch offset days counter
@@ -157,6 +159,8 @@ module CNStateType
      real(r8), pointer :: cost_ben_scalar              (:)     ! cost benefit analysis scaling factor for root n uptake kinetics (no units)
      real(r8), pointer :: cn_scalar_runmean            (:)     ! long term average of cn scaling factor for root n uptake kinetics (no units) 
      real(r8), pointer :: cp_scalar_runmean            (:)     ! long term average of cp scaling factor for root p uptake kinetics (no units)
+     real(r8), pointer :: water_scalar                 (:)     ! water scaling factor for plant dynamic allocation
+     real(r8), pointer :: water_scalar_runmean         (:)     ! long term average of water scaling factor for plant allocation
 
      real(r8), pointer :: frac_loss_lit_to_fire_col        (:)
      real(r8), pointer :: frac_loss_cwd_to_fire_col        (:)
@@ -303,6 +307,8 @@ contains
     allocate(this%onset_gddflag_patch         (begp:endp)) ;    this%onset_gddflag_patch         (:) = nan
     allocate(this%onset_fdd_patch             (begp:endp)) ;    this%onset_fdd_patch             (:) = nan
     allocate(this%onset_gdd_patch             (begp:endp)) ;    this%onset_gdd_patch             (:) = nan
+    allocate(this%onset_chil_patch            (begp:endp)) ;    this%onset_chil_patch            (:) = nan
+    allocate(this%dayl_temp                   (begp:endp)) ;    this%dayl_temp                   (:) = nan
     allocate(this%onset_swi_patch             (begp:endp)) ;    this%onset_swi_patch             (:) = nan
     allocate(this%offset_flag_patch           (begp:endp)) ;    this%offset_flag_patch           (:) = nan
     allocate(this%offset_counter_patch        (begp:endp)) ;    this%offset_counter_patch        (:) = nan
@@ -340,6 +346,8 @@ contains
     allocate(this%cost_ben_scalar             (begp:endp))                   ; this%cost_ben_scalar(:) = 0.0
     allocate(this%cn_scalar_runmean           (begp:endp))                   ; this%cn_scalar_runmean (:) = 0.0
     allocate(this%cp_scalar_runmean           (begp:endp))                   ; this%cp_scalar_runmean (:) = 0.0
+    allocate(this%water_scalar                (begp:endp))                   ; this%water_scalar  (:) = 0._r8
+    allocate(this%water_scalar_runmean        (begp:endp))                   ; this%water_scalar_runmean(:) = 0._r8
     allocate(this%frac_loss_lit_to_fire_col       (begc:endc))               ; this%frac_loss_lit_to_fire_col(:) =0._r8
     allocate(this%frac_loss_cwd_to_fire_col       (begc:endc))               ; this%frac_loss_cwd_to_fire_col(:) =0._r8
     allocate(fert_type                        (begc:endc))                   ; fert_type     (:) = 0
@@ -545,6 +553,11 @@ contains
          avgflag='A', long_name='onset flag for growing degree day sum', &
          ptr_patch=this%onset_gddflag_patch, default='inactive')
 
+    this%onset_chil_patch(begp:endp) = spval
+    call hist_addfld1d (fname='ONSET_CHIL', units='none', &
+         avgflag='A', long_name='onset chilling day sum', &
+         ptr_patch=this%onset_chil_patch, default='inactive')
+
     this%onset_fdd_patch(begp:endp) = spval
     call hist_addfld1d (fname='ONSET_FDD', units='C degree-days', &
          avgflag='A', long_name='onset freezing degree days counter', &
@@ -676,6 +689,16 @@ contains
     call hist_addfld1d (fname='plim_m', units='', &
        avgflag='A', long_name='runmean P limitation factor', &
        ptr_patch=this%cp_scalar_runmean, default='active')
+
+    this%water_scalar(begp:endp) = spval
+    call hist_addfld1d (fname='water_scalar', units='', &
+       avgflag='A', long_name='water limitation factor for plant dynamic allocation', &
+       ptr_patch=this%water_scalar, default='active')
+
+    this%water_scalar_runmean(begp:endp) = spval
+    call hist_addfld1d (fname='wlim_m', units='', &
+       avgflag='A', long_name='runmean water limitation factor for plant dynamic allocation', &
+       ptr_patch=this%water_scalar_runmean, default='active')
 
     this%r_mort_cal_patch(begp:endp) = spval
     call hist_addfld1d (fname='R_MORT_CAL', units='1', &
@@ -1469,6 +1492,9 @@ contains
     call restartvar(ncid=ncid, flag=flag, varname='cp_scalar', xtype=ncd_double,  &
             dim1name='pft', long_name='cp_scalar', units='-', &
             interpinic_flag='interp', readvar=readvar, data=this%cp_scalar)
+    call restartvar(ncid=ncid, flag=flag, varname='water_scalar', xtype=ncd_double,  &
+            dim1name='pft', long_name='water_scalar', units='-', &
+            interpinic_flag='interp', readvar=readvar, data=this%water_scalar)
 
     call restartvar(ncid=ncid, flag=flag, varname='nlim_m', xtype=ncd_double,  &
             dim1name='pft', long_name='cn_scalar_runmean', units='-', &
@@ -1476,6 +1502,9 @@ contains
     call restartvar(ncid=ncid, flag=flag, varname='plim_m', xtype=ncd_double,  &
             dim1name='pft', long_name='cp_scalar_runmean', units='-', &
             interpinic_flag='interp', readvar=readvar, data=this%cp_scalar_runmean)
+    call restartvar(ncid=ncid, flag=flag, varname='wlim_m', xtype=ncd_double,  &
+            dim1name='pft', long_name='water_scalar_runmean', units='-', &
+            interpinic_flag='interp', readvar=readvar, data=this%water_scalar_runmean)
 
   end subroutine Restart
 
@@ -1492,12 +1521,17 @@ contains
 
     this%cn_scalar_runmean(bounds%begp:bounds%endp) = spval
     call init_accum_field (name='nlim_m', units='-',                                              &
-         desc='runing average of N limitation strength',  accum_type='runmean', accum_period=-7300,    &
+         desc='runing average of N limitation strength',  accum_type='runmean', accum_period=-30,    &
          subgrid_type='pft', numlev=1, init_value=0._r8)
 
     this%cp_scalar_runmean(bounds%begp:bounds%endp) = spval
     call init_accum_field (name='plim_m', units='-',                                              &
-         desc='runing average of P limitation strength',  accum_type='runmean', accum_period=-7300,    &
+         desc='runing average of P limitation strength',  accum_type='runmean', accum_period=-30,    &
+         subgrid_type='pft', numlev=1, init_value=0._r8)
+
+    this%water_scalar_runmean(bounds%begp:bounds%endp) = spval
+    call init_accum_field (name='wlim_m', units='-',                                              &
+         desc='runing average of water limitation strength',  accum_type='runmean', accum_period=-30,    &
          subgrid_type='pft', numlev=1, init_value=0._r8)
 
   end subroutine InitAccBuffer
@@ -1540,6 +1574,9 @@ contains
 
     call extract_accum_field ('plim_m', rbufslp, nstep)
     this%cp_scalar_runmean(begp:endp) = rbufslp(begp:endp)
+
+    call extract_accum_field ('wlim_m', rbufslp, nstep)
+    this%water_scalar_runmean(begp:endp) = rbufslp(begp:endp)
     deallocate(rbufslp)
   
   end subroutine InitAccVars
@@ -1594,6 +1631,11 @@ contains
     end do
     call update_accum_field  ('plim_m' , rbufslp             , nstep)
     call extract_accum_field ('plim_m' , this%cp_scalar_runmean  , nstep)
+    do p = begp,endp
+       rbufslp(p) = this%water_scalar(p)
+    end do
+    call update_accum_field  ('wlim_m' , rbufslp             , nstep)
+    call extract_accum_field ('wlim_m' , this%water_scalar_runmean  , nstep)
     deallocate(rbufslp)
 
   end subroutine UpdateAccVars

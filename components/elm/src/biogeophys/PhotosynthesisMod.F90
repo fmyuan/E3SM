@@ -14,7 +14,7 @@ module  PhotosynthesisMod
   use elm_varctl          , only : iulog, use_c13, use_c14, use_cn, use_fates
   use elm_varpar          , only : nlevcan
   use elm_varctl          , only : use_hydrstress
-  use elm_varpar          , only : nvegwcs, mxpft
+  use elm_varpar          , only : nvegwcs, mxpft_nc, mxpft
   use elm_varcon          , only : namep, spval
   use decompMod           , only : bounds_type
   use QuadraticMod        , only : quadratic
@@ -27,6 +27,7 @@ module  PhotosynthesisMod
   use PhotosynthesisType  , only : photosyns_type
   use VegetationType      , only : veg_pp
   use AllocationMod       , only : nu_com_leaf_physiology
+  use WaterStateType      , only : waterstate_type
   use elm_varctl          , only : carbon_only
   use elm_varctl          , only : carbonnitrogen_only
   use elm_varctl          , only : carbonphosphorus_only
@@ -128,9 +129,9 @@ contains
     ! allocate parameters
 
     allocate( this%krmax       (0:mxpft) )          ; this%krmax(:)        = spval
-    allocate( this%kmax        (0:mxpft,nvegwcs) )  ; this%kmax(:,:)       = spval
-    allocate( this%psi50       (0:mxpft,nvegwcs) )  ; this%psi50(:,:)      = spval
-    allocate( this%ck          (0:mxpft,nvegwcs) )  ; this%ck(:,:)         = spval
+    allocate( this%kmax        (0:mxpft_nc,nvegwcs) )  ; this%kmax(:,:)       = spval
+    allocate( this%psi50       (0:mxpft_nc,nvegwcs) )  ; this%psi50(:,:)      = spval
+    allocate( this%ck          (0:mxpft_nc,nvegwcs) )  ; this%ck(:,:)         = spval
     allocate( this%psi_soil_ref(0:mxpft) )          ; this%psi_soil_ref(:) = spval
 
     if ( use_hydrstress .and. nvegwcs /= 4 )then
@@ -157,12 +158,18 @@ contains
     logical            :: readv ! has variable been read in or not
     real(r8)           :: temp1d(0:mxpft) ! temporary to read in parameter
     real(r8)           :: temp2d(0:mxpft,nvegwcs) ! temporary to read in parameter
+    real(r8)           :: temp2dto1d((mxpft+1)*nvegwcs) ! temporary 
+    real(r8)           :: temp1dto2d(mxpft_nc+1,nvegwcs) ! temporary 
     character(len=100) :: tString ! temp. var for reading
+    integer            :: size1d !temp 1d array size
+    integer            :: true_size,true_rows
     !-----------------------------------------------------------------------
     ! read in parameters
     call params_inst%allocParams()
 
-
+    size1d = (mxpft+1)*nvegwcs
+    true_size = (mxpft_nc+1)*nvegwcs
+    true_rows = mxpft_nc+1
     tString = "krmax"
     call ncd_io(varname=trim(tString),data=temp1d, flag='read', ncid=ncid,readvar=readv)
     if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
@@ -171,22 +178,24 @@ contains
     call ncd_io(varname=trim(tString),data=temp1d, flag='read', ncid=ncid,readvar=readv)
     if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
     params_inst%psi_soil_ref=temp1d
-    tString = "lmr_intercept_atkin"
-    call ncd_io(varname=trim(tString),data=temp1d, flag='read', ncid=ncid,readvar=readv)
-    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
-    params_inst%lmr_intercept_atkin=temp1d
     tString = "kmax"
     call ncd_io(varname=trim(tString),data=temp2d, flag='read', ncid=ncid,readvar=readv)
     if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
-    params_inst%kmax=temp2d
+    temp2dto1d(:) = reshape(temp2d(:,:),(/size1d/))
+    temp1dto2d(:,:) = reshape(temp2dto1d(1:true_size),(/true_rows,nvegwcs/))
+    params_inst%kmax=temp1dto2d
     tString = "psi50"
     call ncd_io(varname=trim(tString),data=temp2d, flag='read', ncid=ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
-    params_inst%psi50=temp2d
+    temp2dto1d(:) = reshape(temp2d(:,:),(/size1d/))
+    temp1dto2d(:,:) = reshape(temp2dto1d(1:true_size),(/true_rows,nvegwcs/))
+    params_inst%psi50=temp1dto2d
     tString = "ck"
     call ncd_io(varname=trim(tString),data=temp2d, flag='read', ncid=ncid,readvar=readv)
     if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
-    params_inst%ck=temp2d
+    temp2dto1d(:) = reshape(temp2d(:,:),(/size1d/))
+    temp1dto2d(:,:) = reshape(temp2dto1d(1:true_size),(/true_rows,nvegwcs/))
+    params_inst%ck=temp1dto2d
 
     !$acc update device(            &
     !$acc params_inst%krmax       , &
@@ -352,6 +361,7 @@ contains
     real(r8) :: sum_nscaler
     real(r8) :: total_lai
     integer  :: rad_layers_patch
+    real(r8) :: wcscaler
     !------------------------------------------------------------------------------
     ! Temperature and soil water response functions
 
@@ -380,6 +390,7 @@ contains
          gb_mol        => photosyns_vars%gb_mol_patch              , & ! Output: [real(r8) (:)   ]  leaf boundary layer conductance (umol H2O/m**2/s)
          gs_mol        => photosyns_vars%gs_mol_patch              , & ! Output: [real(r8) (:,:) ]  leaf stomatal conductance (umol H2O/m**2/s)
          vcmax_z       => photosyns_vars%vcmax_z_patch             , & ! Output: [real(r8) (:,:) ]  maximum rate of carboxylation (umol co2/m**2/s)
+         vcmax25_top   => photosyns_vars%vcmax25_top_patch         , & ! Output: [real(r8) (:)   ]  maximum rate of carboxylation at top canopy at 25oC (umol co2/m**2/s)
          cp            => photosyns_vars%cp_patch                  , & ! Output: [real(r8) (:)   ]  CO2 compensation point (Pa)
          kc            => photosyns_vars%kc_patch                  , & ! Output: [real(r8) (:)   ]  Michaelis-Menten constant for CO2 (Pa)
          ko            => photosyns_vars%ko_patch                  , & ! Output: [real(r8) (:)   ]  Michaelis-Menten constant for O2 (Pa)
@@ -398,7 +409,13 @@ contains
          leafp_storage => veg_ps%leafp_storage , &
          leafp_xfer    => veg_ps%leafp_xfer    , &
          i_vcmax       => veg_vp%i_vc                          , &
-         s_vcmax       => veg_vp%s_vc                            &
+         s_vcmax       => veg_vp%s_vc                          , &
+         h2o_moss_wc   => veg_ws%h2o_moss_wc                   , & !Input: [real(r8) (:)   ]  Total Moss water content
+         h2osfc        => col_ws%h2osfc                        , & !Input: [real(r8) (:)   ]  Surface water
+         salinity      => col_ws%salinity                      , & !Input: [real(r8) (:)   ]  salinity (SLL 4/9/2021)
+         sal_threshold => veg_vp%sal_threshold                 , & !Input: [real(r8) (:)   ] Threshold salinity concentration to trigger osmotic inhibition (ppt)
+         KM_salinity   => veg_vp%KM_salinity                   , & !Input: [real(r8) (:)   ] half saturation constant for osmotic inhibition function
+         osm_inhib     => veg_vp%osm_inhib                       & !Input: [real(r8) (:)   ] osmotic inhibition factor   
          )
 
       if (phase == 'sun') then !sun
@@ -509,9 +526,33 @@ contains
          end if
 
          ! Soil water stress applied to Ball-Berry parameters
-
+#if (defined HUM_HOL)
+         if (veg_pp%itype(p) == 12) then
+             bbb(p) = (-0.195 + 0.134*(h2o_moss_wc(p)+1._r8) - &
+                     0.0256*(h2o_moss_wc(p) + 1.0_r8)**2  &
+                 + 0.00228 * (h2o_moss_wc(p) + 1.0_r8)**3 &
+                  -0.0000984*(h2o_moss_wc(p) + 1.0_r8)**4 + 0.00000168* &
+                  (h2o_moss_wc(p) + 1._r8)**5)*1.e06_r8/0.634_r8
+           if (bbb(p) .lt.(0.005*1.e06_r8/0.634_r8)) bbb(p) = 0.005*1.e06_r8/0.634_r8
+           if (bbb(p) .gt.(0.07*1.e06_r8/0.634_r8)) bbb(p) = 0.07*1.e06_r8/0.634_r8
+           mbb(p) = 0.0_r8
+         else
+           bbb(p) = max (bbbopt(p)*btran(p), 1._r8)
+           mbb(p) = mbbopt(p)
+         end if
+#elseif (defined MARSH || defined COL3RD)
+         !salinity(c) = 30.0_r8
+         !if (salinity(c) > sal_threshold(p)) then
+         !   btran(p) = (btran(p)*(1-salinity(c)/(KM_salinity(p)+salinity(c))))
+         !   bbb(p) = (bbbopt(p)*btran(p))
+         !else
+         !   bbb(p) = max (bbbopt(p)*btran(p), 1._r8)
+         !   mbb(p) = mbbopt(p)
+         !end if
+#else
          bbb(p) = max (bbbopt(p)*btran(p), 1._r8)
          mbb(p) = mbbopt(p)
+#endif
 
          ! kc, ko, cp, from: Bernacchi et al (2001) Plant, Cell and Environment 24:253-259
          !
@@ -602,6 +643,8 @@ contains
 
                vcmax25top = (i_vcmax(veg_pp%itype(p)) + s_vcmax(veg_pp%itype(p)) * lnc(p)) * dayl_factor(p)
                jmax25top = (2.59_r8 - 0.035_r8*min(max((t10(p)-tfrz),11._r8),35._r8)) * vcmax25top
+               vcmax25top = min(max(vcmax25top, 10.0_r8), 150.0_r8)
+               jmax25top = min(max(jmax25top, 10.0_r8), 250.0_r8)
 
             else
 
@@ -729,7 +772,11 @@ contains
 
             lmr25 = lmr25top * nscaler
             if (c3flag(p)) then
+#if (defined HUM_HOL)
+               lmr_z(p,iv) = lmr25 * ParamsShareInst%Q10_mr**((t_veg(p)-(tfrz+25._r8))/10._r8)
+#else
                lmr_z(p,iv) = lmr25 * ft(t_veg(p), lmrha) * fth(t_veg(p), lmrhd, lmrse, lmrc)
+#endif
             else
                lmr_z(p,iv) = lmr25 * 2._r8**((t_veg(p)-(tfrz+25._r8))/10._r8)
                lmr_z(p,iv) = lmr_z(p,iv) / (1._r8 + exp( 1.3_r8*(t_veg(p)-(tfrz+55._r8)) ))
@@ -778,7 +825,10 @@ contains
             ! Adjust for soil water
 
             vcmax_z(p,iv) = vcmax_z(p,iv) * btran(p)
-            lmr_z(p,iv) = lmr_z(p,iv) * btran(p)
+            lmr_z(p,iv) = lmr_z(p,iv) * btran(p) !will this carry over from the earlier if marsh statement? -SLL 4-8-21
+
+            ! output variable
+            vcmax25_top(p) = vcmax25top
          end do       ! canopy layer loop
       end do          ! patch loop
 
@@ -799,10 +849,19 @@ contains
          gb = 1._r8/rb(p)
          gb_mol(p) = gb * cf
 
-         ! Loop through canopy layers (above snow). Only do calculations if daytime
-        do iv = 1, nrad(p)
+         !Dessication and submergence scalaers for moss photosynthesis
+         !if (veg_pp%itype(p) == 12)then
+         !   wcscaler = (-0.656_r8 + 1.654_r8 *log10(h2o_moss_wc (p)))
+         !   !DMR 05/11/17 - add scaler for submergence effect
+         !   !wcscaler = wcscaler * (1.0_r8 - min(h2osfc(c),50.0_r8)/50.0_r8)
+         !   wcscaler = max(0._r8, min(1.0_r8, wcscaler))
+         !endif
 
-            if (par_z(p,iv) <= 0._r8) then           ! night time
+         ! Loop through canopy layers (above snow). Only do calculations if daytime
+         do iv = 1, nrad(p)
+
+           !if (veg_pp%itype(p) == 12) lmr_z(p,iv) = lmr_z(p,iv) * wcscaler
+           if (par_z(p,iv) <= 0._r8) then           ! night time
 
                ac(p,iv) = 0._r8
                aj(p,iv) = 0._r8
@@ -859,13 +918,19 @@ contains
                ! End of ci iteration.  Check for an < 0, in which case gs_mol = bbb
 
                if (an(p,iv) < 0._r8) gs_mol(p,iv) = bbb(p)
-
+#if (defined HUM_HOL)
+               if (veg_pp%itype(p) == 12) gs_mol(p,iv) = bbb(p)
+#endif
                ! Final estimates for cs and ci (needed for early exit of ci iteration when an < 0)
 
                cs = cair(p) - 1.4_r8/gb_mol(p) * an(p,iv) * forc_pbot(t)
                cs = max(cs,1.e-06_r8)
                ci_z(p,iv) = cair(p) - an(p,iv) * forc_pbot(t) * (1.4_r8*gs_mol(p,iv)+1.6_r8*gb_mol(p)) / (gb_mol(p)*gs_mol(p,iv))
-
+#if (defined HUM_HOL)
+               if (veg_pp%itype(p) == 12) then
+                  ci_z(p,iv) = cair(p)-an(p,iv) * forc_pbot(c)/gs_mol(p,iv)
+               endif
+#endif
                ! Convert gs_mol (umol H2O/m**2/s) to gs (m/s) and then to rs (s/m)
 
                gs = gs_mol(p,iv) / cf
@@ -935,7 +1000,15 @@ contains
             psncan_wj = psncan_wj + psn_wj_z(p,iv) * lai_z(p,iv)
             psncan_wp = psncan_wp + psn_wp_z(p,iv) * lai_z(p,iv)
             lmrcan = lmrcan + lmr_z(p,iv) * lai_z(p,iv)
+#if (defined HUM_HOL)
+            if (veg_pp%itype(p) == 12) then
+               gscan = gscan + lai_z(p,iv) / rs_z(p,iv)
+            else
+               gscan = gscan + lai_z(p,iv) / (rb(p)+rs_z(p,iv))
+            endif
+#else
             gscan = gscan + lai_z(p,iv) / (rb(p)+rs_z(p,iv))
+#endif
             laican = laican + lai_z(p,iv)
          end do
          if (laican > 0._r8) then
@@ -1247,8 +1320,7 @@ contains
   subroutine brent(x, x1,x2,f1, f2, tol, ip, iv, ic, it, gb_mol, je, cair, oair,&
        lmr_z, par_z, rh_can, gs_mol, &
        atm2lnd_vars, photosyns_vars)
-     !$acc routine seq
-
+    !
     !!DESCRIPTION:
     !Use Brent's method to find the root of a single variable function ci_func, which is known to exist between x1 and x2.
     !The found root will be updated until its accuracy is tol.
@@ -1437,7 +1509,7 @@ contains
   !------------------------------------------------------------------------------
   subroutine ci_func(ci, fval, p, iv, c, t, gb_mol, je, cair, oair, lmr_z, par_z,&
        rh_can, gs_mol, atm2lnd_vars, photosyns_vars)
-    !$acc routine seq
+    !
     !! DESCRIPTION:
     ! evaluate the function
     ! f(ci)=ci - (ca - (1.37rb+1.65rs))*patm*an
@@ -1471,6 +1543,7 @@ contains
     real(r8) :: fnps                 ! fraction of light absorbed by non-photosynthetic pigments
     real(r8) :: theta_psii           ! empirical curvature parameter for electron transport rate
     real(r8) :: theta_ip             ! empirical curvature parameter for ap photosynthesis co-limitation
+    real(r8) :: wcscaler  
     !------------------------------------------------------------------------------
 
     associate(&
@@ -1490,7 +1563,9 @@ contains
          kp_z       => photosyns_vars%kp_z_patch               , & ! Output: [real(r8) (:,:) ]  initial slope of CO2 response curve (C4 plants)
          theta_cj   => photosyns_vars%theta_cj_patch           , & ! Output: [real(r8) (:)   ]  empirical curvature parameter for ac, aj photosynthesis co-limitation
          bbb        => photosyns_vars%bbb_patch                , & ! Output: [real(r8) (:)   ]  Ball-Berry minimum leaf conductance (umol H2O/m**2/s)
-         mbb        => photosyns_vars%mbb_patch                  & ! Output: [real(r8) (:)   ]  Ball-Berry slope of conductance-photosynthesis relationship
+         mbb        => photosyns_vars%mbb_patch                , & ! Output: [real(r8) (:)   ]  Ball-Berry slope of conductance-photosynthesis relationship        
+         h2o_moss_wc   => veg_ws%h2o_moss_wc                   , & ! Input: [real(r8) (:)   ]  Total Moss water content
+         h2osfc        => col_ws%h2osfc                          & ! Input: [real(r8) (:)   ]  Surface water
          )
 
       ! Miscellaneous parameters, from Bonan et al (2011) JGR, 116, doi:10.1029/2010JG001593
@@ -1535,6 +1610,16 @@ contains
       call quadratic (aquad, bquad, cquad, r1, r2)
       ag(p,iv) = min(r1,r2)
 
+      !Dessication and submergence effects for moss PFT
+      !if (veg_pp%itype(p) == 12)then
+      !   wcscaler = (-0.656_r8 + 1.654_r8 *log10(h2o_moss_wc (p)))
+      !   !DMR 05/11/17 - add scaler for submergence effect
+      !   !wcscaler = wcscaler * (1.0_r8 - min(h2osfc(c),50.0_r8)/50.0_r8)
+      !   wcscaler = max(0._r8, min(1.0_r8, wcscaler))
+      !   ag(p,iv) = ag(p,iv) * wcscaler
+      !   !if (h2osfc(c) > 0) print*, 'AG', c, h2osfc(c), wcscaler
+      !endif
+
       ! Net photosynthesis. Exit iteration if an < 0
 
       an(p,iv) = ag(p,iv) - lmr_z
@@ -1552,11 +1637,15 @@ contains
       cquad = -gb_mol*(cs*bbb(p) + mbb(p)*an(p,iv)*forc_pbot(t)*rh_can)
       call quadratic (aquad, bquad, cquad, r1, r2)
       gs_mol = max(r1,r2)
-
+#if (defined HUM_HOL)
+      if (veg_pp%itype(p) == 12) gs_mol = bbb(p)
+#endif
       ! Derive new estimate for ci
 
       fval =ci - cair + an(p,iv) * forc_pbot(t) * (1.4_r8*gs_mol+1.6_r8*gb_mol) / (gb_mol*gs_mol)
-
+#if (defined HUM_HOL)
+      if (veg_pp%itype(p) == 12) fval = ci - cair + an(p,iv) *forc_pbot(c)/gs_mol
+#endif
     end associate
 
   end subroutine ci_func
@@ -1870,9 +1959,13 @@ contains
          leafp_xfer    => veg_ps%leafp_xfer    , &
          i_vcmax       => veg_vp%i_vc                          , &
          s_vcmax       => veg_vp%s_vc                          , &
-         bsw           => soilstate_inst%bsw_col                , & ! Input:  [real(r8) (:,:) ]  Clapp and Hornberger "b"
-         sucsat        => soilstate_inst%sucsat_col             ,  & ! Input:  [real(r8) (:,:) ]  minimum soil suction (mm)
-         ivt           => veg_pp%itype                             & ! Input:  [integer  (:)   ]  patch vegetation type
+         bsw           => soilstate_inst%bsw_col               , & ! Input:  [real(r8) (:,:) ]  Clapp and Hornberger "b"
+         sucsat        => soilstate_inst%sucsat_col            , & ! Input:  [real(r8) (:,:) ]  minimum soil suction (mm)
+         ivt           => veg_pp%itype                         , & ! Input:  [integer  (:)   ]  patch vegetation type
+         salinity      => col_ws%salinity                      , & ! Input:  [real(r8) (:)   ] salinity ppt
+         sal_threshold => veg_vp%sal_threshold                 , & !Input: [real(r8) (:)   ] Threshold salinity concentration to trigger osmotic inhibition (ppt)
+         KM_salinity   => veg_vp%KM_salinity                   , & !Input: [real(r8) (:)   ] half saturation constant for osmotic inhibition function
+         osm_inhib     => veg_vp%osm_inhib                       & !Input: [real(r8) (:)   ] osmotic inhibition factor
       )
       an_sun        =>    photosyns_inst%an_sun_patch         ! Output: [real(r8) (:,:) ]  net sunlit leaf photosynthesis (umol CO2/m**2/s)
       an_sha        =>    photosyns_inst%an_sha_patch         ! Output: [real(r8) (:,:) ]  net shaded leaf photosynthesis (umol CO2/m**2/s)
@@ -2036,8 +2129,14 @@ contains
 
          ! Soil water stress applied to Ball-Berry parameters
 
-         bbb(p) = bbbopt(p)
-         mbb(p) = mbbopt(p)
+!#if (defined MARSH)
+         !SLL add osm_inhib function here
+         !if (salinity(c) > sal_threshold(veg_pp%itype(p))) then
+         !osm_inhib(veg_pp%itype(p)) = (1-salinity(c)/(KM_salinity(veg_pp%itype(p))+salinity(c)))
+         !   bbb(p) = max (bbbopt(p)*btran(p)*(osm_inhib(veg_pp%itype(p))), 1._r8)
+         !   mbb(p) = mbbopt(p)
+         !end if
+!#endif
 
          ! kc, ko, cp, from: Bernacchi et al (2001) Plant, Cell and Environment
          ! 24:253-259
@@ -2634,16 +2733,15 @@ contains
          !KO  Here's how I'm combining bsun and bsha to get btran
          !KO  But this is not really an indication of soil moisture stress that can be
          !KO  used for, e.g., irrigation?
-         if ( laican_sha+laican_sun > 0._r8 ) then
-            btran(p) = bsun(p) * (laican_sun / (laican_sun + laican_sha)) + &
-                       bsha(p) * (laican_sha / (laican_sun + laican_sha))
-         else
-            !KO  Btran has a valid value even if there is no exposed lai (elai=0).
-            !KO  In this case, bsun and bsha should have the same value and btran
+         !if ( laican_sha+laican_sun > 0._r8 ) then
+            !btran(p) = bsun(p) * (laican_sun / (laican_sun + laican_sha)) + &
+                       !bsha(p) * (laican_sha / (laican_sun + laican_sha))         
+         !else
+            !KO  Btran has a valid value even if there is no exposed lai (elai=0).  
+            !KO  In this case, bsun and bsha should have the same value and btran 
             !KO  can be set to either bsun or bsha.  But this needs to be checked.
-            btran(p) = bsun(p)
-         end if
-
+            !btran(p) = bsun(p)
+         !end if
       end do
 
     end associate
@@ -3355,22 +3453,9 @@ contains
           ! cannot invert the matrix, solve for x algebraically assuming no flux
           exit
        end if
-       if (laisun(p)>tol_lai.and.laisha(p)>tol_lai)then
-          !dx = matmul(A,f)
-          !cu_error = cublasdgemv(h, 0,nvegwcs , nvegwcs, 1d0, A, nvegwcs, f, 1, 0d0, dx, 1)
-          call matvec_acc(1,nvegwcs,dx,A,f)
-       else
-          !reduces to 3x3 system
-          !in this case, dx is not always [sun,sha,xyl,root]
-          !sun and sha flip depending on which is lai==0
-          dx(sun)=0._r8
-          !dx(sha:root)=matmul(A(sha:root,sha:root),f(sha:root))
-          call matvec_acc(sha,root,dx,A,f )
-          !NOTE: root-sha +1 = 3 is hardcoded
-          !!cu_error = cublasdgemv(h, 0,root-sha +1 ,root-sha +1, 1d0, &
-          !!                      A(sha:root,sha:root), root-sha +1, f(sha:root), 1, 0d0, dx(sha:root), 1)
-
-       endif
+       !dx = matmul(A,f)
+       !cu_error = cublasdgemv(h, 0,nvegwcs , nvegwcs, 1d0, A, nvegwcs, f, 1, 0d0, dx, 1)
+       call matvec_acc(1,nvegwcs,dx,A,f)
 
 
        if ( maxval(abs(dx)) > 50000._r8) then
@@ -3378,28 +3463,13 @@ contains
        end if
 
 
-       if (laisun(p)>tol_lai.and.laisha(p)>tol_lai)then
-          x=x+dx
-       elseif (laisha(p)>tol_lai) then
-          x=x+dx
-          x(sun)=x(xyl) ! psi_sun = psi_xyl because laisun==0
-       else
-          x(xyl:root)=x(xyl:root)+dx(xyl:root)
-          x(sun)=x(sun)+dx(sha)  ! implementation ugly bit, chose to flip dx(sun) and dx(sha) for laisha==0 case
-          x(sha)=x(xyl) ! psi_sha = psi_xyl because laisha==0
-
-       endif
-
+       x=x+dx
 
        if ( sqrt(sum(dx*dx)) < toldx) then
           !step in vegwp small -> exit
           exit
        end if
 
-       ! this is a catch to force spac gradient to atmosphere
-       if ( x(xyl) > x(root) ) x(xyl) = x(root)
-       if ( x(sun) > x(xyl) )  x(sun) = x(xyl)
-       if ( x(sha) > x(xyl) )  x(sha) = x(xyl)
 
     end do
 
@@ -3567,72 +3637,51 @@ contains
          - tsai(p) * params_inst%kmax(veg_pp%itype(p),xyl) / htop(p) * dfr * (x(root)-x(xyl)-grav1)&
          - sum(k_soil_root(p,1:nlevsoi))
 
+    if (laisha(p)<=tol_lai) then
+      A(2,2) = -1._r8
+      A(2,3) = 1._r8
+    end if
+
+    if (laisun(p)<=tol_lai) then
+      A(1,1) = -1._r8
+      A(1,3) = 1._r8
+    end if
+
+
     invfactor=1._r8
     A=invfactor*A
 
     !matrix inversion
-    if (laisun(p)>tol_lai .and. laisha(p)>tol_lai) then
-       ! general case
 
-       determ=A(4,4)*A(2,2)*A(3,3)*A(1,1) - A(4,4)*A(2,2)*A(3,1)*A(1,3)&
+    determ=A(4,4)*A(2,2)*A(3,3)*A(1,1) - A(4,4)*A(2,2)*A(3,1)*A(1,3)&
             - A(4,4)*A(3,2)*A(2,3)*A(1,1) - A(4,3)*A(1,1)*A(2,2)*A(3,4)
-       if ( abs(determ) <= 1.e-50_r8 ) then
-          flag = .true.  !tells calling function that the matrix is not invertible
-          return
-       else
-          flag = .false.
-       end if
+    if ( abs(determ) <= 1.e-50_r8 ) then
+       flag = .true.  !tells calling function that the matrix is not invertible
+       return
+    else
+       flag = .false.
+    end if
 
-       leading = 1._r8/determ
+    leading = 1._r8/determ
 
        !algebraic inversion of the matrix
-       invA(1,1)=leading*A(4,4)*A(2,2)*A(3,3) - leading*A(4,4)*A(3,2)*A(2,3) - leading*A(4,3)*A(2,2)*A(3,4)
-       invA(2,1)=leading*A(2,3)*A(4,4)*A(3,1)
-       invA(3,1)=-leading*A(4,4)*A(2,2)*A(3,1)
-       invA(4,1)=leading*A(4,3)*A(2,2)*A(3,1)
-       invA(1,2)=leading*A(1,3)*A(4,4)*A(3,2)
-       invA(2,2)=leading*A(4,4)*A(3,3)*A(1,1)-leading*A(4,4)*A(3,1)*A(1,3)-leading*A(4,3)*A(1,1)*A(3,4)
-       invA(3,2)=-leading*A(1,1)*A(4,4)*A(3,2)
-       invA(4,2)=leading*A(4,3)*A(1,1)*A(3,2)
-       invA(1,3)=-leading*A(1,3)*A(2,2)*A(4,4)
-       invA(2,3)=-leading*A(2,3)*A(1,1)*A(4,4)
-       invA(3,3)=leading*A(2,2)*A(1,1)*A(4,4)
-       invA(4,3)=-leading*A(4,3)*A(1,1)*A(2,2)
-       invA(1,4)=leading*A(1,3)*A(3,4)*A(2,2)
-       invA(2,4)=leading*A(2,3)*A(3,4)*A(1,1)
-       invA(3,4)=-leading*A(3,4)*A(1,1)*A(2,2)
-       invA(4,4)=leading*A(2,2)*A(3,3)*A(1,1)-leading*A(2,2)*A(3,1)*A(1,3)-leading*A(3,2)*A(2,3)*A(1,1)
-       invA=invfactor*invA !undo inversion scaling
-    else
-       ! if laisun or laisha ==0 invert the corresponding 3x3 matrix
-       ! if both are zero, this routine is not called
-       if (laisha(p)<=tol_lai) then
-          ! shift nonzero matrix values so that both 3x3 cases can be inverted with the same code
-          A(2,2)=A(1,1)
-          A(3,2)=A(3,1)
-          A(2,3)=A(1,3)
-       endif
-       determ=A(2,2)*A(3,3)*A(4,4)-A(3,4)*A(2,2)*A(4,3)-A(2,3)*A(3,2)*A(4,4)
-       if ( abs(determ) <= 1.e-50_r8 ) then
-          flag = .true.  !tells calling function that the matrix is not invertible
-          return
-       else
-          flag = .false.
-       end if
-
-       !algebraic inversion of the 3x3 matrix stored in A(2:4,2:4)
-       invA(2,2)=A(3,3)*A(4,4)-A(3,4)*A(4,3)
-       invA(2,3)=-A(2,3)*A(4,4)
-       invA(2,4)=A(3,4)*A(2,3)
-       invA(3,2)=-A(3,2)*A(4,4)
-       invA(3,3)=A(2,2)*A(4,4)
-       invA(3,4)=-A(3,4)*A(2,2)
-       invA(4,2)=A(3,2)*A(4,3)
-       invA(4,3)=-A(2,2)*A(4,3)
-       invA(4,4)=A(2,2)*A(3,3)-A(2,3)*A(3,2)
-       invA=1._r8/determ*invA
-
-    endif
+    invA(1,1)=leading*A(4,4)*A(2,2)*A(3,3) - leading*A(4,4)*A(3,2)*A(2,3) - leading*A(4,3)*A(2,2)*A(3,4)
+    invA(2,1)=leading*A(2,3)*A(4,4)*A(3,1)
+    invA(3,1)=-leading*A(4,4)*A(2,2)*A(3,1)
+    invA(4,1)=leading*A(4,3)*A(2,2)*A(3,1)
+    invA(1,2)=leading*A(1,3)*A(4,4)*A(3,2)
+    invA(2,2)=leading*A(4,4)*A(3,3)*A(1,1)-leading*A(4,4)*A(3,1)*A(1,3)-leading*A(4,3)*A(1,1)*A(3,4)
+    invA(3,2)=-leading*A(1,1)*A(4,4)*A(3,2)
+    invA(4,2)=leading*A(4,3)*A(1,1)*A(3,2)
+    invA(1,3)=-leading*A(1,3)*A(2,2)*A(4,4)
+    invA(2,3)=-leading*A(2,3)*A(1,1)*A(4,4)
+    invA(3,3)=leading*A(2,2)*A(1,1)*A(4,4)
+    invA(4,3)=-leading*A(4,3)*A(1,1)*A(2,2)
+    invA(1,4)=leading*A(1,3)*A(3,4)*A(2,2)
+    invA(2,4)=leading*A(2,3)*A(3,4)*A(1,1)
+    invA(3,4)=-leading*A(3,4)*A(1,1)*A(2,2)
+    invA(4,4)=leading*A(2,2)*A(3,3)*A(1,1)-leading*A(2,2)*A(3,1)*A(1,3)-leading*A(3,2)*A(2,3)*A(1,1)
+    invA=invfactor*invA !undo inversion scaling
 
     end associate
 
@@ -3711,12 +3760,12 @@ contains
     !!TODO         tsai(p)*params_inst%kmax(veg_pp%itype(p),xyl) / htop(p) * fr * (x(root)-x(xyl)-grav1)
 
     if (laisha(p)<tol_lai) then
-       ! special case for laisha ~ 0
-       ! flip sunlit and shade fluxes to match special case handling in spacA
-       temp=f(sun)
-       f(sun)=f(sha)
-       f(sha)=temp
-    endif
+      f(sha) = x(sha) - x(xyl)
+    end if
+    if (laisun(p)<tol_lai) then
+      f(sun) = x(sun) - x(xyl)
+    end if
+
 
     end associate
 

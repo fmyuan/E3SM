@@ -530,6 +530,7 @@ contains
     integer           , intent(in)    :: num_soilp       ! number of soil patches in filter
     integer           , intent(in)    :: filter_soilp(:) ! filter for soil patches
     type(cnstate_type), intent(inout) :: cnstate_vars
+
     !
     ! !LOCAL VARIABLES:
     real(r8):: dayspyr                ! Days per year
@@ -546,7 +547,52 @@ contains
          bglfr_leaf  => cnstate_vars%bglfr_leaf_patch , & ! Output: [real(r8) (:) ]  background leaf litterfall rate (1/s)
          bglfr_froot => cnstate_vars%bglfr_froot_patch, & ! Output: [real(r8) (:) ]  background fine root litterfall (1/s)
          bgtr        => cnstate_vars%bgtr_patch  , & ! Output: [real(r8) (:) ]  background transfer growth rate (1/s)
-         lgsf        => cnstate_vars%lgsf_patch    & ! Output: [real(r8) (:) ]  long growing season factor [0-1]
+         lgsf        => cnstate_vars%lgsf_patch  , & ! Output: [real(r8) (:) ]  long growing season factor [0-1]
+        
+         woody                               =>    veg_vp%woody                        , &
+
+         leafc_storage                       =>    veg_cs%leafc_storage                , & ! Input:  [real(r8)  (:)   ]  (gC/m2) leaf C storage
+         frootc_storage                      =>    veg_cs%frootc_storage               , & ! Input:  [real(r8)  (:)   ]  (gC/m2) fine root C storage
+         livestemc_storage                   =>    veg_cs%livestemc_storage            , & ! Input:  [real(r8)  (:)   ]  (gC/m2) live stem C storage
+         deadstemc_storage                   =>    veg_cs%deadstemc_storage            , & ! Input:  [real(r8)  (:)   ]  (gC/m2) dead stem C storage
+         livecrootc_storage                  =>    veg_cs%livecrootc_storage           , & ! Input:  [real(r8)  (:)   ]  (gC/m2) live coarse root C storage
+         deadcrootc_storage                  =>    veg_cs%deadcrootc_storage           , & ! Input:  [real(r8)  (:)   ]  (gC/m2) dead coarse root C storage
+         gresp_storage                       =>    veg_cs%gresp_storage                , & ! Input:  [real(r8)  (:)   ]  (gC/m2) growth respiration storage
+
+         leafn_storage                       =>    veg_ns%leafn_storage                , & ! Input:  [real(r8)  (:)   ]  (gN/m2) leaf N storage
+         frootn_storage                      =>    veg_ns%frootn_storage               , & ! Input:  [real(r8)  (:)   ]  (gN/m2) fine root N storage
+         livestemn_storage                   =>    veg_ns%livestemn_storage            , & ! Input:  [real(r8)  (:)   ]  (gN/m2) live stem N storage
+         deadstemn_storage                   =>    veg_ns%deadstemn_storage            , & ! Input:  [real(r8)  (:)   ]  (gN/m2) dead stem N storage
+         livecrootn_storage                  =>    veg_ns%livecrootn_storage           , & ! Input:  [real(r8)  (:)   ]  (gN/m2) live coarse root N storage
+         deadcrootn_storage                  =>    veg_ns%deadcrootn_storage           , & ! Input:  [real(r8)  (:)   ]  (gN/m2) dead coarse root N storage
+
+         leafp_storage                       =>    veg_ps%leafp_storage                , & ! Input:  [real(r8)  (:)   ]  (gP/m2) leaf P storage
+         frootp_storage                      =>    veg_ps%frootp_storage               , & ! Input:  [real(r8)  (:)   ]  (gP/m2) fine root P storage
+         livestemp_storage                   =>    veg_ps%livestemp_storage            , & ! Input:  [real(r8)  (:)   ]  (gP/m2) live stem P storage
+         deadstemp_storage                   =>    veg_ps%deadstemp_storage            , & ! Input:  [real(r8)  (:)   ]  (gP/m2) dead stem P storage
+         livecrootp_storage                  =>    veg_ps%livecrootp_storage           , & ! Input:  [real(r8)  (:)   ]  (gP/m2) live coarse root P storage
+         deadcrootp_storage                  =>    veg_ps%deadcrootp_storage           , & ! Input:  [real(r8)  (:)   ]  (gP/m2) dead coarse root P storage
+
+         leafc_storage_to_xfer               =>    veg_cf%leafc_storage_to_xfer        , & ! Output:  [real(r8) (:)   ]
+         frootc_storage_to_xfer              =>    veg_cf%frootc_storage_to_xfer       , & ! Output:  [real(r8) (:)   ]
+         livestemc_storage_to_xfer           =>    veg_cf%livestemc_storage_to_xfer    , & ! Output:  [real(r8) (:)   ]
+         deadstemc_storage_to_xfer           =>    veg_cf%deadstemc_storage_to_xfer    , & ! Output:  [real(r8) (:)   ]
+         livecrootc_storage_to_xfer          =>    veg_cf%livecrootc_storage_to_xfer   , & ! Output:  [real(r8) (:)   ]
+         deadcrootc_storage_to_xfer          =>    veg_cf%deadcrootc_storage_to_xfer   , & ! Output:  [real(r8) (:)   ]
+         gresp_storage_to_xfer               =>    veg_cf%gresp_storage_to_xfer        , & ! Output:  [real(r8) (:)   ]
+         leafn_storage_to_xfer               =>    veg_nf%leafn_storage_to_xfer        , & ! Output:  [real(r8) (:)   ]
+         frootn_storage_to_xfer              =>    veg_nf%frootn_storage_to_xfer       , & ! Output:  [real(r8) (:)   ]
+         livestemn_storage_to_xfer           =>    veg_nf%livestemn_storage_to_xfer    , & ! Output:  [real(r8) (:)   ]
+         deadstemn_storage_to_xfer           =>    veg_nf%deadstemn_storage_to_xfer    , & ! Output:  [real(r8) (:)   ]
+         livecrootn_storage_to_xfer          =>    veg_nf%livecrootn_storage_to_xfer   , & ! Output:  [real(r8) (:)   ]
+         deadcrootn_storage_to_xfer          =>    veg_nf%deadcrootn_storage_to_xfer   , & ! Output:  [real(r8) (:)   ]
+
+         leafp_storage_to_xfer               =>    veg_pf%leafp_storage_to_xfer        , & ! Output:  [real(r8) (:)   ]
+         frootp_storage_to_xfer              =>    veg_pf%frootp_storage_to_xfer       , & ! Output:  [real(r8) (:)   ]
+         livestemp_storage_to_xfer           =>    veg_pf%livestemp_storage_to_xfer    , & ! Output:  [real(r8) (:)   ]
+         deadstemp_storage_to_xfer           =>    veg_pf%deadstemp_storage_to_xfer    , & ! Output:  [real(r8) (:)   ]
+         livecrootp_storage_to_xfer          =>    veg_pf%livecrootp_storage_to_xfer   , & ! Output:  [real(r8) (:)   ]
+         deadcrootp_storage_to_xfer          =>    veg_pf%deadcrootp_storage_to_xfer     & ! Output:  [real(r8) (:)   ]
          )
 
       dayspyr = dayspyr_mod
@@ -556,8 +602,43 @@ contains
          if (evergreen(ivt(p)) == 1._r8) then
             bglfr_leaf(p)  = 1._r8/(leaf_long(ivt(p)) * dayspyr * secspday)
             bglfr_froot(p) = 1._r8/(froot_long(ivt(p)) * dayspyr * secspday)
-            bgtr(p)  = 0._r8
+            ! bgtr(p)  = 0._r8
+            ! B. Sulman: set background transfer rate based on interpreting fstor2tran as a per-year fraction 
+            ! If bgtr is nonzero, C/N/P will automatically be transferred from xfer to displayed pools in CNOnsetGrowth
+            bgtr(p)   = PhenolParamsInst%fstor2tran/(dayspyr * secspday) 
             lgsf(p)  = 0._r8
+
+            ! B. Sulman: Allow evergreen plants to transfer C/N/P from storage pools to growth, at a constant rate (for now)
+            leafc_storage_to_xfer(p)  = bgtr(p) * leafc_storage(p)
+            frootc_storage_to_xfer(p)  = bgtr(p) * frootc_storage(p)
+            gresp_storage_to_xfer(p)      = bgtr(p) * gresp_storage(p)
+            livecrootc_storage_to_xfer(p) = bgtr(p) * livecrootc_storage(p) ! For graminoid rhizomes
+            
+            if (woody(ivt(p)) == 1.0_r8) then
+                livestemc_storage_to_xfer(p)  = bgtr(p) * livestemc_storage(p)
+                deadstemc_storage_to_xfer(p)  = bgtr(p) * deadstemc_storage(p)
+                deadcrootc_storage_to_xfer(p) = bgtr(p) * deadcrootc_storage(p)
+            end if
+
+            ! set nitrogen fluxes for shifting storage pools to transfer pools
+            leafn_storage_to_xfer(p)  = bgtr(p) * leafn_storage(p)
+            frootn_storage_to_xfer(p) = bgtr(p) * frootn_storage(p)
+            livecrootn_storage_to_xfer(p) = bgtr(p) * livecrootn_storage(p)
+            if (woody(ivt(p)) == 1.0_r8) then
+                 livestemn_storage_to_xfer(p)  = bgtr(p) * livestemn_storage(p)
+                 deadstemn_storage_to_xfer(p)  = bgtr(p) * deadstemn_storage(p)
+                 deadcrootn_storage_to_xfer(p) = bgtr(p) * deadcrootn_storage(p)
+            end if
+
+            ! set phosphorus fluxes for shifting storage pools to transfer pools
+            leafp_storage_to_xfer(p)  = bgtr(p) * leafp_storage(p)
+            frootp_storage_to_xfer(p) = bgtr(p) * frootp_storage(p)
+            livecrootp_storage_to_xfer(p) = bgtr(p) * livecrootp_storage(p)
+            if (woody(ivt(p)) == 1.0_r8) then
+                livestemp_storage_to_xfer(p)  = bgtr(p) * livestemp_storage(p)
+                deadstemp_storage_to_xfer(p)  = bgtr(p) * deadstemp_storage(p)
+                deadcrootp_storage_to_xfer(p) = bgtr(p) * deadcrootp_storage(p)
+            end if
          end if
       end do
 
@@ -599,8 +680,10 @@ contains
 
          season_decid                        =>    veg_vp%season_decid                               , & ! Input:  [real(r8)  (:)   ]  binary flag for seasonal-deciduous leaf habit (0 or 1)
          woody                               =>    veg_vp%woody                                      , & ! Input:  [real(r8)  (:)   ]  binary flag for woody lifeform (1=woody, 0=not woody)
-
+         crit_gdd1                           =>    veg_vp%crit_gdd1                                  , & ! Input:  [real(r8) (:) ] critical GDD intercept (at t = 0)
+         crit_gdd2                           =>    veg_vp%crit_gdd2                                  , & ! Input:  [real(r8) (:) ] critical GDD slope (funtion of MAT)
          t_soisno                            =>    col_es%t_soisno                         , & ! Input:  [real(r8)  (:,:) ]  soil temperature (Kelvin)  (-nlevsno+1:nlevgrnd)
+         t_ref2m                             =>    veg_es%t_ref2m                          , & ! Input:  [real(r8) (:) ]  2 m height surface air temperature (K)
 
          annavg_t2m                          =>    cnstate_vars%annavg_t2m_patch                         , & ! Input:  [real(r8)  (:)   ]  annual average 2m air temperature (K)
          dormant_flag                        =>    cnstate_vars%dormant_flag_patch                       , & ! Output: [real(r8)  (:)   ]  dormancy flag
@@ -609,6 +692,8 @@ contains
          onset_counter                       =>    cnstate_vars%onset_counter_patch                      , & ! Output: [real(r8)  (:)   ]  onset counter (seconds)
          onset_gddflag                       =>    cnstate_vars%onset_gddflag_patch                      , & ! Output: [real(r8)  (:)   ]  onset freeze flag
          onset_gdd                           =>    cnstate_vars%onset_gdd_patch                          , & ! Output: [real(r8)  (:)   ]  onset growing degree days
+         onset_chil                          =>    cnstate_vars%onset_chil_patch                         , & 
+         dayl_temp                           =>    cnstate_vars%dayl_temp                         , &
          offset_flag                         =>    cnstate_vars%offset_flag_patch                        , & ! Output: [real(r8)  (:)   ]  offset flag
          offset_counter                      =>    cnstate_vars%offset_counter_patch                     , & ! Output: [real(r8)  (:)   ]  offset counter (seconds)
          bglfr_leaf                          =>    cnstate_vars%bglfr_leaf_patch                         , & ! Output: [real(r8)  (:)   ]  background leaf litterfall rate (1/s)
@@ -705,10 +790,11 @@ contains
       do fp = 1,num_soilp
          p = filter_soilp(fp)
          c = veg_pp%column(p)
-         g = veg_pp%gridcell(p)
-
+         g = veg_pp%gridcell(p)           
+      
          if (season_decid(ivt(p)) == 1._r8) then
-
+            soilt = t_soisno(1,3)
+            crit_onset_gdd = exp(crit_gdd1(ivt(p)) + 0.13_r8*(annavg_t2m(p) - SHR_CONST_TKFRZ))
             ! set background litterfall rate, background transfer rate, and
             ! long growing season factor to 0 for seasonal deciduous types
             bglfr_leaf(p) = 0._r8
@@ -717,8 +803,8 @@ contains
             lgsf(p) = 0._r8
 
             ! onset gdd sum from Biome-BGC, v4.1.2
-            crit_onset_gdd = exp(4.8_r8 + 0.13_r8*(annavg_t2m(p) - SHR_CONST_TKFRZ))
-
+            !crit_onset_gdd = exp(crit_gdd1(ivt(p)) + crit_gdd2(ivt(p))*(annavg_t2m(p) - SHR_CONST_TKFRZ))
+            !crit_onset_gdd = exp(4.8_r8 + 0.13_r8*(annavg_t2m(p) - SHR_CONST_TKFRZ))
             ! set flag for solstice period (winter->summer = 1, summer->winter = 0)
             if (dayl(g) >= prev_dayl(g)) then
                ws_flag = 1._r8
@@ -728,14 +814,17 @@ contains
 
             ! update offset_counter and test for the end of the offset period
             if (offset_flag(p) == 1.0_r8) then
-               ! decrement counter for offset period
-               offset_counter(p) = offset_counter(p) - dt
+               if (c==2) then
+                  offset_counter(p) = offset_counter(p)
+               else if (c==1) then
+                  offset_counter(p) = offset_counter(p) - dt
+               endif
 
                ! if this is the end of the offset_period, reset phenology
                ! flags and indices
                if (offset_counter(p) == 0.0_r8) then
-                  ! this code block was originally handled by call cn_offset_cleanup(p)
-                  ! inlined during vectorization
+               ! this code block was originally handled by call cn_offset_cleanup(p)
+               ! inlined during vectorization
 
                   offset_flag(p) = 0._r8
                   offset_counter(p) = 0._r8
@@ -745,19 +834,22 @@ contains
                   ! reset the previous timestep litterfall flux memory
                   prev_leafc_to_litter(p) = 0._r8
                   prev_frootc_to_litter(p) = 0._r8
-               end if
-            end if
-
+               endif
+            endif   
             ! update onset_counter and test for the end of the onset period
             if (onset_flag(p) == 1.0_r8) then
                ! decrement counter for onset period
-               onset_counter(p) = onset_counter(p) - dt
+               if (c==2) then
+                  onset_counter(p) = onset_counter(p)
+               else if (c==1) then
+                  onset_counter(p) = onset_counter(p) - dt
+               endif
 
-               ! if this is the end of the onset period, reset phenology
-               ! flags and indices
+                  ! if this is the end of the onset period, reset phenology
+                  ! flags and indices
                if (onset_counter(p) == 0.0_r8) then
-                  ! this code block was originally handled by call cn_onset_cleanup(p)
-                  ! inlined during vectorization
+               ! this code block was originally handled by call cn_onset_cleanup(p)
+               ! inlined during vectorization
 
                   onset_flag(p) = 0.0_r8
                   onset_counter(p) = 0.0_r8
@@ -768,18 +860,18 @@ contains
                   frootn_xfer_to_frootn(p) = 0.0_r8
                   leafp_xfer_to_leafp(p)   = 0.0_r8
                   frootp_xfer_to_frootp(p) = 0.0_r8
+                  livecrootc_xfer_to_livecrootc(p) = 0.0_r8 ! Graminoid rhizomes
+                  livecrootn_xfer_to_livecrootn(p) = 0.0_r8
+                  livecrootp_xfer_to_livecrootp(p) = 0.0_r8
                   if (woody(ivt(p)) == 1.0_r8) then
                      livestemc_xfer_to_livestemc(p)   = 0.0_r8
                      deadstemc_xfer_to_deadstemc(p)   = 0.0_r8
-                     livecrootc_xfer_to_livecrootc(p) = 0.0_r8
                      deadcrootc_xfer_to_deadcrootc(p) = 0.0_r8
                      livestemn_xfer_to_livestemn(p)   = 0.0_r8
                      deadstemn_xfer_to_deadstemn(p)   = 0.0_r8
-                     livecrootn_xfer_to_livecrootn(p) = 0.0_r8
                      deadcrootn_xfer_to_deadcrootn(p) = 0.0_r8
                      livestemp_xfer_to_livestemp(p)   = 0.0_r8
                      deadstemp_xfer_to_deadstemp(p)   = 0.0_r8
-                     livecrootp_xfer_to_livecrootp(p) = 0.0_r8
                      deadcrootp_xfer_to_deadcrootp(p) = 0.0_r8
                   end if
                   ! set transfer pools to 0.0
@@ -789,6 +881,9 @@ contains
                   frootc_xfer(p) = 0.0_r8
                   frootn_xfer(p) = 0.0_r8
                   frootp_xfer(p) = 0.0_r8
+                  livecrootc_xfer(p) = 0.0_r8
+                  livecrootn_xfer(p) = 0.0_r8
+                  livecrootp_xfer(p) = 0.0_r8
                   if (woody(ivt(p)) == 1.0_r8) then
                      livestemc_xfer(p) = 0.0_r8
                      livestemn_xfer(p) = 0.0_r8
@@ -796,15 +891,12 @@ contains
                      deadstemc_xfer(p) = 0.0_r8
                      deadstemn_xfer(p) = 0.0_r8
                      deadstemp_xfer(p) = 0.0_r8
-                     livecrootc_xfer(p) = 0.0_r8
-                     livecrootn_xfer(p) = 0.0_r8
-                     livecrootp_xfer(p) = 0.0_r8
                      deadcrootc_xfer(p) = 0.0_r8
                      deadcrootn_xfer(p) = 0.0_r8
                      deadcrootp_xfer(p) = 0.0_r8
                   end if
                end if
-            end if
+            endif
 
             ! test for switching from dormant period to growth period
             if (dormant_flag(p) == 1.0_r8) then
@@ -815,15 +907,23 @@ contains
                if (onset_gddflag(p) == 0._r8 .and. ws_flag == 1._r8) then
                   onset_gddflag(p) = 1._r8
                   onset_gdd(p) = 0._r8
+                  onset_chil(p) = 0._r8
+                  dayl_temp(p) = 0._r8
                end if
-
+            
                ! Test to turn off growing degree-day sum, if on.
                ! This test resets the growing degree day sum if it gets past
                ! the summer solstice without reaching the threshold value.
                ! In that case, it will take until the next winter solstice
                ! before the growing degree-day summation starts again.
 
-               if (onset_gddflag(p) == 1._r8 .and. ws_flag == 0._r8) then
+               ! A note by F-M Yuan (2020-02-21): when having heavy snow winter,
+               ! snow melting may be lasting into July in some Arctic area (esp. East Russia)
+               ! So better to let ONSET stage up to 'offset' starting criteria date.
+
+               !if (onset_gddflag(p) == 1._r8 .and. ws_flag == 0._r8) then
+               if (onset_gddflag(p) == 1._r8 .and. &
+                   (ws_flag == 0._r8 .and. dayl(g) < PhenolParamsInst%crit_dayl) ) then
                   onset_gddflag(p) = 0._r8
                   onset_gdd(p) = 0._r8
                end if
@@ -831,9 +931,31 @@ contains
                ! if the gdd flag is set, and if the soil is above freezing
                ! then accumulate growing degree days for onset trigger
 
-               soilt = t_soisno(c,3)
-               if (onset_gddflag(p) == 1.0_r8 .and. soilt > SHR_CONST_TKFRZ) then
-                  onset_gdd(p) = onset_gdd(p) + (soilt-SHR_CONST_TKFRZ)*fracday
+
+               !if (onset_gddflag(p) == 1.0_r8 .and. soilt > SHR_CONST_TKFRZ) then
+               !   onset_gdd(p) = onset_gdd(p) + (soilt-SHR_CONST_TKFRZ)*fracday
+               if (ivt(p)==3) then!DN (3)
+                 !forcing
+                 if (onset_gddflag(p) == 1.0_r8 .and. t_ref2m(p) > 279.50_r8 .and. ws_flag == 1._r8) then
+                   onset_gdd(p) = onset_gdd(p)+(t_ref2m(p)-279.50_r8)*fracday
+                 end if
+                 !then accumulate chilling days for onset trigger
+                 if (onset_gddflag(p) == 1.0_r8 .and. t_ref2m(p) < 279.50_r8 .and. ws_flag == 1._r8) then
+                   onset_chil(p) = onset_chil(p) + fracday
+                 end if
+                 crit_onset_gdd = 9._r8 +2112._r8 * exp(-0.04_r8 * onset_chil(p))
+               else if (ivt(p)==11) then !SH (11)
+                 if (onset_gddflag(p) == 1.0_r8 .and. t_ref2m(p) > 279.05_r8 .and. ws_flag == 1._r8) then
+                   onset_gdd(p) = onset_gdd(p) +(t_ref2m(p)-279.05_r8)*fracday
+                 end if
+                 if (onset_gddflag(p) == 1.0_r8 .and. t_ref2m(p) < 279.05_r8 .and. ws_flag == 1._r8) then
+                   onset_chil(p) = onset_chil(p) + fracday
+                 end if
+                 crit_onset_gdd = 33._r8 + 1388._r8 * exp(-0.02_r8 * onset_chil(p))
+               else
+                 if (onset_gddflag(p) == 1.0_r8 .and. soilt > SHR_CONST_TKFRZ) then
+                   onset_gdd(p) = onset_gdd(p) + (soilt-SHR_CONST_TKFRZ)*fracday
+                 end if
                end if
 
                ! set onset_flag if critical growing degree-day sum is exceeded
@@ -842,6 +964,8 @@ contains
                   dormant_flag(p) = 0.0_r8
                   onset_gddflag(p) = 0.0_r8
                   onset_gdd(p) = 0.0_r8
+                  onset_chil(p) = 0.0_r8
+                  dayl_temp(p) = 0.0_r8
                   onset_counter(p) = PhenolParamsInst%ndays_on * secspday
 
                   ! move all the storage pools into transfer pools,
@@ -852,10 +976,10 @@ contains
                   ! set carbon fluxes for shifting storage pools to transfer pools
                   leafc_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * leafc_storage(p)/dt
                   frootc_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * frootc_storage(p)/dt
+                  livecrootc_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * livecrootc_storage(p)/dt
                   if (woody(ivt(p)) == 1.0_r8) then
                      livestemc_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * livestemc_storage(p)/dt
                      deadstemc_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * deadstemc_storage(p)/dt
-                     livecrootc_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * livecrootc_storage(p)/dt
                      deadcrootc_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * deadcrootc_storage(p)/dt
                      gresp_storage_to_xfer(p)      = PhenolParamsInst%fstor2tran * gresp_storage(p)/dt
                   end if
@@ -863,39 +987,71 @@ contains
                   ! set nitrogen fluxes for shifting storage pools to transfer pools
                   leafn_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * leafn_storage(p)/dt
                   frootn_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * frootn_storage(p)/dt
+                  livecrootn_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * livecrootn_storage(p)/dt
                   if (woody(ivt(p)) == 1.0_r8) then
                      livestemn_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * livestemn_storage(p)/dt
                      deadstemn_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * deadstemn_storage(p)/dt
-                     livecrootn_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * livecrootn_storage(p)/dt
                      deadcrootn_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * deadcrootn_storage(p)/dt
                   end if
 
                   ! set phosphorus fluxes for shifting storage pools to transfer pools
                   leafp_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * leafp_storage(p)/dt
                   frootp_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * frootp_storage(p)/dt
+                  livecrootp_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * livecrootp_storage(p)/dt
                   if (woody(ivt(p)) == 1.0_r8) then
                      livestemp_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * livestemp_storage(p)/dt
                      deadstemp_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * deadstemp_storage(p)/dt
-                     livecrootp_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * livecrootp_storage(p)/dt
                      deadcrootp_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * deadcrootp_storage(p)/dt
                   end if
                end if
 
                ! test for switching from growth period to offset period
-            else if (offset_flag(p) == 0.0_r8) then
+            else if (dormant_flag(p)==0.0_r8 .and. offset_flag(p) == 0.0_r8) then
                ! only begin to test for offset daylength once past the summer sol
-               if (ws_flag == 0._r8 .and. dayl(g) < PhenolParamsInst%crit_dayl) then
+
+              if (ivt(p) == 3) then
+                if(ws_flag == 0._r8 .and. dayl(g) < 46800.0_r8 .and. t_ref2m(p) < 294.5_r8) then
+                  dayl_temp(p) =dayl_temp(p) + ((294.5_r8 - t_ref2m(p))**2 * (dayl(g)/46800.0_r8 )) * fracday
+                end if
+
+                if(ws_flag == 0._r8 .and. dayl_temp(p)> 1750.0_r8) then
+                  offset_flag(p) = 1._r8
+                  dayl_temp(p) = 0._r8
+                  offset_counter(p) = PhenolParamsInst%ndays_off * secspday
+                  prev_leafc_to_litter(p) = 0._r8
+                  prev_frootc_to_litter(p) = 0._r8
+                end if
+              else if (ivt(p) == 11) then
+                if(ws_flag == 0._r8 .and. dayl(g) < 54600.0_r8 .and. t_ref2m(p) < 290.15_r8) then
+                  dayl_temp(p) =dayl_temp(p) +( (290.15_r8 - t_ref2m(p))**2 *(dayl(g)/54600.0_r8))*fracday
+                end if
+                if(ws_flag == 0._r8 .and. dayl_temp(p)> 1600.0_r8) then
+                  offset_flag(p) = 1._r8
+                  dayl_temp(p) = 0._r8
+                  offset_counter(p) = PhenolParamsInst%ndays_off * secspday
+                  prev_leafc_to_litter(p) = 0._r8
+                  prev_frootc_to_litter(p) = 0._r8
+                end if
+              else
+                if (ws_flag == 0._r8 .and. dayl(g) < PhenolParamsInst%crit_dayl) then
                   offset_flag(p) = 1._r8
                   offset_counter(p) = PhenolParamsInst%ndays_off * secspday
                   prev_leafc_to_litter(p) = 0._r8
                   prev_frootc_to_litter(p) = 0._r8
-               end if
+                 end if
+              end if
             end if
-
+            !make sure a second onset period doesn't occur SL 02-09-22
+            if (ws_flag == 0._r8 .and. dayl(g) < PhenolParamsInst%crit_dayl) then
+               onset_flag(p) = 0._r8
+               onset_counter = 0._r8 !SL this might interfere with arctic stuff but fixes random fall onset_counter > 0
+               !dormant_flag(p) = 1._r8
+            endif
          end if ! end if seasonal deciduous
 
-      end do ! end of pft loop
 
+      end do ! end of pft loop
+     
     end associate
 
   end subroutine CNSeasonDecidPhenology
@@ -919,6 +1075,7 @@ contains
       !$acc routine seq
     use elm_varcon       , only : secspday
     use shr_const_mod    , only : SHR_CONST_TKFRZ, SHR_CONST_PI
+    use ColumnDataType   , only : col_es, col_ws, col_cf, col_nf, col_pf  !TAO added 5/19/2020
     !
     ! !ARGUMENTS:
     integer                  , intent(in)    :: num_soilp       ! number of soil patches in filter
@@ -945,11 +1102,12 @@ contains
          froot_long                          =>    veg_vp%froot_long                                 , & ! Input:  [real(r8)  (:)   ]  fine root longevity (yrs)
          woody                               =>    veg_vp%woody                                      , & ! Input:  [real(r8)  (:)   ]  binary flag for woody lifeform (1=woody, 0=not woody)
          stress_decid                        =>    veg_vp%stress_decid                               , & ! Input:  [real(r8)  (:)   ]  binary flag for stress-deciduous leaf habit (0 or 1)
-
+         crit_gdd1                           =>    veg_vp%crit_gdd1                                  , & ! Input:  [real(r8) (:) ] critical GDD intercept (at t = 0)
          soilpsi                             =>    soilstate_vars%soilpsi_col                            , & ! Input:  [real(r8)  (:,:) ]  soil water potential in each soil layer (MPa)
 
          t_soisno                            =>    col_es%t_soisno                         , & ! Input:  [real(r8)  (:,:) ]  soil temperature (Kelvin)  (-nlevsno+1:nlevgrnd)
-
+         h2osfc                              =>    col_ws%h2osfc                                         , & ! Input:  [real(r8) (:)   ]  surface water (mm)
+         salinity                            =>    col_ws%salinity                                        , & ! Input:  [real(r8) (:)   ]  salinity (TAO 5/19/2020)
          prec10                              =>    top_af%prec10d                                        , & ! Input:  [real(r8) (:)    ]  10-day running mean precipitation, mm H2O/s
          dormant_flag                        =>    cnstate_vars%dormant_flag_patch                       , & ! Output:  [real(r8) (:)   ]  dormancy flag
          days_active                         =>    cnstate_vars%days_active_patch                        , & ! Output:  [real(r8) (:)   ]  number of days since last dormancy
@@ -1070,9 +1228,8 @@ contains
             psi = soilpsi(c,3)
 
             ! onset gdd sum from Biome-BGC, v4.1.2
-            crit_onset_gdd = exp(4.8_r8 + 0.13_r8*(annavg_t2m(p) - SHR_CONST_TKFRZ))
-
-
+            crit_onset_gdd = exp(crit_gdd1(ivt(p)) + 0.13_r8*(annavg_t2m(p) - SHR_CONST_TKFRZ))
+            
             ! update offset_counter and test for the end of the offset period
             if (offset_flag(p) == 1._r8) then
                ! decrement counter for offset period
@@ -1113,18 +1270,18 @@ contains
                   frootn_xfer_to_frootn(p) = 0._r8
                   leafp_xfer_to_leafp(p)   = 0._r8
                   frootp_xfer_to_frootp(p) = 0._r8
+                  livecrootc_xfer_to_livecrootc(p) = 0._r8
+                  livecrootn_xfer_to_livecrootn(p) = 0._r8
+                  livecrootp_xfer_to_livecrootp(p) = 0._r8
                   if (woody(ivt(p)) == 1.0_r8) then
                      livestemc_xfer_to_livestemc(p)   = 0._r8
                      deadstemc_xfer_to_deadstemc(p)   = 0._r8
-                     livecrootc_xfer_to_livecrootc(p) = 0._r8
                      deadcrootc_xfer_to_deadcrootc(p) = 0._r8
                      livestemn_xfer_to_livestemn(p)   = 0._r8
                      deadstemn_xfer_to_deadstemn(p)   = 0._r8
-                     livecrootn_xfer_to_livecrootn(p) = 0._r8
                      deadcrootn_xfer_to_deadcrootn(p) = 0._r8
                      livestemp_xfer_to_livestemp(p)   = 0._r8
                      deadstemp_xfer_to_deadstemp(p)   = 0._r8
-                     livecrootp_xfer_to_livecrootp(p) = 0._r8
                      deadcrootp_xfer_to_deadcrootp(p) = 0._r8
                   end if
                   ! set transfer pools to 0.0
@@ -1134,6 +1291,9 @@ contains
                   frootc_xfer(p) = 0._r8
                   frootn_xfer(p) = 0._r8
                   frootp_xfer(p) = 0._r8
+                  livecrootc_xfer(p) = 0._r8
+                  livecrootn_xfer(p) = 0._r8
+                  livecrootp_xfer(p) = 0._r8
                   if (woody(ivt(p)) == 1.0_r8) then
                      livestemc_xfer(p) = 0._r8
                      livestemn_xfer(p) = 0._r8
@@ -1141,9 +1301,6 @@ contains
                      deadstemc_xfer(p) = 0._r8
                      deadstemn_xfer(p) = 0._r8
                      deadstemp_xfer(p) = 0._r8
-                     livecrootc_xfer(p) = 0._r8
-                     livecrootn_xfer(p) = 0._r8
-                     livecrootp_xfer(p) = 0._r8
                      deadcrootc_xfer(p) = 0._r8
                      deadcrootn_xfer(p) = 0._r8
                      deadcrootp_xfer(p) = 0._r8
@@ -1178,6 +1335,7 @@ contains
                if (onset_gddflag(p) == 1._r8 .and. soilt > SHR_CONST_TKFRZ) then
                   onset_gdd(p) = onset_gdd(p) + (soilt-SHR_CONST_TKFRZ)*fracday
                end if
+
 
                ! if soils are wet, accumulate soil water index for onset trigger
                if (psi >= soilpsi_on) onset_swi(p) = onset_swi(p) + fracday
@@ -1226,10 +1384,10 @@ contains
                   ! set carbon fluxes for shifting storage pools to transfer pools
                   leafc_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * leafc_storage(p)/dt
                   frootc_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * frootc_storage(p)/dt
+                  livecrootc_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * livecrootc_storage(p)/dt
                   if (woody(ivt(p)) == 1.0_r8) then
                      livestemc_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * livestemc_storage(p)/dt
                      deadstemc_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * deadstemc_storage(p)/dt
-                     livecrootc_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * livecrootc_storage(p)/dt
                      deadcrootc_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * deadcrootc_storage(p)/dt
                      gresp_storage_to_xfer(p)      = PhenolParamsInst%fstor2tran * gresp_storage(p)/dt
                   end if
@@ -1237,20 +1395,20 @@ contains
                   ! set nitrogen fluxes for shifting storage pools to transfer pools
                   leafn_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * leafn_storage(p)/dt
                   frootn_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * frootn_storage(p)/dt
+                  livecrootn_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * livecrootn_storage(p)/dt
                   if (woody(ivt(p)) == 1.0_r8) then
                      livestemn_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * livestemn_storage(p)/dt
                      deadstemn_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * deadstemn_storage(p)/dt
-                     livecrootn_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * livecrootn_storage(p)/dt
                      deadcrootn_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * deadcrootn_storage(p)/dt
                   end if
 
                   ! set phosphorus fluxes for shifting storage pools to transfer pools
                   leafp_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * leafp_storage(p)/dt
                   frootp_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * frootp_storage(p)/dt
+                  livecrootp_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * livecrootp_storage(p)/dt
                   if (woody(ivt(p)) == 1.0_r8) then
                      livestemp_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * livestemp_storage(p)/dt
                      deadstemp_storage_to_xfer(p)  = PhenolParamsInst%fstor2tran * deadstemp_storage(p)/dt
-                     livecrootp_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * livecrootp_storage(p)/dt
                      deadcrootp_storage_to_xfer(p) = PhenolParamsInst%fstor2tran * deadcrootp_storage(p)/dt
                   end if
 
@@ -1262,15 +1420,20 @@ contains
                ! if soil water potential lower than critical value, accumulate
                ! as stress in offset soil water index
 
-               if (psi <= soilpsi_off) then
-                  offset_swi(p) = offset_swi(p) + fracday
+!#if (defined MARSH)
+               !if (psi <= soilpsi_off .or. h2osfc(c) >= 120) then ! h20sfc in mm 29/8/2018 TAO 
+!#else
+               if (psi <= soilpsi_off) then               
+!#endif
+
+               offset_swi(p) = offset_swi(p) + fracday
 
                   ! if the offset soil water index exceeds critical value, and
                   ! if this is not the middle of a previously initiated onset period,
                   ! then set flag to start the offset period and reset index variables
 
-                  if (offset_swi(p) >= crit_offset_swi .and. onset_flag(p) == 0._r8) offset_flag(p) = 1._r8
-
+                  if (offset_swi(p) >= crit_offset_swi .and. onset_flag(p) == 0._r8) offset_flag(p) = 1._r8 ! TAO edit in parameter file
+                  
                   ! if soil water potential higher than critical value, reduce the
                   ! offset water stress index.  By this mechanism, there must be a
                   ! sustained period of water stress to initiate offset.
@@ -1349,10 +1512,10 @@ contains
 
                leafc_storage_to_xfer(p)  = leafc_storage(p) * bgtr(p)
                frootc_storage_to_xfer(p) = frootc_storage(p) * bgtr(p)
+               livecrootc_storage_to_xfer(p) = livecrootc_storage(p) * bgtr(p)
                if (woody(ivt(p)) == 1.0_r8) then
                   livestemc_storage_to_xfer(p)  = livestemc_storage(p) * bgtr(p)
                   deadstemc_storage_to_xfer(p)  = deadstemc_storage(p) * bgtr(p)
-                  livecrootc_storage_to_xfer(p) = livecrootc_storage(p) * bgtr(p)
                   deadcrootc_storage_to_xfer(p) = deadcrootc_storage(p) * bgtr(p)
                   gresp_storage_to_xfer(p)      = gresp_storage(p) * bgtr(p)
                end if
@@ -1360,10 +1523,10 @@ contains
                ! set nitrogen fluxes for shifting storage pools to transfer pools
                leafn_storage_to_xfer(p)  = leafn_storage(p) * bgtr(p)
                frootn_storage_to_xfer(p) = frootn_storage(p) * bgtr(p)
+               livecrootn_storage_to_xfer(p) = livecrootn_storage(p) * bgtr(p)
                if (woody(ivt(p)) == 1.0_r8) then
                   livestemn_storage_to_xfer(p)  = livestemn_storage(p) * bgtr(p)
                   deadstemn_storage_to_xfer(p)  = deadstemn_storage(p) * bgtr(p)
-                  livecrootn_storage_to_xfer(p) = livecrootn_storage(p) * bgtr(p)
                   deadcrootn_storage_to_xfer(p) = deadcrootn_storage(p) * bgtr(p)
                end if
 
@@ -1371,14 +1534,14 @@ contains
                ! set phosphorus fluxes for shifting storage pools to transfer pools
                leafp_storage_to_xfer(p)  = leafp_storage(p) * bgtr(p)
                frootp_storage_to_xfer(p) = frootp_storage(p) * bgtr(p)
+               livecrootp_storage_to_xfer(p) = livecrootp_storage(p) * bgtr(p)
                if (woody(ivt(p)) == 1.0_r8) then
                   livestemp_storage_to_xfer(p)  = livestemp_storage(p) * bgtr(p)
                   deadstemp_storage_to_xfer(p)  = deadstemp_storage(p) * bgtr(p)
-                  livecrootp_storage_to_xfer(p) = livecrootp_storage(p) * bgtr(p)
                   deadcrootp_storage_to_xfer(p) = deadcrootp_storage(p) * bgtr(p)
                end if
             end if
-
+           
          end if ! end if stress deciduous
 
       end do ! end of pft loop
@@ -2652,19 +2815,19 @@ contains
             frootn_xfer_to_frootn(p) = t1 * frootn_xfer(p)
             leafp_xfer_to_leafp(p)   = t1 * leafp_xfer(p)
             frootp_xfer_to_frootp(p) = t1 * frootp_xfer(p)
+            livecrootc_xfer_to_livecrootc(p) = t1 * livecrootc_xfer(p)
+            livecrootn_xfer_to_livecrootn(p) = t1 * livecrootn_xfer(p)
+            livecrootp_xfer_to_livecrootp(p) = t1 * livecrootp_xfer(p)
             if (woody(ivt(p)) == 1.0_r8) then
                livestemc_xfer_to_livestemc(p)   = t1 * livestemc_xfer(p)
                deadstemc_xfer_to_deadstemc(p)   = t1 * deadstemc_xfer(p)
-               livecrootc_xfer_to_livecrootc(p) = t1 * livecrootc_xfer(p)
                deadcrootc_xfer_to_deadcrootc(p) = t1 * deadcrootc_xfer(p)
                livestemn_xfer_to_livestemn(p)   = t1 * livestemn_xfer(p)
                deadstemn_xfer_to_deadstemn(p)   = t1 * deadstemn_xfer(p)
-               livecrootn_xfer_to_livecrootn(p) = t1 * livecrootn_xfer(p)
                deadcrootn_xfer_to_deadcrootn(p) = t1 * deadcrootn_xfer(p)
 
                livestemp_xfer_to_livestemp(p)   = t1 * livestemp_xfer(p)
                deadstemp_xfer_to_deadstemp(p)   = t1 * deadstemp_xfer(p)
-               livecrootp_xfer_to_livecrootp(p) = t1 * livecrootp_xfer(p)
                deadcrootp_xfer_to_deadcrootp(p) = t1 * deadcrootp_xfer(p)
             end if
 
@@ -2681,18 +2844,18 @@ contains
             frootn_xfer_to_frootn(p) = frootn_xfer(p) / dt
             leafp_xfer_to_leafp(p)   = leafp_xfer(p) / dt
             frootp_xfer_to_frootp(p) = frootp_xfer(p) / dt
+            livecrootc_xfer_to_livecrootc(p) = livecrootc_xfer(p) / dt
+            livecrootn_xfer_to_livecrootn(p) = livecrootn_xfer(p) / dt
+            livecrootp_xfer_to_livecrootp(p) = livecrootp_xfer(p) / dt
             if (woody(ivt(p)) == 1.0_r8) then
                livestemc_xfer_to_livestemc(p)   = livestemc_xfer(p) / dt
                deadstemc_xfer_to_deadstemc(p)   = deadstemc_xfer(p) / dt
-               livecrootc_xfer_to_livecrootc(p) = livecrootc_xfer(p) / dt
                deadcrootc_xfer_to_deadcrootc(p) = deadcrootc_xfer(p) / dt
                livestemn_xfer_to_livestemn(p)   = livestemn_xfer(p) / dt
                deadstemn_xfer_to_deadstemn(p)   = deadstemn_xfer(p) / dt
-               livecrootn_xfer_to_livecrootn(p) = livecrootn_xfer(p) / dt
                deadcrootn_xfer_to_deadcrootn(p) = deadcrootn_xfer(p) / dt
                livestemp_xfer_to_livestemp(p)   = livestemp_xfer(p) / dt
                deadstemp_xfer_to_deadstemp(p)   = deadstemp_xfer(p) / dt
-               livecrootp_xfer_to_livecrootp(p) = livecrootp_xfer(p) / dt
                deadcrootp_xfer_to_deadcrootp(p) = deadcrootp_xfer(p) / dt
             end if
          end if ! end if bgtr
@@ -3220,6 +3383,8 @@ contains
     ! Determines the flux of C and N from live wood to
     ! dead wood pools, for stem and coarse root.
     ! add phosphorus flux - X.YANG
+    use elm_varcon       , only : secspday
+    use clm_time_manager , only : get_days_per_year
     !
     ! !ARGUMENTS:
       !$acc routine seq
@@ -3232,6 +3397,7 @@ contains
     real(r8):: ctovr        ! temporary variable for carbon turnover
     real(r8):: ntovr        ! temporary variable for nitrogen turnover
     real(r8):: ptovr        ! temporary variable for phosphorus turnover
+    real(r8):: dayspyr      ! days per year
     !-----------------------------------------------------------------------
 
     associate(                                                                             &
@@ -3244,6 +3410,8 @@ contains
          livestemc                =>    veg_cs%livestemc                 , & ! Input:  [real(r8) (:) ]  (gC/m2) live stem C
          livecrootc               =>    veg_cs%livecrootc                , & ! Input:  [real(r8) (:) ]  (gC/m2) live coarse root C
 
+         rhizome_long             =>    veg_vp%rhizome_long             , & ! Input:  [real(r8) (:) ]  rhizome longevity (yrs)                              
+
          livestemn                =>    veg_ns%livestemn               , & ! Input:  [real(r8) (:) ]  (gN/m2) live stem N
          livecrootn               =>    veg_ns%livecrootn              , & ! Input:  [real(r8) (:) ]  (gN/m2) live coarse root N
 
@@ -3252,19 +3420,25 @@ contains
 
          livestemc_to_deadstemc   =>    veg_cf%livestemc_to_deadstemc     , & ! Output: [real(r8) (:) ]
          livecrootc_to_deadcrootc =>    veg_cf%livecrootc_to_deadcrootc   , & ! Output: [real(r8) (:) ]
+         livecrootc_to_litter     =>    veg_cf%livecrootc_to_litter   , & ! Output: [real(r8) (:) ] 
 
          livestemn_to_deadstemn   =>    veg_nf%livestemn_to_deadstemn   , & ! Output: [real(r8) (:) ]
          livestemn_to_retransn    =>    veg_nf%livestemn_to_retransn    , & ! Output: [real(r8) (:) ]
          livecrootn_to_deadcrootn =>    veg_nf%livecrootn_to_deadcrootn , & ! Output: [real(r8) (:) ]
          livecrootn_to_retransn   =>    veg_nf%livecrootn_to_retransn   , & ! Output: [real(r8) (:) ]
+         livecrootn_to_litter     =>    veg_nf%livecrootn_to_litter   , & ! Output: [real(r8) (:) ] 
 
          livewdcp                 =>    veg_vp%livewdcp                              , & ! Input:  [real(r8) (:) ]  live wood (phloem and ray parenchyma) C:P (gC/gP)
          deadwdcp                 =>    veg_vp%deadwdcp                              , & ! Input:  [real(r8) (:) ]  dead wood (xylem and heartwood) C:P (gC/gP)
          livestemp_to_deadstemp   =>    veg_pf%livestemp_to_deadstemp   , & ! Output: [real(r8) (:) ]
          livestemp_to_retransp    =>    veg_pf%livestemp_to_retransp    , & ! Output: [real(r8) (:) ]
          livecrootp_to_deadcrootp =>    veg_pf%livecrootp_to_deadcrootp , & ! Output: [real(r8) (:) ]
-         livecrootp_to_retransp   =>    veg_pf%livecrootp_to_retransp     & ! Output: [real(r8) (:) ]
+         livecrootp_to_retransp   =>    veg_pf%livecrootp_to_retransp   , & ! Output: [real(r8) (:) ]
+         livecrootp_to_litter     =>    veg_pf%livecrootp_to_litter     & ! Output: [real(r8) (:) ] 
          )
+
+      
+      dayspyr = get_days_per_year()
 
       ! patch loop
       do fp = 1,num_soilp
@@ -3272,6 +3446,11 @@ contains
 
          ! only calculate these fluxes for woody types
          if (woody(ivt(p)) > 0._r8) then
+            ! These are only used for nonwoody rhizomes
+            livecrootc_to_litter(p) = 0.0_r8
+            livecrootn_to_litter(p) = 0.0_r8
+            livecrootp_to_litter(p) = 0.0_r8
+            
             if ( nu_com .eq. 'RD') then
                ! live stem to dead stem turnover
 
@@ -3324,6 +3503,26 @@ contains
                livecrootp_to_retransp(p)  = ptovr - livecrootp_to_deadcrootp(p)
             end if
 
+         else  ! If not woody, do rhizome turnover
+           if ( nu_com .eq. 'RD') then
+               if(rhizome_long(ivt(p))>0.0_r8) then
+                 ctovr = livecrootc(p) / (rhizome_long(ivt(p))*dayspyr*secspday)
+                 ntovr = livecrootn(p) / (rhizome_long(ivt(p))*dayspyr*secspday)
+                 ptovr = livecrootp(p) / (rhizome_long(ivt(p))*dayspyr*secspday)
+               else
+                 ctovr = 0.0_r8
+                 ntovr = 0.0_r8
+                 ptovr = 0.0_r8
+               endif
+
+               livecrootc_to_litter(p) = ctovr
+               livecrootn_to_litter(p) = ntovr ! This assumes no retranslocation
+               livecrootn_to_retransn(p)  = 0.0_r8
+               
+               livecrootp_to_litter(p) = ptovr
+               livecrootp_to_retransp(p)  = 0.0_r8
+               
+           end if
          end if
 
       end do
@@ -3368,16 +3567,19 @@ contains
 
          leaf_prof                           =>    cnstate_vars%leaf_prof_patch                    , & ! Input:  [real(r8) (:,:) ]  (1/m) profile of leaves
          froot_prof                          =>    cnstate_vars%froot_prof_patch                   , & ! Input:  [real(r8) (:,:) ]  (1/m) profile of fine roots
+         croot_prof                          =>    cnstate_vars%croot_prof_patch                   , & ! Input:  [real(r8) (:,:) ]  (1/m) profile of coarse roots                     
 
          leafc_to_litter                     =>    veg_cf%leafc_to_litter           , & ! Input:  [real(r8) (:)   ]  leaf C litterfall (gC/m2/s)
          frootc_to_litter                    =>    veg_cf%frootc_to_litter          , & ! Input:  [real(r8) (:)   ]  fine root N litterfall (gN/m2/s)
          livestemc_to_litter                 =>    veg_cf%livestemc_to_litter       , & ! Input:  [real(r8) (:)   ]  live stem C litterfall (gC/m2/s)
+         livecrootc_to_litter                 =>    veg_cf%livecrootc_to_litter       , & ! Input:  [real(r8) (:)   ]  live coarse root/rhizome C litterfall (gC/m2/s)  
 !         grainc_to_food                      =>    veg_cf%grainc_to_food            , & ! Input:  [real(r8) (:)   ]  grain C to food (gC/m2/s)
          phenology_c_to_litr_met_c           =>    col_cf%phenology_c_to_litr_met_c   , & ! Output: [real(r8) (:,:) ]  C fluxes associated with phenology (litterfall and crop) to litter metabolic pool (gC/m3/s)
          phenology_c_to_litr_cel_c           =>    col_cf%phenology_c_to_litr_cel_c   , & ! Output: [real(r8) (:,:) ]  C fluxes associated with phenology (litterfall and crop) to litter cellulose pool (gC/m3/s)
          phenology_c_to_litr_lig_c           =>    col_cf%phenology_c_to_litr_lig_c   , & ! Output: [real(r8) (:,:) ]  C fluxes associated with phenology (litterfall and crop) to litter lignin pool (gC/m3/s)
 
          livestemn_to_litter                 =>    veg_nf%livestemn_to_litter     , & ! Input:  [real(r8) (:)   ]  livestem N to litter (gN/m2/s)
+         livecrootn_to_litter                 =>  veg_nf%livecrootn_to_litter     , & ! Input:  [real(r8) (:)   ]  livecroot/rhizome N to litter (gN/m2/s)             
 !         grainn_to_food                      =>    veg_nf%grainn_to_food          , & ! Input:  [real(r8) (:)   ]  grain N to food (gN/m2/s)
          leafn_to_litter                     =>    veg_nf%leafn_to_litter         , & ! Input:  [real(r8) (:)   ]  leaf N litterfall (gN/m2/s)
          frootn_to_litter                    =>    veg_nf%frootn_to_litter        , & ! Input:  [real(r8) (:)   ]  fine root N litterfall (gN/m2/s)
@@ -3386,6 +3588,7 @@ contains
          phenology_n_to_litr_lig_n           =>    col_nf%phenology_n_to_litr_lig_n , & ! Output: [real(r8) (:,:) ]  N fluxes associated with phenology (litterfall and crop) to litter lignin pool (gN/m3/s)
 
          livestemp_to_litter                 =>    veg_pf%livestemp_to_litter     , & ! Input:  [real(r8) (:)   ]  livestem P to litter (gP/m2/s)
+         livecrootp_to_litter                 =>    veg_pf%livecrootp_to_litter     , & ! Input:  [real(r8) (:)   ]  livecroot/rhizome P to litter (gP/m2/s)    
 !         grainp_to_food                      =>    veg_pf%grainp_to_food          , & ! Input:  [real(r8) (:)   ]  grain P to food (gP/m2/s)
          leafp_to_litter                     =>    veg_pf%leafp_to_litter         , & ! Input:  [real(r8) (:)   ]  leaf P litterfall (gP/m2/s)
          frootp_to_litter                    =>    veg_pf%frootp_to_litter        , & ! Input:  [real(r8) (:)   ]  fine root P litterfall (gP/m2/s)
@@ -3447,6 +3650,33 @@ contains
                           + frootp_to_litter(p) * fr_fcel(ivt(p)) * wt_col * froot_prof(p,j)
                      phenology_p_to_litr_lig_p(c,j) = phenology_p_to_litr_lig_p(c,j) &
                           + frootp_to_litter(p) * fr_flig(ivt(p)) * wt_col * froot_prof(p,j)
+
+
+                     ! Rhizome litter carbon fluxes. Assume similar to fine roots (B Sulman)
+                     phenology_c_to_litr_met_c(c,j) = phenology_c_to_litr_met_c(c,j) &
+                          + livecrootc_to_litter(p) * fr_flab(ivt(p)) * wtcol(p) * croot_prof(p,j)
+                     phenology_c_to_litr_cel_c(c,j) = phenology_c_to_litr_cel_c(c,j) &
+                          + livecrootc_to_litter(p) * fr_fcel(ivt(p)) * wtcol(p) * croot_prof(p,j)
+                     phenology_c_to_litr_lig_c(c,j) = phenology_c_to_litr_lig_c(c,j) &
+                          + livecrootc_to_litter(p) * fr_flig(ivt(p)) * wtcol(p) * croot_prof(p,j)
+
+
+                     ! Rhizome litter nitrogen fluxes
+                     phenology_n_to_litr_met_n(c,j) = phenology_n_to_litr_met_n(c,j) &
+                          + livecrootn_to_litter(p) * fr_flab(ivt(p)) * wtcol(p) * croot_prof(p,j)
+                     phenology_n_to_litr_cel_n(c,j) = phenology_n_to_litr_cel_n(c,j) &
+                          + livecrootn_to_litter(p) * fr_fcel(ivt(p)) * wtcol(p) * croot_prof(p,j)
+                     phenology_n_to_litr_lig_n(c,j) = phenology_n_to_litr_lig_n(c,j) &
+                          + livecrootn_to_litter(p) * fr_flig(ivt(p)) * wtcol(p) * croot_prof(p,j)
+
+                     ! Rhizome litter phosphorus fluxes
+                     phenology_p_to_litr_met_p(c,j) = phenology_p_to_litr_met_p(c,j) &
+                          + livecrootp_to_litter(p) * fr_flab(ivt(p)) * wtcol(p) * croot_prof(p,j)
+                     phenology_p_to_litr_cel_p(c,j) = phenology_p_to_litr_cel_p(c,j) &
+                          + livecrootp_to_litter(p) * fr_fcel(ivt(p)) * wtcol(p) * croot_prof(p,j)
+                     phenology_p_to_litr_lig_p(c,j) = phenology_p_to_litr_lig_p(c,j) &
+                          + livecrootp_to_litter(p) * fr_flig(ivt(p)) * wtcol(p) * croot_prof(p,j)
+
 
                      ! agroibis puts crop stem litter together with leaf litter
                      ! so I've used the leaf lf_f* parameters instead of making

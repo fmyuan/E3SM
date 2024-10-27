@@ -35,8 +35,18 @@ if (NOT HAS_SAMXX EQUAL -1)
   set(USE_SAMXX TRUE)
 endif()
 
-# If samxx is being used, then YAKL must be used as well
-set(USE_YAKL ${USE_SAMXX})
+string(FIND "${CAM_CONFIG_OPTS}" "-rrtmgpxx" HAS_RRTMGPXX)
+if (NOT HAS_RRTMGPXX EQUAL -1)
+  # The following is for the RRTMGPXX code:
+  set(USE_RRTMGPXX TRUE)
+endif()
+
+# If samxx or rrtmgpxx is being used, then YAKL must be used as well
+if (USE_SAMXX OR USE_RRTMGPXX)
+    set(USE_YAKL TRUE)
+else()
+    set(USE_YAKL FALSE)
+endif()
 
 # If YAKL is being used, then we need to enable USE_CXX
 if (${USE_YAKL})
@@ -193,6 +203,20 @@ if (USE_PETSC)
   set(PETSC_DIR ${PETSC_PATH})
   find_package(PETSc)
   set(PETSC_LIB ${PETSC_LIBRARIES})
+endif()
+
+# Set Alquimia info if it is being used
+if (ELM_USE_ALQUIMIA)
+  if (NOT ALQUIMIA_PATH)
+    message(FATAL_ERROR "ALQUIMIA_PATH must be defined when ELM_USE_ALQUIMIA is TRUE")
+  else()
+    if (NOT ALQUIMIA_INC)
+      set(ALQUIMIA_INC ${ALQUIMIA_PATH})
+    endif()
+    if (NOT ALQUIMIA_LIB)
+      set(ALQUIMIA_LIB ${ALQUIMIA_PATH})
+    endif()
+  endif()
 endif()
 
 if (USE_TRILINOS)
@@ -360,7 +384,7 @@ else()
   list(APPEND INCLDIR "${INC_NETCDF_C}" "${INC_NETCDF_FORTRAN}")
 endif()
 
-foreach(ITEM MOD_NETCDF INC_MPI INC_PNETCDF INC_PETSC INC_TRILINOS INC_ALBANY) # INC_MOAB)
+foreach(ITEM MOD_NETCDF INC_MPI INC_PNETCDF INC_PETSC INC_TRILINOS INC_ALBANY ALQUIMIA_INC) # INC_MOAB)
   if (${ITEM})
     list(APPEND INCLDIR "${${ITEM}}")
   endif()
@@ -432,6 +456,10 @@ endif()
 # Add PETSc libraries
 if (USE_PETSC)
   set(SLIBS "${SLIBS} ${PETSC_LIB}")
+endif()
+
+if (ELM_USE_ALQUIMIA)
+  set(SLIBS "${SLIBS} -L${ALQUIMIA_LIB} -lalquimia -Wl,-rpath,${ALQUIMIA_LIB}")
 endif()
 
 # Add trilinos libraries; too be safe, we include all libraries included in the trilinos build,

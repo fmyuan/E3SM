@@ -377,7 +377,10 @@ contains
          qflx_deficit      =>    col_wf%qflx_deficit    , & ! Input:  [real(r8) (:)   ]  water deficit to keep non-negative liquid water content
          qflx_infl         =>    col_wf%qflx_infl       , & ! Input:  [real(r8) (:)   ]  infiltration (mm H2O /s)
          qflx_rootsoi_col  =>    col_wf%qflx_rootsoi    , & ! Input: [real(r8) (:,:) ]  vegetation/soil water exchange (mm H2O/s) (+ = to atm)
-         t_soisno          =>    col_es%t_soisno        & ! Input:  [real(r8) (:,:) ]  soil temperature (Kelvin)
+         qflx_tran_veg_col_sat   =>    col_wf%qflx_tran_veg_sat, & ! Output: [real(r8) (:)   ]
+         qflx_adv          =>    col_wf%qflx_adv        , & ! Output: [real(r8) (:,:) ] ! advective flux across different soil layer interfaces [mm H2O/s] [+ downward]
+
+         t_soisno          =>    col_es%t_soisno        & ! Input:  [real(r8) (:,:) ]  soil temperature (Kelvin)                       
          )
 
 
@@ -577,8 +580,21 @@ contains
       end do
 
       ! Set up r, a, b, and c vectors for tridiagonal solution
-
+#if (defined HUM_HOL)
       ! Node j=1 (top)
+      !DMR 3/5/15 - fix problem of transpiration drawn below water table not being replaced
+      !  This term will be removed from the soil water calculation and subtracted
+      !  from qcharge
+      do fc = 1, num_hydrologyc
+        c = filter_hydrologyc(fc)
+        qflx_tran_veg_col_sat(c) = 0._r8
+        if (jwt(c)+2  .lt. nlevsoi) then
+          do j=jwt(c)+2,nlevsoi
+            qflx_tran_veg_col_sat(c) = qflx_tran_veg_col_sat(c)+qflx_rootsoi_col(c,j)
+          end do
+        end if
+      end do
+#endif
 
       j = 1
       do fc = 1, num_hydrologyc
@@ -591,6 +607,15 @@ contains
          dqodw1(c,j) = -(-hk(c,j)*dsmpdw(c,j)   + num*dhkdw(c,j))/den
          dqodw2(c,j) = -( hk(c,j)*dsmpdw(c,j+1) + num*dhkdw(c,j))/den
          rmx(c,j) =  qin(c,j) - qout(c,j) - qflx_rootsoi_col(c,j)
+
+#if (defined HUM_HOL)
+         if (j == jwt(c)+1) then !water table in this layer
+           rmx(c,j) =  qin(c,j) - qout(c,j) - qflx_rootsoi_col(c,j) - qflx_tran_veg_col_sat(c)
+         else                    !water table below this layer
+           rmx(c,j) =  qin(c,j) - qout(c,j) - qflx_rootsoi_col(c,j)
+         end if
+#endif
+
          amx(c,j) =  0._r8
          bmx(c,j) =  dzmm(c,j)*(sdamp+1._r8/dtime) + dqodw1(c,j)
          cmx(c,j) =  dqodw2(c,j)
@@ -614,7 +639,18 @@ contains
             qout(c,j)   = -hk(c,j)*num/den
             dqodw1(c,j) = -(-hk(c,j)*dsmpdw(c,j)   + num*dhkdw(c,j))/den
             dqodw2(c,j) = -( hk(c,j)*dsmpdw(c,j+1) + num*dhkdw(c,j))/den
-            rmx(c,j)    =  qin(c,j) - qout(c,j) -  qflx_rootsoi_col(c,j)
+            rmx(c,j)    =  qin(c,j) - qout(c,j) - qflx_rootsoi_col(c,j)
+#if (defined HUM_HOL)
+            if (j > jwt(c)+1) then                     !Water table above this layer
+              rmx(c,j)    =  qin(c,j) - qout(c,j)
+            else if (j == jwt(c)+1) then               !water table in this layer
+              rmx(c,j)    =  qin(c,j) - qout(c,j) - qflx_rootsoi_col(c,j) - qflx_tran_veg_col_sat(c)
+            else                                       !Water table below this layer
+              rmx(c,j)    =  qin(c,j) - qout(c,j) - qflx_rootsoi_col(c,j)
+            end if
+#endif
+
+
             amx(c,j)    = -dqidw0(c,j)
             bmx(c,j)    =  dzmm(c,j)/dtime - dqidw1(c,j) + dqodw1(c,j)
             cmx(c,j)    =  dqodw2(c,j)
@@ -637,6 +673,15 @@ contains
             qout(c,j)   =  0._r8
             dqodw1(c,j) =  0._r8
             rmx(c,j)    =  qin(c,j) - qout(c,j) - qflx_rootsoi_col(c,j)
+#if (defined HUM_HOL)
+            if (j > jwt(c)+1) then                     !Water table above this layer
+              rmx(c,j)    =  qin(c,j) - qout(c,j)
+            else if (j == jwt(c)+1) then               !water table in this layer
+              rmx(c,j)    =  qin(c,j) - qout(c,j) - qflx_rootsoi_col(c,j) - qflx_tran_veg_col_sat(c)
+            else                                       !Water table below this layer
+              rmx(c,j)    =  qin(c,j) - qout(c,j) - qflx_rootsoi_col(c,j)
+            end if
+#endif
             amx(c,j)    = -dqidw0(c,j)
             bmx(c,j)    =  dzmm(c,j)/dtime - dqidw1(c,j) + dqodw1(c,j)
             cmx(c,j)    =  0._r8
@@ -686,6 +731,15 @@ contains
             end if
 
             rmx(c,j) =  qin(c,j) - qout(c,j) - qflx_rootsoi_col(c,j)
+#if (defined HUM_HOL)
+            if (j > jwt(c)+1) then                     !Water table above this layer
+              rmx(c,j)    =  qin(c,j) - qout(c,j)
+            else if (j == jwt(c)+1) then               !water table in this layer
+              rmx(c,j)    =  qin(c,j) - qout(c,j) - qflx_rootsoi_col(c,j) - qflx_tran_veg_col_sat(c)
+            else                                       !Water table below this layer
+              rmx(c,j)    =  qin(c,j) - qout(c,j) - qflx_rootsoi_col(c,j)
+            end if
+#endif
             amx(c,j) = -dqidw0(c,j)
             bmx(c,j) =  dzmm(c,j)/dtime - dqidw1(c,j) + dqodw1(c,j)
             cmx(c,j) =  dqodw2(c,j)
@@ -839,6 +893,19 @@ contains
             if(h2osoi_liq(c,j)<0._r8)then
                qflx_deficit(c) = qflx_deficit(c) - h2osoi_liq(c,j)
             endif
+         enddo
+      enddo
+
+      ! Save cross-layer flow for use in advective flux calculations (Ben Sulman)
+      do fc = 1, num_hydrologyc
+         c = filter_hydrologyc(fc)
+         nlevbed = nlev2bed(c)
+         qflx_adv(c,0) = qin(c,1) ! Layer zero is flow out of space above top layer, i.e. infiltration
+         do j = 1, nlevbed
+            qflx_adv(c,j) = qout(c,j)
+         enddo
+         do j = nlevbed+1, nlevgrnd
+            qflx_adv(c,j) = 0.0_r8
          enddo
       enddo
 
@@ -1195,7 +1262,7 @@ contains
       do fc = 1, num_filterc
          c = filterc(fc)
          nlevbed = nlev2bed(c)
-         do j = 1, nlevbed
+         do j = 1, nlevsoi
             rootr_col(c,j) = 0._r8
          end do
       end do

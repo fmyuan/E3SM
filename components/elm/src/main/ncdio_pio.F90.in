@@ -1952,8 +1952,14 @@ end subroutine ncd_io_{DIMS}d_{TYPE}_glob
              do ind = 1,ndims_iod
                 status = pio_inq_dimlen(ncid,dids(ind),dims(ind))
              enddo
+             
+             ! JD added
+             write(iulog,*) 'JD added: ', ' varname, varid: ', varname, varid
+             write(iulog,*) 'JD added: ', ' elmlevel, ndims_iod: ', elmlevel, ndims_iod 
+             
              call ncd_getiodesc(ncid, elmlevel, ndims_iod, dims(1:ndims_iod), dids(1:ndims_iod), &
                   PIO_{TYPE}, iodnum)
+                  
              iodesc_plus => iodesc_list(iodnum)
              if (present(nt)) then
                 call pio_setframe(ncid, vardesc, int(nt,kind=PIO_OFFSET_KIND))
@@ -2493,9 +2499,19 @@ end subroutine ncd_io_{DIMS}d_{TYPE}_glob
     vsize = fullsize / gsize
     if (mod(fullsize,gsize) /= 0) then
        write(iulog,*) subname,' ERROR in vsize ',fullsize,gsize,vsize,ndims,dims
+       
        call shr_sys_abort(errMsg(__FILE__, __LINE__))
     endif
-
+ 
+    write(iulog,*) 'JD add: ',subname
+    write(iulog,*) 'JD add,  fullsize: ',fullsize
+    write(iulog,*) 'JD add,  gsize: ',gsize
+    write(iulog,*) 'JD add,  vsize: ',vsize    
+    write(iulog,*) 'JD add,  ndims: ',ndims    
+    write(iulog,*) 'JD add,  dims: ',dims
+    write(iulog,*) 'JD add,  dims(ndims): ',dims(ndims)    
+               
+    
     allocate(compDOF(gsmap_lsize*vsize))
 
     if (present(switchdim)) then

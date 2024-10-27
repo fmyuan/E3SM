@@ -16,6 +16,7 @@ module VegStructUpdateMod
   use ColumnDataType       , only : col_ws
   use VegetationType       , only : veg_pp
   use VegetationDataType   , only : veg_cs
+  use SoilHydrologyType    , only : soilhydrology_type 
   !
   implicit none
   save
@@ -30,7 +31,7 @@ contains
   !-----------------------------------------------------------------------
   subroutine VegStructUpdate(num_soilp, filter_soilp, &
        frictionvel_vars, cnstate_vars, &
-       canopystate_vars, crop_vars)
+       canopystate_vars, crop_vars, soilhydrology_vars)
     !
     ! !DESCRIPTION:
     ! On the radiation time step, use C state variables and epc to diagnose
@@ -40,6 +41,12 @@ contains
     use pftvarcon        , only : noveg, nc3crop, nc3irrig, nbrdlf_evr_shrub, nbrdlf_dcd_brl_shrub
     use pftvarcon        , only : ncorn, ncornirrig, npcropmin, ztopmx, laimx
     use pftvarcon        , only : nmiscanthus, nmiscanthusirrig, nswitchgrass, nswitchgrassirrig
+#if (defined HUM_HOL)
+    use pftvarcon        , only : humhol_ht
+#endif
+    !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
+    use pftvarcon        , only : ntree, nshrub
+    !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
     use clm_time_manager , only : get_rad_step_size
     use elm_varctl       , only : spinup_state, spinup_mortality_factor
     !
@@ -50,6 +57,7 @@ contains
     type(cnstate_type)     , intent(inout) :: cnstate_vars
     type(canopystate_type) , intent(inout) :: canopystate_vars
     type(crop_type)        , intent(inout) :: crop_vars
+    type(soilhydrology_type) , intent(in)    :: soilhydrology_vars
     !
     ! !REVISION HISTORY:
     ! 10/28/03: Created by Peter Thornton
@@ -67,6 +75,7 @@ contains
     real(r8) :: tsai_min   ! PATCH derived minimum tsai
     real(r8) :: tsai_alpha ! monthly decay rate of tsai
     real(r8) :: dt         ! radiation time step (sec)
+    real(r8) :: fb1, fb2, thiswtht
 
     real(r8), parameter :: dtsmonth = 2592000._r8 ! number of seconds in a 30 day month (60x60x24x30)
     !-----------------------------------------------------------------------
@@ -80,19 +89,23 @@ contains
     !   crop    tsai_alpha,tsai_min = 0.0,0.1
     !   noncrop tsai_alpha,tsai_min = 0.5,1.0  (includes bare soil and urban)
     !-------------------------------------------------------------------------------
-
-    associate(                                                            &
-         ivt                =>  veg_pp%itype                         ,       & ! Input:  [integer  (:) ] pft vegetation type
-         woody              =>  veg_vp%woody                  ,       & ! Input:  [real(r8) (:) ] binary flag for woody lifeform (1=woody, 0=not woody)
+    
+    associate(                                                            & 
+         ivt                =>  veg_pp%itype                       ,      & ! Input:  [integer  (:) ] pft vegetation type
+         woody              =>  veg_vp%woody                       ,      & ! Input:  [real(r8) (:) ] binary flag for woody lifeform (1=woody, 0=not woody)
+         nonvascular        =>  veg_vp%nonvascular                 ,      & ! Input:  [integer  (:) ] nonvascluar lifeform (0 - vascular, 1=moss, 2=lichen, etc)
          slatop             =>  veg_vp%slatop                 ,       & ! Input:  [real(r8) (:) ] specific leaf area at top of canopy, projected area basis [m^2/gC]
          dsladlai           =>  veg_vp%dsladlai               ,       & ! Input:  [real(r8) (:) ] dSLA/dLAI, projected area basis [m^2/gC]
          z0mr               =>  veg_vp%z0mr                   ,       & ! Input:  [real(r8) (:) ] ratio of momentum roughness length to canopy top height (-)
          displar            =>  veg_vp%displar                ,       & ! Input:  [real(r8) (:) ] ratio of displacement height to canopy top height (-)
          dwood              =>  veg_vp%dwood                  ,       & ! Input:  [real(r8) (:) ] density of wood (gC/m^3)
 
-         snow_depth         =>  col_ws%snow_depth    ,       & ! Input:  [real(r8) (:) ] snow height (m)
+         snow_depth         =>  col_ws%snow_depth             ,       & ! Input:  [real(r8) (:) ] snow height (m)                                   
 
-         forc_hgt_u_patch   =>  frictionvel_vars%forc_hgt_u_patch ,       & ! Input:  [real(r8) (:) ] observational height of wind at pft-level [m]
+         zwt                =>  soilhydrology_vars%zwt_col    ,       &
+         h2osfc             =>  col_ws%h2osfc                 ,       &
+
+         forc_hgt_u_patch   =>  frictionvel_vars%forc_hgt_u_patch ,       & ! Input:  [real(r8) (:) ] observational height of wind at pft-level [m]     
 
          leafc              =>  veg_cs%leafc      ,       & ! Input:  [real(r8) (:) ] (gC/m2) leaf C
          deadstemc          =>  veg_cs%deadstemc  ,       & ! Input:  [real(r8) (:) ] (gC/m2) dead stem C
@@ -159,12 +172,14 @@ contains
             tsai_min = tsai_min * 0.5_r8
             tsai(p) = max(tsai_alpha*tsai_old+max(tlai_old-tlai(p),0._r8),tsai_min)
 
-            if (woody(ivt(p)) == 1._r8) then
+            !if (woody(ivt(p)) == 1._r8) then
+            if (woody(ivt(p)) >= 1._r8) then
 
                ! trees and shrubs
 
-               ! if shrubs have a squat taper
-               if (ivt(p) >= nbrdlf_evr_shrub .and. ivt(p) <= nbrdlf_dcd_brl_shrub) then
+               ! if shrubs have a squat taper 
+               if ((ivt(p) >ntree .and. ivt(p) <= nshrub) .or. & ! CLM-style indexing for 'shrub'
+                   (woody(ivt(p)) == 2._r8) ) then  ! tree: 1, shrub: 2
                   taper = 10._r8
                   ! otherwise have a tall taper
                else
@@ -224,8 +239,17 @@ contains
 
                ! grasses
 
+               if(nonvascular(ivt(p)) == 1) then
+               ! moss: ranging from 0.02 - 0.1 m
+                 htop(p) = max(0.02_r8, min(0.10_r8, tlai(p) * 0.10_r8)) ! (TODO: requires further literature study on this)
+               elseif(nonvascular(ivt(p)) == 2) then
+               ! lichen: ususally composited onto/into surface (rock, bare soil, or even plant trunk/branch).
+               !         here only considering on bare/rock surface ones, i.e. distinguishable as fraction of land as one type of coverage.
+                 htop(p) = 0.01_r8
+               else
                ! height for grasses depends only on LAI
-               htop(p) = max(0.25_r8, tlai(p) * 0.25_r8)
+                 htop(p) = max(0.25_r8, tlai(p) * 0.25_r8)
+               endif
 
                htop(p) = min(htop(p),(forc_hgt_u_patch(p)/(displar(ivt(p))+z0mr(ivt(p))))-3._r8)
 
@@ -248,12 +272,28 @@ contains
          ! adjust lai and sai for burying by snow.
          ! snow burial fraction for short vegetation (e.g. grasses) as in
          ! Wang and Zeng, 2007.
-         if (ivt(p) > noveg .and. ivt(p) <= nbrdlf_dcd_brl_shrub ) then
+    !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
+         !if (ivt(p) > noveg .and. ivt(p) <= nbrdlf_dcd_brl_shrub ) then
+         if (ivt(p) > noveg .and. woody(ivt(p)) == 1._r8 ) then
+    !----------------------F.-M. Yuan: 2018-03-23---------------------------------------------------------------------
             ol = min( max(snow_depth(c)-hbot(p), 0._r8), htop(p)-hbot(p))
             fb = 1._r8 - ol / max(1.e-06_r8, htop(p)-hbot(p))
          else
-            fb = 1._r8 - max(min(snow_depth(c),0.2_r8),0._r8)/0.2_r8   ! 0.2m is assumed
-            !depth of snow required for complete burial of grasses
+#if (defined HUM_HOL)
+           if (ivt(p) == 12) then
+             thiswtht = zwt(c)*(-1.0_r8)+humhol_ht/2.0_r8+h2osfc(c)/1000._r8 !height above hollow bottom
+             !calculate submerged LAI
+             !Calculate LAI buried by snow (5cm is assumed)
+             fb1 = 1._r8 - max(min(snow_depth(c),0.05_r8),0._r8)/0.05_r8
+             fb2 = 1._r8 - max(min(thiswtht,0.2_r8),0._r8)/0.2_r8 
+             fb = min(fb1, fb2)
+           else
+             fb = 1._r8 - max(min(snow_depth(c),0.2_r8),0._r8)/0.2_r8 ! 0.2m is assumed
+           end if
+#else
+           !depth of snow required for complete burial of grasses
+           fb = 1._r8 - max(min(snow_depth(c),0.2_r8),0._r8)/0.2_r8   !0.2m is assumed
+#endif
          endif
 
          elai(p) = max(tlai(p)*fb, 0.0_r8)

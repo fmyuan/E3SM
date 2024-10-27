@@ -532,6 +532,10 @@ Per tape series history write frequency.
        group="elm_inparm" valid_values="">
 </entry>
 
+<entry id="tide_file" type="char*400" category="datasets"
+       group="elm_inparm" valid_values="">
+</entry>
+
 <entry id="nsegspc" type="integer" category="elm_performance"
        group="elm_inparm" valid_values="" >
 number of segments per clump for decomposition
@@ -1740,7 +1744,7 @@ and pct_nat_pft read from the surface dataset.
 </entry>
 
 <!-- =========================================================================================  -->
-<!-- Namelist options related to lateral grid connectivity
+<!-- Namelist options related to lateral grid connectivity                                     -->
 <!-- ========================================================================================  -->
 <entry id="lateral_connectivity" type="logical" category="elm_initialization"
        group="elm_inparm" valid_values="" >
@@ -1753,7 +1757,7 @@ Specifies the method for decomposing CLM grids across processors.
 </entry>
 
 <!-- =========================================================================================  -->
-<!-- Namelist options related to the bgc & pflotran interface
+<!-- Namelist options related to the bgc & pflotran interface                                  -->
 <!-- ========================================================================================  -->
 
 <entry id="use_elm_interface" type="logical" category="default_settings"
@@ -1779,6 +1783,41 @@ Specifies the method for decomposing CLM grids across processors.
 <entry id="pflotran_prefix" type="char*256" category="elm_pflotran"
     group="elm_pflotran_inparm" valid_values="" >
     pflotran file prefix.
+</entry>
+
+<entry id="use_alquimia" type="logical" category="default_settings"
+    group="elm_inparm" valid_values="">
+    Runtime flag to turn on/off alquimia interface.
+</entry>
+
+<entry id="alquimia_inputfile" type="char*256" category="default_settings"
+    group="elm_inparm" valid_values="">
+    Path to input file defining alquimia chemistry.
+</entry>
+
+<entry id="alquimia_engine_name" type="char*32" category="default_settings"
+       group="elm_inparm" valid_values="">
+       Name of alquimia engine (default pflotran)
+</entry>
+<entry id="alquimia_IC_name" type="char*32" category="default_settings"
+       group="elm_inparm" valid_values="">
+       Name of initial condition in alquimia input file
+</entry>
+<entry id="alquimia_CO2_name" type="char*32" category="default_settings"
+       group="elm_inparm" valid_values="">
+       Name of CO2 chemical in alquimia reaction network
+</entry>
+<entry id="alquimia_NH4_name" type="char*32" category="default_settings"
+       group="elm_inparm" valid_values="">
+       Name of NH4 chemical in alquimia reaction network
+</entry>
+<entry id="alquimia_NO3_name" type="char*32" category="default_settings"
+       group="elm_inparm" valid_values="">
+       Name of NO3 chemical in alquimia reaction network
+</entry>
+<entry id="alquimia_handsoff" type="logical" category="default_settings"
+       group="elm_inparm" valid_values="">
+       Whether alquimia runs in hands-on or hands-off mode
 </entry>
 
 <!-- ========================================================================================  -->
@@ -1834,6 +1873,15 @@ Runtime flag to turn on/off PETSc based thermal model.
 <entry id="use_var_soil_thick" type="logical" category="default_settings"
         group="elm_inparm" valid_values="">
 Runtime flag to turn on/off variable soil thickness.
+</entry
+
+<!-- ======================================================================================== -->
+<!-- Namelist options for lake water storage                                                  -->
+<!-- ======================================================================================== -->
+
+<entry id="use_lake_wat_storage" type="logical" category="default_settings" 
+        group="elm_inparm" valid_values="">
+Runtime flag to turn on/off lake water storage.
 </entry>
 
 <!-- ========================================================================================  -->

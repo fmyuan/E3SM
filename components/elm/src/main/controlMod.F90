@@ -43,6 +43,7 @@ module controlMod
   use elm_varctl              , only: use_dynroot
   use AllocationMod         , only: nu_com_phosphatase,nu_com_nfix
   use elm_varctl              , only: nu_com, use_var_soil_thick
+  use elm_varctl              , only: use_lake_wat_storage
   use seq_drydep_mod          , only: drydep_method, DD_XLND, n_drydep
   use elm_varctl              , only: forest_fert_exp
   use elm_varctl              , only: ECA_Pconst_RGspin
@@ -274,14 +275,18 @@ contains
 
     ! cpl_bypass variables
     namelist /elm_inparm/ metdata_type, metdata_bypass, metdata_biases, &
-         co2_file, aero_file,const_climate_hist
+         co2_file, aero_file,const_climate_hist,tide_file
 
     ! bgc & pflotran interface
     namelist /elm_inparm/ use_elm_interface, use_elm_bgc, use_pflotran
 
+    namelist /elm_inparm/ use_alquimia, alquimia_inputfile, alquimia_engine_name,&
+        alquimia_IC_name, alquimia_CO2_name, alquimia_NH4_name, &
+        alquimia_NO3_name, alquimia_handsoff
+
     namelist /elm_inparm/ use_dynroot
 
-    namelist /elm_inparm/ use_var_soil_thick
+    namelist /elm_inparm/ use_var_soil_thick, use_lake_wat_storage
 
     namelist /elm_inparm / &
          use_vsfm, vsfm_satfunc_type, vsfm_use_dynamic_linesearch, &
@@ -611,6 +616,11 @@ contains
        endif
     endif
 
+    if (use_pflotran .and. use_alquimia) then
+        call endrun(msg=" ERROR: Cannot run with both run_alquimia and run_pflotran " // &
+                        errMsg(__FILE__, __LINE__))
+    endif
+
     if (masterproc) then
        write(iulog,*) 'Successfully initialized run control settings'
        write(iulog,*)
@@ -750,6 +760,8 @@ contains
 
     call mpi_bcast (use_dynroot, 1, MPI_LOGICAL, 0, mpicom, ier)
 
+    call mpi_bcast (use_lake_wat_storage, 1, MPI_LOGICAL, 0, mpicom, ier)
+
     if ((use_cn .or. use_fates) .and. use_vertsoilc) then
        ! vertical soil mixing variables
        call mpi_bcast (som_adv_flux, 1, MPI_REAL8,  0, mpicom, ier)
@@ -851,6 +863,20 @@ contains
     call mpi_bcast (use_elm_interface, 1, MPI_LOGICAL, 0, mpicom, ier)
     call mpi_bcast (use_elm_bgc, 1, MPI_LOGICAL, 0, mpicom, ier)
     call mpi_bcast (use_pflotran, 1, MPI_LOGICAL, 0, mpicom, ier)
+!<<<<<<< HEAD
+!=======
+    
+    ! alquimia interface controls
+    call mpi_bcast (use_alquimia, 1, MPI_LOGICAL, 0, mpicom, ier)
+    call mpi_bcast (alquimia_handsoff, 1, MPI_LOGICAL, 0, mpicom, ier)
+    call mpi_bcast (alquimia_inputfile , len(alquimia_inputfile) , MPI_CHARACTER, 0, mpicom, ier)
+    call mpi_bcast (alquimia_engine_name , len(alquimia_engine_name) , MPI_CHARACTER, 0, mpicom, ier)
+    call mpi_bcast (alquimia_IC_name , len(alquimia_IC_name) , MPI_CHARACTER, 0, mpicom, ier)
+    call mpi_bcast (alquimia_CO2_name , len(alquimia_CO2_name) , MPI_CHARACTER, 0, mpicom, ier)
+    call mpi_bcast (alquimia_NO3_name , len(alquimia_NO3_name) , MPI_CHARACTER, 0, mpicom, ier)
+    call mpi_bcast (alquimia_NH4_name , len(alquimia_NH4_name) , MPI_CHARACTER, 0, mpicom, ier)
+
+!>>>>>>> 89624cf67f0c42cbb28a74ce1cb424dbee39f975
 
     !cpl_bypass
      call mpi_bcast (metdata_type,   len(metdata_type),   MPI_CHARACTER, 0, mpicom, ier)
@@ -858,6 +884,7 @@ contains
      call mpi_bcast (metdata_biases, len(metdata_biases), MPI_CHARACTER, 0, mpicom, ier)
      call mpi_bcast (co2_file,       len(co2_file),       MPI_CHARACTER, 0, mpicom, ier)
      call mpi_bcast (aero_file,      len(aero_file),      MPI_CHARACTER, 0, mpicom, ier)
+     call mpi_bcast (tide_file,      len(tide_file),      MPI_CHARACTER, 0, mpicom, ier)
 
     ! plant hydraulics
     call mpi_bcast (use_hydrstress, 1, MPI_LOGICAL, 0, mpicom, ier)
@@ -924,6 +951,7 @@ contains
     write(iulog,*) '    use_lch4 = ', use_lch4
     write(iulog,*) '    use_vertsoilc = ', use_vertsoilc
     write(iulog,*) '    use_var_soil_thick = ', use_var_soil_thick
+    write(iulog,*) '    use_lake_wat_storage = ', use_lake_wat_storage
     write(iulog,*) '    use_extralakelayers = ', use_extralakelayers
     write(iulog,*) '    use_extrasnowlayers = ', use_extrasnowlayers
     write(iulog,*) '    use_vichydro = ', use_vichydro
