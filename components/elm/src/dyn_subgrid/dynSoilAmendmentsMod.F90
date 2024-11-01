@@ -221,9 +221,7 @@ contains
 
           ! assuming application occurs at mid-day of the day of year
           ! this wouldn't make large impact, but if it is then needs more thoughts on when to add into column.
-          if ( (appl_doy_cur(g,ti,m) == jday_mod) .and. & 
-               (secs_curr >= (12._r8*dtime_mod)) .and. & 
-               (secs_curr < (13._r8*dtime_mod)) ) then
+          if (appl_doy_cur(g,ti,m) == jday_mod) then
              ! weighted sum of all active pft.
              ! So if really want to patch-level, must only allow one patch per column.
             appl_rate(c) = appl_rate(c) + appl_rate_cur(g,ti,m) * veg_pp%wtcol(p)
