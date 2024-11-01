@@ -203,7 +203,7 @@ contains
 
     !! output vars (already allocated memory, but may not zeroed)
     !! comment out because zeroed in col_ew_init()
-    !appl_rate(bounds%begc:bounds%endc)        = 0._r8
+    appl_rate(bounds%begc:bounds%endc)        = 0._r8
     !appl_grainsize(bounds%begc:bounds%endc,:) = 1._r8 ! non-zero to avoid math issue. it's ok as long as rate is 0
     !appl_specpct(bounds%begc:bounds%endc, :)  = 0._r8
     !!if (present(appl_nutrpct)) &
@@ -225,8 +225,6 @@ contains
              ! weighted sum of all active pft.
              ! So if really want to patch-level, must only allow one patch per column.
             appl_rate(c) = appl_rate(c) + appl_rate_cur(g,ti,m) * veg_pp%wtcol(p)
-          else
-            appl_rate(c) = 0._r8
           end if
 
           ! assuming grain size is same for its mineral components at application
