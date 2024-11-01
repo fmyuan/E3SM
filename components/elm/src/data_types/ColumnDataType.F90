@@ -12929,7 +12929,7 @@ contains
       this%cec_cation_flux(begc:endc,:) = spval
       call hist_addfld2d (fname='cec_cation_flux',  units='g m-2 s-1', type2d='cations', &
             avgflag='A', long_name='rate at which cation is adsorbed to soil (negative for released into water) (subtract this from the net dissolution and precipitation flux) (vertically resolved)', &
-            ptr_col=this%secondary_cation_flux, l2g_scale_type='veg')
+            ptr_col=this%cec_cation_flux, l2g_scale_type='veg')
 
       this%cec_proton_flux(begc:endc) = spval
       call hist_addfld1d (fname='cec_proton_flux',  units='g m-2 s-1', &
