@@ -257,6 +257,19 @@ macro(build_model COMP_CLASS COMP_NAME)
       target_include_directories(${TARGET_NAME} PRIVATE ${MOAB_INCLUDE_DIRS})
     endif()
 
+    # ATS-ELM Interface
+    # ultimately want to replace this with USE_ATS defined in env_build.xml
+    # requires ATS and TPLs to be installed prior to building E3SM!
+    # RPF / ETC - 241106
+    set(ATS_DIR "$ENV{ATS_DIR}")
+    if (NOT ATS_DIR STREQUAL "")
+      set(Amanzi_DIR "${ATS_DIR}/lib")
+      find_package(HDF5 REQUIRED)
+      find_package(NETCDF REQUIRED)
+      find_package(Amanzi REQUIRED)
+      target_link_libraries(${TARGET_NAME} amanzi_elm_ats)
+    endif() 
+
     # Make sure we link blas/lapack
     if (NOT DEFINED ENV{SKIP_BLAS})
       target_link_libraries(${TARGET_NAME} BLAS::BLAS LAPACK::LAPACK)
