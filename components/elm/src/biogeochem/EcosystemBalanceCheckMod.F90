@@ -203,7 +203,6 @@ contains
     associate( &
          beg_pm => col_ms%beg_pm     , & ! Output: [real(r8) (:)] total primary mineral mass, beginning of time step (g/m2)
          beg_in => col_ms%beg_in     , & ! Output: [real(r8) (:)] total cation mass, beginning of time step (g/m2)
-         beg_h  => col_ms%beg_h      , & ! Output: [real(r8) (:)] total H+ mass, beginning of time step (g/m2)
          beg_sm => col_ms%beg_sm     , & ! Output: [real(r8) (:)] total secondary mineral mass, beginning of time step (g/m2)
 
          primary_mineral    => col_ms%primary_mineral     , & ! Input: [real(r8) (:,:)]
@@ -226,8 +225,6 @@ contains
       do m = 1, ncations
          beg_in(c) = beg_in(c) + cation(c,m) + cec_cation(c,m)
       end do
-
-      beg_h(c) = proton(c)
 
       beg_sm(c) = 0._r8
       do m = 1, nminsecs
@@ -861,7 +858,7 @@ contains
     ! !LOCAL VARIABLES:
     integer :: c,err_index,j,k,p,m,a     ! indices
     integer :: fc                        ! lake filter indices
-    logical :: iserr_pm, iserr_in, iserr_sm, iserr_h    ! error flag
+    logical :: iserr_pm, iserr_in, iserr_sm    ! error flag
     real(r8):: dt                        ! radiation time step (seconds)
     integer :: year
     !-----------------------------------------------------------------------
@@ -869,7 +866,6 @@ contains
     associate(  &
          beg_pm => col_ms%beg_pm          , & ! Output: [real(r8) (:)] total primary mineral mass, beginning of time step (g/m2)
          beg_in => col_ms%beg_in          , & ! Output: [real(r8) (:)] total cation mass, beginning of time step (g/m2)
-         beg_h  => col_ms%beg_h           , & ! Output: [real(r8) (:)] total H+ mass, beginning of time step (g/m2)
          beg_sm => col_ms%beg_sm          , & ! Output: [real(r8) (:)] total secondary mineral mass, beginning of time step (g/m2)
 
          dz     => col_pp%dz              , & ! Input:  [real(r8) (:,:) ]  layer thickness (m)
@@ -883,7 +879,6 @@ contains
          primary_added         => col_mf%primary_added        , &
          primary_dissolve      => col_mf%primary_dissolve     , &
          primary_cation_flux   => col_mf%primary_cation_flux  , &
-         primary_proton_flux   => col_mf%primary_proton_flux  , &
 
          background_flux       => col_mf%background_flux, &
          background_cec        => col_mf%background_cec, &
@@ -892,7 +887,6 @@ contains
          secondary_cation_flux => col_mf%secondary_cation_flux , &
 
          cec_cation_flux       => col_mf%cec_cation_flux  , &
-         cec_proton_flux       => col_mf%cec_proton_flux  , &
 
          cation_infl           => col_mf%cation_infl   , &
          cation_oufl           => col_mf%cation_oufl   , &
@@ -900,28 +894,18 @@ contains
          cation_leached        => col_mf%cation_leached, &
          cation_runoff         => col_mf%cation_runoff , &
 
-         proton_infl           => col_mf%proton_infl   , &
-         proton_oufl           => col_mf%proton_oufl   , &
-         proton_uptake         => col_mf%proton_uptake , &
-         proton_leached        => col_mf%proton_leached, &
-         proton_runoff         => col_mf%proton_runoff , &
-
          err_pm => col_ms%err_pm, &
          err_in => col_ms%err_in, &
-         err_h  => col_ms%err_h , &
          err_sm => col_ms%err_sm, &
 
          end_pm => col_ms%end_pm, &
          end_in => col_ms%end_in, &
-         end_h  => col_ms%end_h,  &
          end_sm => col_ms%end_sm, &
 
          pm_add  => col_mf%pm_add,  &
          pm_loss => col_mf%pm_loss, &
          in_add  => col_mf%in_add,  &
          in_loss => col_mf%in_loss, &
-         h_add   => col_mf%h_add,   &
-         h_loss  => col_mf%h_loss,  &
          sm_add  => col_mf%sm_add,  &
          sm_loss => col_mf%sm_loss  &
     )
@@ -932,7 +916,6 @@ contains
 
     iserr_pm = .false.
     iserr_in = .false.
-    iserr_h  = .false.
     iserr_sm = .false. 
 
     ! column loop
@@ -949,8 +932,6 @@ contains
        do m = 1,ncations
           end_in(c) = end_in(c) + cation(c,m) + cec_cation(c,m)
        end do
-
-       end_h(c) = proton(c)
 
        end_sm(c) = 0._r8
        do m = 1,nminsecs
@@ -976,9 +957,6 @@ contains
             cation_oufl(c,a) + cation_leached(c,a) + cation_runoff(c,a)
       end do
 
-      h_add(c) = proton_infl(c) + cec_proton_flux(c)
-      h_loss(c) = proton_oufl(c) + proton_uptake(c) + proton_leached(c) + proton_runoff(c) + primary_proton_flux(c)
-
       sm_add(c) = 0._r8
       do m = 1, nminsecs
          sm_add(c) = sm_add(c) + secondary_mineral_flux(c,m)
@@ -989,7 +967,6 @@ contains
       ! calculate the column-level balance error for this time step
       err_sm(c) = (pm_add(c) - pm_loss(c)) * dt - (end_sm(c) - beg_sm(c))
       err_in(c) = (in_add(c) - in_loss(c)) * dt - (end_in(c) - beg_in(c))
-      err_h (c) = 0._r8 ! (h_add (c) - h_loss (c)) * dt - (end_h (c) - beg_h (c))
       err_sm(c) = (sm_add(c) - sm_loss(c)) * dt - (end_sm(c) - beg_sm(c))
 
       if (abs(err_sm(c)) > 1e-8_r8) then
@@ -999,11 +976,6 @@ contains
 
       if (abs(err_in(c)) > 1e-8_r8) then
          iserr_in = .true.
-         err_index = c
-      end if
-
-      if (abs(err_h(c)) > 1e-8_r8) then
-         iserr_h = .true.
          err_index = c
       end if
 
@@ -1019,11 +991,10 @@ contains
             write(iulog,*) '--WARNING-- skipping mineral balance check for initialization'
          end if
       else
-         if (iserr_pm .or. iserr_in .or. iserr_sm .or. iserr_h) then
+         if (iserr_pm .or. iserr_in .or. iserr_sm) then
             c = err_index
             write(iulog,*)'column primary mineral balance error = ', err_pm(c), c
             write(iulog,*)'column cations balance error = ', err_in(c), c
-            write(iulog,*)'column proton balance error = ', err_h(c), c
             write(iulog,*)'column secondary mineral balance error = ', err_sm(c), c
 
             write(iulog,*)'Latdeg,Londeg=',grc_pp%latdeg(col_pp%gridcell(c)),grc_pp%londeg(col_pp%gridcell(c))
@@ -1033,9 +1004,6 @@ contains
 
             write(iulog,*)'cations: delta, begin, end', end_in(c) - beg_in(c), beg_in(c), end_in(c)
             write(iulog,*)'cations: flux, in, out', (in_add(c)-in_loss(c))*dt, in_add(c)*dt, in_loss(c)*dt
-
-            write(iulog,*)'proton: delta, begin, end', end_h(c) - beg_h(c), beg_h(c), end_h(c)
-            write(iulog,*)'proton: flux, in, out', (h_add(c)-h_loss(c))*dt, h_add(c)*dt, h_loss(c)*dt
 
             write(iulog,*)'secondary mineral: delta, begin, end', end_sm(c) - beg_sm(c), beg_sm(c), end_sm(c)
             write(iulog,*)'secondary mineral: flux, in, out', (sm_add(c)-sm_loss(c))*dt, sm_add(c)*dt, sm_loss(c)*dt

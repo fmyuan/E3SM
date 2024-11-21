@@ -82,7 +82,7 @@ contains
         end do
 
         ! CEC H+
-        ! note "cec_proton_flux_vr" integrates the impacts from CO2 reactions
+        ! the Equilibria subroutine cannot distinguish the effects of CO2 and cation exchange
         ! instead, use charge balance on the mineral surface to get the change in adsorped H+
         do icat = 1,ncations
           col_ms%cec_proton_vr(c,j) = col_ms%cec_proton_vr(c,j) + &
@@ -302,13 +302,6 @@ contains
              mass_to_mol(col_ms%proton_vr(c,j), mass_h, col_ws%h2osoi_vol(c,j))
         end do
       end do
-      !!  - col_mf%primary_proton_flux_vr(c,j)*dt, & 
-      !!  col_mf%cec_proton_flux_vr(c,j)*dt, &
-      !!  col_mf%proton_infl_vr(c,j)*dt, &
-      !!  - col_mf%proton_oufl_vr(c,j)*dt, & 
-      !!  -col_mf%proton_uptake_vr(c,j)*dt, & 
-      !!  -col_mf%proton_leached_vr(c,j)*dt, &
-      !!  -col_mf%proton_runoff_vr(c,j)*dt
 
       ! print soil solution cations
       do fc = 1,num_soilc
