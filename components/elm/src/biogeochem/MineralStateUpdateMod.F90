@@ -8,7 +8,7 @@ module MineralStateUpdateMod
   use decompMod               , only : bounds_type
   use spmdMod                 , only : iam
   use elm_varpar              , only : nminerals, ncations, nminsecs, nlevgrnd, nlevsoi
-  use elm_varcon              , only : zisoi, dzsoi, mass_h, secspday
+  use elm_varcon              , only : zisoi, dzsoi, mass_h, mass_hco3, mass_co3, secspday
   use elm_varctl              , only : use_erw_verbose
   use shr_sys_mod             , only : shr_sys_flush
   use spmdMod                 , only : masterproc
@@ -172,6 +172,7 @@ contains
     integer  :: c,j,icat,g    ! indices
     integer  :: fc            ! lake filter indices
     integer  :: nlevbed
+    integer  :: rmethod       ! 1 - use cation, 2 - use HCO3-- and CO3-- flux
     !-----------------------------------------------------------------------
 
     ! Update mineral state
@@ -186,23 +187,42 @@ contains
       end do
 
       ! Calculate the total CO2 sequestration rate in mol m-2 s-1
-      col_mf%r_sequestration(c) = 0._r8
-      do j = 1,nlevbed
-        ! precipitated by calcite: 1 mol CO2 per mol Ca2+
-        col_mf%r_sequestration(c) = col_mf%r_sequestration(c) + & 
-          col_mf%secondary_cation_flux_vr(c,j,1) / EWParamsInst%cations_mass(1) * col_pp%dz(c,j)
-        ! transported to ocean: 2x for 2+ cations, 1x for 1+ cations, multiply by
-        ! ocean efficiency (0.86)
-        ! - col_mf%background_flux_vr(c,j,icat)
-        do icat = 1,ncations
+      rmethod = 1
+      if (rmethod == 1) then
+
+        col_mf%r_sequestration(c) = 0._r8
+        do j = 1,nlevbed
+          ! precipitated by calcite: 1 mol CO2 per mol Ca2+
           col_mf%r_sequestration(c) = col_mf%r_sequestration(c) + & 
-              ( col_mf%cation_leached_vr(c,j,icat) + col_mf%cation_runoff_vr(c,j,icat) - &
-                col_mf%cation_infl_vr(c,j,icat) ) * 0.86_r8 * col_pp%dz(c,j) / &
-              EWParamsInst%cations_mass(icat) * EWParamsInst%cations_valence(icat)
+            col_mf%secondary_cation_flux_vr(c,j,1) / EWParamsInst%cations_mass(1) * col_pp%dz(c,j)
+          ! transported to ocean: 2x for 2+ cations, 1x for 1+ cations, multiply by
+          ! ocean efficiency (0.86)
+          ! - col_mf%background_flux_vr(c,j,icat)
+          do icat = 1,ncations
+            col_mf%r_sequestration(c) = col_mf%r_sequestration(c) + & 
+                ( col_mf%cation_leached_vr(c,j,icat) + col_mf%cation_runoff_vr(c,j,icat) - &
+                  col_mf%cation_infl_vr(c,j,icat) ) * 0.86_r8 * col_pp%dz(c,j) / &
+                EWParamsInst%cations_mass(icat) * EWParamsInst%cations_valence(icat)
+          end do
         end do
-      end do
+
+      else
+
+        ! calculate the total CO2 sequestration rate in mol m-2 s-1 as the 
+        ! bottom drainage of HCO3- + 2*CO3--
+        col_mf%r_sequestration(c) = col_mf%bicarbonate_drainage(c) / mass_hco3 + &
+          col_mf%carbonate_drainage(c) / mass_co3 * 2._r8
+        do j = 1,nlevbed
+          ! precipitated by calcite: 1 mol CO2 per mol Ca2+
+          col_mf%r_sequestration(c) = col_mf%r_sequestration(c) + & 
+            col_mf%secondary_cation_flux_vr(c,j,1) / EWParamsInst%cations_mass(1) * col_pp%dz(c,j)
+        end do
+
+      end if
+
       ! convert from mol m-2 s-1 to gC m-2 s-1
       col_mf%r_sequestration(c) = col_mf%r_sequestration(c) * 12._r8
+
     end do
   end subroutine MineralStateUpdate3
 

@@ -54,6 +54,9 @@ module EnhancedWeatheringMod
      real(r8), pointer  :: cations_valence             (:)      => null()   ! valence of the cations
      real(r8), pointer  :: cations_diffusivity         (:)      => null()   ! diffusion coefficient of the cations in water, m2/s
 
+     real(r8), pointer  :: bicarbonate_diffusivity              => null()   ! diffusion coefficient of HCO3- in water, m2/s
+     real(r8), pointer  :: carbonate_diffusivity                => null()   ! diffusion coefficient of CO3-- in water, m2/s
+
      character(len=40), pointer  :: minsecs_name       (:)      => null()   ! names of the secondary minerals for the record
      real(r8), pointer  :: minsecs_mass                (:)      => null()   ! molar mass of the secondary mineral, g/mol, 1:nminsecss (e.g. Mg2SiO4 = 140.6931 g/mol)
      real(r8), pointer  :: log_keq_minsecs             (:)      => null()   ! log10 of equilibrium constants for secondary mineral precipitation
@@ -203,6 +206,9 @@ contains
     allocate(EWParamsInst%cations_valence(1:ncations))
     allocate(EWParamsInst%cations_diffusivity(1:ncations))
 
+    allocate(EWParamsInst%bicarbonate_diffusivity)
+    allocate(EWParamsInst%carbonate_diffusivity)
+
     allocate(EWParamsInst%primary_stoi_proton(1:nminerals))
     allocate(EWParamsInst%primary_stoi_h2o(1:nminerals))
     allocate(EWParamsInst%primary_stoi_sio2(1:nminerals))
@@ -256,6 +262,14 @@ contains
 
     tString='cations_diffusivity'
     call ncd_io(varname=trim(tString),data=EWParamsInst%cations_diffusivity, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+
+    tString='bicarbonate_diffusivity'
+    call ncd_io(varname=trim(tString),data=EWParamsInst%bicarbonate_diffusivity, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+
+    tString='carbonate_diffusivity'
+    call ncd_io(varname=trim(tString),data=EWParamsInst%carbonate_diffusivity, flag='read', ncid=ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
 
     ! for primary mineral's dissolution reactions (product)
@@ -1015,11 +1029,14 @@ contains
     real(r8) :: co2_atm                                ! CO2 partial pressure in atm
     real(r8) :: rain_carbonate, rain_bicarbonate       ! surface boundary condition (g m-3 H2O)
     real(r8) :: rain_cations(1:ncations)               ! surface boundary condition (g m-3 H2O)
+    real(r8) :: sourcesink_zero(1:nlevsoi)             ! src/sink term (g m-3 soil s-1)
     real(r8) :: sourcesink_cations(1:nlevsoi,1:ncations) ! src/sink term (g m-3 soil s-1)
     real(r8) :: adv_water(1:nlevsoi+1)                 ! m H2O / s, negative downward
     real(r8) :: diffus(1:nlevsoi)                      ! m2/s
     real(r8) :: rho(1:nlevsoi)                         ! "density" factor using soil water content
-    real(r8) :: dcation_dt(1:nlevsoi, 1:ncations)      ! cation concentration rate, g m-3 s-1
+    real(r8) :: dcation_dt(1:nlevsoi, 1:ncations)      ! cation concentration change rate, g m-3 s-1
+    real(r8) :: dhco3_dt(1:nlevsoi)                    ! HCO3- concentration change rate, g m-3 s-1
+    real(r8) :: dco3_dt(1:nlevsoi)                     ! CO3-- concentration change rate, g m-3 s-1
 
     !-----------------------------------------------------------------------
 
@@ -1029,6 +1046,7 @@ contains
          h2osoi_vol                     => col_ws%h2osoi_vol              , & ! Input:  [real(r8) (:)] volumetric soil water content, ice + water (m3 m-3)
 
          nlev2bed                       => col_pp%nlevbed                 , & ! Input:  [integer  (:)   ]  number of layers to bedrock
+         dz                             => col_pp%dz                      , & ! Input:  [real(r8) (:,:) ]  layer thickness (m)
 
          rain_ph                        => col_ew%rain_ph                 , & ! Output: [real(r8) (:)] pH of rain water
          rain_chem                      => col_ew%rain_chem               , & ! Output: [real(r8) (:,:)] cation concentration in rain water (excluding H+) (g m-3 rain water) (1:ncations)
@@ -1037,14 +1055,19 @@ contains
          mixing_fraction                => col_mf%mixing_fraction         , & ! Input:  [real(r8) (:,:) ] fraction of vertical water flow that participated in mineral reactions (-)
 
          cation_vr                      => col_ms%cation_vr               , & ! Output [real(r8) (:,:,:)] cation mass in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd, 1:ncations)
+         bicarbonate_vr                 => col_ms%bicarbonate_vr          , & ! Output: [real(r8) (:,:)] calculated HCO3- concentration in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd)
+         carbonate_vr                   => col_ms%carbonate_vr            , & ! Output: [real(r8) (:,:)] calculated CO3 2- concentration in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd)
 
          cation_infl_vr                 => col_mf%cation_infl_vr          , & ! Output: [real(r8) (:,:,:)] cation flux carried from infiltration above (g m-3 soil s-1 [not water]) (1:nlevgrnd, 1:ncations)
          cation_oufl_vr                 => col_mf%cation_oufl_vr          , & ! Output: [real(r8) (:,:,:)] cation flux carried away by infiltration (g m-3 soil s-1 [not water]) (1:nlevgrnd, 1:ncations)
          cation_uptake_vr               => col_mf%cation_uptake_vr        , & ! Output: [real(r8) (:,:,:)] cation flux uptaken by plants (g m-3 soil s-1 [not water]) (1:nlevgrnd, 1:ncations)
          cec_cation_flux_vr             => col_mf%cec_cation_flux_vr      , & ! Output: [real(r8) (:,:,:)] rate at which adsorbed cation is released into water (negative for adsorption into soil) (vertically resolved) (1:nlevgrnd, 1:ncations) (g m-3 s-1)
 
+         bicarbonate_drainage           => col_mf%bicarbonate_drainage    , & ! Output: [real(r8) (:,:)] bottom drainage of HCO3- due to vertical infiltration (positive for increase) (g m-3 soil s-1 [not water]) (1:nlevgrnd)
+         carbonate_drainage             => col_mf%carbonate_drainage      , & ! Output: [real(r8) (:,:)] bottom drainage of CO3-- due to vertical infiltration (positive for increase) (g m-3 soil s-1 [not water]) (1:nlevgrnd)
+
          primary_cation_flux_vr         => col_mf%primary_cation_flux_vr  , & ! Output [real(r8) (:,:,:) cations produced due to all the dissolution reactions (g m-3 s-1) (1:nlevgrnd, 1:ncations)
-         background_flux_vr       => col_mf%background_flux_vr, & ! Output: [real(r8) (:)] background weathering rate (g m-3 s-1)
+         background_flux_vr             => col_mf%background_flux_vr      , & ! Output: [real(r8) (:)] background weathering rate (g m-3 s-1)
          secondary_cation_flux_vr       => col_mf%secondary_cation_flux_vr & ! Output [real(r8) (:,:,:) cations consumed due to precipitation of secondary minerals (g m-3 s-1) (1:nlevgrnd, 1:ncations)
     )
 
@@ -1085,47 +1108,49 @@ contains
             primary_cation_flux_vr(c,j,icat) + cec_cation_flux_vr(c,j,icat) - &
             secondary_cation_flux_vr(c,j,icat) - cation_uptake_vr(c,j,icat)
         end do
+
+        ! for HCO3-, CO3--, calculate the pure advection diffusion at equilibrium concentrations
+        sourcesink_zero(j) = 0._r8
       end do
 
       !------------------------------------------------------------------------------
       ! The fraction of incoming water that mixes with soil solution to carry away
       ! cations
       !------------------------------------------------------------------------------
-      !! use the vertical flow rate tocalculate the mixing ratio between incoming water
-      !! and soil cations
-      !do j = 1,nlevbed
-      !  if (abs(qin(c,j)) <= annavg_qin_col(c,j)) then
-      !    mixing_fraction(c,j) = 1._r8
-      !  else
-      !    mixing_fraction(c,j) = annavg_qin_col(c,j) / abs(qin(c,j))
-      !  end if
-      !end do
-      !if (abs(qin(c,nlevbed+1)) <= annavg_qin_col(c,nlevbed+1)) then
-      !  mixing_fraction(c,nlevbed+1) = 1._r8
-      !else
-      !  mixing_fraction(c,nlevbed+1) = annavg_qin_col(c,nlevbed+1) / abs(qin(c,nlevbed+1))
-      !end if
-
       ! use placeholder => 1 for now
       mixing_fraction(c,1:nlevbed+1) = 1._r8
 
       !------------------------------------------------------------------------------
       ! Calculate the vertical transport
       !------------------------------------------------------------------------------
+      do j = 1,nlevbed
+        ! note the flux rate is negative downward
+        adv_water(j) = -1.0e-3_r8 * qin(c,j) * mixing_fraction(c,j)
+      end do
+      adv_water(nlevbed + 1) = -1.0e-3_r8 * qin(c,nlevbed+1) * mixing_fraction(c,nlevbed+1)
+
       do icat = 1,ncations
         diffus(1:nlevsoi) = EWParamsInst%cations_diffusivity(icat)
-        do j = 1,nlevbed
-          ! note the flux rate is negative downward
-          adv_water(j) = -1.0e-3_r8 * qin(c,j) * mixing_fraction(c,j)
-        end do
-        adv_water(nlevbed + 1) = -1.0e-3_r8 * qin(c,nlevbed+1) * mixing_fraction(c,nlevbed+1)
-
         call advection_diffusion( & 
           cation_vr(c, 1:nlevsoi, icat), adv_water(1:nlevsoi+1), diffus(1:nlevsoi), &
           sourcesink_cations(1:nlevsoi, icat), rain_cations(icat), nlevbed, dt, &
           h2osoi_vol(c, 1:nlevsoi), dcation_dt(1:nlevsoi, icat) &
         )
       end do
+
+      diffus(1:nlevsoi) = EWParamsInst%bicarbonate_diffusivity
+      call advection_diffusion( &
+        bicarbonate_vr(c, 1:nlevsoi), adv_water(1:nlevsoi+1), diffus(1:nlevsoi), &
+        sourcesink_zero(1:nlevsoi), rain_bicarbonate, nlevbed, dt, &
+        h2osoi_vol(c, 1:nlevsoi), dhco3_dt(1:nlevsoi) &
+      )
+
+      diffus(1:nlevsoi) = EWParamsInst%carbonate_diffusivity
+      call advection_diffusion( &
+        carbonate_vr(c, 1:nlevsoi), adv_water(1:nlevsoi+1), diffus(1:nlevsoi), &
+        sourcesink_zero(1:nlevsoi), rain_carbonate, nlevbed, dt, &
+        h2osoi_vol(c, 1:nlevsoi), dco3_dt(1:nlevsoi) &
+      )
 
       !------------------------------------------------------------------------------
       ! Update the cation concentrations using the vertical transport
@@ -1137,6 +1162,27 @@ contains
         end do
       end do
 
+      !------------------------------------------------------------------------------
+      ! Calculate the bottom layer drainage of HCO3- and CO3--
+      ! 
+      ! To convert the delta to vertical flux, note that: 
+      ! delta c_i * dz = f_{i-1} - f_{i}
+      ! , where 1 <= i <= n
+      !   delta c_i - rate of change of the concentration of layer i, gC m-3 s-1
+      !   dz - thickness of layer i, m
+      !   f_{i-1} - flux from layer i-1 into layer i, positive for downwards, gC m-2 s-1
+      !   f_i     - flux from layer i into layer i+1, positive for downwards, gC m-2 s-1
+      !
+      ! Sum up all the layers and cancel duplicate terms,
+      ! sum(delta c_i * dz) = f0 - f_{N}
+      ! => f_{N} = f0 - sum(delta c_i * dz)
+      !------------------------------------------------------------------------------
+      bicarbonate_drainage(c) = rain_bicarbonate * 1.0e-3_r8 * qin(c,1)
+      carbonate_drainage(c) = rain_carbonate * 1.0e-3_r8 * qin(c,1)
+      do j = 1, nlevbed
+        bicarbonate_drainage(c) = bicarbonate_drainage(c) - dhco3_dt(c) * dz(c,j)
+        carbonate_drainage(c) = carbonate_drainage(c) - dco3_dt(c) * dz(c,j)
+      end do
     end do ! end soil column loop
 
     end associate
