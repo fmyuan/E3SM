@@ -901,6 +901,8 @@ contains
           primary_residue_flux_vr(c,j,m) = primary_residue_flux_vr(c,j,m) * r_dissolve_vr(c,j,m)
         end do
 
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        !!!!!!!!!!!!! DOUBLE CHECK P release calculation
         primary_prelease_vr(c,j) = 0._r8
         do m = 1,nminerals
           primary_prelease_vr(c,j) = primary_prelease_vr(c,j) + &

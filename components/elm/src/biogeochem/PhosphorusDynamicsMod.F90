@@ -14,14 +14,14 @@ module PhosphorusDynamicsMod
   use elm_varcon          , only : dzsoi_decomp, zisoi
   use atm2lndType         , only : atm2lnd_type
   use CNCarbonFluxType    , only : carbonflux_type
-  use elm_varpar          , only : nlevdecomp
-  use elm_varctl          , only : use_vertsoilc
+  use elm_varpar          , only : nlevdecomp, mixing_layer
+  use elm_varctl          , only : use_vertsoilc, use_erw
 
   use subgridAveMod       , only : p2c
   use CNStateType         , only : cnstate_type
   use CropType            , only : crop_type
   use ColumnType          , only : col_pp
-  use ColumnDataType      , only : col_ws, col_wf, nfix_timeconst, col_ps, col_pf
+  use ColumnDataType      , only : col_ws, col_wf, nfix_timeconst, col_ps, col_pf, col_mf
   use VegetationType      , only : veg_pp
   use VegetationDataType  , only : veg_ns, veg_pf
   use VegetationPropertiesType      , only : veg_vp
@@ -114,9 +114,10 @@ contains
 
     associate(&
 
-         isoilorder     => cnstate_vars%isoilorder                 ,&
-         primp          => col_ps%primp_vr       ,&
-         primp_to_labilep => col_pf%primp_to_labilep_vr  &
+         isoilorder         => cnstate_vars%isoilorder          ,&
+         primp              => col_ps%primp_vr                  ,&
+         primp_to_labilep   => col_pf%primp_to_labilep_vr       ,&
+         primary_prelease_vr => col_mf%primary_prelease_vr   & ! gP m-3 s-1
          )
 
       ! set time steps
@@ -131,6 +132,13 @@ contains
             r_weather_c=1._r8-exp(-rr*dtd)
             primp_to_labilep(c,j) = primp(c,j)*r_weather_c/dt
          end do
+
+         if (use_erw) then
+            ! add to the primary weathering flux
+            if (j <= mixing_layer) then
+               primp_to_labilep(c,j) = primp_to_labilep(c,j) + primary_prelease_vr(c,j)
+            end if
+         end if
       enddo
     end associate
 

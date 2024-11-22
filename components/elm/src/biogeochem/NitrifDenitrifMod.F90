@@ -7,16 +7,16 @@ module NitrifDenitrifMod
   use shr_const_mod       , only : SHR_CONST_TKFRZ
   use shr_log_mod         , only : errMsg => shr_log_errMsg
   use shr_const_mod       , only : SHR_CONST_TKFRZ
-  use elm_varpar          , only : nlevgrnd,nlevdecomp
+  use elm_varpar          , only : nlevgrnd, nlevdecomp, nlevsoi
   use elm_varcon          , only : rpi, denh2o, dzsoi, zisoi, grav
   use elm_varcon          , only : d_con_g, d_con_w, spval, secspday
-  use elm_varctl          , only : use_lch4, iulog
+  use elm_varctl          , only : use_lch4, iulog, use_erw
   use abortutils          , only : endrun
   use decompMod           , only : bounds_type
   use SoilStatetype       , only : soilstate_type
   use ch4Mod              , only : ch4_type
   use ColumnType          , only : col_pp
-  use ColumnDataType      , only : col_es, col_ws, col_cf, col_ns, col_nf
+  use ColumnDataType      , only : col_es, col_ws, col_cf, col_ns, col_nf, col_ms
   !
   implicit none
   save
@@ -127,7 +127,7 @@ contains
     type(ch4_type)           , intent(in)    :: ch4_vars
     !
     ! !LOCAL VARIABLES:
-    integer  :: c, fc, reflev, j
+    integer  :: c, fc, reflev, j, nlevbed
     real(r8) :: soil_hr_vr(bounds%begc:bounds%endc,1:nlevdecomp) ! total soil respiration rate (g C / m3 / s)
     real(r8) :: g_per_m3__to__ug_per_gsoil
     real(r8) :: g_per_m3_sec__to__ug_per_gsoil_day
@@ -204,7 +204,10 @@ contains
          soil_bulkdensity              =>    col_nf%soil_bulkdensity              , & ! Output:  [real(r8) (:,:) ]  (kg soil / m3) bulk density of soil (including water)
          pot_f_nit_vr                  =>    col_nf%pot_f_nit_vr                  , & ! Output:  [real(r8) (:,:) ]  (gN/m3/s) potential soil nitrification flux
          pot_f_denit_vr                =>    col_nf%pot_f_denit_vr                , & ! Output:  [real(r8) (:,:) ]  (gN/m3/s) potential soil denitrification flux
-         n2_n2o_ratio_denit_vr         =>    col_nf%n2_n2o_ratio_denit_vr           & ! Output:  [real(r8) (:,:) ]  ratio of N2 to N2O production by denitrification [gN/gN]
+         n2_n2o_ratio_denit_vr         =>    col_nf%n2_n2o_ratio_denit_vr         , & ! Output:  [real(r8) (:,:) ]  ratio of N2 to N2O production by denitrification [gN/gN]
+
+         nlev2bed                      =>    col_pp%nlevbed                       , & ! Input:  [integer  (:)   ] number of layers to bedrock
+         soil_ph                       => col_ms%soil_ph                         & ! Input:  [real(r8) (:,:)] calculated soil pH from enhanced weathering (1:nlevgrnd)
          )
 
       ! Set maximum nitrification rate constant
@@ -233,6 +236,7 @@ contains
       do j = 1, nlevdecomp
          do fc = 1,num_soilc
             c = filter_soilc(fc)
+            nlevbed = min(nlev2bed(c), nlevsoi)
 
             !---------------- calculate soil anoxia state
             ! calculate gas diffusivity of soil at field capacity here
@@ -304,7 +308,15 @@ contains
             k_nitr_t_vr(c,j) = min(t_scalar(c,j), 1._r8)
 
             ! ph function from Parton et al., (2001, 1996)
-            k_nitr_ph_vr(c,j) = 0.56 + atan(rpi * 0.45 * (-5.+ pH(c)))/rpi
+            if (use_erw) then
+               if (j <= nlevbed) then
+                  k_nitr_ph_vr(c,j) = 0.56 + atan(rpi * 0.45 * (-5.+ soil_ph(c,j)))/rpi
+               else
+                  k_nitr_ph_vr(c,j) = 0.56 + atan(rpi * 0.45 * (-5.+ pH(c)))/rpi
+               end if
+            else
+               k_nitr_ph_vr(c,j) = 0.56 + atan(rpi * 0.45 * (-5.+ pH(c)))/rpi
+            end if
 
             ! moisture function-- assume the same moisture function as limits heterotrophic respiration
             ! Parton et al. base their nitrification- soil moisture rate constants based on heterotrophic rates-- can we do the same?
