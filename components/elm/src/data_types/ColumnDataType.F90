@@ -1159,12 +1159,10 @@ module ColumnDataType
       real(r8), pointer :: cation_runoff_vr             (:,:,:)   => null() ! rate at which cations are lost to stream (1:nlevgrnd,1:ncations) (g m-3 s-1)
 
       real(r8), pointer :: bicarbonate_drainage         (:)       => null() ! bottom drainage of HCO3- due to vertical infiltration (g m-2 s-1)
-      real(r8), pointer :: bicarbonate_leached_vr       (:)       => null() ! rate at which HCO3- are lost to stream (1:nlevgrnd) (g m-3 s-1)
-      real(r8), pointer :: bicarbonate_runoff_vr        (:)       => null() ! rate at which HCO3- are lost to stream (1:nlevgrnd) (g m-3 s-1)
+      real(r8), pointer :: bicarbonate_leached_vr       (:,:)     => null() ! rate at which HCO3- are lost to stream (1:nlevgrnd) (g m-3 s-1)
 
       real(r8), pointer :: carbonate_drainage           (:)       => null() ! bottom drainage of CO3-- due to vertical infiltration (g m-2 s-1)
-      real(r8), pointer :: carbonate_leached_vr         (:)       => null() ! rate at which CO3-- are lost to stream (1:nlevgrnd) (g m-3 s-1)
-      real(r8), pointer :: carbonate_runoff_vr          (:)       => null() ! rate at which CO3-- are lost to stream (1:nlevgrnd) (g m-3 s-1)
+      real(r8), pointer :: carbonate_leached_vr         (:,:)     => null() ! rate at which CO3-- are lost to stream (1:nlevgrnd) (g m-3 s-1)
 
       real(r8), pointer :: background_flux              (:,:)     => null() ! vertically integrated background flux rate in/out of soil solution (1:ncations) (g m-2 s-1)
       real(r8), pointer :: background_cec               (:,:)     => null() ! vertically integrated background flux rate in/out of soil CEC phase (1:ncations) (g m-2 s-1)
@@ -12501,8 +12499,10 @@ contains
       allocate(this%cation_runoff_vr              (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cation_runoff_vr             (:,:,:) = spval
 
       allocate(this%bicarbonate_drainage          (begc:endc                       ))       ; this%bicarbonate_drainage         (:    ) = spval
+      allocate(this%bicarbonate_leached_vr        (begc:endc,1:nlevgrnd            ))       ; this%bicarbonate_leached_vr       (:,:  ) = spval
 
       allocate(this%carbonate_drainage            (begc:endc                       ))       ; this%carbonate_drainage           (:    ) = spval
+      allocate(this%carbonate_leached_vr          (begc:endc,1:nlevgrnd            ))       ; this%carbonate_leached_vr         (:,:  ) = spval
 
       allocate(this%background_flux               (begc:endc,1:ncations            ))       ; this%background_flux              (:,:)   = spval
       allocate(this%background_cec                (begc:endc,1:ncations            ))       ; this%background_cec               (:,:)   = spval
@@ -12801,10 +12801,20 @@ contains
          avgflag='A', long_name='bottom drainage rate of HCO3- due to vertical infiltration', &
          ptr_col=this%bicarbonate_drainage, l2g_scale_type='veg')
 
+      this%bicarbonate_leached_vr(begc:endc,:) = spval
+      call hist_addfld2d (fname='bicarbonate_leached_vr',  units='g m-3 s-1', type2d='levgrnd', &
+         avgflag='A', long_name='rate at which HCO3- are lost to stream (vertically resolved)', &
+         ptr_col=this%bicarbonate_leached_vr, l2g_scale_type='veg')
+
       this%carbonate_drainage(begc:endc) = spval
       call hist_addfld1d (fname='carbonate_drainage',  units='g m-2 s-1', &
          avgflag='A', long_name='bottom drainage rate of CO3-- due to vertical infiltration', &
          ptr_col=this%carbonate_drainage, l2g_scale_type='veg')
+
+      this%carbonate_leached_vr(begc:endc,:) = spval
+      call hist_addfld2d (fname='carbonate_leached_vr',  units='g m-3 s-1', type2d='levgrnd', &
+         avgflag='A', long_name='rate at which CO3-- are lost to stream (vertically resolved)', &
+         ptr_col=this%carbonate_leached_vr, l2g_scale_type='veg')
 
       this%background_flux(begc:endc,:) = spval
       call hist_addfld2d (fname='background_flux',  units='g m-2 s-1', type2d='cations', &
@@ -12941,7 +12951,9 @@ contains
             this%cation_runoff_vr                (c,1:nlevsoi,1:ncations ) = 0._r8
 
             this%bicarbonate_drainage            (c                      ) = 0._r8
+            this%bicarbonate_leached_vr          (c,1:nlevsoi            ) = 0._r8
             this%carbonate_drainage              (c                      ) = 0._r8
+            this%carbonate_leached_vr            (c,1:nlevsoi            ) = 0._r8
 
             this%background_flux                 (c,1:ncations            ) = 0._r8
             this%background_cec                  (c,1:ncations            ) = 0._r8

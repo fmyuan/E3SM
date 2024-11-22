@@ -1228,6 +1228,12 @@ contains
          cation_leached_vr      => col_mf%cation_leached_vr               , & ! Output: [real(r8) (:,:,:) ]  rate of cation leaching (g m-3 s-1)
          cation_runoff_vr       => col_mf%cation_runoff_vr                , & ! Output: [real(r8) (:,:,:) ]  rate of cation loss with runoff (g m-3 s-1)
 
+         bicarbonate_vr         => col_ms%bicarbonate_vr                  , & ! Output: [real(r8) (:,:)] calculated HCO3- concentration in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd)
+         bicarbonate_leached_vr => col_mf%bicarbonate_leached_vr          , & ! Output: [real(r8) (:,:) ] rate of HCO3- leaching (g m-3 s-1) (1:nlevgrnd)
+
+         carbonate_vr           => col_ms%carbonate_vr                    , & ! Output: [real(r8) (:,:)] calculated CO3 2- concentration in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd)
+         carbonate_leached_vr   => col_mf%carbonate_leached_vr            , & ! Output: [real(r8) (:,:) ] rate of CO3-- leaching (g m-3 s-1) (1:nlevgrnd)
+
          dz                             => col_pp%dz                      , & ! Input:  [real(r8) (:,:) ]  layer thickness (m)
          nlev2bed                       => col_pp%nlevbed                 , & ! Input:  [integer  (:)   ]  number of layers to bedrock
 
@@ -1283,6 +1289,7 @@ contains
           ! concentration (g cation/kg water) and the sub-surface drainage flux
 
           if ( zisoi(j-1) < depth_runoff_Mloss ) then
+
             if ( zisoi(j) <= depth_runoff_Mloss )  then
               frac_thickness = 1._r8
             else
@@ -1302,7 +1309,9 @@ contains
                 cation_runoff_vr(c,j,icat) = cation_vr(c,j,icat) * temp_surf_pct * frac_thickness
               end do
             end if
+
           else
+
             cation_runoff_vr(c,j,1:ncations) = 0._r8
             if (temp_drain_pct*dt > 0.1_r8) then
               do icat = 1,ncations
@@ -1313,6 +1322,17 @@ contains
                 cation_leached_vr(c,j,icat) = cation_vr(c,j,icat) * temp_drain_pct
               end do
             end if
+
+          end if
+
+          ! calculate the leaching flux as a function of the HCO3-- and CO3-- concentration and
+          ! the sub-surface drainage flux
+          if (temp_drain_pct*dt > 0.1_r8) then
+            bicarbonate_leached_vr(c,j) = bicarbonate_vr(c,j) * (1._r8 - exp(-temp_drain_pct*dt))/dt
+            carbonate_leached_vr(c,j) = carbonate_vr(c,j) * (1._r8 - exp(-temp_drain_pct*dt))/dt
+          else
+            bicarbonate_leached_vr(c,j) = bicarbonate_vr(c,j) * temp_drain_pct
+            carbonate_leached_vr(c,j) = carbonate_vr(c,j) * temp_drain_pct
           end if
 
         else
@@ -1320,6 +1340,9 @@ contains
             cation_leached_vr(c,j,icat) = 0._r8
             cation_runoff_vr(c,j,icat) = 0._r8
           end do
+
+          bicarbonate_leached_vr(c,j) = 0._r8
+          carbonate_leached_vr(c,j) = 0._r8
         end if
 
       end do ! end soil level loop

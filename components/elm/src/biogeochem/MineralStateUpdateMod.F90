@@ -187,7 +187,7 @@ contains
       end do
 
       ! Calculate the total CO2 sequestration rate in mol m-2 s-1
-      rmethod = 1
+      rmethod = 2
       if (rmethod == 1) then
 
         col_mf%r_sequestration(c) = 0._r8
@@ -213,7 +213,12 @@ contains
         col_mf%r_sequestration(c) = col_mf%bicarbonate_drainage(c) / mass_hco3 + &
           col_mf%carbonate_drainage(c) / mass_co3 * 2._r8
         do j = 1,nlevbed
-          ! precipitated by calcite: 1 mol CO2 per mol Ca2+
+          ! add the subsurface drainage
+          col_mf%r_sequestration(c) = col_mf%r_sequestration(c) + &
+            col_mf%bicarbonate_leached_vr(c,j) * col_pp%dz(c,j) / mass_hco3 + &
+            col_mf%carbonate_leached_vr(c,j) * col_pp%dz(c,j) / mass_co3 * 2._r8
+
+          ! add the precipitated by calcite: 1 mol CO2 per mol Ca2+
           col_mf%r_sequestration(c) = col_mf%r_sequestration(c) + & 
             col_mf%secondary_cation_flux_vr(c,j,1) / EWParamsInst%cations_mass(1) * col_pp%dz(c,j)
         end do
