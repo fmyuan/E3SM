@@ -1415,9 +1415,7 @@ contains
 
             !dr_wet = 1E6_r8*(dtime*(C1_liq_Brun89 + C2_liq_Brun89*(frc_liq**(3))) / (4*SHR_CONST_PI*(snw_rds(c_idx,i)/1E6)**(2)))
             !simplified, units of microns:
-            ! workaround for GCC/aarch64 codegen overflow with inline pow expressions
-            frc_liq3 = frc_liq**3
-            dr_wet = 1E18_r8*(dtime*(C2_liq_Brun89*frc_liq3) / (4*SHR_CONST_PI*snw_rds(c_idx,i)**(2)))
+            dr_wet = 1E18_r8*(dtime*(C2_liq_Brun89*(frc_liq**(3._r8))) / (4*SHR_CONST_PI*snw_rds(c_idx,i)**(2._r8)))
 
             dr = dr + dr_wet
 
