@@ -1799,12 +1799,12 @@ contains
          g = col_pp%gridcell(c)
          l = col_pp%landunit(c)
          lwrad_emit(c)  =    emg(c) * sb * t_grnd(c)**4
-         dlwrad_emit(c) = 4._r8*emg(c) * sb * t_grnd(c)**3
+         dlwrad_emit(c) = 4._r8*emg(c) * sb * t_grnd(c)**3_r8
 
          ! fractionate lwrad_emit; balanced in CanopyFluxes & Biogeophysics2
-         lwrad_emit_snow(c)    =    emg(c) * sb * t_soisno(c,snl(c)+1)**4
-         lwrad_emit_soil(c)    =    emg(c) * sb * t_soisno(c,1)**4
-         lwrad_emit_h2osfc(c)  =    emg(c) * sb * t_h2osfc(c)**4
+         lwrad_emit_snow(c)    =    emg(c) * sb * t_soisno(c,snl(c)+1)**4._r8
+         lwrad_emit_soil(c)    =    emg(c) * sb * t_soisno(c,1)**4._r8
+         lwrad_emit_h2osfc(c)  =    emg(c) * sb * t_h2osfc(c)**4._r8
 
          if (use_finetop_rad .and. (.not. lun_pp%urbpoi(l))) then
             deg2rad = SHR_CONST_PI/180._r8
