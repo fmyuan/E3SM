@@ -12,12 +12,6 @@ module elm_initializeMod
   use elm_varctl       , only : nsrest, nsrStartup, nsrContinue, nsrBranch
   use elm_varctl       , only : create_glacier_mec_landunit, iulog
   use elm_varctl       , only : use_lch4, use_cn, use_voc, use_c13, use_c14
-!<<<<<<< HEAD
-!  use elm_varctl       , only : use_fates, use_betr, use_fates_sp
-!  use elm_varctl       , only : use_fates, use_betr, use_fates_sp, use_alquimia
-!=======
-!  use elm_varctl       , only : use_fates, use_betr, use_alquimia
-!>>>>>>> 89624cf67f0c42cbb28a74ce1cb424dbee39f975
 ! Junyan changed to 
   use elm_varctl       , only : use_fates, use_betr, use_fates_sp, use_alquimia
 
@@ -39,16 +33,10 @@ module elm_initializeMod
   use TopounitDataType       , only : top_as, top_af, top_es
   use LandunitType           , only : lun_pp
   use ColumnType             , only : col_pp
-!<<<<<<< HEAD
-!  use ColumnDataType         , only : col_es
-!  use VegetationType         , only : veg_pp
-!  use VegetationDataType     , only : veg_es
-!=======
   use ColumnDataType         , only : col_es , col_ws 
   use VegetationType         , only : veg_pp
   use VegetationDataType     , only : veg_es  
   use ColumnDataType         , only : col_chem
-!>>>>>>> 89624cf67f0c42cbb28a74ce1cb424dbee39f975
 
   use elm_instMod
   use WaterBudgetMod         , only : WaterBudget_Reset
@@ -253,13 +241,6 @@ contains
     call UrbanInput(begg, endg, mode='initialize')
 
     ! Allocate surface grid dynamic memory (just gridcell bounds dependent)
-    ! JD added for debug 
-    write(iulog,*) 'begg: ',begg
-    write(iulog,*) 'endg: ',endg
-    write(iulog,*) 'max_topounits: ',max_topounits
-    write(iulog,*) 'natpft_lb: ',natpft_lb        
-    write(iulog,*) 'natpft_ub: ',natpft_ub         
-
     allocate (wt_lunit     (begg:endg,1:max_topounits, max_lunit           )) 
     allocate (urban_valid  (begg:endg,1:max_topounits                      ))
     allocate (wt_nat_patch (begg:endg,1:max_topounits, natpft_lb:natpft_ub ))
@@ -290,9 +271,7 @@ contains
     ! in fates, and this will influence the amount of memory we
     ! request from the model, which is relevant in set_fates_global_elements()
     if (use_fates) then
-       write(iulog,*) 'JD elm_initializeMod.F90 L293 call FatesReadPFTs' 
        call FatesReadPFTs()
-       write(iulog,*) 'JD elm_initializeMod.F90 L295 finished FatesReadPFTs' 
     end if
 
     ! Read surface dataset and set up subgrid weight arrays
@@ -794,15 +773,12 @@ contains
 
     end if
 
-!<<<<<<< HEAD
-!=======
     ! Prevent situation on restart where states get reset at nstep=1 but cumulative fluxes never get reset
     if (get_nstep() <= 1 .and. do_budgets) then
       call WaterBudget_Reset('all')
       call CNPBudget_Reset('all')
     endif
        
-!>>>>>>> 89624cf67f0c42cbb28a74ce1cb424dbee39f975
     ! ------------------------------------------------------------------------
     ! If appropriate, create interpolated initial conditions
     ! ------------------------------------------------------------------------

@@ -108,13 +108,10 @@ contains
       call ParametersFromNetCDF(fates_paramfile, is_host_file, fates_params)
 
       is_host_file = .true.
-      write(fates_log(), *) 'JD  elmfates_paraminterfaceMod.F90 L111'
       write(fates_log(), *) 'host model par file: ', paramfile
       call ParametersFromNetCDF(paramfile, is_host_file, fates_params)
 
-      write(fates_log(), *) 'JD L115 call EDPftvarcon_inst%Receive'
       call EDPftvarcon_inst%Receive(fates_params)
-      write(fates_log(), *) 'JD  done EDPftvarcon_inst%Receive'
       
       call fates_params%Destroy()
       deallocate(fates_params)
@@ -210,7 +207,6 @@ contains
    logical :: is_host_param
 
    call getfil (filename, locfn, 0)
-   write(fates_log(),*) 'JD elmfates_paraminterfaceMod.F90  L 211'
    write(fates_log(),*) 'file name:', filename, ', locfn: ', locfn
    
    call ncd_pio_openfile (ncid, trim(locfn), 0)
@@ -228,7 +224,7 @@ contains
       
       call fates_params%GetMetaData(i, name, dimension_shape, dimension_sizes, dimension_names, is_host_param)
       write(fates_log(),*) 'from call fates_params%GetMetaData'
-      write(fates_log(),*) 'i: ', i
+      write(fates_log(),*) 'i: ', i, 'of total ',num_params
       write(fates_log(),*) 'name: ', name
       write(fates_log(),*) 'dimension_shape: ', dimension_shape
       write(fates_log(),*) 'dimension_sizes: ', dimension_sizes      
@@ -258,7 +254,6 @@ contains
          call fates_params%SetData(i, data(1:size_dim_1, 1:size_dim_2))
       end if
    end do
-   write(fates_log(),*) 'JD elmfates_paraminterfaceMod.F90  L 258 (end)'
    deallocate(data)
    call ncd_pio_closefile(ncid)
  end subroutine ParametersFromNetCDF
