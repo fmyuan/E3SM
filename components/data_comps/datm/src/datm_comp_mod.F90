@@ -1140,14 +1140,14 @@ CONTAINS
              ! hourly CAM output from CAM version cam3_5_55
              swndr = avstrm%rAttr(sswdn,n) * 0.50_R8
              ratio_rvrf =   min(0.99_R8,max(0.29548_R8 + 0.00504_R8*swndr  &
-                  -1.4957e-05_R8*swndr**2 + 1.4881e-08_R8*swndr**3,0.01_R8))
+                  -1.4957e-05_R8*swndr**2.0_R8 + 1.4881e-08_R8*swndr**3.0_R8,0.01_R8))
              a2x%rAttr(kswndr,n) = ratio_rvrf*swndr
              swndf = avstrm%rAttr(sswdn,n) * 0.50_R8
              a2x%rAttr(kswndf,n) = (1._R8 - ratio_rvrf)*swndf
 
              swvdr = avstrm%rAttr(sswdn,n) * 0.50_R8
              ratio_rvrf =   min(0.99_R8,max(0.17639_R8 + 0.00380_R8*swvdr  &
-                  -9.0039e-06_R8*swvdr**2 + 8.1351e-09_R8*swvdr**3,0.01_R8))
+                  -9.0039e-06_R8*swvdr**2.0_R8 + 8.1351e-09_R8*swvdr**3.0_R8,0.01_R8))
              a2x%rAttr(kswvdr,n) = ratio_rvrf*swvdr
              swvdf = avstrm%rAttr(sswdn,n) * 0.50_R8
              a2x%rAttr(kswvdf,n) = (1._R8 - ratio_rvrf)*swvdf
