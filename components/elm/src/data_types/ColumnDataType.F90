@@ -6727,6 +6727,18 @@ contains
           avgflag='A', long_name='infiltration out of the layer', &
           ptr_col=ptr2d, c2l_scale_type='urbanf')
 
+    this%qin_external(begc:endc,1:nlevgrnd) = spval
+    ptr2d => this%qin_external(:,1:nlevgrnd)
+    call hist_addfld2d (fname='QIN_EXTERNAL',  units='mm/s', type2d='levgrnd', &
+          avgflag='A', long_name='subsurface flow into the layer', &
+          ptr_col=ptr2d, c2l_scale_type='urbanf')
+
+    this%qout_external(begc:endc,1:nlevgrnd) = spval
+    ptr2d => this%qout_external(:,1:nlevgrnd)
+    call hist_addfld2d (fname='QOUT_EXTERNAL',  units='mm/s', type2d='levgrnd', &
+          avgflag='A', long_name='subsurface flow out of the layer', &
+          ptr_col=ptr2d, c2l_scale_type='urbanf')
+
     this%qflx_rootsoi(begc:endc,1:nlevgrnd) = spval
     call hist_addfld2d (fname='QLFX_ROOTSOI',  units='mm/s', type2d='levgrnd', &
           avgflag='A', long_name='plant water uptake from the layer', &
