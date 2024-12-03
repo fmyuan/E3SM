@@ -743,10 +743,10 @@ contains
 
       else
         ! from read-in data of soil amendment application
-        write (iulog, *), nstep_mod, jday_mod, secs_curr, forc_app(c)
-        do m = 1, nminerals
-            write (iulog, *), m, forc_min(c, m), forc_gra(c, m)
-        end do
+        !write (iulog, *), nstep_mod, jday_mod, secs_curr, forc_app(c)
+        !do m = 1, nminerals
+        !    write (iulog, *), m, forc_min(c, m), forc_gra(c, m)
+        !end do
 
         ! Need P content to affect NEE
         forc_pho(c) = 0._r8  ! (TODO) 0~namendnutr element(s) from soil amend application, by given index of phosphrous
@@ -758,7 +758,8 @@ contains
       ! ---------------------------------------------------------------
       do j = 1,nlevbed
         do m = 1,nminerals
-          ! evenly distributed in the top 30 centimeters
+          ! evenly distributed in the mixing_depth
+          ! 20241203: double checked that forc_app reading and unit conversion are both correct
           if (j <= mixing_layer) then
             primary_added_vr(c,j,m) = 1000._r8 * forc_app(c) * forc_min(c,m) / mixing_depth / secspday
           else
@@ -800,7 +801,7 @@ contains
                   EWParamsInst%primary_stoi_cations(m,icat) * &
                   mass_to_logmol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j))
               end do
-
+ 
               ! check the reaction rate is not negative
               if (log_omega_vr(c,j,m) >= 0._r8) then
                 r_dissolve_vr(c,j,m) = 0._r8

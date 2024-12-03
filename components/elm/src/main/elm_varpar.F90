@@ -58,8 +58,10 @@ module elm_varpar
   integer :: ncations    =  5      ! number of cations in chemical reactions for enhanced weathering: Ca2+, Mg2+, Na+, K+, Al3+ (H+ is tracked in soil pH)
   integer :: nminsecs    =  2      ! number of secondary minerals formed in chemical reactions during enhanced weathering: CaCO3, kaolinite
   integer,  parameter :: nks         =  3      ! number of dissolution mechanisms (H+, H2O, OH-) for primary minerals
-  real(r8), parameter :: mixing_depth = 0.3    ! assume enhanced weathering mineral is evenly mixed in the top 30cm of soil
-  integer             :: mixing_layer          ! calculate the maximum layer of reaction above 30cm
+
+  real(r8)            :: mixing_depth          ! calculate the evenly mixed depth of the soil
+
+  integer, parameter  :: mixing_layer = 5      ! assume weathering mineral is evenly mixed in the top 5 layer of soil (28.9cm)
   !
 
   integer, parameter :: nlayer      =   3     ! number of VIC soil layer --Added by AWang
