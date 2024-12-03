@@ -1179,7 +1179,7 @@ module ColumnDataType
       real(r8), pointer :: secondary_cation_flux        (:,:)     => null() ! vertically integrated rate at which cations consumed due to precipitation of secondary minerals (1:nlevgrnd,1:ncations) (g m-2 s-1)
       real(r8), pointer :: secondary_silica_flux        (:)       => null() ! vertically integrated rate at which SiO2 is consumed by secondary mineral precipitation (1:nlevgrnd,1:ncations) (g m-2 s-1)
 
-      real(r8), pointer :: cec_cation_flux              (:,:)     => null() ! rate at which cation is adsorbed to soil (negative for released into water) (subtract this from the net dissolution and precipitation flux) (1:ncations) (g m-2 s-1)
+      real(r8), pointer :: cec_cation_flux              (:,:)     => null() ! rate at which cation is adsorbed to soil (negative for adsorption into soil) (subtract this from the net dissolution and precipitation flux) (1:ncations) (g m-2 s-1)
       real(r8), pointer :: cation_infl                  (:,:)     => null() ! rate at which cations are infiltrated from top of soil column (1:ncations) (g m-2 s-1)
       real(r8), pointer :: cation_oufl                  (:,:)     => null() ! rate at which cations are infiltrated to below (1:ncations) (g m-2 s-1)
       real(r8), pointer :: cation_uptake                (:,:)     => null() ! rate at which cations are uptaken by plants (1:ncations) (g m-2 s-1)
@@ -12729,7 +12729,7 @@ contains
          a_str = adjustl(a_str)  ! Remove leading spaces
          fieldname = 'cec_cation_flux_vr_'//trim(a_str)
          call hist_addfld2d (fname=fieldname,  units='g m-3 s-1', type2d='levgrnd', &
-            avgflag='A', long_name='rate at which cation is adsorbed to soil (negative for released into water) (vertically resolved)', &
+            avgflag='A', long_name='rate at which adsorbed cation is released into water (negative for adsorption into soil) (vertically resolved)', &
             ptr_col=data2dptr, l2g_scale_type='veg')
       end do
 
@@ -12892,7 +12892,7 @@ contains
 
       this%cec_cation_flux(begc:endc,:) = spval
       call hist_addfld2d (fname='cec_cation_flux',  units='g m-2 s-1', type2d='cations', &
-            avgflag='A', long_name='rate at which cation is adsorbed to soil (negative for released into water) (subtract this from the net dissolution and precipitation flux) (vertically resolved)', &
+            avgflag='A', long_name='rate at which adsorbed cation is released into water (negative for adsorption into soil)', &
             ptr_col=this%cec_cation_flux, l2g_scale_type='veg')
 
       this%cation_infl(begc:endc,:) = spval
@@ -13309,7 +13309,7 @@ contains
 
       call restartvar(ncid=ncid, flag=flag, varname='cec_cation_flux', xtype=ncd_double, &
          dim1name='column', dim2name='cations', switchdim=.true., &
-         long_name='rate at which cation is adsorbed to soil (negative for released into water) (subtract this from the net dissolution and precipitation flux)', units='g m-2 s-1', &
+         long_name='rate at which adsorbed cation is released into water (negative for adsorption into soil)', units='g m-2 s-1', &
          interpinic_flag='interp', readvar=readvar, data=this%cec_cation_flux)
 
       call restartvar(ncid=ncid, flag=flag, varname='cation_infl', xtype=ncd_double, &
