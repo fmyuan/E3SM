@@ -5908,7 +5908,7 @@ contains
          avgflag='A', long_name='dissolved CO3 2- concentration (vertically resolved)', &
          ptr_col=data2dptr, l2g_scale_type='veg')
 
-      this%equilibria_conc(begc:endc,1:nlevgrnd,1:nminerals) = spval
+      this%equilibria_conc(begc:endc,1:nlevgrnd,1:ncations) = spval
       do a = 1,ncations
          data2dptr => this%equilibria_conc(:,:,a)
          write (a_str, '(I6)') a

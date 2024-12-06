@@ -742,11 +742,24 @@ contains
         forc_pho(c   ) = 0._r8
 
       else
+
         ! from read-in data of soil amendment application
         !write (iulog, *), nstep_mod, jday_mod, secs_curr, forc_app(c)
+        !if (forc_app(c) > 0._r8) then
         !do m = 1, nminerals
         !    write (iulog, *), m, forc_min(c, m), forc_gra(c, m)
         !end do
+        !end if
+
+        ! do some checking
+        do m = 1, nminerals
+          if (forc_gra(c,m) /= forc_gra(c,m)) then
+            !'nan' cause math issue in following calculation
+            write (iulog, *), c, m, forc_gra(c, m)
+            call endrun(msg='Nan of powder grain size')
+
+          end if
+        end do
 
         ! Need P content to affect NEE
         forc_pho(c) = 0._r8  ! (TODO) 0~namendnutr element(s) from soil amend application, by given index of phosphrous
@@ -797,6 +810,7 @@ contains
               log_omega_vr(c,j,m) = soil_ph(c,j) * EWParamsInst%primary_stoi_proton(m) - &
                 EWParamsInst%log_keq_primary(m)
               do icat = 1,ncations
+                cation_vr(c,j,icat) = max(1.0e-15,cation_vr(c,j,icat))
                 log_omega_vr(c,j,m) = log_omega_vr(c,j,m) + & 
                   EWParamsInst%primary_stoi_cations(m,icat) * &
                   mass_to_logmol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j))
