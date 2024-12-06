@@ -773,8 +773,9 @@ contains
         do m = 1,nminerals
           ! evenly distributed in the mixing_depth
           ! 20241203: double checked that forc_app reading and unit conversion are both correct
+          ! 20241206: forc_app is the annual applied amount; distribute it within one time step
           if (j <= mixing_layer) then
-            primary_added_vr(c,j,m) = 1000._r8 * forc_app(c) * forc_min(c,m) / mixing_depth / secspday
+            primary_added_vr(c,j,m) = 1000._r8 * forc_app(c) * forc_min(c,m) / mixing_depth / dt
           else
             primary_added_vr(c,j,m) = 0._r8
           end if
