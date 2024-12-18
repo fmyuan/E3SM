@@ -1,81 +1,38 @@
 [![E3SM Logo](https://e3sm.org/wp-content/themes/e3sm/assets/images/e3sm-logo.png)](https://e3sm.org)
 
-Energy Exascale Earth System Model (E3SM)
+<img src="https://gist.githubusercontent.com/ypwong22/2613576d9c70217e7a55ae9f5ef61445/raw/4d9dff783e95857b46ff66a0c99814e074b11078/ERWlogo.svg" width="500" alt="ELM-ERW Logo">
+
+E3SM Land Model with Enhanced Rock Weathering
 ================================================================================
 
-E3SM is a state-of-the-art fully coupled model of the Earth's climate including
-important biogeochemical and cryospheric processes. It is intended to address
-the most challenging and demanding climate-change research problems and
-Department of Energy mission needs while efficiently using DOE Leadership
-Computing Facilities.  
+This is a branched version of the Energy Exascale Earth System Model (E3SM), a
+state-of-the-art fully coupled model of the Earth's climate including important 
+biogeochemical and cryospheric processes. E3SM is intended to address the most 
+challenging and demanding climate-change research problems and Department of 
+Energy mission needs while efficiently using DOE Leadership Computing Facilities.
+The main branch of E3SM is here: [https://github.com/E3SM-Project/E3SM](https://github.com/E3SM-Project/E3SM)
 
-DOI: [10.11578/E3SM/dc.20240301.3](http://dx.doi.org/10.11578/E3SM/dc.20240301.3)
+The ELM-ERW branch is developed for modeling the large-scale carbon dioxide removal
+potential of spreading silicate rock powder on soil. Specifically, it considers
+the following processes:
 
-Please visit the [project website](https://e3sm.org) or our [Confluence site](https://acme-climate.atlassian.net/wiki/spaces/DOC/overview)
-for further details.
+- primary mineral dissolution
+- CO<sub>2</sub> dissolution and cation exchange equilibria
+- advection-diffusion and runoff loss of major ions
+- secondary mineral formation
+- soil pH dynamics and feedback to soil N<sub>2</sub>O and NO emissions
+- phosphorus release during weathering and feedback to ecosystem productivity
 
-For questions about the model, use [Github Discussions](https://github.com/E3SM-Project/E3SM/discussions).
+The model has been tested in the land-only mode and runs at a speed commensurate
+with the original E3SM Land Model. 
 
-See our Github-hosted documentation at [https://e3sm-project.github.io/E3SM/](https://e3sm-project.github.io/E3SM/).
-
-Table of Contents 
+Funding Source
 --------------------------------------------------------------------------------
-- [Quick Start](#quickstart)
-- [Supported Machines](#supportedmachines)
-- [Running](#running)
-- [Contributing](#contributing)
-- [Acknowledge](#acknowledge)
-- [License](#license)
-
-Quick Start
---------------------------------------------------------------------------------
-The [Quick Start](https://e3sm.org/model/running-e3sm/e3sm-quick-start/) page
-includes instructions on obtaining the necessary code and input data for model 
-setup and execution on a supported machine.
-
-Supported Machines 
---------------------------------------------------------------------------------
-E3SM is a high-performance computing application and generally requires a
-capable compute cluster to run a scientifically validated case at a useful
-simulation speed.
-
-To run E3SM, it is recommended that you obtain time on a 
-[Supported Machine](https://e3sm.org/model/running-e3sm/supported-machines/).
-
-Running
---------------------------------------------------------------------------------
-Please refer to [Running E3SM](https://e3sm.org/model/running-e3sm/)
- for instructions on running the model. 
-
-Contributing
---------------------------------------------------------------------------------
-Please refer to [Contributing](CONTRIBUTING.md) for details on our code development
-process.
-
-Acknowledgement
---------------------------------------------------------------------------------
-The Energy Exascale Earth System Model (E3SM) Project should be acknowledged in
-publications as the origin of the model using
-[these guidelines](https://e3sm.org/resources/policies/acknowledge-e3sm/).
-
-In addition, the software should be cited.  For your convenience,
-the following BibTeX entry is provided.
-```TeX
-@misc{e3sm-model,
-	title = {{Energy Exascale Earth System Model (E3SM)}},
-	author = {{E3SM Project}},
-	abstractNote = {{E3SM} is a state-of-the-art fully coupled model of the {E}arth's 
-		climate including important biogeochemical and cryospheric processes.},
-	howpublished = {[Computer Software] \url{https://dx.doi.org/10.11578/E3SM/dc.20240301.3}},
-	url = {https://dx.doi.org/10.11578/E3SM/dc.20240301.3},
-	doi = {10.11578/E3SM/dc.20240301.3},
-	year = 2024,
-	month = mar,
-}
-```
+This work is supported by the project "Coupled Ecosystem-and-engineering 
+Decision-making Framework for Enhanced Weathering", under Oak Ridge National 
+Laboratory (ORNL)'s Laboratory Directed Research and Development (LDRD) program. 
 
 License
 --------------------------------------------------------------------------------
 The E3SM model is available under a BSD 3-clause license.
 Please see [LICENSE](LICENSE) for details.
-

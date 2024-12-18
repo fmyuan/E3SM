@@ -725,11 +725,11 @@ contains
             swvdf = max(((atm2lnd_vars%atm_input(4,g,1,tindex(4,2))*atm2lnd_vars%scale_factors(4)+ &
                                     atm2lnd_vars%add_offsets(4))*wt2(4))*0.50_R8, 0.0_r8)
             ratio_rvrf =   min(0.99_R8,max(0.29548_R8 + 0.00504_R8*swndr &
-                           -1.4957e-05_R8*swndr**2.0_r8 + 1.4881e-08_R8*swndr**3.0_r8,0.01_R8))
+                           -1.4957e-05_R8*swndr**2.0_R8 + 1.4881e-08_R8*swndr**3.0_R8,0.01_R8))
             atm2lnd_vars%forc_solad_grc(g,2) = ratio_rvrf*swndr
             atm2lnd_vars%forc_solai_grc(g,2) = (1._R8 - ratio_rvrf)*swndf
             ratio_rvrf =   min(0.99_R8,max(0.17639_R8 + 0.00380_R8*swvdr  &
-                               -9.0039e-06_R8*swvdr**2.0_r8 +8.1351e-09_R8*swvdr**3.0_r8,0.01_R8))
+                               -9.0039e-06_R8*swvdr**2.0_R8 +8.1351e-09_R8*swvdr**3.0_R8,0.01_R8))
             atm2lnd_vars%forc_solad_grc(g,1) = ratio_rvrf*swvdr
             atm2lnd_vars%forc_solai_grc(g,1) = (1._R8 - ratio_rvrf)*swvdf
         end if

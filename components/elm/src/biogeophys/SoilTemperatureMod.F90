@@ -1760,12 +1760,12 @@ contains
       do fc = 1,num_nolakec
          c = filter_nolakec(fc)
          lwrad_emit(c)  =    emg(c) * sb * t_grnd(c)**4
-         dlwrad_emit(c) = 4._r8*emg(c) * sb * t_grnd(c)**3
+         dlwrad_emit(c) = 4._r8*emg(c) * sb * t_grnd(c)**3_r8
 
          ! fractionate lwrad_emit; balanced in CanopyFluxes & Biogeophysics2
-         lwrad_emit_snow(c)    =    emg(c) * sb * t_soisno(c,snl(c)+1)**4
-         lwrad_emit_soil(c)    =    emg(c) * sb * t_soisno(c,1)**4
-         lwrad_emit_h2osfc(c)  =    emg(c) * sb * t_h2osfc(c)**4
+         lwrad_emit_snow(c)    =    emg(c) * sb * t_soisno(c,snl(c)+1)**4_r8
+         lwrad_emit_soil(c)    =    emg(c) * sb * t_soisno(c,1)**4_r8
+         lwrad_emit_h2osfc(c)  =    emg(c) * sb * t_h2osfc(c)**4_r8
       end do
 
       hs_soil(begc:endc)   = 0._r8

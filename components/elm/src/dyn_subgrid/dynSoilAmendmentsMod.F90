@@ -4,7 +4,7 @@ module dynSoilAmendmentsMod
   ! !DESCRIPTION:
   ! Handle reading of the dataset that soil amendment, e.g. basalt rock powder, applications
   ! assuming that:
-  !    (1) application on certain days of a year (<max. application no.), onto each soil patches (pft+cft), of each grid cell.
+  !    (1) application on certain days of a year (<=max. application no., currently once a year), onto each soil patches (pft+cft), of each grid cell.
   !    (2) application rate in g/m2/yr, onto each soil patches (pft+cft), of each grid cell.
   !    (3) applied soil amendment is of same quality, grain size and percentage of mixed species, for individual grid cell.
   !        (i.e. NOT patch-level varied like appl. doy and rate)
@@ -201,12 +201,8 @@ contains
     if (present(appl_nutrpct)) &
       call soilamend_nutrpct%get_current_data(appl_nutrpct_cur)    ! grid-level
 
-    ! output vars (already allocated memory, but may not zeroed)
+    !! output vars (already allocated memory, but may not zeroed)
     appl_rate(bounds%begc:bounds%endc)        = 0._r8
-    appl_grainsize(bounds%begc:bounds%endc,:) = 1._r8 ! non-zero to avoid math issue. it's ok as long as rate is 0
-    appl_specpct(bounds%begc:bounds%endc, :)  = 0._r8
-    if (present(appl_nutrpct)) &
-      appl_nutrpct(bounds%begc:bounds%endc, :)  = 0._r8
     do p = bounds%begp, bounds%endp
        g = veg_pp%gridcell(p)
        l = veg_pp%landunit(p)
@@ -215,27 +211,36 @@ contains
        topi = grc_pp%topi(g)
        ti = t - topi + 1
 
-       if (lun_pp%itype(l) == istcrop .or. lun_pp%itype(l) == istsoil) then
+       if ( (lun_pp%itype(l) == istcrop .or. lun_pp%itype(l) == istsoil) .and. &
+            (veg_pp%wtcol(p) > 0._r8) ) then
           m = veg_pp%itype(p)   ! 0-based
 
-          ! assuming application occurs at mid-day of the day of year
+          ! assuming application occurs at around 10am UTC of the day of year
           ! this wouldn't make large impact, but if it is then needs more thoughts on when to add into column.
-          if (appl_doy_cur(g,ti,m) == jday_mod .and. &
-              (secs_curr>= 12._r8 .and. secs_curr < (12._r8+dtime_mod)) )then
+          if ( (appl_doy_cur(g,ti,m) == jday_mod) .and. &
+               (secs_curr-36000.0_r8)>-dtime_mod/2.0_r8 .and. &
+               (secs_curr-36000.0_r8)<=dtime_mod/2.0_r8 ) then
              ! weighted sum of all active pft.
              ! So if really want to patch-level, must only allow one patch per column.
-             appl_rate(c) = appl_rate(c) + appl_rate_cur(g,ti,m) * veg_pp%wtcol(p)
+            appl_rate(c) = appl_rate(c) + appl_rate_cur(g,ti,m) * veg_pp%wtcol(p)
+          end if
 
-             ! assuming grain size is same for its mineral components at application
-             ! but which may be changeable during dissolution and upon mineral type
-             appl_grainsize(c,:) = appl_grainsize_cur(g,ti)
+          if (appl_rate(c)>0) then
 
-             appl_specpct(c,:) = appl_specpct_cur(g,ti,:)
+            write(iulog, *) 'ERW appl on DOY: ', jday_mod, ' in year: ', year_curr, &
+              ' @ col-level rate: ', appl_rate(c), ' onto patch: ', m
 
-             if (present(appl_nutrpct)) &
-               appl_nutrpct(c,:) = appl_nutrpct_cur(g,ti,:)
+            ! assuming grain size is same for its mineral components at application
+            ! but which may be changeable during dissolution and upon mineral type
+            appl_grainsize(c,:) = appl_grainsize_cur(g,ti)
+
+            appl_specpct(c,:) = appl_specpct_cur(g,ti,:)
+
+            if (present(appl_nutrpct)) &
+              appl_nutrpct(c,:) = appl_nutrpct_cur(g,ti,:)
 
           end if
+
        end if
     end do
 

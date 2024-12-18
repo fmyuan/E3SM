@@ -693,12 +693,8 @@ contains
       ! After soil depth is initialized, calculate the 
       ! maximum layer of enhanced weathering reaction
       !-----------------------------------------------
-      mixing_layer = 1
-      do n = 2,nlevgrnd
-         if (zisoi(n) <= mixing_depth) then
-            mixing_layer = n
-         end if
-      end do
+      mixing_depth = zisoi(mixing_layer)
+      ! write (iulog, *) 'mixing', mixing_depth, mixing_layer
 
     call ncd_pio_closefile(ncid)
 

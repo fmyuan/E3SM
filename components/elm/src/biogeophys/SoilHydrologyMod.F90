@@ -1099,8 +1099,9 @@ contains
 
           qin                =>    col_wf%qin                , & ! output: [real(r8) (:,:) ] flux of column-internal water into soil layer [mm h2o/s]
           qout               =>    col_wf%qout               , & ! output: [real(r8) (:,:) ] flux of column-internal water out of soil layer [mm h2o/s]
-          qin_external       =>    col_wf%qin_external       , & ! output: [real(r8) (:,:) ] flux of column-external water into soil layer [mm h2o/s]
-          qout_external      =>    col_wf%qout_external      , & ! output: [real(r8) (:,:) ] flux of column-external water out of soil layer [mm h2o/s]
+          qin_external       =>    col_wf%qin_external       , & ! output: [real(r8) (:,:) ] flux of column-external water into soil layer (- = out) [mm h2o/s]
+          qout_external      =>    col_wf%qout_external      , & ! output: [real(r8) (:,:) ] flux of column-external water out of soil layer (- = in) [mm h2o/s]
+          qflx_exfl          =>    col_wf%qflx_exfl          , & ! output: [real(r8) (:)   ] top soil saturation excess water to surface [mm h2o/s]
 
           h2osoi_liq         =>    col_ws%h2osoi_liq        , & ! Output: [real(r8) (:,:) ] liquid water (kg/m2)
           h2osoi_ice         =>    col_ws%h2osoi_ice          & ! Output: [real(r8) (:,:) ] ice lens (kg/m2)
@@ -1135,6 +1136,8 @@ contains
           ! And will be added up for any kinds of drainages in specific layer(s)
           qin_external(c,1:nlevgrnd) = 0._r8
           qout_external(c,1:nlevgrnd) = 0._r8
+
+          qflx_exfl(c)     = 0._r8
 
        end do
 
@@ -1424,17 +1427,15 @@ contains
                 else
                    wa(c)  = wa(c) - rsub_top(c) * dtime
                    zwt(c)     = zwt(c) + (rsub_top(c) * dtime)/1000._r8/rous
-                   h2osoi_liq(c,nlevsoi) = h2osoi_liq(c,nlevsoi) + max(0._r8,(wa(c)-5000._r8))
+                   h2osoi_liq(c,nlevbed) = h2osoi_liq(c,nlevbed) + max(0._r8,(wa(c)-5000._r8))
                    wa(c)  = min(wa(c), 5000._r8)
 
                    if (rsub_top(c)>0._r8) then
                       ! water drained out from groundwater layer(s) (always negative)
-                      qout_external(c,nlevsoi) = qout_external(c,nlevsoi) - rsub_top(c)
-                   end if
-                   ! gross groundwater recharge
-                   if ((wa(c) + rsub_top(c) * dtime)>0._r8) then
-                      ! water recharge from groundwater layer(s) (always positive)
-                      qin_external(c,nlevsoi) = qin_external(c,nlevsoi) + (wa(c)/dtime+rsub_top(c))
+                      qout_external(c,nlevbed) = qout_external(c,nlevbed) - rsub_top(c)
+                   else
+                      ! water recharge from groundwater layer(s) (always positive)? - need CHECKING
+                      qin_external(c,nlevbed) = qin_external(c,nlevbed) + rsub_top(c)
                    end if
 
 
@@ -1566,6 +1567,7 @@ contains
                 ! send this water up to h2osfc rather than sending to drainage
                 h2osfc(c) = h2osfc(c) + xs1(c)
                 qflx_rsub_sat(c)     = 0._r8
+                qflx_exfl(c)         = xs1(c) / dtime
              else
                 ! use original code to send water to drainage (non-h2osfc case)
                 qflx_rsub_sat(c)     = xs1(c) / dtime
@@ -1574,7 +1576,7 @@ contains
 
           if (xs1(c)>0._r8) then
              ! top-layer exfiltration either to h2osfc or to drainage, is a loss from soil column
-             qout_external(c,1) = xs1(c)/dtime
+             qout_external(c,1) = qout_external(c,1) - xs1(c)/dtime
           end if
 
           if (use_vsfm) qflx_rsub_sat(c) = 0._r8
@@ -1650,6 +1652,9 @@ contains
           ! drainage
           rsub_top(c) = rsub_top(c) - xs(c)/dtime
 
+          qout_external(c,j) = qout_external(c,j) + xs(c)/dtime
+          ! qout_external is negative always (out of soil column)
+
        end do
 
        do fc = 1, num_hydrologyc
@@ -1671,6 +1676,8 @@ contains
           c = filter_urbanc(fc)
           if (col_pp%itype(c) /= icol_road_perv) then
              qflx_drain(c) = 0._r8
+             qin_external(c,:) = 0._r8
+             qout_external(c,:) = 0._r8
              ! This must be done for roofs and impervious road (walls will be zero)
              qflx_qrgwl(c) = qflx_snwcp_liq(c)
           end if
