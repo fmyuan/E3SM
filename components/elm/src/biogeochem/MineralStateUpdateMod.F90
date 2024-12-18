@@ -459,7 +459,6 @@ contains
     end do
     !------------------------------------------------------------------------------
   end subroutine MineralStateDiags
->>>>>>> yw/elm_erw_regional
 
   !-----------------------------------------------------------------------
   subroutine MineralFluxLimit(num_soilc, filter_soilc, col_ms, col_mf, dt)
@@ -608,7 +607,7 @@ contains
               write (100+iam, *) '   negative solution cation ', icat, col_mf%flux_limit_vr(c,j,icat), col_ms%cation_vr(c,j,icat), temp_delta1_cation(fc,j,icat), temp_delta2_cation(fc,j,icat)
             end if
           end do
-        end if
+        end do
       end do
 
     end if

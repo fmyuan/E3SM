@@ -39,7 +39,7 @@ module EnhancedWeatheringMod
   public :: MineralDynamics
   public :: MineralVerticalMovement
   public :: MineralEquilibria
-  !public :: MineralLeaching
+  public :: MineralLeaching
 
   type, public :: EWParamsType
      character(len=40), pointer  :: minerals_name      (:)      => null()
@@ -1092,6 +1092,8 @@ contains
          cation_oufl_vr                 => col_mf%cation_oufl_vr          , & ! Output: [real(r8) (:,:,:)] cation flux carried away by infiltration (g m-3 soil s-1 [not water]) (1:nlevgrnd, 1:ncations)
          cation_uptake_vr               => col_mf%cation_uptake_vr        , & ! Output: [real(r8) (:,:,:)] cation flux uptaken by plants (g m-3 soil s-1 [not water]) (1:nlevgrnd, 1:ncations)
          cec_cation_flux_vr             => col_mf%cec_cation_flux_vr      , & ! Output: [real(r8) (:,:,:)] rate at which adsorbed cation is released into water (negative for adsorption into soil) (vertically resolved) (1:nlevgrnd, 1:ncations) (g m-3 s-1)
+         cation_leached_vr              => col_mf%cation_leached_vr       , & ! Output: [real(r8) (:,:,:) ]  rate of cation leaching (g m-3 s-1)
+         cation_runoff_vr               => col_mf%cation_runoff_vr        , & ! Output: [real(r8) (:,:,:) ]  rate of cation loss with runoff (g m-3 s-1)
 
          bicarbonate_drainage           => col_mf%bicarbonate_drainage    , & ! Output: [real(r8) (:,:)] bottom drainage of HCO3- due to vertical infiltration (positive for increase) (g m-3 soil s-1 [not water]) (1:nlevgrnd)
          carbonate_drainage             => col_mf%carbonate_drainage      , & ! Output: [real(r8) (:,:)] bottom drainage of CO3-- due to vertical infiltration (positive for increase) (g m-3 soil s-1 [not water]) (1:nlevgrnd)
