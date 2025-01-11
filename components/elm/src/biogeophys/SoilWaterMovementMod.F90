@@ -752,7 +752,7 @@ contains
          nlevbed = nlev2bed(c)
          do j = 1, nlevbed
             h2osoi_liq(c,j) = h2osoi_liq(c,j) + dwat2(c,j)*dzmm(c,j)
-            qflx_net_vr(c,j) = dwat2(c,j)*dzmm(c,nlevsoi+1)/dtime    ! unit: mmH2O/s
+            qflx_net_vr(c,j) = dwat2(c,j)*dzmm(c,nlevbed+1)/dtime    ! unit: mmH2O/s
          end do
 
          ! calculate qcharge for case jwt < nlevsoi

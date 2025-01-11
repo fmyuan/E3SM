@@ -371,6 +371,7 @@ contains
             do fc = 1,num_soilc
                c = filter_soilc(fc)
                phr_vr(c,j) = phr_vr(c,j) + rf_decomp_cascade(c,j,k) * p_decomp_cpool_loss(c,j,k)
+               ! write (iulog, *) 'phr_vr', c, j, phr_vr(c,j), p_decomp_cpool_loss(c,j,k), decomp_cpools_vr(c,j,cascade_donor_pool(k))
             end do
          end do
       end do
