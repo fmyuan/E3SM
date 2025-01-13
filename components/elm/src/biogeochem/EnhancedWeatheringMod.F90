@@ -423,7 +423,7 @@ contains
           write (100+iam, *) j_lev, soil_ph(c,j), proton_vr(c,j), cation_vr(c,j,1:ncations)
           ! write (100+iam, *) 'cation_vr',  j, icat, cation_vr(c,j,icat), soil_ph(c,j), soilstate_vars%log_km_col(c,j,icat), soilstate_vars%ceca_col(c,j), soilstate_vars%cect_col(c,j), EWParamsInst%cations_valence(icat), soilstate_vars%cece_col(c,j,icat), h2osoi_vol(c,j)    
         end do
-        write (100+iam, *) 'cec total, beta H+, beta cation:'
+        write (100+iam, *) 'cec total (meq 100g-1 dry soil), beta H+, beta cation:'
         do j = 1,nlevbed
           write (j_str, '(I2)') j
           j_lev = 'j='//j_str
@@ -1235,6 +1235,7 @@ contains
     integer  :: j,c,fc,g,l
     integer  :: icat                                   ! indices
     integer  :: nlevbed                                ! number of layers to bedrock
+    integer  :: resolve_drain                          ! 1 = vertically resolved drainage; 0 = no
     real(r8) :: frac_thickness                         ! deal with the fractional layer between last layer and max allowed depth
     real(r8) :: tot_water                              ! total column liquid water (kg water/m2)
     real(r8) :: surface_water                          ! liquid water to shallow surface depth (kg water/m2)
@@ -1249,6 +1250,8 @@ contains
          h2osoi_liq             => col_ws%h2osoi_liq                      , & ! Input:  [real(r8) (:,:) ]  liquid water (kg/m2) (new) (-nlevsno+1:nlevgrnd)
          qflx_drain             => col_wf%qflx_drain                      , & ! Input:  [real(r8) (:)   ]  sub-surface runoff (mm H2O /s)                    
          qflx_surf              => col_wf%qflx_surf                       , & ! Input:  [real(r8) (:)   ]  surface runoff (mm H2O /s)
+
+         qout_external          => col_wf%qout_external                   , & ! Input:  [real(r8) (:,:) ]  vertically resolved sub-surface runoff (mm H2O /s)                    
 
          cation_leached_vr      => col_mf%cation_leached_vr               , & ! Output: [real(r8) (:,:,:) ]  rate of cation leaching (g m-3 s-1)
          cation_runoff_vr       => col_mf%cation_runoff_vr                , & ! Output: [real(r8) (:,:,:) ]  rate of cation loss with runoff (g m-3 s-1)
@@ -1276,16 +1279,11 @@ contains
       g = col_pp%gridcell(c)
       nlevbed = min(nlev2bed(c), nlevsoi)
 
+      resolve_drain = 1
+
       !------------------------------------------------------------------------------
       ! Leaching (subsurface runoff) and surface runoff losses
       !------------------------------------------------------------------------------
-      ! calculate the total soil water
-      tot_water = 0._r8
-      do j = 1,nlevbed
-        tot_water = tot_water + h2osoi_liq(c,j)
-      end do
-      ! (drain_tot / tot_water) is the fraction water lost per second
-      temp_drain_pct = qflx_drain(c) / tot_water
 
       ! assume zero mixing between surface runoff and soil pore water
       !! for runoff calculation; calculate total water to a given depth
@@ -1302,6 +1300,16 @@ contains
       !temp_surf_pct = qflx_surf(c) / surface_water
       temp_surf_pct = 0._r8
 
+      if (resolve_drain == 0) then
+        ! calculate the total soil water
+        tot_water = 0._r8
+        do j = 1,nlevbed
+          tot_water = tot_water + h2osoi_liq(c,j)
+        end do
+        ! (drain_tot / tot_water) is the fraction water lost per second
+        temp_drain_pct = qflx_drain(c) / tot_water
+      end if
+
       do j = 1,nlevbed
         if (h2osoi_liq(c,j) > 0._r8) then
           ! use the analytical solution if the flushing rate is too large
@@ -1312,6 +1320,10 @@ contains
           ! &
           ! calculate the leaching flux as a function of the dissolved
           ! concentration (g cation/kg water) and the sub-surface drainage flux
+
+          if (resolve_drain == 1) then
+            temp_drain_pct = - qout_external(c,j) / h2osoi_liq(c,j)
+          end if
 
           if ( zisoi(j-1) < depth_runoff_Mloss ) then
 
