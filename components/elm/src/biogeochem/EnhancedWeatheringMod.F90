@@ -712,13 +712,20 @@ contains
       if (builtin_site == 1) then
         if (current_date .eq. 19991019) then
             ! 55 tons / 11.8 ha = 0.466 kg / m2, applied over one day
-            forc_app(c) = 0.466_r8
+            ! purity in Table 2: 89.9%
+            ! Johnson, C. E., Driscoll, C. T., Blum, J. D., Fahey, T. J., & Battles, J. J. (2014). Soil Chemical Dynamics after Calcium Silicate Addition to a Northern Hardwood Forest. Soil Science Society of America Journal, 78(4), 1458–1468. https://doi.org/10.2136/sssaj2014.03.0114
+            forc_app(c) = 0.46_r8 * 0.9
         else
             forc_app(c) = 0._r8
         end if
         forc_min(c, 1:nminerals) = 0._r8
         forc_min(c, 1) = 1._r8
-        forc_gra(c, 1:nminerals) = 9.6_r8 ! 9.6 um
+
+        ! BET surface area is 1.6 m2/g; inversely calculate to make sure 
+        ! SSA matches, instead of using the provided grain size
+        ! 
+        ! Johnson, C. E., Driscoll, C. T., Blum, J. D., Fahey, T. J., & Battles, J. J. (2014). Soil Chemical Dynamics after Calcium Silicate Addition to a Northern Hardwood Forest. Soil Science Society of America Journal, 78(4), 1458–1468. https://doi.org/10.2136/sssaj2014.03.0114
+        forc_gra(c, 1:nminerals) = 20.8_r8 ! 9.6 um
 
         forc_pho(c   ) = 0._r8
 
