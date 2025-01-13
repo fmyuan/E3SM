@@ -3383,7 +3383,7 @@ contains
             this%totSIC(c) + &
             this%ctrunc(c)   + &
             this%cropseedc_deficit(c)
-      write(iulog,*),this%totcolc(c),this%totDIC(c),this%totDOC(c)
+
        this%totabgc(c) =       &
             this%totprodc(c) + &
             this%seedc(c)    + &
