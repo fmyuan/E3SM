@@ -265,7 +265,12 @@ macro(build_model COMP_CLASS COMP_NAME)
     if (NOT ATS_DIR STREQUAL "")
       set(Amanzi_DIR "${ATS_DIR}/lib")
       find_package(HDF5 REQUIRED)
-      find_package(NETCDF REQUIRED)
+      if (NOT TARGET NETCDF)
+        # netcdf package likely has already added in SPIO, which usually built before all E3SM components
+        # so, need to be guarded by this if ... endif() block.
+        # NOTE: similarly this should be done so in Amanzi find_package below. Otherwise Cmake building will crash.
+        find_package(NETCDF REQUIRED)
+      endif()
       find_package(Amanzi REQUIRED)
       target_link_libraries(${TARGET_NAME} amanzi_elm_ats)
     endif() 
