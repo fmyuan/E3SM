@@ -159,6 +159,7 @@ contains
     ! !DESCRIPTION:
     ! On the radiation time step, update the prognostic mineral state variables
     ! related to leaching and carbon sequestration rate
+    ! Also update pH dependent CEC due to organic matter
     !$acc routine seq
     ! !ARGUMENTS:
     integer                      , intent(in)    :: num_soilc       ! number of soil columns filter
