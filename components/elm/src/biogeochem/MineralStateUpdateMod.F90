@@ -188,7 +188,7 @@ contains
       end do
 
       ! Calculate the total CO2 sequestration rate in mol m-2 s-1
-      rmethod = 1
+      rmethod = 2
       if (rmethod == 1) then
 
         col_mf%r_sequestration(c) = 0._r8

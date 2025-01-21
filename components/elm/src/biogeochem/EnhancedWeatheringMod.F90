@@ -1280,7 +1280,7 @@ contains
       g = col_pp%gridcell(c)
       nlevbed = min(nlev2bed(c), nlevsoi)
 
-      resolve_drain = 1
+      resolve_drain = 1 ! use vertically resolved subsurface runoff QOUT_EXTERNAL
 
       !------------------------------------------------------------------------------
       ! Leaching (subsurface runoff) and surface runoff losses
