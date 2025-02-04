@@ -35,7 +35,7 @@ module ELM_ATS_InterfaceMod
 
    contains
 
-     final :: ats_delete
+     !final :: ats_delete
      procedure, public :: setup         => ats_setup
      procedure, public :: getmesh       => ats_getmesh
      procedure, public :: setsoilveg    => ats_setsoilveg_parameters

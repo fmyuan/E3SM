@@ -12,7 +12,7 @@ module ExternalModelATS_createMod
   use decompMod                    , only : bounds_type
   ! a few ats coupling options
   use elm_varctl                   , only : use_ats, use_ats_mesh
-
+  use elm_varctl                   , only : iulog
   !
   use ExternalModelATS_readnlMod   , only : ats_inputdir, ats_inputfile
 
@@ -49,15 +49,17 @@ contains
     elmats_interface = ats_create(ats_inputdir, ats_inputfile, mpicom)
 
     ! 'mpicom' is communicator group id for land component
-    print *, ''
-    print *, '============================================================='
-    print *,''
-    print *, ' -------- ELM-ATS Coupled Mode ------------------------------'
-    print *, ''
-    print *, 'EM_ATS_Init: ats inputs - ', trim(ats_inputdir), ' ', trim(ats_inputfile)
-    print *, 'communicator id: ', mpicom
-    print *, '============================================================='
-    print *, ''
+    if ( masterproc )then
+      write(iulog,*)
+      write(iulog,*) '============================================================='
+      write(iulog,*)
+      write(iulog,*) ' -------- ELM-ATS Coupled Mode Created ----------------------'
+      write(iulog,*)
+      write(iulog,*) 'EM_ATS_Init: ats inputs - ', trim(ats_inputdir), ' ', trim(ats_inputfile)
+      write(iulog,*) 'communicator id: ', mpicom
+      write(iulog,*) '============================================================='
+      write(iulog,*)
+    end if
     !
 
 
