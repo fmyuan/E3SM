@@ -1644,3 +1644,86 @@ double precision function szenith(xcoor, ycoor, ltm, jday, hr, min, offset)
   szenith = szendeg
   
 end function szenith
+
+  !===============================================================================
+
+
+double precision function sincdn_deg(xcoor, ycoor, ltm, jday, hr, mm, offset, sslope, sazimuth)
+  ! Function to calcualte solar incidence angle on inclined surface
+  ! Used in coupler bypass mode to compute inerpolation for incoming solar
+  ! NOTE: 2025-02-05 - may not be needed, if set use_top_solar_rad = .true., which turning on surface albedo adjusting by topographical features.
+  !                    with required surface properties,SINSL_SINAS, SINSL_COSAS, SKY_VIEW, STDEV_ELEV, TERRAIN_CONFIG
+  !
+
+  use shr_kind_mod , only: r8 => shr_kind_r8, cl=>shr_kind_cl
+  use elm_varcon   , only: rpi
+  implicit none
+  !inputs
+  real(r8) xcoor, ycoor
+  integer jday, hr, mm, ltm, offset
+  real(r8) sslope, sazimuth
+
+  !local variables
+  real(r8) offset_mm
+  real(r8) d2r, r2d
+  real(r8) lsn, latrad, decrad, decdeg
+  real(r8) ha, hangle, harad
+  real(r8) sloperad, sazimurad
+  real(r8) cosincdn, incdndeg, incdnrad
+
+  !--------------------------------------------------------------------------
+  offset_mm = offset/60_r8   !note assumes 1hr or smaller timestep
+  mm = mm - offset_mm
+
+  !adjust time for offsets
+  if (mm < 0) then
+    hr = hr - 1
+    mm = mm+60
+  end if
+  if (mm >= 60) then
+    hr = hr+1
+    mm = mm-60
+  end if
+  if (hr < 0) then
+    hr = hr+24
+    jday = jday-1
+  end if
+  if (hr >= 24) then
+    hr = hr-24
+    jday = jday+1
+  end if
+
+  if (jday < 1) jday = 1
+  if (xcoor > 180_r8) xcoor = xcoor-360_r8
+
+  d2r     = rpi/180_r8
+  r2d     = 1/d2r
+  lsn     = 12.0_r8+((ltm-xcoor)/15.0_r8)
+  latrad  = ycoor*d2r
+
+  decrad  = 23.45*d2r*sin(d2r*360_r8*(284_r8+jday)/365_r8)
+  decdeg  = decrad*r2d
+
+  ha      = hr+mm/60.0_r8
+  hangle  = (lsn-ha)*60.0_r8
+  harad   = hangle*0.0043633_r8
+
+  ! surface with a slope of 'sslope' in deg of 0~90 (0~90 from horizontal plane)
+  !      and azimuth of 'sazimuth' in deg of -180~+180 (south:0, east:-, west:+, north:-180/180)
+  if (sslope>90.0_r8) sslope = 180.0_r8 - sslope ! (slope range from 0 - 90 - 180 i.e. one way rotation)
+  if (sazimuth>180.0_r8) sazimuth = sazimuth-360.0_r8 ! (azimuth range from 0 - 180 - 360 i.e. one way rotation)
+  sloperad = sslope*d2r
+  sazimurad = sazimuth*d2r
+
+  cosincdn = sin(latrad)*sin(decrad)           *cos(sloperad)              + &
+             cos(latrad)*cos(decrad)*cos(harad)*cos(sloperad)                - &
+             cos(latrad)*sin(decrad)           *sin(sloperad)*cos(sazimurad) + &
+             sin(latrad)*cos(decrad)*cos(harad)*sin(sloperad)*cos(sazimurad) + &
+                         cos(decrad)*sin(harad)*sin(sloperad)*sin(sazimurad)
+
+  incdnrad = acos(cosincdn)
+  incdndeg = incdnrad * r2d
+
+  sincdn_deg = incdndeg
+
+end function sincdn_deg
