@@ -1641,6 +1641,7 @@ contains
 ! !USES:
     use domainMod , only : domain_type
     use fileutils , only : getfil
+    use elm_varcon, only : rpi
 
 ! !ARGUMENTS:
     implicit none
@@ -1664,6 +1665,7 @@ contains
     integer             :: beg,end          ! local beg,end indices
     logical             :: isgrid2d         ! true => file is 2d lat/lon
     real(r8),pointer    :: lonc(:),latc(:)  ! local lat/lon
+    real(r8),pointer    :: slopec(:),aspectc(:)  ! local slope/aspect in degree
     character(len=256)  :: locfn            ! local file name
     logical             :: readvar          ! is variable on file
     character(len=32)   :: subname = 'surfrd_get_topo_for_solar_rad'     ! subroutine name
@@ -1692,6 +1694,7 @@ contains
     end = domain%nend
 
     allocate(latc(beg:end),lonc(beg:end))
+    allocate(slopec(beg:end),aspectc(beg:end))
 
     call ncd_io(ncid=ncid, varname='LONGXY', flag='read', data=lonc, &
          dim1name=grlnd, readvar=readvar)
@@ -1721,12 +1724,48 @@ contains
     if (.not. readvar) call endrun( trim(subname)//' ERROR: TERRAIN_CONFIG  NOT on fsurdat file' )
     call ncd_io(ncid=ncid, varname='SINSL_COSAS', flag='read', data=domain%sinsl_cosas, &
          dim1name=grlnd, readvar=readvar)
-    if (.not. readvar) call endrun( trim(subname)//' ERROR: SINSL_COSAS  NOT on fsurdat file' )
-    call ncd_io(ncid=ncid, varname='SINSL_SINAS', flag='read', data=domain%sinsl_sinas, &
+    if (readvar) then
+        ! slope and aspect in format of 'SINSL_COSAS' and 'SINSL_SINAS'
+        call ncd_io(ncid=ncid, varname='SINSL_SINAS', flag='read', data=domain%sinsl_sinas, &
          dim1name=grlnd, readvar=readvar)
-    If (.not. readvar) call endrun( trim(subname)//' ERROR: SINSL_SINAS  NOT on fsurdat file' )
+        If (.not. readvar) call endrun( trim(subname)//' ERROR: SINSL_SINAS  NOT on fsurdat file' )
+
+        do n = beg,end
+          if (domain%sinsl_cosas(n)==0.0) then
+             if (domain%sinsl_sinas(n)==0.0) then
+                slopec(n) = 0._r8
+                aspectc(n) = -999._r8
+             else
+                aspectc(n) = 90._r8
+                slopec(n) = asin(domain%sinsl_sinas(n))
+             endif
+          else
+             aspectc(n) = atan(domain%sinsl_sinas(n)/domain%sinsl_cosas(n))
+             slopec(n) = asin(domain%sinsl_sinas(n)/sin(aspectc(n)))
+          endif
+          !print *, 'checking: slope/aspect: ', slopec(n)*180._r8/rpi, aspectc(n)*180._r8/rpi, domain%sinsl_sinas(n), domain%sinsl_cosas(n)
+        enddo
+    else
+        ! slope and aspect in real values of 'SLOPE' and 'ASPECT'
+        call ncd_io(ncid=ncid, varname='SLOPE', flag='read', data=slopec, &
+              dim1name=grlnd, readvar=readvar)
+        if (readvar) then
+            call ncd_io(ncid=ncid, varname='ASPECT', flag='read', data=aspectc, &
+              dim1name=grlnd, readvar=readvar)
+            If (.not. readvar) call endrun( trim(subname)//' ERROR: ASPECT NOT while SLOPE on fsurdat file' )
+            ! otherwise, do conversion so no need to modify domain data struture
+            do n = beg,end
+                domain%sinsl_cosas(n) = sin(rpi/180._r8*slopec(n))*cos(rpi/180._r8*aspectc(n))
+                domain%sinsl_sinas(n) = sin(rpi/180._r8*slopec(n))*sin(rpi/180._r8*aspectc(n))
+            enddo
+        else
+            call endrun( trim(subname)//' ERROR: either SINSL_COSAS or SLOPE NOT on fsurdat file' )
+        endif
+    endif
+
 
     deallocate(latc,lonc)
+    deallocate(slopec, aspectc)
 
     call ncd_pio_closefile(ncid)
 

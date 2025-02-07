@@ -1835,8 +1835,8 @@ contains
                   azi_angle = 2._r8*pi - azi_angle
                endif
                azi_angle = pi / 2._r8 - azi_angle
-               !write(iulog,*)  'lon180, ',azi_angle !test          
                solar_inc = 1._r8 + (sinz/cosz)*(cos(azi_angle)*sinsl_cosas(g)+sin(azi_angle)*sinsl_sinas(g))
+               !write(iulog,*)  'azi_angle, ',azi_angle, '@local-time:',local_timeofday, 'with solar inc. coeff: ', solar_inc-1.0_r8
             endif
 
             izen = int((cosz + 0.05_r8) / 0.15_r8)
