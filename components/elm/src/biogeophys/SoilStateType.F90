@@ -96,7 +96,7 @@ module SoilStateType
 
      ! cation exchange
      real(r8), pointer :: sph                  (:,:)  ! initial soil pH
-     real(r8), pointer :: cect_col             (:,:)  ! col total cation exchange capacity (meq/100g dry soil)
+     real(r8), pointer :: cect_col             (:,:)  ! col cation exchange capacity that do not originate from organic matter (non pH-dependent) (meq/100g dry soil)
      real(r8), pointer :: cece_col             (:,:,:)! col "effective" cation exchange capacity = sum of base cations + aluminum (meq/100g dry soil)
      real(r8), pointer :: ceca_col             (:,:)  ! col "acid" cation exchange capacity = H+ (meq/100g dry soil)
      real(r8), pointer :: log_km_col           (:,:,:)! col Gaines-Thomas convention product for the exchange between each cation and H+ (H+ as the product) (1:ncations) (vertically resolved)

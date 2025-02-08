@@ -177,21 +177,66 @@ contains
   !-----------------------------------------------------------------------
   ! Functions related to the solution of dynamic pH
   !-----------------------------------------------------------------------
+  function find_net_charge(soil_ph, co2_atm, beta_list, kex_list, cation_valence) result (charge)
+    !
+    ! !DESCRIPTION:
+    ! Calculate the net charge in the system using the following set of equations
+    !
+    ! eq1 = sp.Eq(h * hco3 / co2_atm, 10**(-7.8136))
+    ! eq2 = sp.Eq(h * co3 / hco3, 10**(-10.3288))
+    ! eq3 = sp.Eq(h * oh, 1e-14)
+    !
+    ! eq4 = sp.Eq(h / beta_h * (beta1 / ca)**(1/valence_Ca2), kex1)
+    ! eq5 = sp.Eq(h / beta_h * (beta2 / mg)**(1/valence_Mg2), kex2)
+    ! eq6 = sp.Eq(h / beta_h * (beta3 / na)**(1/valence_Na), kex3)
+    ! eq7 = sp.Eq(h / beta_h * (beta4 / k)**(1/valence_K), kex4)
+    ! eq8 = sp.Eq(h / beta_h * (beta5 / al)**(1/valence_Al3), kex5)
+    !
+    ! eq9 = sp.Eq(aloh * h / al, 10**(-5))
+    ! eq10 = sp.Eq(aloh2 * h * h / al, 10**(-10.1))
+    ! eq11 = sp.Eq(aloh3 * h * h * h / al, 10**(-16.9))
+    ! eq12 = sp.Eq(aloh4 * h * h * h * h / al, 10**(-22.7))
+    !
+    ! eq13 = sp.Eq(h - oh - hco3 - 2*co3 + 2*ca + 2*mg + na + k + 3*al + 2*aloh + aloh2 - aloh4, b0)
+    !
+    ! !ARGUMENTS:
+    real(r8), intent(in) :: soil_ph ! 
+    real(r8), intent(in) :: co2_atm ! atmospheric CO2 partial pressure (unit: atm)
+    real(r8), intent(in) :: beta_list(1:ncations) ! fraction of cation exchange locations occupied by Ca2+, Mg2+, Na+, K+, Al3+
+    real(r8), intent(in) :: kex_list(1:ncations)  ! exchange coefficient between H+ and Ca2+, Mg2+, Na+, K+, Al3+
+    real(r8), intent(in) :: cation_valence(1:ncations)  ! valence of Ca2+, Mg2+, Na+, K+, Al3+
+    real(r8) :: pcterr ! percentage error
+
+    ! 
+    ! !LOCAL VARIABLES:
+    real(r8) :: h, beta_h, charge, oh, hco3, co3, ca, mg, na, k, al, aloh, aloh2, aloh3, aloh4
+
+    !--------------------------------------------------------------
+
+    h = 10**(-soil_ph)
+    beta_h = 1.0_r8 - beta_list(1) - beta_list(2) - beta_list(3) - beta_list(4) - beta_list(5)
+
+    oh = 10**(soil_ph-14_r8)
+    hco3 = 1.53603106838503_r8*10**(-8_r8 + soil_ph)*co2_atm
+    co3 = 7.20443620415286_r8*10**(-19_r8 + 2_r8*soil_ph)*co2_atm
+    ca = beta_list(1)/(beta_h*kex_list(1)/h)**cation_valence(1)
+    mg = beta_list(2)/(beta_h*kex_list(2)/h)**cation_valence(2)
+    na = beta_list(3)/(beta_h*kex_list(3)/h)**cation_valence(3)
+    k = beta_list(4)/(beta_h*kex_list(4)/h)**cation_valence(4)
+    al = beta_list(5)/(beta_h*kex_list(5)/h)**cation_valence(5)
+    aloh = 10**(soil_ph-5)*al
+    aloh2 = 10**(2_r8*soil_ph-10.1_r8)*al
+    aloh3 = 10**(3_r8*soil_ph-16.9_r8)*al
+    aloh4 = 10**(4_r8*soil_ph-22.7_r8)*al
+
+    charge = h - oh - hco3 - 2*co3 + 2*ca + 2*mg + na + k + 3*al + 2*aloh + aloh2 - aloh4
+  end function find_net_charge
+
 
   function objective_solveq(soil_ph, b0, co2_atm, beta_list, kex_list, cation_valence) result (pcterr)
     !
     ! !DESCRIPTION:
-    ! Calculate whether a given pH value satisfies the following set of equations
-    ! 
-    ! eq1 = sp.Eq(h * hco3 / co2_atm, 10**(-7.8136))
-    ! eq2 = sp.Eq(h * co3 / hco3, 10**(-10.3288))
-    ! eq3 = sp.Eq(h * oh, 1e-14)
-    ! eq4 = sp.Eq(h / beta_h * (beta1 / ca)**(1/valence_Ca2), kex1) # 10**(3.4*(1-beta_h)) *  
-    ! eq5 = sp.Eq(h / beta_h * (beta2 / mg)**(1/valence_Mg2), kex2) # 10**(3.4*(1-beta_h)) *  
-    ! eq6 = sp.Eq(h / beta_h * (beta3 / na)**(1/valence_Na), kex3) # 10**(3.4*(1-beta_h)) * 
-    ! eq7 = sp.Eq(h / beta_h * (beta4 / k)**(1/valence_K), kex4) # 10**(3.4*(1-beta_h)) * 
-    ! eq8 = sp.Eq(h / beta_h * (beta5 / al)**(1/valence_Al3), kex5) # 10**(3.4*(1-beta_h)) * 
-    ! eq9 = sp.Eq(h - oh - hco3 - 2*co3 + 2*ca + 2*mg + na + k + 3*al, b0)
+    ! Calculate whether a given pH value satisfies the listed set of equations in find_net_charge
     !
     ! !ARGUMENTS:
     real(r8), intent(in) :: soil_ph ! 
@@ -204,30 +249,13 @@ contains
 
     ! 
     ! !LOCAL VARIABLES:
-    real(r8) :: h, beta_h, al_RHS, al_LHS
+    real(r8) :: charge
 
     !--------------------------------------------------------------
 
-    h = 10**(-soil_ph)
-    beta_h = 1.0_r8
-    beta_h = beta_h - beta_list(1) - beta_list(2) - beta_list(3) - beta_list(4) - beta_list(5)
+    charge = find_net_charge(soil_ph, co2_atm, beta_list, kex_list, cation_valence)
 
-    al_RHS =  0.333333333333333*b0 &
-            - 0.666666666666667*beta_list(1)/(beta_h*kex_list(1)/h)**cation_valence(1) &
-            - 0.666666666666667*beta_list(2)/(beta_h*kex_list(2)/h)**cation_valence(2) &
-            - 0.333333333333333*beta_list(3)/(beta_h*kex_list(3)/h)**cation_valence(3) &
-            - 0.333333333333333*beta_list(4)/(beta_h*kex_list(4)/h)**cation_valence(4) &
-            + (10**log_keq_hco3)/3._r8*co2_atm/h &
-            + 0.666666666666667*(10**(log_keq_co3+log_keq_hco3))*co2_atm/h**2 &
-            - 0.333333333333333*h &
-            + 3.33333333333333e-15/h
-
-    al_LHS = beta_list(5)/(beta_h*kex_list(5)/h)**(cation_valence(5))
-
-    ! al_RHS = 0.333333333333333*b0 - 0.666666666666667*beta1/(0.000398107170553497*10.0**(3.4*beta_h)*beta_h*kex1/h)**valence['Ca2+'] - 0.666666666666667*beta2/(0.000398107170553497*10.0**(3.4*beta_h)*beta_h*kex2/h)**valence['Mg2+'] - 0.333333333333333*beta3/(0.000398107170553497*10.0**(3.4*beta_h)*beta_h*kex3/h)**valence['Na+'] - 0.333333333333333*beta4/(0.000398107170553497*10.0**(3.4*beta_h)*beta_h*kex4/h)**valence['K+'] + 5.12010356128343e-9*co2_atm/h + 4.80295746943524e-19*co2_atm/h**2 - 0.333333333333333*h + 3.33333333333333e-15/h
-    ! al_LHS = beta2/(10.0**(3.4*beta_h - 3.4)*beta_h*kex2/h)**valence['Al3+']
-
-    pcterr = abs(al_RHS - al_LHS) / (0.5*abs(al_RHS) + 0.5*abs(al_LHS))
+    pcterr = abs(charge - b0) / abs(b0)
 
   end function objective_solveq
 
@@ -236,18 +264,9 @@ contains
   function solve_eq(b0, co2_atm, beta_list, kex_list, valence) result (best_ph)
     !
     ! !DESCRIPTION:
-    ! Calculate whether a given pH value satisfies the following set of equations
+    ! Calculate whether a given pH value satisfies the set of equations provided in
+    ! objective_solveq
     ! 
-    ! eq1 = sp.Eq(h * hco3 / co2_atm, 10**(-7.8136))
-    ! eq2 = sp.Eq(h * co3 / hco3, 10**(-10.3288))
-    ! eq3 = sp.Eq(h * oh, 1e-14)
-    ! eq4 = sp.Eq(h / beta_h * (beta1 / ca)**(1/valence_Ca2), kex1) # 10**(3.4*(1-beta_h)) *  
-    ! eq5 = sp.Eq(h / beta_h * (beta2 / mg)**(1/valence_Mg2), kex2) # 10**(3.4*(1-beta_h)) *  
-    ! eq6 = sp.Eq(h / beta_h * (beta3 / na)**(1/valence_Na), kex3) # 10**(3.4*(1-beta_h)) * 
-    ! eq7 = sp.Eq(h / beta_h * (beta4 / k)**(1/valence_K), kex4) # 10**(3.4*(1-beta_h)) * 
-    ! eq8 = sp.Eq(h / beta_h * (beta5 / al)**(1/valence_Al3), kex5) # 10**(3.4*(1-beta_h)) * 
-    ! eq9 = sp.Eq(h - oh - hco3 - 2*co3 + 2*ca + 2*mg + na + k + 3*al, b0)
-    !
     ! !ARGUMENTS:
     real(r8), intent(in) :: b0 ! net charge balance (mol/kg)
     real(r8), intent(in) :: co2_atm ! atmospheric CO2 partial pressure (unit: atm)
@@ -265,12 +284,12 @@ contains
 
     ! Search the linear space to find where the pH minimizes error
     ! do four passes; fortran accuracy seems a little too low
-    search_n = 501
-    search_start = 0.5
-    search_end = 13.5
+    search_n = 161
+    search_start = 2 ! only acid mines reach this level
+    search_end = 10 ! car wash level
     min_err = 999._r8
     j = 0
-    do while ((j < 4) .and. (min_err > 0.001))
+    do while ((j < 8) .and. (min_err > 0.01))
       search_step = (search_end - search_start) / (search_n - 1)
       do i = 1, search_n
         curr_ph = search_start + search_step * (i-1)

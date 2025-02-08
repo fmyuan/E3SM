@@ -44,8 +44,8 @@ contains
   subroutine MineralStateUpdate1(num_soilc, filter_soilc, col_ms, col_mf, dt)
     !
     ! !DESCRIPTION:
-    ! On the radiation time step, update the dissolution/precipitation dynamics and 
-    ! cation exchange affected mineral state variables
+    ! On the radiation time step, update the mineral state variables that are not
+    ! affected by vertical or horizontal soil water movement. 
     !
     !$acc routine seq
     ! !ARGUMENTS:
@@ -71,7 +71,7 @@ contains
         ! only determined by CEC equilibrium
         col_ms%proton_vr(c,j) = mol_to_mass(10**(-col_ms%soil_ph(c,j)), mass_h, & 
                                             col_ws%h2osoi_vol(c,j))
-        
+
         ! soil cation concentration - not updated here
         ! must be preserved before calling the vertical solute movement solver
 
@@ -154,18 +154,23 @@ contains
   end subroutine MineralStateUpdate2
 
   !-----------------------------------------------------------------------
-  subroutine MineralStateUpdate3(num_soilc, filter_soilc, col_ms, col_mf, dt)
+  subroutine MineralStateUpdate3(num_soilc, filter_soilc, col_ms, col_mf, dt, soilstate_vars)
     !
     ! !DESCRIPTION:
-    ! On the radiation time step, update the prognostic mineral state variables
-    ! related to leaching and carbon sequestration rate
-    ! Also update pH dependent CEC due to organic matter
+    ! On the radiation time step, update the mineral state variables
+    ! related to horizontal soil water movement.
+    ! Also update carbon sequestration rate and update total CEC using soil pH
     !$acc routine seq
+
+    ! !USES:
+    use SharedParamsMod   , only : ParamsShareInst
+
     ! !ARGUMENTS:
     integer                      , intent(in)    :: num_soilc       ! number of soil columns filter
     integer                      , intent(in)    :: filter_soilc(:) ! filter for soil columns
     type(column_mineral_state)   , intent(inout) :: col_ms
     type(column_mineral_flux)    , intent(inout) :: col_mf
+    type(soilstate_type)         , intent(in)    :: soilstate_vars
     real(r8)                     , intent(in)    :: dt              ! radiation time step (seconds)
 
     !
@@ -174,13 +179,14 @@ contains
     integer  :: fc            ! lake filter indices
     integer  :: nlevbed
     integer  :: rmethod       ! 1 - use cation, 2 - use HCO3-- and CO3-- flux
+    real(r8) :: oc_frac       ! weight % of soil organic carbon
     !-----------------------------------------------------------------------
 
-    ! Update mineral state
     do fc = 1,num_soilc
       c = filter_soilc(fc)
       nlevbed = min(col_pp%nlevbed(c), nlevsoi)
 
+      ! Update mineral state
       do j = 1,nlevbed
         do icat = 1,ncations
           col_ms%cation_vr(c,j,icat) = col_ms%cation_vr(c,j,icat) - col_mf%cation_leached_vr(c,j,icat)*dt - col_mf%cation_runoff_vr(c,j,icat)*dt
@@ -229,6 +235,15 @@ contains
       ! convert from mol m-2 s-1 to gC m-2 s-1
       col_mf%r_sequestration(c) = col_mf%r_sequestration(c) * 12._r8
 
+      ! Calculate pH-dependent CEC
+      ! Figure 13.12: Y_org,C = -59 + 51*pH, unit: meq 100g-1 org C
+      ! Stevenson, F. J. (1982), Chapter 13: Electrochemical and ion-exchange properties, 
+      ! in 'Hummus Chemistry: Genesis, Composition, Reactions’, John Wiley & Sons, Inc., p. 328.
+      do j = 1,nlevbed
+        oc_frac = 0.58_r8 * soilstate_vars%cellorg_col(c,j) / ParamsShareInst%organic_max
+        col_ms%cect_dyn(c,j) = soilstate_vars%cect_col(c,j) + &
+          oc_frac*51*(col_ms%soil_ph(c,j) - soilstate_vars%sph(c,j))
+      end do
     end do
   end subroutine MineralStateUpdate3
 

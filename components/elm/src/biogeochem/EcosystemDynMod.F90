@@ -245,7 +245,7 @@ contains
        if (spinup_state == 0 .and. year >= year_start_erw) then
           event = 'MUpdate3'
           call t_start_lnd(event)
-          call MineralStateUpdate3(num_soilc, filter_soilc, col_ms, col_mf, dt)
+          call MineralStateUpdate3(num_soilc, filter_soilc, col_ms, col_mf, dt, soilstate_vars)
           call MineralStateDiags(num_soilc, filter_soilc, col_ms, col_mf, dt, soilstate_vars)
           call t_stop_lnd(event)
        end if

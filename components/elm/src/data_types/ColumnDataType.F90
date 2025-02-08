@@ -430,6 +430,7 @@ module ColumnDataType
    !-----------------------------------------------------------------------
    type, public :: column_mineral_state
       real(r8), pointer :: soil_ph                 (:,:)   => null() ! calculated soil pH (1:nlevgrnd)
+      real(r8), pointer :: cect_dyn                (:,:)   => null() ! calculated total cation exchange capacity with a pH-dependent (organic matter) fraction and non-pH-dependent fraction (1:nlevgrnd)
       real(r8), pointer :: proton_vr               (:,:)   => null() ! calculated soil H+ concentration in soil water each soil layer (1:nlevgrnd) (g m-3 soil [not water])
       real(r8), pointer :: bicarbonate_vr          (:,:)   => null() ! calculated HCO3- concentration in soil water each soil layer (1:nlevgrnd) (g m-3 soil [not water])
       real(r8), pointer :: carbonate_vr            (:,:)   => null() ! calculated CO3 2- concentration in soil water each soil layer (1:nlevgrnd) (g m-3 soil [not water])
@@ -5849,6 +5850,7 @@ contains
       ! allocate for each member of col_ms
       !-----------------------------------------------------------------------
       allocate(this%soil_ph             (begc:endc,1:nlevgrnd            ))       ; this%soil_ph                (:,:) = spval
+      allocate(this%cect_dyn            (begc:endc,1:nlevgrnd            ))       ; this%cect_dyn               (:,:) = spval
       allocate(this%proton_vr           (begc:endc,1:nlevgrnd            ))       ; this%proton_vr              (:,:) = spval
       allocate(this%bicarbonate_vr      (begc:endc,1:nlevgrnd            ))       ; this%bicarbonate_vr         (:,:) = spval
       allocate(this%carbonate_vr        (begc:endc,1:nlevgrnd            ))       ; this%carbonate_vr           (:,:) = spval
@@ -5888,6 +5890,12 @@ contains
       data2dptr => this%soil_ph(:,:)
       call hist_addfld2d (fname='soil_pH', units='', type2d='levgrnd', &
          avgflag='A', long_name='calculated soil pH (vertically resolved)', &
+         ptr_col=data2dptr, l2g_scale_type='veg')
+
+      this%cect_dyn(begc:endc,1:nlevgrnd) = spval
+      data2dptr => this%cect_dyn(:,:)
+      call hist_addfld2d (fname='cect_dyn', units='meq 100g-1 dry soil', type2d='levgrnd', &
+         avgflag='A', long_name='calculated total cation exchange capacity from a non-organic matter and an organic matter part (vertically resolved)', &
          ptr_col=data2dptr, l2g_scale_type='veg')
 
       this%proton_vr(begc:endc,1:nlevgrnd) = spval
@@ -6062,6 +6070,7 @@ contains
             ! 
             do n = 1,nlevsoi
                this%soil_ph(c,n) = soilstate_vars%sph(c,n)
+               this%cect_dyn(c,n) = soilstate_vars%cect_col(c,n)
 
                ! will be re-initialized after hydrology reaches equilibrium
                this%proton_vr(c,n) = 0._r8
@@ -6126,6 +6135,12 @@ contains
       call restartvar(ncid=ncid, flag=flag, varname='soil_pH', xtype=ncd_double, &
          dim1name='column', dim2name='levgrnd', switchdim=.true., &
          long_name='calculated soil pH (vertically resolved)', units='', &
+         interpinic_flag='interp', readvar=readvar, data=ptr2d)
+
+      ptr2d => this%cect_dyn(:,:)
+      call restartvar(ncid=ncid, flag=flag, varname='cect_dyn', xtype=ncd_double, &
+         dim1name='column', dim2name='levgrnd', switchdim=.true., &
+         long_name='calculated total cation exchange capacity from a non-organic matter and an organic matter part (vertically resolved)', units='meq 100g-1 dry soil', &
          interpinic_flag='interp', readvar=readvar, data=ptr2d)
 
       ptr2d => this%proton_vr(:,:)

@@ -22,7 +22,7 @@ module EnhancedWeatheringMod
   use TopounitDataType    , only : top_as
   use SoilStateType       , only : soilstate_type
   use ewutils             , only : logmol_to_mass, mol_to_mass, meq_to_mass, mass_to_mol, mass_to_meq, advection_diffusion
-  use ewutils             , only : mass_to_logmol, objective_solveq, solve_eq, ph_to_hco3, hco3_to_co3
+  use ewutils             , only : mass_to_logmol, find_net_charge, solve_eq, ph_to_hco3, hco3_to_co3
   use domainMod           , only : ldomain ! debug print
   use shr_sys_mod         , only : shr_sys_flush
   use spmdMod             , only : iam
@@ -334,7 +334,9 @@ contains
     real(r8) :: co2_atm                ! CO2 partial pressure in atm
     character(2) :: j_str
     character(4) :: j_lev
-    real(r8) :: beta_h, beta_cation, keq, h ! temporary variables related to soil cation concentration
+    real(r8) :: beta_list(1:ncations)  ! temporary container for cece/cec_tot
+    real(r8) :: beta_h,h               ! temporary container for ceca/cec_tot and [H+]
+    real(r8) :: keq_list(1:ncations)   ! temporary container for exchange coefficients between H+ and cations
 
     associate( &
          soil_ph                        => col_ms%soil_ph                 , & ! Input:  [real(r8) (:,:)] calculated soil pH (1:nlevgrnd)
@@ -380,14 +382,14 @@ contains
         end do
 
         ! calculate initial soil solution concentration using the equilibrium with CEC
+        h = 10**(-soilstate_vars%sph(c,j))
+        beta_h = soilstate_vars%ceca_col(c,j) / soilstate_vars%cect_col(c,j)
         do icat = 1,ncations
-          h = 10**(-soilstate_vars%sph(c,j))
-          beta_h = soilstate_vars%ceca_col(c,j) / soilstate_vars%cect_col(c,j)
-          beta_cation = soilstate_vars%cece_col(c,j,icat) / soilstate_vars%cect_col(c,j)
-          keq = 10**soilstate_vars%log_km_col(c,j,icat)
+          beta_list(icat) = soilstate_vars%cece_col(c,j,icat) / soilstate_vars%cect_col(c,j)
+          keq_list(icat) = 10**soilstate_vars%log_km_col(c,j,icat)
 
-          equilibria_conc(c,j,icat) = beta_cation/(beta_h*keq/h)**EWParamsInst%cations_valence(icat)
-
+          equilibria_conc(c,j,icat) = beta_list(icat) / &
+            (beta_h * keq_list(icat) / h)**EWParamsInst%cations_valence(icat)
           cation_vr(c,j,icat) = mol_to_mass(equilibria_conc(c,j,icat), &
                                             EWParamsInst%cations_mass(icat), &
                                             h2osoi_vol(c,j))
@@ -395,13 +397,8 @@ contains
 
         ! calculate the net charge balance during initializaiong
         ! mol/kg
-        net_charge_vr(c,j) = 10**(-soil_ph(c,j)) - 10**(-14_r8+soil_ph(c,j)) - &
-            mass_to_mol(bicarbonate_vr(c,j), mass_hco3, h2osoi_vol(c,j)) - & 
-            2_r8 * mass_to_mol(carbonate_vr(c,j), mass_co3, h2osoi_vol(c,j))
-        do icat = 1, ncations
-          net_charge_vr(c,j) = net_charge_vr(c,j) + EWParamsInst%cations_valence(icat) * &
-             mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j))
-        end do
+        net_charge_vr(c,j) = find_net_charge(soilstate_vars%sph(c,j), co2_atm, beta_list, &
+                                             keq_list, EWParamsInst%cations_valence)
       end do
     end do
 
@@ -948,7 +945,7 @@ contains
          ! Calcite precipitation (Ca2+ is cation #1)
          isec = 1
          icat = 1
-         if (cation_vr(c,j,icat)>0._r8) then
+         if (cation_vr(c,j,icat) > 0._r8) then
           saturation_ratio = &
             mass_to_mol(carbonate_vr(c,j), mass_co3, h2osoi_vol(c,j)) * &
             mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j)) * &
@@ -974,7 +971,7 @@ contains
           ! update the fluxes for operative sec. minerals/cations
           secondary_cation_flux_vr(c,j,icat) = r_precip_vr(c,j,isec) * EWParamsInst%cations_mass(icat)
           secondary_mineral_flux_vr(c,j,isec) = r_precip_vr(c,j,isec) * EWParamsInst%minsecs_mass(isec)
-         endif
+         end if
 
 
          ! Kaolinite formation (Al3+ is cation #5)
@@ -1459,7 +1456,7 @@ contains
         do icat = 1,ncations
           cece(icat) = mass_to_meq(cec_cation_vr(c,j,icat), EWParamsInst%cations_valence(icat), &
             EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j))
-          beta_list(icat) = cece(icat) / soilstate_vars%cect_col(c,j)
+          beta_list(icat) = cece(icat) / col_ms%cect_dyn(c,j)
           ! if too tiny or zero, e.g. due to tiny or zero cec_cation_vr,
           ! the following 'solve_eq' function for soil pH won't work well.
           beta_list(icat) = max(2.0e-4_r8, beta_list(icat))
