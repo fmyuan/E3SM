@@ -245,7 +245,7 @@ contains
        if (spinup_state == 0 .and. year >= year_start_erw) then
           event = 'MUpdate3'
           call t_start_lnd(event)
-          call MineralStateUpdate3(num_soilc, filter_soilc, col_ms, col_mf, dt, soilstate_vars)
+          call MineralStateUpdate3(num_soilc, filter_soilc, col_ms, col_mf, dt)
           call MineralStateDiags(num_soilc, filter_soilc, col_ms, col_mf, dt, soilstate_vars)
           call t_stop_lnd(event)
        end if
@@ -647,8 +647,8 @@ contains
          call MineralBackground(bounds, num_soilc, filter_soilc, soilstate_vars)
          call MineralDynamics(bounds, num_soilc, filter_soilc, soilstate_vars)
          call MineralEquilibria(bounds, num_soilc, filter_soilc, soilstate_vars)
-         call MineralFluxLimit(num_soilc, filter_soilc, col_ms, col_mf, dt)
-         call MineralStateUpdate1(num_soilc, filter_soilc, col_ms, col_mf, dt)
+         call MineralFluxLimit(num_soilc, filter_soilc, col_ms, col_mf, dt, soilstate_vars)
+         call MineralStateUpdate1(num_soilc, filter_soilc, col_ms, col_mf, dt, soilstate_vars)
       end if
     end if
 

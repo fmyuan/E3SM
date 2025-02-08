@@ -14,7 +14,7 @@ module MineralStateUpdateMod
   use spmdMod                 , only : masterproc
   use abortutils              , only : endrun
   use shr_log_mod             , only : errMsg => shr_log_errMsg
-  use ewutils                 , only : mass_to_mol, mass_to_meq, mol_to_mass
+  use ewutils                 , only : mass_to_mol, mass_to_meq, mol_to_mass, meq_to_mass
   use ColumnDataType          , only : col_ws
   use ColumnDataType          , only : col_ms, col_mf, col_pp
   use ColumnDataType          , only : column_mineral_state, column_mineral_flux, column_water_flux
@@ -41,19 +41,21 @@ module MineralStateUpdateMod
 contains
 
   !-----------------------------------------------------------------------
-  subroutine MineralStateUpdate1(num_soilc, filter_soilc, col_ms, col_mf, dt)
+  subroutine MineralStateUpdate1(num_soilc, filter_soilc, col_ms, col_mf, dt, soilstate_vars)
     !
     ! !DESCRIPTION:
     ! On the radiation time step, update the mineral state variables that are not
-    ! affected by vertical or horizontal soil water movement. 
+    ! affected by vertical or horizontal soil water movement, update pH-dependent CEC.
     !
     !$acc routine seq
+    !
     ! !ARGUMENTS:
     integer                      , intent(in)    :: num_soilc       ! number of soil columns filter
     integer                      , intent(in)    :: filter_soilc(:) ! filter for soil columns
     type(column_mineral_state)   , intent(inout) :: col_ms
     type(column_mineral_flux)    , intent(inout) :: col_mf
     real(r8)                     , intent(in)    :: dt              ! radiation time step (seconds)
+    type(soilstate_type)         , intent(in)    :: soilstate_vars
     !
     ! !LOCAL VARIABLES:
     integer  :: c,p,j,k,icat,m,g ! indices
@@ -75,19 +77,24 @@ contains
         ! soil cation concentration - not updated here
         ! must be preserved before calling the vertical solute movement solver
 
+        ! pH-dependent CEC
+        col_ms%cect_dyn(c,j) = col_mf%cect_delta(c,j) + col_ms%cect_dyn(c,j)
+
         ! CEC cations - only depends on flux limit
         do icat = 1,ncations
           col_ms%cec_cation_vr(c,j,icat) = col_ms%cec_cation_vr(c,j,icat) - &
                   (col_mf%cec_cation_flux_vr(c,j,icat) - col_mf%background_cec_vr(c,j,icat))*dt
         end do
 
-        ! CEC H+
+        ! CEC H+ with pH dependent changes
         ! the Equilibria subroutine cannot distinguish the effects of CO2 and cation exchange
         ! instead, use charge balance on the mineral surface to get the change in adsorped H+
+        ! note the newly exposed surface due to dynamic CEC
         do icat = 1,ncations
           col_ms%cec_proton_vr(c,j) = col_ms%cec_proton_vr(c,j) + &
             (col_mf%cec_cation_flux_vr(c,j,icat) - col_mf%background_cec_vr(c,j,icat))*dt & 
-            / EWParamsInst%cations_mass(icat) * mass_h * EWParamsInst%cations_valence(icat)
+            / EWParamsInst%cations_mass(icat) * mass_h * EWParamsInst%cations_valence(icat) + &
+            meq_to_mass(col_mf%cect_delta(c,j), 1._r8, mass_h, soilstate_vars%bd_col(c,j))
         end do
 
         ! primary mineral
@@ -154,23 +161,18 @@ contains
   end subroutine MineralStateUpdate2
 
   !-----------------------------------------------------------------------
-  subroutine MineralStateUpdate3(num_soilc, filter_soilc, col_ms, col_mf, dt, soilstate_vars)
+  subroutine MineralStateUpdate3(num_soilc, filter_soilc, col_ms, col_mf, dt)
     !
     ! !DESCRIPTION:
     ! On the radiation time step, update the mineral state variables
     ! related to horizontal soil water movement.
-    ! Also update carbon sequestration rate and update total CEC using soil pH
+    ! Also update carbon sequestration rate.
     !$acc routine seq
-
-    ! !USES:
-    use SharedParamsMod   , only : ParamsShareInst
-
     ! !ARGUMENTS:
     integer                      , intent(in)    :: num_soilc       ! number of soil columns filter
     integer                      , intent(in)    :: filter_soilc(:) ! filter for soil columns
     type(column_mineral_state)   , intent(inout) :: col_ms
     type(column_mineral_flux)    , intent(inout) :: col_mf
-    type(soilstate_type)         , intent(in)    :: soilstate_vars
     real(r8)                     , intent(in)    :: dt              ! radiation time step (seconds)
 
     !
@@ -179,7 +181,6 @@ contains
     integer  :: fc            ! lake filter indices
     integer  :: nlevbed
     integer  :: rmethod       ! 1 - use cation, 2 - use HCO3-- and CO3-- flux
-    real(r8) :: oc_frac       ! weight % of soil organic carbon
     !-----------------------------------------------------------------------
 
     do fc = 1,num_soilc
@@ -234,16 +235,6 @@ contains
 
       ! convert from mol m-2 s-1 to gC m-2 s-1
       col_mf%r_sequestration(c) = col_mf%r_sequestration(c) * 12._r8
-
-      ! Calculate pH-dependent CEC
-      ! Figure 13.12: Y_org,C = -59 + 51*pH, unit: meq 100g-1 org C
-      ! Stevenson, F. J. (1982), Chapter 13: Electrochemical and ion-exchange properties, 
-      ! in 'Hummus Chemistry: Genesis, Composition, Reactions’, John Wiley & Sons, Inc., p. 328.
-      do j = 1,nlevbed
-        oc_frac = 0.58_r8 * soilstate_vars%cellorg_col(c,j) / ParamsShareInst%organic_max
-        col_ms%cect_dyn(c,j) = soilstate_vars%cect_col(c,j) + &
-          oc_frac*51*(col_ms%soil_ph(c,j) - soilstate_vars%sph(c,j))
-      end do
     end do
   end subroutine MineralStateUpdate3
 
@@ -449,6 +440,7 @@ contains
               write (100+iam, *) 'Post-reaction cec H+: ', ldomain%latc(g), ldomain%lonc(g), trim(dateTimeString)
               write (100+iam, *) c, j, col_ms%cec_proton_vr(c,j), & 
                 mass_to_meq(col_ms%cec_proton_vr(c,j), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+                col_mf%cect_delta(c,j), &
                 mass_to_meq(col_mf%cec_cation_flux_vr(c,j,1)*dt/EWParamsInst%cations_mass(1) & 
                   *mass_h*EWParamsInst%cations_valence(1), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
                 mass_to_meq(col_mf%cec_cation_flux_vr(c,j,2)*dt/EWParamsInst%cations_mass(2) & 
@@ -477,19 +469,24 @@ contains
   end subroutine MineralStateDiags
 
   !-----------------------------------------------------------------------
-  subroutine MineralFluxLimit(num_soilc, filter_soilc, col_ms, col_mf, dt)
+  subroutine MineralFluxLimit(num_soilc, filter_soilc, col_ms, col_mf, dt, soilstate_vars)
     !
     ! !DESCRIPTION:
     ! Scale down reaction flux rates if they cause negative cation balance or
     ! exceed total cation exchange capacity
     !
     !$acc routine seq
+    !
+    ! !USES:
+    use SharedParamsMod   , only : ParamsShareInst
+    !
     ! !ARGUMENTS:
     integer                      , intent(in)    :: num_soilc       ! number of soil columns filter
     integer                      , intent(in)    :: filter_soilc(:) ! filter for soil columns
     type(column_mineral_state)   , intent(inout) :: col_ms
     type(column_mineral_flux)    , intent(inout) :: col_mf
     real(r8)                     , intent(in)    :: dt              ! radiation time step (seconds)
+    type(soilstate_type)         , intent(in)    :: soilstate_vars
     !
     ! !LOCAL VARIABLES:
     integer  :: c,j,icat,m,g ! indices
@@ -502,6 +499,8 @@ contains
     real(r8) :: temp_delta1_cation(1:num_soilc, 1:nlevsoi, 1:ncations)
     real(r8) :: temp_delta2_cation(1:num_soilc, 1:nlevsoi, 1:ncations)
     real(r8) :: min_flux_limit(1:num_soilc, 1:nlevsoi)
+    real(r8) :: temp_delta_cect
+    real(r8) :: oc_frac       ! weight % of soil organic carbon
     logical  :: err_found
     integer  :: err_fc, err_lev, err_icat, err_col
     character(len=256) :: dateTimeString
@@ -541,6 +540,23 @@ contains
           end if
         end do
 
+        ! pH-dependent CEC
+        ! Figure 13.12: Y_org,C = -59 + 51*pH, unit: meq 100g-1 org C
+        ! Stevenson, F. J. (1982), Chapter 13: Electrochemical and ion-exchange properties, 
+        ! in 'Hummus Chemistry: Genesis, Composition, Reactions’, John Wiley & Sons, Inc., p. 328.
+        ! 
+        ! The newly exposed/lost locales should be proportionally occupied by the original ions, or
+        ! as currently assumed - just H+?
+        ! If we modify cec_cation_vr, then column cation balance needs to add term. 
+
+        oc_frac = 0.58_r8 * soilstate_vars%cellorg_col(c,j) / ParamsShareInst%organic_max
+        col_mf%cect_delta(c,j) = soilstate_vars%cect_col(c,j) + &
+          oc_frac*51*(col_ms%soil_ph(c,j) - soilstate_vars%sph(c,j)) - col_ms%cect_dyn(c,j)
+
+        ! convert the change to g m-3 terms
+        temp_delta_cect = meq_to_mass(col_mf%cect_delta(c,j), 1._r8, mass_h, &
+                                      soilstate_vars%bd_col(c,j))
+
         ! Limit due to cation exchange capacity of H+
         temp_delta_ceca(fc,j) = 0._r8
         do icat = 1,ncations
@@ -548,9 +564,15 @@ contains
            (col_mf%cec_cation_flux_vr(c,j,icat) - col_mf%background_cec_vr(c,j,icat)) * dt & 
            / EWParamsInst%cations_mass(icat) * mass_h * EWParamsInst%cations_valence(icat)
         end do
-        if ((col_ms%cec_proton_vr(c,j) + temp_delta_ceca(fc,j)) < 0._r8) then        
-          col_mf%proton_limit_vr(c,j) = - col_ms%cec_proton_vr(c,j) / temp_delta_ceca(fc,j) & 
-                              * residual_factor
+
+        if (col_ms%cec_proton_vr(c,j) + temp_delta_cect < 0._r8) then        
+          temp_delta_cect = - residual_factor * col_ms%cec_proton_vr(c,j)
+          col_mf%cect_delta(c,j) = residual_factor * col_mf%cect_delta(c,j)
+        end if
+
+        if ((col_ms%cec_proton_vr(c,j) + temp_delta_cect + temp_delta_ceca(fc,j)) < 0._r8) then
+          col_mf%proton_limit_vr(c,j) = - (col_ms%cec_proton_vr(c,j) + temp_delta_cect) & 
+            / temp_delta_ceca(fc,j) * residual_factor
           do icat = 1,ncations
             col_mf%cec_cation_flux_vr(c,j,icat) = col_mf%cec_cation_flux_vr(c,j,icat) * &
                                       col_mf%proton_limit_vr(c,j)

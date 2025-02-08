@@ -1150,6 +1150,8 @@ module ColumnDataType
 
       real(r8), pointer :: cec_cation_flux_vr           (:,:,:)   => null() ! rate at which cation is released into water (negative for adsorption into soil) (vertically resolved) (1:nlevgrnd, 1:ncations) (g m-3 s-1)
 
+      real(r8), pointer :: cect_delta                   (:,:)   => null() ! pH-dependent change in cation exchange capacity (1:nlevgrnd)
+
       real(r8), pointer :: proton_limit_vr              (:,:)     => null() ! flux limitation factor due to insufficient H+ exchange capacity
       real(r8), pointer :: cec_limit_vr                 (:,:,:)   => null() ! flux limitation factor due ton insufficient cation exchange rate
       real(r8), pointer :: flux_limit_vr                (:,:,:)   => null() ! flux limitation factor on secondary mineral precipitation and cation exchange rate
@@ -12522,6 +12524,8 @@ contains
 
       allocate(this%cec_cation_flux_vr             (begc:endc,1:nlevgrnd,1:ncations ))       ; this%r_precip_vr                   (:,:,:) = spval
 
+      allocate(this%cect_delta                     (begc:endc,1:nlevgrnd            ))       ; this%cect_delta                    (:,:  ) = spval
+
       allocate(this%cec_limit_vr                   (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cec_limit_vr                  (:,:,:) = spval
       allocate(this%proton_limit_vr                (begc:endc,1:nlevgrnd            ))       ; this%proton_limit_vr               (:,:  ) = spval
       allocate(this%flux_limit_vr                  (begc:endc,1:nlevgrnd,1:ncations ))       ; this%flux_limit_vr                 (:,:,:) = spval
@@ -12748,6 +12752,11 @@ contains
             ptr_col=data2dptr, l2g_scale_type='veg')
       end do
 
+      this%cect_delta(begc:endc,:) = spval
+      call hist_addfld2d (fname='cect_delta',  units='meq 100g-1 dry soil', type2d='levgrnd', &
+         avgflag='A', long_name='pH-dependent change in total cation exchange capacity', &
+         ptr_col=this%cect_delta, l2g_scale_type='veg')
+
       this%proton_limit_vr(begc:endc,:) = spval
       call hist_addfld2d (fname='proton_limit_vr',  units='', type2d='levgrnd', &
          avgflag='A', long_name='flux limit factor due to insufficient H+ exchange', &
@@ -12973,6 +12982,7 @@ contains
             this%r_precip_vr                     (c,1:nlevsoi,1:nminsecs  ) = 0._r8
 
             this%cec_cation_flux_vr              (c,1:nlevsoi,1:ncations ) = 0._r8
+            this%cect_delta                      (c,1:nlevsoi            ) = 1._r8
 
             this%cec_limit_vr                    (c,1:nlevsoi,1:ncations ) = 1._r8
             this%proton_limit_vr                 (c,1:nlevsoi            ) = 1._r8
