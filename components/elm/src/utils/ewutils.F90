@@ -192,12 +192,15 @@ contains
     ! eq7 = sp.Eq(h / beta_h * (beta4 / k)**(1/valence_K), kex4)
     ! eq8 = sp.Eq(h / beta_h * (beta5 / al)**(1/valence_Al3), kex5)
     !
-    ! eq9 = sp.Eq(aloh * h / al, 10**(-5))
-    ! eq10 = sp.Eq(aloh2 * h * h / al, 10**(-10.1))
-    ! eq11 = sp.Eq(aloh3 * h * h * h / al, 10**(-16.9))
-    ! eq12 = sp.Eq(aloh4 * h * h * h * h / al, 10**(-22.7))
+    ! Aluminum hydrolysis will not be considered because we did not have those extra
+    ! Al-species's cation exchange coefficients.
+    !! eq9 = sp.Eq(aloh * h / al, 10**(-5))
+    !! eq10 = sp.Eq(aloh2 * h * h / al, 10**(-10.1))
+    !! eq11 = sp.Eq(aloh3 * h * h * h / al, 10**(-16.9))
+    !! eq12 = sp.Eq(aloh4 * h * h * h * h / al, 10**(-22.7))
     !
-    ! eq13 = sp.Eq(h - oh - hco3 - 2*co3 + 2*ca + 2*mg + na + k + 3*al + 2*aloh + aloh2 - aloh4, b0)
+    !! eq13 = sp.Eq(h - oh - hco3 - 2*co3 + 2*ca + 2*mg + na + k + 3*al + 2*aloh + aloh2 - aloh4, b0)
+    ! eq13 = sp.Eq(h - oh - hco3 - 2*co3 + 2*ca + 2*mg + na + k + 3*al, b0)
     !
     ! !ARGUMENTS:
     real(r8), intent(in) :: soil_ph ! 
@@ -209,7 +212,7 @@ contains
 
     ! 
     ! !LOCAL VARIABLES:
-    real(r8) :: h, beta_h, charge, oh, hco3, co3, ca, mg, na, k, al, aloh, aloh2, aloh3, aloh4
+    real(r8) :: h, beta_h, charge, oh, hco3, co3, ca, mg, na, k, al !!, aloh, aloh2, aloh3, aloh4
 
     !--------------------------------------------------------------
 
@@ -224,12 +227,13 @@ contains
     na = beta_list(3)/(beta_h*kex_list(3)/h)**cation_valence(3)
     k = beta_list(4)/(beta_h*kex_list(4)/h)**cation_valence(4)
     al = beta_list(5)/(beta_h*kex_list(5)/h)**cation_valence(5)
-    aloh = 10**(soil_ph-5)*al
-    aloh2 = 10**(2_r8*soil_ph-10.1_r8)*al
-    aloh3 = 10**(3_r8*soil_ph-16.9_r8)*al
-    aloh4 = 10**(4_r8*soil_ph-22.7_r8)*al
+    !aloh = 10**(soil_ph-5)*al
+    !aloh2 = 10**(2_r8*soil_ph-10.1_r8)*al
+    !aloh3 = 10**(3_r8*soil_ph-16.9_r8)*al
+    !aloh4 = 10**(4_r8*soil_ph-22.7_r8)*al
 
-    charge = h - oh - hco3 - 2*co3 + 2*ca + 2*mg + na + k + 3*al + 2*aloh + aloh2 - aloh4
+    charge = h - oh - hco3 - 2*co3 + 2*ca + 2*mg + na + k + 3*al ! + 2*aloh + aloh2 - aloh4
+
   end function find_net_charge
 
 
@@ -254,7 +258,6 @@ contains
     !--------------------------------------------------------------
 
     charge = find_net_charge(soil_ph, co2_atm, beta_list, kex_list, cation_valence)
-
     pcterr = abs(charge - b0) / abs(b0)
 
   end function objective_solveq
@@ -287,7 +290,7 @@ contains
     search_n = 161
     search_start = 2 ! only acid mines reach this level
     search_end = 10 ! car wash level
-    min_err = 999._r8
+    min_err = 1e10
     j = 0
     do while ((j < 8) .and. (min_err > 0.01))
       search_step = (search_end - search_start) / (search_n - 1)
@@ -301,7 +304,8 @@ contains
         end if
       end do
       search_start = search_start + search_step * (max(best_i - 5, 1)-1)
-      search_end = search_start + search_step * (min(best_i + 5, search_n)-1)
+      ! (make sure the upper bound is not beyond previous round)
+      search_end = min(search_end, search_start + search_step * (min(best_i + 5, search_n)-1))
       j = j + 1
     end do
 
