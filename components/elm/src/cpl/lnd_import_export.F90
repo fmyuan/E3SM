@@ -255,6 +255,9 @@ contains
             atm2lnd_vars%metsource = 4
           else if (index(metdata_type,'cpl') .gt. 0) then 
             atm2lnd_vars%metsource = 5
+          else if (index(metdata_type,'gfdl') .gt. 0) then
+            atm2lnd_vars%metsource = 7
+            met_nvars = 6   !no FLDS
           else
             write(iulog,*) 'input metdata_type: ', metdata_type
             call endrun( sub//' ERROR: Invalid met data source for cpl_bypass' )
@@ -338,6 +341,12 @@ contains
               atm2lnd_vars%endyear_met_spinup = 1920
               atm2lnd_vars%endyear_met_trans  = 2022
             end if
+          else if (atm2lnd_vars%metsource == 7) then
+              !CRU-JRA v2.4.5
+              metsource_str = 'gfdl_historical'
+              atm2lnd_vars%startyear_met      = 1951
+              atm2lnd_vars%endyear_met_spinup = 1970
+              atm2lnd_vars%endyear_met_trans  = 2014
           end if
 
           if (use_livneh) then 
@@ -458,6 +467,8 @@ contains
                     ! CRUJRA v2.4.5
                     metdata_fname = 'crujra.v2.4.5d_' // trim(metvars(v)) // '_1901-2022_z' // zst(2:3) // '.nc'
                 end if
+            else if (atm2lnd_vars%metsource == 7) then
+                    metdata_fname = 'gfdl-esm4.historical.c2107.0.5x0.5'  // '_' // trim(metvars(v)) // '_1951-2014_z' // zst(2:3) // '.nc'
             end if
   
             ierr = nf90_open(trim(metdata_bypass) // '/' // trim(metdata_fname), NF90_NOWRITE, met_ncids(v))
