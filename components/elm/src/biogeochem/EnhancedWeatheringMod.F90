@@ -1205,9 +1205,10 @@ contains
       bicarbonate_drainage(c) = rain_bicarbonate * 1.0e-3_r8 * qin(c,1)
       carbonate_drainage(c) = rain_carbonate * 1.0e-3_r8 * qin(c,1)
       do j = 1, nlevbed
-        bicarbonate_drainage(c) = bicarbonate_drainage(c) - dhco3_dt(c) * dz(c,j)
-        carbonate_drainage(c) = carbonate_drainage(c) - dco3_dt(c) * dz(c,j)
+        bicarbonate_drainage(c) = bicarbonate_drainage(c) - dhco3_dt(j) * dz(c,j)
+        carbonate_drainage(c) = carbonate_drainage(c) - dco3_dt(j) * dz(c,j)
       end do
+
     end do ! end soil column loop
 
     end associate
