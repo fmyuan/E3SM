@@ -93,9 +93,10 @@ contains
         do icat = 1,ncations
           col_ms%cec_proton_vr(c,j) = col_ms%cec_proton_vr(c,j) + &
             (col_mf%cec_cation_flux_vr(c,j,icat) - col_mf%background_cec_vr(c,j,icat))*dt & 
-            / EWParamsInst%cations_mass(icat) * mass_h * EWParamsInst%cations_valence(icat) + &
-            meq_to_mass(col_mf%cect_delta(c,j), 1._r8, mass_h, soilstate_vars%bd_col(c,j))
+            / EWParamsInst%cations_mass(icat) * mass_h * EWParamsInst%cations_valence(icat)
         end do
+        col_ms%cec_proton_vr(c,j) = col_ms%cec_proton_vr(c,j) + &
+          meq_to_mass(col_mf%cect_delta(c,j), 1._r8, mass_h, soilstate_vars%bd_col(c,j))
 
         ! primary mineral
         do m = 1,nminerals
@@ -320,7 +321,7 @@ contains
     !-----------------------------------------------------------------------
     call get_curr_time_string(dateTimeString)
 
-    !------------------------------------------------------------------------------
+    !-----------------------------------------------------------------------
     ! Write mass balance diagnostics only if verbose level is set to high
     if (use_erw_verbose == 2) then
       ! print soil solution proton
@@ -371,6 +372,7 @@ contains
           ! note: the change in CEC H+ is equal to the sum of other cations' influx
           write (100+iam, *) c, j, col_ms%cec_proton_vr(c,j), & 
             mass_to_meq(col_ms%cec_proton_vr(c,j), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+            col_mf%cect_delta(c,j), &
             mass_to_meq(col_mf%cec_cation_flux_vr(c,j,1)*dt/EWParamsInst%cations_mass(1) & 
               *mass_h*EWParamsInst%cations_valence(1), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
             mass_to_meq(col_mf%cec_cation_flux_vr(c,j,2)*dt/EWParamsInst%cations_mass(2) & 
@@ -521,14 +523,18 @@ contains
       nlevbed = min(col_pp%nlevbed(c), nlevsoi)
       do j = 1,nlevbed
 
-        ! Limit due to cation exchange capacity of individual non-proton cations
+        ! Limit the cec cation flux due to cation exchange capacity of individual non-proton cations
         do icat = 1,ncations
+
           ! cec_cation_flux_vr > 0 := flow from CEC to solution
           temp_delta1_cece(fc,j,icat) = col_mf%background_cec_vr(c,j,icat)*dt
           temp_delta2_cece(fc,j,icat) = - col_mf%cec_cation_flux_vr(c,j,icat)*dt
 
           if ((col_ms%cec_cation_vr(c,j,icat) + temp_delta1_cece(fc,j,icat) + &
                temp_delta2_cece(fc,j,icat)) < 0._r8) then
+            ! When cec_cation_vr(c,j,icat) << cec_cation_flux_vr(c,j,icat)*dt, 
+            ! numerical accuracy issue seems to cause cec_limit_vr to be miscalculated, 
+            ! and col_mf%cec_cation_vr(c,j,icat) slightly negative. That is okay.
             col_mf%cec_limit_vr(c,j,icat) = - (temp_delta1_cece(fc,j,icat) + & 
                                                col_ms%cec_cation_vr(c,j,icat)) / &
                 temp_delta2_cece(fc,j,icat) * residual_factor
@@ -538,6 +544,15 @@ contains
           else
             col_mf%cec_limit_vr(c,j,icat) = 1._r8
           end if
+
+        end do
+
+        ! The resulting H+ flux from cation flux limitation only
+        temp_delta_ceca(fc,j) = 0._r8
+        do icat = 1,ncations
+          temp_delta_ceca(fc,j) = temp_delta_ceca(fc,j) + &
+           (col_mf%cec_cation_flux_vr(c,j,icat) - col_mf%background_cec_vr(c,j,icat)) * dt & 
+           / EWParamsInst%cations_mass(icat) * mass_h * EWParamsInst%cations_valence(icat)
         end do
 
         ! pH-dependent CEC
@@ -548,26 +563,24 @@ contains
         ! The newly exposed/lost locales should be proportionally occupied by the original ions, or
         ! as currently assumed - just H+?
         ! If we modify cec_cation_vr, then column cation balance needs to add term. 
-
+        !
+        ! Step-to-step jump in soil pH can be large; the pH-dependent CEC can cause total CEC
+        ! to become negative - this is wrong - prevent going more than CEC of H+
         oc_frac = 0.58_r8 * soilstate_vars%cellorg_col(c,j) / ParamsShareInst%organic_max
-        col_mf%cect_delta(c,j) = soilstate_vars%cect_col(c,j) + &
-          oc_frac*51*(col_ms%soil_ph(c,j) - soilstate_vars%sph(c,j)) - col_ms%cect_dyn(c,j)
+        col_mf%cect_delta(c,j) = max(soilstate_vars%cect_col(c,j) + &
+          oc_frac*51*(col_ms%soil_ph(c,j) - soilstate_vars%sph(c,j)) - col_ms%cect_dyn(c,j), &
+          - residual_factor * col_ms%cect_dyn(c,j))
 
         ! convert the change to g m-3 terms
         temp_delta_cect = meq_to_mass(col_mf%cect_delta(c,j), 1._r8, mass_h, &
                                       soilstate_vars%bd_col(c,j))
 
-        ! Limit due to cation exchange capacity of H+
-        temp_delta_ceca(fc,j) = 0._r8
-        do icat = 1,ncations
-          temp_delta_ceca(fc,j) = temp_delta_ceca(fc,j) + &
-           (col_mf%cec_cation_flux_vr(c,j,icat) - col_mf%background_cec_vr(c,j,icat)) * dt & 
-           / EWParamsInst%cations_mass(icat) * mass_h * EWParamsInst%cations_valence(icat)
-        end do
 
-        if (col_ms%cec_proton_vr(c,j) + temp_delta_cect < 0._r8) then        
+        ! Limit due to cation exchange capacity of H+
+        if (col_ms%cec_proton_vr(c,j) + temp_delta_cect < 0._r8) then
           temp_delta_cect = - residual_factor * col_ms%cec_proton_vr(c,j)
-          col_mf%cect_delta(c,j) = residual_factor * col_mf%cect_delta(c,j)
+          col_mf%cect_delta(c,j) = mass_to_meq(temp_delta_cect, 1._r8, mass_h, & 
+                                               soilstate_vars%bd_col(c,j))
         end if
 
         if ((col_ms%cec_proton_vr(c,j) + temp_delta_cect + temp_delta_ceca(fc,j)) < 0._r8) then
@@ -575,9 +588,9 @@ contains
             / temp_delta_ceca(fc,j) * residual_factor
           do icat = 1,ncations
             col_mf%cec_cation_flux_vr(c,j,icat) = col_mf%cec_cation_flux_vr(c,j,icat) * &
-                                      col_mf%proton_limit_vr(c,j)
+                                                  col_mf%proton_limit_vr(c,j)
             col_mf%background_cec_vr(c,j,icat) = col_mf%background_cec_vr(c,j,icat) * &
-                                      col_mf%proton_limit_vr(c,j)
+                                                 col_mf%proton_limit_vr(c,j)
           end do
           min_flux_limit(fc,j) = min(min_flux_limit(fc,j), col_mf%proton_limit_vr(c,j))
         else
@@ -600,7 +613,6 @@ contains
             ! ensure a tiny bit of cation is left due to numerical accuracy reasons
             col_mf%flux_limit_vr(c,j,icat) = - (temp_delta1_cation(fc,j,icat) + & 
               col_ms%cation_vr(c,j,icat)) / temp_delta2_cation(fc,j,icat) * residual_factor
-
             col_mf%cation_uptake_vr(c,j,icat) = col_mf%cation_uptake_vr(c,j,icat) * & 
                   col_mf%flux_limit_vr(c,j,icat)
             col_mf%secondary_cation_flux_vr(c,j,icat) = &
@@ -609,6 +621,7 @@ contains
                   col_mf%flux_limit_vr(c,j,icat)
 
             min_flux_limit(fc,j) = min(min_flux_limit(fc,j), col_mf%flux_limit_vr(c,j,icat))
+
           else
             col_mf%flux_limit_vr(c,j,icat) = 1._r8
           end if
