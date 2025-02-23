@@ -1148,9 +1148,11 @@ module ColumnDataType
       real(r8), pointer :: secondary_silica_flux_vr     (:,:)     => null() ! rate at which SiO2 is consumed by secondary mineral precipitation (1:nlevgrnd,1:ncations) (g m-3 s-1)
       real(r8), pointer :: r_precip_vr                  (:,:,:)   => null() ! reaction rate of the precipitation of the secondary mineral (1:nlevgrnd,1:nminsecs) (mol reaction m-3 s-1)
 
-      real(r8), pointer :: cec_cation_flux_vr           (:,:,:)   => null() ! rate at which cation is released into water (negative for adsorption into soil) (vertically resolved) (1:nlevgrnd, 1:ncations) (g m-3 s-1)
+      real(r8), pointer :: cec_cation_flux_vr           (:,:,:)   => null() ! rate at which cation is released into water due to cation exchange  (negative for adsorption into soil) (vertically resolved) (1:nlevgrnd, 1:ncations) (g m-3 s-1)
+      real(r8), pointer :: cec_cation_flux2_vr          (:,:,:)   => null() ! rate at which cation is released into water due to cation exchange  (negative for adsorption into soil) (vertically resolved) (1:nlevgrnd, 1:ncations) (g m-3 s-1)
 
-      real(r8), pointer :: cect_delta                   (:,:)   => null() ! pH-dependent change in cation exchange capacity (1:nlevgrnd)
+      real(r8), pointer :: cect_delta                   (:,:)     => null() ! pH-dependent change in cation exchange capacity (1:nlevgrnd)
+      real(r8), pointer :: cece_delta                   (:,:,:)   => null() ! pH-dependent change in occupied sites of other cations (1:nlevgrnd, 1:ncations)
 
       real(r8), pointer :: proton_limit_vr              (:,:)     => null() ! flux limitation factor due to insufficient H+ exchange capacity
       real(r8), pointer :: cec_limit_vr                 (:,:,:)   => null() ! flux limitation factor due ton insufficient cation exchange rate
@@ -12522,9 +12524,11 @@ contains
 
       allocate(this%r_precip_vr                    (begc:endc,1:nlevgrnd,1:nminsecs  ))       ; this%r_precip_vr                   (:,:,:) = spval
 
-      allocate(this%cec_cation_flux_vr             (begc:endc,1:nlevgrnd,1:ncations ))       ; this%r_precip_vr                   (:,:,:) = spval
+      allocate(this%cec_cation_flux_vr             (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cec_cation_flux_vr                   (:,:,:) = spval
+      allocate(this%cec_cation_flux2_vr            (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cec_cation_flux2_vr                  (:,:,:) = spval
 
       allocate(this%cect_delta                     (begc:endc,1:nlevgrnd            ))       ; this%cect_delta                    (:,:  ) = spval
+      allocate(this%cece_delta                     (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cece_delta                    (:,:,:) = spval
 
       allocate(this%cec_limit_vr                   (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cec_limit_vr                  (:,:,:) = spval
       allocate(this%proton_limit_vr                (begc:endc,1:nlevgrnd            ))       ; this%proton_limit_vr               (:,:  ) = spval
@@ -12752,10 +12756,32 @@ contains
             ptr_col=data2dptr, l2g_scale_type='veg')
       end do
 
+      this%cec_cation_flux2_vr(begc:endc,:,:) = spval
+      do a = 1,ncations
+         data2dptr => this%cec_cation_flux2_vr(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'cec_cation_flux2_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname,  units='g m-3 s-1', type2d='levgrnd', &
+            avgflag='A', long_name='rate at which change in total cation exchange capacity pushes cations into the water (always non-negative) (vertically resolved)', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
+      end do
+
       this%cect_delta(begc:endc,:) = spval
       call hist_addfld2d (fname='cect_delta',  units='meq 100g-1 dry soil', type2d='levgrnd', &
          avgflag='A', long_name='pH-dependent change in total cation exchange capacity', &
          ptr_col=this%cect_delta, l2g_scale_type='veg')
+
+      this%cece_delta(begc:endc,1:nlevgrnd,1:ncations) = spval
+      do a = 1,ncations
+         data2dptr => this%cece_delta(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'cece_delta_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname, units='meq 100g-1 dry soil', type2d='levgrnd', &
+            avgflag='A', long_name='calculated individual cations occupied amount of cation exchange sites (vertically resolved)', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
+      end do
 
       this%proton_limit_vr(begc:endc,:) = spval
       call hist_addfld2d (fname='proton_limit_vr',  units='', type2d='levgrnd', &
@@ -12982,7 +13008,9 @@ contains
             this%r_precip_vr                     (c,1:nlevsoi,1:nminsecs  ) = 0._r8
 
             this%cec_cation_flux_vr              (c,1:nlevsoi,1:ncations ) = 0._r8
-            this%cect_delta                      (c,1:nlevsoi            ) = 1._r8
+            this%cec_cation_flux2_vr             (c,1:nlevsoi,1:ncations ) = 0._r8
+            this%cect_delta                      (c,1:nlevsoi            ) = 0._r8
+            this%cece_delta                      (c,1:nlevsoi,1:ncations ) = 0._r8
 
             this%cec_limit_vr                    (c,1:nlevsoi,1:ncations ) = 1._r8
             this%proton_limit_vr                 (c,1:nlevsoi            ) = 1._r8
@@ -13442,7 +13470,8 @@ contains
                this%primary_cation_flux(c,a) = &
                   this%primary_cation_flux(c,a) + this%primary_cation_flux_vr(c,j,a) * col_pp%dz(c,j)
                this%cec_cation_flux(c,a) = &
-                  this%cec_cation_flux(c,a) + this%cec_cation_flux_vr(c,j,a) * col_pp%dz(c,j)
+                  this%cec_cation_flux(c,a) + (this%cec_cation_flux_vr(c,j,a) + &
+                                               this%cec_cation_flux2_vr(c,j,a)) * col_pp%dz(c,j)
                this%secondary_cation_flux(c,a) = &
                   this%secondary_cation_flux(c,a) + this%secondary_cation_flux_vr(c,j,a) * col_pp%dz(c,j)
                this%cation_uptake(c,a) = &

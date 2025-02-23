@@ -1084,6 +1084,7 @@ contains
          cation_oufl_vr                 => col_mf%cation_oufl_vr          , & ! Output: [real(r8) (:,:,:)] cation flux carried away by infiltration (g m-3 soil s-1 [not water]) (1:nlevgrnd, 1:ncations)
          cation_uptake_vr               => col_mf%cation_uptake_vr        , & ! Output: [real(r8) (:,:,:)] cation flux uptaken by plants (g m-3 soil s-1 [not water]) (1:nlevgrnd, 1:ncations)
          cec_cation_flux_vr             => col_mf%cec_cation_flux_vr      , & ! Output: [real(r8) (:,:,:)] rate at which adsorbed cation is released into water (negative for adsorption into soil) (vertically resolved) (1:nlevgrnd, 1:ncations) (g m-3 s-1)
+         cec_cation_flux2_vr            => col_mf%cec_cation_flux2_vr     , & ! Output: [real(r8) (:,:,:)] rate at which adsorbed cation is released into water due to change in total cation exchange capacity (always >= 0) (vertically resolved) (1:nlevgrnd, 1:ncations) (g m-3 s-1)
 
          bicarbonate_drainage           => col_mf%bicarbonate_drainage    , & ! Output: [real(r8) (:,:)] bottom drainage of HCO3- due to vertical infiltration (positive for increase) (g m-3 soil s-1 [not water]) (1:nlevgrnd)
          carbonate_drainage             => col_mf%carbonate_drainage      , & ! Output: [real(r8) (:,:)] bottom drainage of CO3-- due to vertical infiltration (positive for increase) (g m-3 soil s-1 [not water]) (1:nlevgrnd)
@@ -1127,8 +1128,9 @@ contains
 
         do icat = 1,ncations
           sourcesink_cations(j,icat) = background_flux_vr(c,j,icat) + & 
-            primary_cation_flux_vr(c,j,icat) + cec_cation_flux_vr(c,j,icat) - &
-            secondary_cation_flux_vr(c,j,icat) - cation_uptake_vr(c,j,icat)
+            primary_cation_flux_vr(c,j,icat) + cec_cation_flux_vr(c,j,icat) + &
+            cec_cation_flux2_vr(c,j,icat) - secondary_cation_flux_vr(c,j,icat) - &
+            cation_uptake_vr(c,j,icat)
         end do
 
         ! for HCO3-, CO3--, calculate the pure advection diffusion at equilibrium concentrations
@@ -1422,6 +1424,8 @@ contains
     real(r8) :: beta_h                 ! temporary container for ceca/cec_tot
     real(r8) :: keq_list(1:ncations)   ! temporary container for exchange coefficients between H+ and cations
     real(r8) :: conc(1:ncations)       ! temporary container for cation concentration (mol/kg)
+    real(r8) :: prev_pH                ! soil pH before solving the CEC balance
+    real(r8) :: oc_frac                ! fraction of organic carbon
     real(r8) :: dt
 
     associate( &
@@ -1432,13 +1436,19 @@ contains
         proton_vr                           => col_ms%proton_vr               , & ! Input: [real (r8) (:,:)] calculated soil H+ concentration in soil water each soil layer (1:nlevgrnd) (g m-3 soil [not water])
         cation_vr                           => col_ms%cation_vr               , & ! Input: [real(r8) (:,:,:)] cation concentration in soil water in each soil layer (1:nlevgrnd,1:ncations) (g m-3 soil [not water])
         cec_cation_vr                       => col_ms%cec_cation_vr           , & ! Input: [real(r8) (:,:,:)] adsorbed cation concentration each soil layer (1:nlevgrnd,1:ncations) (g m-3 soil [not dry soil])
+
+        cect_dyn                            => col_ms%cect_dyn                 , & ! Input:  [real(r8) (:,:)] pH-dependent total cation exchange capacity (1:nlevgrnd)
+        cect_delta                          => col_mf%cect_delta              , & ! Input:  [real(r8) (:,:)] pH-dependent change in cation exchange capacity (1:nlevgrnd)
+        cece_delta                          => col_mf%cece_delta              , & ! Input:  [real(r8) (:,:)] pH-dependent change in individual cations occupied exchange capacity (1:nlevgrnd)
+
         h2osoi_vol                          => col_ws%h2osoi_vol              , & ! Input: [real(r8) (:,:)] soil water volume, liquid + ice (m3 m-3)
         h2osoi_liqvol                       => col_ws%h2osoi_liqvol           , & ! Input: [real(r8) (:,:)] soil water volume, liquid (m3 m-3)
 
         bicarbonate_vr                      => col_ms%bicarbonate_vr          , & ! Output: [real(r8) (:,:)] calculated HCO3- concentration in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd)
         carbonate_vr                        => col_ms%carbonate_vr            , & ! Output: [real(r8) (:,:)] calculated CO3 2- concentration in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd)
 
-        cec_cation_flux_vr                  => col_mf%cec_cation_flux_vr       & ! Output: [real(r8) (:,:,:)] rate at which adsorbed cation is released into water (negative for adsorption into soil) (vertically resolved) (1:nlevgrnd, 1:ncations) (g m-3 s-1)
+        cec_cation_flux_vr                  => col_mf%cec_cation_flux_vr      , & ! Output: [real(r8) (:,:,:)] rate at which adsorbed cation is released into water (negative for adsorption into soil) (vertically resolved) (1:nlevgrnd, 1:ncations) (g m-3 s-1)
+        cec_cation_flux2_vr                 => col_mf%cec_cation_flux2_vr      & ! Output: [real(r8) (:,:,:)] rate at which adsorbed cation is released into water due to change in total CEC (zero if cect increases, positive if cect decreases) (vertically resolved) (1:nlevgrnd, 1:ncations) (g m-3 s-1)
     )
 
     dt      = real( get_step_size(), r8 )
@@ -1452,11 +1462,14 @@ contains
 
       do j = 1,nlevbed
 
+        ! before pH change
+        prev_pH = soil_ph(c,j)
+
         ! use grid search to find the pH
         do icat = 1,ncations
           cece(icat) = mass_to_meq(cec_cation_vr(c,j,icat), EWParamsInst%cations_valence(icat), &
-            EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j))
-          beta_list(icat) = cece(icat) / col_ms%cect_dyn(c,j)
+                                   EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j))
+          beta_list(icat) = cece(icat) / cect_dyn(c,j)
           ! if too tiny or zero, e.g. due to tiny or zero cec_cation_vr,
           ! the following 'solve_eq' function for soil pH won't work well.
           beta_list(icat) = max(2.0e-4_r8, beta_list(icat))
@@ -1470,7 +1483,8 @@ contains
           beta_list = beta_list * ((1.0_r8-2.0e-4_r8)/sum(beta_list))
         end if
 
-        soil_ph(c,j) = solve_eq(net_charge_vr(c,j), co2_atm, beta_list, keq_list, EWParamsInst%cations_valence)
+        soil_ph(c,j) = solve_eq(net_charge_vr(c,j), co2_atm, beta_list, keq_list, &
+                                EWParamsInst%cations_valence)
         !!write (100+iam, *) 'beta_list', c, j, beta_list(1), beta_list(2), beta_list(3), beta_list(4), beta_list(5)
         !!write (100+iam, *) 'keq_list', c, j, keq_list(1), keq_list(2), keq_list(3), keq_list(4), keq_list(5)
         !!write (100+iam, *) 'rest', c, j, soil_ph(c,j), net_charge_vr(c,j), co2_atm, EWParamsInst%cations_valence
@@ -1482,6 +1496,48 @@ contains
         bicarbonate_vr(c,j) = mol_to_mass(bicarbonate_vr(c,j), mass_hco3, h2osoi_vol(c,j))
         carbonate_vr(c,j) = mol_to_mass(carbonate_vr(c,j), mass_co3, h2osoi_vol(c,j))
 
+        ! calculate the implications on cation exchange capacity
+        ! 
+        ! Figure 13.12: Y_org,C = -59 + 51*pH, unit: meq 100g-1 org C
+        ! Stevenson, F. J. (1982), Chapter 13: Electrochemical and ion-exchange properties, 
+        ! in 'Hummus Chemistry: Genesis, Composition, Reactions’, John Wiley & Sons, Inc., p. 328.
+        ! The cited original study: Wisconsin soil
+        ! https://acsess.onlinelibrary.wiley.com/doi/abs/10.2136/sssaj1964.03615995002800040020x
+        !
+        ! Also, pH-dependent CEC will not decline when pH <= 4, because charge already becomes 
+        ! positive. See p59 of
+        ! Kroll, E. S., Okjemstad, J. O., & Baldock, J. A. (2004). Functions of soil organic matter 
+        ! and the effect on soil properties (pp. iii, 107 p. : ill.; 30 cm.). Canberra, A.C.T.: 
+        ! Cooperative Research Centre for Greenhouse Accounting.
+        oc_frac = 0.58_r8 * soilstate_vars%cellorg_col(c,j) / soilstate_vars%bd_col(c,j)
+        if (prev_pH > 4._r8) then
+          if (soil_pH(c,j) > 4._r8) then
+            cect_delta(c,j) = (soil_pH(c,j) - prev_pH) * oc_frac * 51
+          else
+            cect_delta(c,j) = (4._r8 - prev_pH) * oc_frac * 51
+          end if
+        else
+          if (soil_pH(c,j) > 4._r8) then
+            cect_delta(c,j) = (soil_pH(c,j) - 4._r8) * oc_frac * 51
+          else
+            cect_delta(c,j) = 0._r8
+          end if
+        end if
+
+        if (cect_delta(c,j) > 0._r8) then
+          ! do not release any cation
+          cece_delta(c,j,1:ncations) = 0._r8
+          ! increase cation exchange phase H+ by reducing other beta's
+          do icat = 1,ncations
+            beta_list(icat) = cece(icat) / (cect_delta(c,j) + cect_dyn(c,j))
+          end do
+        else
+          ! equally release all the cations (negative)
+          do icat = 1,ncations
+            cece_delta(c,j,icat) = cect_delta(c,j) * beta_list(icat)
+          end do
+        end if
+
         ! calculate the implications on cations
         beta_h = 1._r8
         do icat = 1,ncations
@@ -1489,10 +1545,20 @@ contains
         end do
 
         do icat = 1,ncations
-          conc(icat) = beta_list(icat)/(beta_h*keq_list(icat)/10**(-soil_ph(c,j)))**EWParamsInst%cations_valence(icat)
-          ! the reaction happens in the liquid water part only
-          cec_cation_flux_vr(c,j,icat) = (mol_to_mass(conc(icat), EWParamsInst%cations_mass(icat), &
-            h2osoi_liqvol(c,j)) - cation_vr(c,j,icat)*h2osoi_liqvol(c,j)/h2osoi_vol(c,j)) / dt
+          ! calculate the part that is due to change in aqueous concentration
+          conc(icat) = beta_list(icat) / (beta_h * keq_list(icat) / &
+                       10**(-soil_ph(c,j)))**EWParamsInst%cations_valence(icat)
+          cec_cation_flux_vr(c,j,icat) = & 
+            ( mol_to_mass(conc(icat), EWParamsInst%cations_mass(icat), &
+                          h2osoi_liqvol(c,j)) - & 
+              cation_vr(c,j,icat) * h2osoi_liqvol(c,j) / h2osoi_vol(c,j) ) / dt
+
+          ! calculate the part due to change in total cation exchange capacity
+          ! > 0 = flow into solution
+          ! this flux is guaranteed >= 0
+          cec_cation_flux2_vr(c,j,icat) = &
+            meq_to_mass(-cece_delta(c,j,icat), EWParamsInst%cations_valence(icat), &
+                        EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j))
         end do
 
       end do
