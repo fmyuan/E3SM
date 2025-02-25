@@ -1437,7 +1437,7 @@ contains
         cation_vr                           => col_ms%cation_vr               , & ! Input: [real(r8) (:,:,:)] cation concentration in soil water in each soil layer (1:nlevgrnd,1:ncations) (g m-3 soil [not water])
         cec_cation_vr                       => col_ms%cec_cation_vr           , & ! Input: [real(r8) (:,:,:)] adsorbed cation concentration each soil layer (1:nlevgrnd,1:ncations) (g m-3 soil [not dry soil])
 
-        cect_dyn                            => col_ms%cect_dyn                 , & ! Input:  [real(r8) (:,:)] pH-dependent total cation exchange capacity (1:nlevgrnd)
+        cect_dyn                            => col_ms%cect_dyn                , & ! Input:  [real(r8) (:,:)] pH-dependent total cation exchange capacity (1:nlevgrnd)
         cect_delta                          => col_mf%cect_delta              , & ! Input:  [real(r8) (:,:)] pH-dependent change in cation exchange capacity (1:nlevgrnd)
         cece_delta                          => col_mf%cece_delta              , & ! Input:  [real(r8) (:,:)] pH-dependent change in individual cations occupied exchange capacity (1:nlevgrnd)
 

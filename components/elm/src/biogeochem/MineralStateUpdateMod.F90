@@ -81,11 +81,25 @@ contains
         col_ms%cect_dyn(c,j) = col_mf%cect_delta(c,j) + col_ms%cect_dyn(c,j)
 
         ! CEC cations - only depends on flux limit
+
         do icat = 1,ncations
+
+        write (iam+100, *) '++++++++++++++++++++++++++'
+        write (iam+100, *) c, j, icat, col_ms%cec_cation_vr(c,j,icat), col_mf%cec_cation_flux_vr(c,j,icat)*dt, col_mf%cec_cation_flux2_vr(c,j,icat)*dt, col_mf%background_cec_vr(c,j,icat)*dt
+        write (iam+100, *) '++++++++++++++++++++++++++'
+
+
           col_ms%cec_cation_vr(c,j,icat) = col_ms%cec_cation_vr(c,j,icat) - &
                   (col_mf%cec_cation_flux_vr(c,j,icat) + col_mf%cec_cation_flux2_vr(c,j,icat) &
                    - col_mf%background_cec_vr(c,j,icat))*dt
+
+        write (iam+100, *) '++++++++++++++++++++++++++'
+        write (iam+100, *) c, j, icat, col_ms%cec_cation_vr(c,j,icat),  col_mf%cec_cation_flux_vr(c,j,icat)*dt, col_mf%cec_cation_flux2_vr(c,j,icat)*dt, col_mf%background_cec_vr(c,j,icat)*dt
+        write (iam+100, *) '++++++++++++++++++++++++++'
+
+
         end do
+
 
         ! CEC H+ with pH dependent changes
         ! the Equilibria subroutine cannot distinguish the effects of CO2 and cation exchange
@@ -293,7 +307,8 @@ contains
           ! note: cec_cation_flux_vr is defined negative for adsorption into soil
           !       this term is defined positive for adsorption into soil
           col_mf%tempavg_cec_delta(c,j,icat) = col_mf%tempavg_cec_delta(c,j,icat) - &
-            col_mf%cec_cation_flux_vr(c,j,icat) * fracday / dayspyr_mod
+            (col_mf%cec_cation_flux_vr(c,j,icat) + col_mf%cec_cation_flux2_vr(c,j,icat) &
+            ) * fracday / dayspyr_mod
         end do
       end do
     end do
@@ -374,19 +389,39 @@ contains
         write (100+iam, *) 'Post-reaction cec H+: ', ldomain%latc(g), ldomain%lonc(g), trim(dateTimeString)
         do j = 1,nlevbed
           ! note: the change in CEC H+ is equal to the sum of other cations' influx
-          write (100+iam, *) c, j, col_ms%cec_proton_vr(c,j), & 
+          write (100+iam, *) c, j, col_ms%cec_proton_vr(c,j), &
             mass_to_meq(col_ms%cec_proton_vr(c,j), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
-            col_mf%cect_delta(c,j), &
-            mass_to_meq(col_mf%cec_cation_flux_vr(c,j,1)*dt/EWParamsInst%cations_mass(1) & 
+              col_mf%cect_delta(c,j), &
+            mass_to_meq(col_mf%cec_cation_flux_vr(c,j,1)*dt/EWParamsInst%cations_mass(1) &
               *mass_h*EWParamsInst%cations_valence(1), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
-            mass_to_meq(col_mf%cec_cation_flux_vr(c,j,2)*dt/EWParamsInst%cations_mass(2) & 
+            mass_to_meq(col_mf%cec_cation_flux_vr(c,j,2)*dt/EWParamsInst%cations_mass(2) &
               *mass_h*EWParamsInst%cations_valence(2), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
-            mass_to_meq(col_mf%cec_cation_flux_vr(c,j,3)*dt/EWParamsInst%cations_mass(3) & 
+            mass_to_meq(col_mf%cec_cation_flux_vr(c,j,3)*dt/EWParamsInst%cations_mass(3) &
               *mass_h*EWParamsInst%cations_valence(3), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
-            mass_to_meq(col_mf%cec_cation_flux_vr(c,j,4)*dt/EWParamsInst%cations_mass(4) & 
+            mass_to_meq(col_mf%cec_cation_flux_vr(c,j,4)*dt/EWParamsInst%cations_mass(4) &
               *mass_h*EWParamsInst%cations_valence(4), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
-            mass_to_meq(col_mf%cec_cation_flux_vr(c,j,5)*dt/EWParamsInst%cations_mass(5) & 
-            *mass_h*EWParamsInst%cations_valence(5), 1._r8, mass_h, soilstate_vars%bd_col(c,j))
+            mass_to_meq(col_mf%cec_cation_flux_vr(c,j,5)*dt/EWParamsInst%cations_mass(5) &
+              *mass_h*EWParamsInst%cations_valence(5), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+            mass_to_meq(col_mf%cec_cation_flux2_vr(c,j,1)*dt/EWParamsInst%cations_mass(1) &
+              *mass_h*EWParamsInst%cations_valence(1), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+            mass_to_meq(col_mf%cec_cation_flux2_vr(c,j,2)*dt/EWParamsInst%cations_mass(2) &
+              *mass_h*EWParamsInst%cations_valence(2), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+            mass_to_meq(col_mf%cec_cation_flux2_vr(c,j,3)*dt/EWParamsInst%cations_mass(3) &
+              *mass_h*EWParamsInst%cations_valence(3), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+            mass_to_meq(col_mf%cec_cation_flux2_vr(c,j,4)*dt/EWParamsInst%cations_mass(4) &
+              *mass_h*EWParamsInst%cations_valence(4), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+            mass_to_meq(col_mf%cec_cation_flux2_vr(c,j,5)*dt/EWParamsInst%cations_mass(5) &
+              *mass_h*EWParamsInst%cations_valence(5), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+            mass_to_meq(col_mf%background_cec_vr(c,j,1)*dt/EWParamsInst%cations_mass(1) &
+              *mass_h*EWParamsInst%cations_valence(1), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+            mass_to_meq(col_mf%background_cec_vr(c,j,2)*dt/EWParamsInst%cations_mass(2) &
+              *mass_h*EWParamsInst%cations_valence(2), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+            mass_to_meq(col_mf%background_cec_vr(c,j,3)*dt/EWParamsInst%cations_mass(3) &
+              *mass_h*EWParamsInst%cations_valence(3), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+            mass_to_meq(col_mf%background_cec_vr(c,j,4)*dt/EWParamsInst%cations_mass(4) &
+              *mass_h*EWParamsInst%cations_valence(4), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+            mass_to_meq(col_mf%background_cec_vr(c,j,5)*dt/EWParamsInst%cations_mass(5) &
+              *mass_h*EWParamsInst%cations_valence(5), 1._r8, mass_h, soilstate_vars%bd_col(c,j))
         end do
       end do
 
@@ -416,58 +451,82 @@ contains
       nlevbed = min(col_pp%nlevbed(c), nlevsoi)
       do j = 1,nlevbed
         do icat = 1,ncations
-          if (col_ms%cation_vr(c,j,icat) < 0) then
-            if (col_ms%cation_vr(c,j,icat) > -1e-12_r8) then
+          if (col_ms%cation_vr(c,j,icat) < 0 .or. col_ms%cec_cation_vr(c,j,icat) < 0) then
+            if (col_ms%cation_vr(c,j,icat) > -1e-12_r8 .and. &
+                col_ms%cec_cation_vr(c,j,icat) > -1e-12_r8) then
               ! Numerical accuracy problems can cause runoff to leach away all the cations
               ! Reset to zero in this case. Balance Check will ignore everything smaller than 1e-12
               col_ms%cation_vr(c,j,icat) = 0._r8
-            else
-              ! write (100+iam, *) 'cation_vr diagnostics:', ldomain%latc(g), ldomain%lonc(g), c, j, icat, col_ms%cation_vr(c,j,icat), trim(dateTimeString)
+              col_ms%cec_cation_vr(c,j,icat) = 0.001_r8
+            end if
+          end if
 
-              !------------------------------------------------------------------------------
-              ! Print out the mass balance diagnostics like above
-              write (100+iam, *) 'Post-reaction H+: ', ldomain%latc(g), ldomain%lonc(g), trim(dateTimeString)
-              write (100+iam, *) c, j, col_ms%soil_ph(c,j), col_ms%proton_vr(c,j), & 
-                mass_to_mol(col_ms%proton_vr(c,j), mass_h, col_ws%h2osoi_vol(c,j))
+          if (col_ms%cation_vr(c,j,icat) < 0 .or. col_ms%cec_cation_vr(c,j,icat) < 0) then
+            write (100+iam, *) 'Negative cation_vr/cec_cation_vr diagnostics:', ldomain%latc(g), ldomain%lonc(g), c, j, icat, col_ms%cation_vr(c,j,icat), trim(dateTimeString)
 
-              write (100+iam, *) 'Post-reaction cation: ', ldomain%latc(g), ldomain%lonc(g), trim(dateTimeString)
-              write (100+iam, *) c, j, icat, col_ms%cation_vr(c,j,icat), &
-                mass_to_mol(col_ms%cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), &
-                            col_ws%h2osoi_vol(c,j)), &
-                col_mf%background_flux_vr(c,j,icat)*dt, &
-                col_mf%primary_cation_flux_vr(c,j,icat)*dt, &
-                col_mf%cec_cation_flux_vr(c,j,icat)*dt, & 
-                col_mf%cec_cation_flux2_vr(c,j,icat)*dt, & 
-                - col_mf%secondary_cation_flux_vr(c,j,icat)*dt, &
-                - col_mf%cation_uptake_vr(c,j,icat)*dt, &
-                col_mf%cation_infl_vr(c,j,icat)*dt, &
-                - col_mf%cation_leached_vr(c,j,icat)*dt, &
-                - col_mf%cation_runoff_vr(c,j,icat)*dt
+            !------------------------------------------------------------------------------
+            ! Print out the mass balance diagnostics like above
+            write (100+iam, *) 'Post-reaction H+: ', ldomain%latc(g), ldomain%lonc(g), trim(dateTimeString)
+            write (100+iam, *) c, j, col_ms%soil_ph(c,j), col_ms%proton_vr(c,j), & 
+              mass_to_mol(col_ms%proton_vr(c,j), mass_h, col_ws%h2osoi_vol(c,j))
 
-              write (100+iam, *) 'Post-reaction cec H+: ', ldomain%latc(g), ldomain%lonc(g), trim(dateTimeString)
-              write (100+iam, *) c, j, col_ms%cec_proton_vr(c,j), & 
-                mass_to_meq(col_ms%cec_proton_vr(c,j), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
-                col_mf%cect_delta(c,j), &
-                mass_to_meq(col_mf%cec_cation_flux_vr(c,j,1)*dt/EWParamsInst%cations_mass(1) & 
-                  *mass_h*EWParamsInst%cations_valence(1), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
-                mass_to_meq(col_mf%cec_cation_flux_vr(c,j,2)*dt/EWParamsInst%cations_mass(2) & 
-                  *mass_h*EWParamsInst%cations_valence(2), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
-                mass_to_meq(col_mf%cec_cation_flux_vr(c,j,3)*dt/EWParamsInst%cations_mass(3) & 
-                  *mass_h*EWParamsInst%cations_valence(3), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
-                mass_to_meq(col_mf%cec_cation_flux_vr(c,j,4)*dt/EWParamsInst%cations_mass(4) & 
-                  *mass_h*EWParamsInst%cations_valence(4), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
-                mass_to_meq(col_mf%cec_cation_flux_vr(c,j,5)*dt/EWParamsInst%cations_mass(5) & 
+            write (100+iam, *) 'Post-reaction cation: ', ldomain%latc(g), ldomain%lonc(g), trim(dateTimeString)
+            write (100+iam, *) c, j, icat, col_ms%cation_vr(c,j,icat), &
+              mass_to_mol(col_ms%cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), &
+                          col_ws%h2osoi_vol(c,j)), &
+              col_mf%background_flux_vr(c,j,icat)*dt, &
+              col_mf%primary_cation_flux_vr(c,j,icat)*dt, &
+              col_mf%cec_cation_flux_vr(c,j,icat)*dt, & 
+              col_mf%cec_cation_flux2_vr(c,j,icat)*dt, & 
+              - col_mf%secondary_cation_flux_vr(c,j,icat)*dt, &
+              - col_mf%cation_uptake_vr(c,j,icat)*dt, &
+              col_mf%cation_infl_vr(c,j,icat)*dt, &
+              - col_mf%cation_leached_vr(c,j,icat)*dt, &
+              - col_mf%cation_runoff_vr(c,j,icat)*dt
+
+            write (100+iam, *) 'Post-reaction cec H+: ', ldomain%latc(g), ldomain%lonc(g), trim(dateTimeString)
+            write (100+iam, *) c, j, col_ms%cec_proton_vr(c,j), & 
+              mass_to_meq(col_ms%cec_proton_vr(c,j), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+              col_mf%cect_delta(c,j), &
+              mass_to_meq(col_mf%cec_cation_flux_vr(c,j,1)*dt/EWParamsInst%cations_mass(1) & 
+                *mass_h*EWParamsInst%cations_valence(1), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+              mass_to_meq(col_mf%cec_cation_flux_vr(c,j,2)*dt/EWParamsInst%cations_mass(2) & 
+                *mass_h*EWParamsInst%cations_valence(2), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+              mass_to_meq(col_mf%cec_cation_flux_vr(c,j,3)*dt/EWParamsInst%cations_mass(3) & 
+                *mass_h*EWParamsInst%cations_valence(3), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+              mass_to_meq(col_mf%cec_cation_flux_vr(c,j,4)*dt/EWParamsInst%cations_mass(4) & 
+                *mass_h*EWParamsInst%cations_valence(4), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+              mass_to_meq(col_mf%cec_cation_flux_vr(c,j,5)*dt/EWParamsInst%cations_mass(5) & 
+              *mass_h*EWParamsInst%cations_valence(5), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+              mass_to_meq(col_mf%cec_cation_flux2_vr(c,j,1)*dt/EWParamsInst%cations_mass(1) & 
+                *mass_h*EWParamsInst%cations_valence(1), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+              mass_to_meq(col_mf%cec_cation_flux2_vr(c,j,2)*dt/EWParamsInst%cations_mass(2) & 
+                *mass_h*EWParamsInst%cations_valence(2), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+              mass_to_meq(col_mf%cec_cation_flux2_vr(c,j,3)*dt/EWParamsInst%cations_mass(3) & 
+                *mass_h*EWParamsInst%cations_valence(3), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+              mass_to_meq(col_mf%cec_cation_flux2_vr(c,j,4)*dt/EWParamsInst%cations_mass(4) & 
+                *mass_h*EWParamsInst%cations_valence(4), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+              mass_to_meq(col_mf%cec_cation_flux2_vr(c,j,5)*dt/EWParamsInst%cations_mass(5) & 
+                *mass_h*EWParamsInst%cations_valence(5), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+              mass_to_meq(col_mf%background_cec_vr(c,j,1)*dt/EWParamsInst%cations_mass(1) & 
+                *mass_h*EWParamsInst%cations_valence(1), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+              mass_to_meq(col_mf%background_cec_vr(c,j,2)*dt/EWParamsInst%cations_mass(2) & 
+                *mass_h*EWParamsInst%cations_valence(2), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+              mass_to_meq(col_mf%background_cec_vr(c,j,3)*dt/EWParamsInst%cations_mass(3) & 
+                *mass_h*EWParamsInst%cations_valence(3), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+              mass_to_meq(col_mf%background_cec_vr(c,j,4)*dt/EWParamsInst%cations_mass(4) & 
+                *mass_h*EWParamsInst%cations_valence(4), 1._r8, mass_h, soilstate_vars%bd_col(c,j)), &
+              mass_to_meq(col_mf%background_cec_vr(c,j,5)*dt/EWParamsInst%cations_mass(5) & 
                 *mass_h*EWParamsInst%cations_valence(5), 1._r8, mass_h, soilstate_vars%bd_col(c,j))
 
-              write (100+iam, *) 'Post-reaction cec cation: ', ldomain%latc(g), ldomain%lonc(g), trim(dateTimeString)
-              write (100+iam, *) c, j, icat, col_ms%cec_cation_vr(c,j,icat), &
-                mass_to_meq(col_ms%cec_cation_vr(c,j,icat), EWParamsInst%cations_valence(icat), &
-                            EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j)), &
-                -col_mf%cec_cation_flux_vr(c,j,icat)*dt, -col_mf%cec_cation_flux2_vr(c,j,icat)*dt
-              !------------------------------------------------------------------------------
+            write (100+iam, *) 'Post-reaction cec cation: ', ldomain%latc(g), ldomain%lonc(g), trim(dateTimeString)
+            write (100+iam, *) c, j, icat, col_ms%cec_cation_vr(c,j,icat), &
+              mass_to_meq(col_ms%cec_cation_vr(c,j,icat), EWParamsInst%cations_valence(icat), &
+                          EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j)), &
+              -col_mf%cec_cation_flux_vr(c,j,icat)*dt, -col_mf%cec_cation_flux2_vr(c,j,icat)*dt, col_mf%background_cec_vr(c,j,icat)*dt
+            !------------------------------------------------------------------------------
 
-              call endrun(msg='cation_vr < 0')
-            end if
+            call endrun(msg='cation_vr/cec_cation_vr < 0')
           end if
         end do
       end do
@@ -529,6 +588,12 @@ contains
         ! Limit the cec cation flux due to the availability of individual cations in the
         ! cation exchange phase
         do icat = 1,ncations
+
+
+          !!write (iam+100, *) '-------------------------------------------'
+          !!write (iam+100, *) 'a', c,j,icat, col_ms%cec_cation_vr(c,j,icat), col_mf%background_cec_vr(c,j,icat)*dt, col_mf%cec_cation_flux_vr(c,j,icat)*dt, col_mf%cec_cation_flux2_vr(c,j,icat)*dt
+          !!swrite (iam+100, *) '-------------------------------------------'
+
           ! background flux will always be > 0
           temp_delta1_cece(fc,j,icat) = col_mf%background_cec_vr(c,j,icat)*dt
           ! cec_cation_flux_vr > 0 := flow from CEC to solution
@@ -551,13 +616,19 @@ contains
           else
             col_mf%cec_limit_vr(c,j,icat) = 1._r8
           end if
+
+          !!write (iam+100, *) '-------------------------------------------'
+          !!write (iam+100, *) 'a', c,j,icat, col_mf%background_cec_vr(c,j,icat)*dt, col_mf%cec_cation_flux_vr(c,j,icat)*dt, col_mf%cec_cation_flux2_vr(c,j,icat)*dt
+          !!write (iam+100, *) '-------------------------------------------'
+
         end do
+
 
         ! Limit the cec cation flux due to not having enough remaining (H+) sites
 
         ! - calculate the expected available H+ sites, after total CEC changes
         temp_avail_ceca(fc,j) = mass_to_meq(col_ms%cec_proton_vr(c,j), 1._r8, mass_h, &
-                                      soilstate_vars%bd_col(c,j))
+                                            soilstate_vars%bd_col(c,j))
         if (col_mf%cect_delta(c,j) > 0._r8) then
           temp_avail_ceca(fc,j) = temp_avail_ceca(fc,j) + col_mf%cect_delta(c,j)
         else
@@ -569,7 +640,7 @@ contains
         temp_delta_ceca(fc,j) = 0._r8
         do icat = 1,ncations
           temp_delta_ceca(fc,j) = temp_delta_ceca(fc,j) + mass_to_meq( &
-            col_mf%background_cec_vr(c,j,icat) - col_mf%cec_cation_flux_vr(c,j,icat) - &
+            - col_mf%background_cec_vr(c,j,icat) + col_mf%cec_cation_flux_vr(c,j,icat) + &
             col_mf%cec_cation_flux2_vr(c,j,icat), EWParamsInst%cations_valence(icat), &
             EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j)) * dt
         end do
@@ -584,11 +655,17 @@ contains
             col_mf%cec_cation_flux_vr(c,j,icat) = & 
               (col_mf%cec_cation_flux2_vr(c,j,icat) + col_mf%cec_cation_flux_vr(c,j,icat)) * &
               col_mf%proton_limit_vr(c,j) - col_mf%cec_cation_flux2_vr(c,j,icat)
+
+            !!write (iam+100, *) '-------------------------------------------'
+            !!write (iam+100, *) 'b', c,j,icat, col_mf%background_cec_vr(c,j,icat)*dt, col_mf%cec_cation_flux_vr(c,j,icat)*dt, col_mf%cec_cation_flux2_vr(c,j,icat)*dt, col_mf%cec_cation_flux2_vr(c,j,icat)*dt
+            !!write (iam+100, *) '-------------------------------------------'
+
           end do
           min_flux_limit(fc,j) = min(min_flux_limit(fc,j), col_mf%proton_limit_vr(c,j))
         else
           col_mf%proton_limit_vr(c,j) = 1._r8
         end if
+
 
         ! Limit due to soil solution cation concentration, after the previous two limits
         ! have been applieds
@@ -619,6 +696,13 @@ contains
           else
             col_mf%flux_limit_vr(c,j,icat) = 1._r8
           end if
+
+          !!write (iam+100, *) '-------------------------------------------'
+          !!write (iam+100, *) 'c1', c,j,icat, col_mf%primary_cation_flux_vr(c,j,icat)*dt, col_mf%background_flux_vr(c,j,icat)*dt, col_mf%cec_cation_flux2_vr(c,j,icat)*dt
+          !!write (iam+100, *) 'c2', c,j,icat,-col_mf%cation_uptake_vr(c,j,icat)*dt, col_mf%secondary_cation_flux_vr(c,j,icat)*dt, col_mf%cec_cation_flux_vr(c,j,icat)*dt
+          !!write (iam+100, *) 'c3', c,j,icat, col_mf%flux_limit_vr(c,j,icat), temp_delta1_cation(fc,j,icat), temp_delta2_cation(fc,j,icat)
+          !!write (iam+100, *) '-------------------------------------------'
+
         end do
 
       end do
@@ -637,15 +721,15 @@ contains
 
             do icat = 1,ncations
               if (col_mf%cec_limit_vr(c,j,icat) < 1._r8) then
-                write (100+iam, *) '   negative CEC cation ', icat, col_mf%cec_limit_vr(c,j,icat), col_ms%cec_cation_vr(c,j,icat), col_mf%background_cec_vr(c,j,icat)*dt, - col_mf%cec_cation_flux_vr(c,j,icat)*dt, - col_mf%cec_cation_flux2_vr(c,j,icat)*dt
+                write (100+iam, *) '   negative CEC cation ', c, j, icat, col_mf%cec_limit_vr(c,j,icat), col_ms%cec_cation_vr(c,j,icat), col_mf%background_cec_vr(c,j,icat)*dt, - col_mf%cec_cation_flux_vr(c,j,icat)*dt, - col_mf%cec_cation_flux2_vr(c,j,icat)*dt
               end if
             end do
             if (col_mf%proton_limit_vr(c,j) < 1._r8) then
-              write (100+iam, *) '   negative CEC H+ ', col_mf%proton_limit_vr(c,j), col_ms%cec_proton_vr(c,j), temp_avail_ceca(fc,j), temp_delta_ceca(fc,j)
+              write (100+iam, *) '   negative CEC H+ ', c,j, col_mf%proton_limit_vr(c,j), col_ms%cec_proton_vr(c,j), temp_avail_ceca(fc,j), temp_delta_ceca(fc,j)
             end if
             do icat = 1,ncations
               if (col_mf%flux_limit_vr(c,j,icat) < 1._r8) then
-                write (100+iam, *) '   negative solution cation ', icat, col_mf%flux_limit_vr(c,j,icat), col_ms%cation_vr(c,j,icat), col_mf%primary_cation_flux_vr(c,j,icat)*dt, col_mf%background_flux_vr(c,j,icat)*dt, col_mf%cation_uptake_vr(c,j,icat)*dt, -col_mf%secondary_cation_flux_vr(c,j,icat)*dt, col_mf%cec_cation_flux_vr(c,j,icat)*dt, col_mf%cec_cation_flux2_vr(c,j,icat)*dt
+                write (100+iam, *) '   negative solution cation ', c, j, icat, col_mf%flux_limit_vr(c,j,icat), col_ms%cation_vr(c,j,icat), col_mf%primary_cation_flux_vr(c,j,icat)*dt, col_mf%background_flux_vr(c,j,icat)*dt, col_mf%cation_uptake_vr(c,j,icat)*dt, - col_mf%secondary_cation_flux_vr(c,j,icat)*dt, col_mf%cec_cation_flux_vr(c,j,icat)*dt, col_mf%cec_cation_flux2_vr(c,j,icat)*dt
               end if
             end do
           end if
