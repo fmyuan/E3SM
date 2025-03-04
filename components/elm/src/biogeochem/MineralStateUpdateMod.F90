@@ -84,19 +84,17 @@ contains
 
         do icat = 1,ncations
 
-        write (iam+100, *) '++++++++++++++++++++++++++'
-        write (iam+100, *) c, j, icat, col_ms%cec_cation_vr(c,j,icat), col_mf%cec_cation_flux_vr(c,j,icat)*dt, col_mf%cec_cation_flux2_vr(c,j,icat)*dt, col_mf%background_cec_vr(c,j,icat)*dt
-        write (iam+100, *) '++++++++++++++++++++++++++'
-
+          !!write (iam+100, *) '++++++++++++++++++++++++++'
+          !!write (iam+100, *) c, j, icat, col_ms%cec_cation_vr(c,j,icat), col_mf%cec_cation_flux_vr(c,j,icat)*dt, col_mf%cec_cation_flux2_vr(c,j,icat)*dt, col_mf%background_cec_vr(c,j,icat)*dt
+          !!write (iam+100, *) '++++++++++++++++++++++++++'
 
           col_ms%cec_cation_vr(c,j,icat) = col_ms%cec_cation_vr(c,j,icat) - &
                   (col_mf%cec_cation_flux_vr(c,j,icat) + col_mf%cec_cation_flux2_vr(c,j,icat) &
                    - col_mf%background_cec_vr(c,j,icat))*dt
 
-        write (iam+100, *) '++++++++++++++++++++++++++'
-        write (iam+100, *) c, j, icat, col_ms%cec_cation_vr(c,j,icat),  col_mf%cec_cation_flux_vr(c,j,icat)*dt, col_mf%cec_cation_flux2_vr(c,j,icat)*dt, col_mf%background_cec_vr(c,j,icat)*dt
-        write (iam+100, *) '++++++++++++++++++++++++++'
-
+          !!write (iam+100, *) '++++++++++++++++++++++++++'
+          !!write (iam+100, *) c, j, icat, col_ms%cec_cation_vr(c,j,icat),  col_mf%cec_cation_flux_vr(c,j,icat)*dt, col_mf%cec_cation_flux2_vr(c,j,icat)*dt, col_mf%background_cec_vr(c,j,icat)*dt
+          !!write (iam+100, *) '++++++++++++++++++++++++++'
 
         end do
 

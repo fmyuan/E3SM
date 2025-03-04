@@ -29,6 +29,7 @@ module SoilStateType
   use VegetationType  , only : veg_pp      
   use topounit_varcon , only : max_topounits
   use GridcellType    , only : grc_pp   
+  use spmdMod         , only : iam
   !
   implicit none
   save
@@ -628,10 +629,12 @@ contains
           end if
 
           do c = bounds%begc, bounds%endc
+             g = col_pp%gridcell(c)
              do lev = 1,nlevsoi
                 this%cece_col(c,lev,a) = cece_in(g,ti,lev)
              end do
           end do
+
        end do
 
        call ncd_io(ncid=ncid, varname='SOIL_PH', flag='read', data=sph_in, dim1name=grlnd, readvar=readvar)

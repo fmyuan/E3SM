@@ -948,7 +948,7 @@ contains
 
       in_add(c) = 0._r8
       do a = 1, ncations
-         in_add  (c) = in_add(c) + background_flux(c,a) + background_cec(c,a) + primary_cation_flux(c,a) + cation_infl(c,a) !  + cec_cation_flux(c,a)
+         in_add(c) = in_add(c) + background_flux(c,a) + background_cec(c,a) + primary_cation_flux(c,a) + cation_infl(c,a) !  + cec_cation_flux(c,a)
       end do
 
       in_loss(c) = 0._r8
@@ -1013,7 +1013,7 @@ contains
       end if
    end if
 
-    end associate
+   end associate
 
   end subroutine ColMBalanceCheck
 
