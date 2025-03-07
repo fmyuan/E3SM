@@ -1153,6 +1153,7 @@ module ColumnDataType
 
       real(r8), pointer :: cect_delta                   (:,:)     => null() ! pH-dependent change in cation exchange capacity (1:nlevgrnd)
       real(r8), pointer :: cece_delta                   (:,:,:)   => null() ! pH-dependent change in occupied sites of other cations (1:nlevgrnd, 1:ncations)
+      real(r8), pointer :: cec_delta_limit              (:,:)     => null() ! limitation on change in total cation exchange capacity per time step (1:nlevgrnd)
 
       real(r8), pointer :: proton_limit_vr              (:,:)     => null() ! flux limitation factor due to insufficient H+ exchange capacity
       real(r8), pointer :: cec_limit_vr                 (:,:,:)   => null() ! flux limitation factor due ton insufficient cation exchange rate
@@ -12529,9 +12530,10 @@ contains
 
       allocate(this%cect_delta                     (begc:endc,1:nlevgrnd            ))       ; this%cect_delta                    (:,:  ) = spval
       allocate(this%cece_delta                     (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cece_delta                    (:,:,:) = spval
+      allocate(this%cec_delta_limit                (begc:endc,1:nlevgrnd            ))       ; this%cec_delta_limit               (:,:  ) = spval
 
-      allocate(this%cec_limit_vr                   (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cec_limit_vr                  (:,:,:) = spval
       allocate(this%proton_limit_vr                (begc:endc,1:nlevgrnd            ))       ; this%proton_limit_vr               (:,:  ) = spval
+      allocate(this%cec_limit_vr                   (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cec_limit_vr                  (:,:,:) = spval
       allocate(this%flux_limit_vr                  (begc:endc,1:nlevgrnd,1:ncations ))       ; this%flux_limit_vr                 (:,:,:) = spval
 
       allocate(this%cation_infl_vr                 (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cation_infl_vr               (:,:,:) = spval
@@ -12779,9 +12781,14 @@ contains
          a_str = adjustl(a_str)  ! Remove leading spaces
          fieldname = 'cece_delta_'//trim(a_str)
          call hist_addfld2d (fname=fieldname, units='meq 100g-1 dry soil', type2d='levgrnd', &
-            avgflag='A', long_name='calculated individual cations occupied amount of cation exchange sites (vertically resolved)', &
+            avgflag='A', long_name='pH-dependent change in individual cations occupied amount of cation exchange sites (vertically resolved)', &
             ptr_col=data2dptr, l2g_scale_type='veg')
       end do
+
+      this%cec_delta_limit(begc:endc,:) = spval
+      call hist_addfld2d (fname='cec_delta_limit',  units='', type2d='levgrnd', &
+         avgflag='A', long_name='limit on total cation exchange capacity change per time step', &
+         ptr_col=this%cec_delta_limit, l2g_scale_type='veg')
 
       this%proton_limit_vr(begc:endc,:) = spval
       call hist_addfld2d (fname='proton_limit_vr',  units='', type2d='levgrnd', &
@@ -13011,6 +13018,7 @@ contains
             this%cec_cation_flux2_vr             (c,1:nlevsoi,1:ncations ) = 0._r8
             this%cect_delta                      (c,1:nlevsoi            ) = 0._r8
             this%cece_delta                      (c,1:nlevsoi,1:ncations ) = 0._r8
+            this%cec_delta_limit                 (c,1:nlevsoi            ) = 1._r8
 
             this%cec_limit_vr                    (c,1:nlevsoi,1:ncations ) = 1._r8
             this%proton_limit_vr                 (c,1:nlevsoi            ) = 1._r8
@@ -13232,6 +13240,11 @@ contains
             long_name='rate at which cation is released into water (negative for adsorption into soil) (vertically resolved)', units='g m-3 s-1', &
             interpinic_flag='interp', readvar=readvar, data=ptr2d)
       end do
+
+      !call restartvar(ncid=ncid, flag=flag, varname='cec_delta_limit', xtype=ncd_double, &
+      !   dim1name='column', dim2name='levgrnd', switchdim=.true., &
+      !   long_name='limit on total cation exchange capacity change per time step', units='', &
+      !   interpinic_flag='interp', readvar=readvar, data=this%cec_delta_limit)
 
       call restartvar(ncid=ncid, flag=flag, varname='proton_limit_vr', xtype=ncd_double, &
          dim1name='column', dim2name='levgrnd', switchdim=.true., &

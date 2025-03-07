@@ -1554,10 +1554,11 @@ contains
               cation_vr(c,j,icat) * h2osoi_liqvol(c,j) / h2osoi_vol(c,j) ) / dt
 
           ! calculate the part due to change in total cation exchange capacity
-          ! > 0 = flow into solution
           ! this flux is guaranteed >= 0
+          !  - is = 0, when cect_delta(c,j) > 0
+          !  - is > 0 (flow into solution), when cect_delta(c,j) < 0
           cec_cation_flux2_vr(c,j,icat) = &
-            meq_to_mass(-cece_delta(c,j,icat), EWParamsInst%cations_valence(icat), &
+            meq_to_mass(-cece_delta(c,j,icat)/dt, EWParamsInst%cations_valence(icat), &
                         EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j))
         end do
 
