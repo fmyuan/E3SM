@@ -1427,6 +1427,7 @@ contains
     real(r8) :: prev_pH                ! soil pH before solving the CEC balance
     real(r8) :: oc_frac                ! fraction of organic carbon
     real(r8) :: dt
+    real(r8) :: beta_for_release(1:ncations), beta_h_for_release
 
     associate( &
         net_charge_vr                       => col_ms%net_charge_vr           , & ! Input:  [real(r8) (:,:)] net charge of the tracked ions in the soil solution system, constant over time (1:nlevgrnd) (mol kg-1)
@@ -1533,10 +1534,23 @@ contains
           end do
         else
           ! equally release all the cations (negative)
+          ! (but, similar to the numerical catch on beta_list above, do not release
+          !  a cation if it is already too tiny; adjust the total release accordingly)
+          beta_for_release(1:ncations) = cece(1:ncations) / cect_dyn(c,j)
+          beta_h_for_release = 1._r8 - sum(beta_for_release)
           do icat = 1,ncations
-            cece_delta(c,j,icat) = cect_delta(c,j) * beta_list(icat)
+            if (beta_for_release(icat) < 2.0e-4_r8) then
+              beta_for_release(icat) = 0._r8
+            end if
+            cece_delta(c,j,icat) = cect_delta(c,j) * beta_for_release(icat)
           end do
+          cect_delta(c,j) = cect_delta(c,j) * (beta_h_for_release + &
+                            sum(beta_for_release(1:ncations)))
         end if
+
+        !!write (iam+100, *) 'beta_h_for_release', c, j, beta_for_release(1:ncations), beta_h_for_release
+        !!write (iam+100, *) 'cec_delta', c, j, cece_delta(c,j,1:ncations), sum(cece_delta(c,j,1:ncations)), cect_delta(c,j)
+        !!write (iam+100, *) 'cec_state', c, j, cece(1:ncations), sum(cece(1:ncations)), cect_dyn(c,j)
 
         ! calculate the implications on cations
         beta_h = 1._r8
@@ -1548,6 +1562,7 @@ contains
           ! calculate the part that is due to change in aqueous concentration
           conc(icat) = beta_list(icat) / (beta_h * keq_list(icat) / &
                        10**(-soil_ph(c,j)))**EWParamsInst%cations_valence(icat)
+
           cec_cation_flux_vr(c,j,icat) = & 
             ( mol_to_mass(conc(icat), EWParamsInst%cations_mass(icat), &
                           h2osoi_liqvol(c,j)) - & 

@@ -589,7 +589,7 @@ contains
         ! col_mf%cec_delta_limit_vr(c,j,icat)
         if (col_mf%cect_delta(c,j) + col_ms%cect_dyn(c,j) < 0._r8) then
           col_mf%cec_delta_limit(c,j) = - col_ms%cect_dyn(c,j) / &
-              col_mf%cect_delta(c,j) * residual_factor
+                                          col_mf%cect_delta(c,j) * residual_factor
           col_mf%cect_delta(c,j) = col_mf%cect_delta(c,j) * col_mf%cec_delta_limit(c,j)
           do icat = 1,ncations
             col_mf%cece_delta(c,j,icat) = col_mf%cece_delta(c,j,icat) * col_mf%cec_delta_limit(c,j)
@@ -610,12 +610,10 @@ contains
 
           ! cation-occupied sites after total cec change
           temp_avail_cece(fc,j,icat) = col_ms%cec_cation_vr(c,j,icat) - &
-            meq_to_mass(col_mf%cece_delta(c,j,icat), EWParamsInst%cations_valence(icat), &
-                        EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j))
+            col_mf%cec_cation_flux2_vr(c,j,icat) * dt
 
           !!write (iam+100, *) '-------------------------------------------'
           !!write (iam+100, *) 'a0', c,j,icat, col_ms%cec_cation_vr(c,j,icat),-col_mf%cec_cation_flux2_vr(c,j,icat)*dt, col_mf%cece_delta(c,j,icat)
-
           !!write (iam+100, *) '-------------------------------------------'
           !!write (iam+100, *) 'a', c,j,icat, temp_avail_cece(fc,j,icat), col_mf%background_cec_vr(c,j,icat)*dt, -col_mf%cec_cation_flux_vr(c,j,icat)*dt
           !!write (iam+100, *) '-------------------------------------------'
