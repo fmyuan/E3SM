@@ -241,6 +241,10 @@ contains
           !meteorological forcing
           if (index(metdata_type, 'qian') .gt. 0) then 
             atm2lnd_vars%metsource = 0   
+          else if (index(metdata_type,'jra') .gt. 0 .and. index(metdata_type,'cru') .gt. 0) then
+            ! CRUJRA v2.3 or CRUJRA trendy
+            ! note: this 'else if' is ahead of next one, cru, to avoid type mis-matching
+            atm2lnd_vars%metsource = 7
           else if (index(metdata_type,'cru') .gt. 0) then
             atm2lnd_vars%metsource = 1  
           else if (index(metdata_type,'site') .gt. 0) then 
@@ -433,6 +437,16 @@ contains
                     metdata_fname = 'CBGC1850S.ne30_' // trim(metvars(v)) // '_0566-0590_z' // zst(2:3) // '.nc'
             else if (atm2lnd_vars%metsource == 6) then
                 metdata_fname = 'ERA5_' // trim(metvars(v)) // '_1950-2025_z' // zst(2:3) // '.nc'
+            else if (atm2lnd_vars%metsource == 7) then
+                ! CRUJRA v2.3
+                metdata_fname = 'CRUJRAV2.3.c2023.0.5x0.5_' // trim(metvars(v)) // '_1901-2021_z' // zst(2:3) // '.nc'
+                if(index(metdata_type, 'trendy2025') .gt. 0) then
+                    metdata_fname = 'elmforc.TRENDY.c2025_0.5x0.5_' // trim(metvars(v)) // '_1901-2024_z' // zst(2:3) // '.nc'
+                elseif(index(metdata_type, 'trendy2024') .gt. 0) then
+                    metdata_fname = 'crujra.v2.5.5d.0.5x0.5_' // trim(metvars(v)) // '_1901-2023_z' // zst(2:3) // '.nc'
+                elseif(index(metdata_type, 'trendy2023') .gt. 0) then
+                    metdata_fname = 'crujra.v2.4.5d.0.5x0.5_' // trim(metvars(v)) // '_1901-2022_z' // zst(2:3) // '.nc'
+                endif
             end if
   
             ierr = nf90_open(trim(metdata_bypass) // '/' // trim(metdata_fname), NF90_NOWRITE, met_ncids(v))
