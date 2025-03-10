@@ -360,8 +360,8 @@ contains
         ! note: sourcesink_cations term in EnhancedWeatheringMod.F90
         !       should be approximately matched to cation_infl_vr
         ! leaching & runoff are the additionals
-        do icat = 1,ncations
-          do j = 1,nlevbed
+        do j = 1,nlevbed
+          do icat = 1,ncations
             write (100+iam, *) c, j, icat, col_ms%cation_vr(c,j,icat), &
               mass_to_mol(col_ms%cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), &
                           col_ws%h2osoi_vol(c,j)), &
@@ -448,14 +448,11 @@ contains
       nlevbed = min(col_pp%nlevbed(c), nlevsoi)
       do j = 1,nlevbed
         do icat = 1,ncations
-          if (col_ms%cation_vr(c,j,icat) < 0 .or. col_ms%cec_cation_vr(c,j,icat) < 0) then
-            if (col_ms%cation_vr(c,j,icat) > -1e-12_r8 .and. &
-                col_ms%cec_cation_vr(c,j,icat) > -1e-12_r8) then
-              ! Numerical accuracy problems can cause runoff to leach away all the cations
-              ! Reset to zero in this case. Balance Check will ignore everything smaller than 1e-12
-              col_ms%cation_vr(c,j,icat) = 0._r8
-              col_ms%cec_cation_vr(c,j,icat) = 0.001_r8
-            end if
+          if (col_ms%cation_vr(c,j,icat) < 0 .and. col_ms%cation_vr(c,j,icat) > -1e-12_r8) then
+            ! Numerical accuracy problems can cause runoff to leach away all the cations
+            ! Reset cation_vr to zero in this case. Balance Check will ignore everything 
+            ! smaller than 1e-12
+            col_ms%cation_vr(c,j,icat) = 0._r8
           end if
 
           if (col_ms%cation_vr(c,j,icat) < 0 .or. col_ms%cec_cation_vr(c,j,icat) < 0) then
@@ -564,6 +561,7 @@ contains
     real(r8) :: temp_delta1_cation(1:num_soilc, 1:nlevsoi, 1:ncations)
     real(r8) :: temp_delta2_cation(1:num_soilc, 1:nlevsoi, 1:ncations)
     real(r8) :: min_flux_limit(1:num_soilc, 1:nlevsoi)
+    real(r8) :: small_fix_cec
     logical  :: err_found
     integer  :: err_fc, err_lev, err_icat, err_col
     character(len=256) :: dateTimeString
@@ -586,7 +584,6 @@ contains
 
         ! Limit the change in total cation exchange capacity due to the total amount
         ! of sites
-        ! col_mf%cec_delta_limit_vr(c,j,icat)
         if (col_mf%cect_delta(c,j) + col_ms%cect_dyn(c,j) < 0._r8) then
           col_mf%cec_delta_limit(c,j) = - col_ms%cect_dyn(c,j) / &
                                           col_mf%cect_delta(c,j) * residual_factor
@@ -625,15 +622,27 @@ contains
 
           if ((temp_avail_cece(fc,j,icat) + temp_delta1_cece(fc,j,icat) + &
                temp_delta2_cece(fc,j,icat)) < 0._r8) then
-            ! When cec_cation_vr(c,j,icat) << cec_cation_flux_vr(c,j,icat)*dt, 
-            ! numerical accuracy issue seems to cause cec_limit_vr to be miscalculated, 
-            ! and col_mf%cec_cation_vr(c,j,icat) slightly negative. That is okay.
-            col_mf%cec_limit_vr(c,j,icat) = - (temp_delta1_cece(fc,j,icat) + & 
-                                               temp_avail_cece(fc,j,icat)) / &
-                temp_delta2_cece(fc,j,icat) * residual_factor
+
+            if ((temp_avail_cece(fc,j,icat) + temp_delta1_cece(fc,j,icat)) < 1e-50_r8) then
+              ! Do not allow any more flow from CEC to solution to prevent numerical
+              ! errors in the calculated cec_limit factor. 
+              ! Instead, add a small background flux to increase the cec.
+              col_mf%cec_limit_vr(c,j,icat) = 0._r8
+
+              col_mf%background_cec_vr(c,j,icat) = col_mf%background_cec_vr(c,j,icat) + &
+                  meq_to_mass(2.0e-4 * col_ms%cect_dyn(c,j), EWParamsInst%cations_valence(icat), &
+                              EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j))
+            else
+              ! Otherwise, calculate the flux limit normally.
+              col_mf%cec_limit_vr(c,j,icat) = - (temp_delta1_cece(fc,j,icat) + & 
+                                                 temp_avail_cece(fc,j,icat)) / &
+                  temp_delta2_cece(fc,j,icat) * residual_factor
+            end if
+            ! Apply the flux limite factor on cec_cation_flux_vr
             col_mf%cec_cation_flux_vr(c,j,icat) = col_mf%cec_cation_flux_vr(c,j,icat) * & 
                                                   col_mf%cec_limit_vr(c,j,icat)
             min_flux_limit(fc,j) = min(min_flux_limit(fc,j), col_mf%cec_limit_vr(c,j,icat))
+
           else
             col_mf%cec_limit_vr(c,j,icat) = 1._r8
           end if

@@ -51,6 +51,7 @@ module ColumnDataType
   use ColumnType      , only : col_pp
   use LandunitType    , only : lun_pp
   use timeInfoMod , only : nstep_mod 
+  use spmdMod             , only : iam
 
   use SoilStateType   , only : soilstate_type
   !
@@ -6364,6 +6365,12 @@ contains
                this%cec_cation(c,a) = &
                   this%cec_cation(c,a) + this%cec_cation_vr(c,j,a) * col_pp%dz(c,j)      
             end do
+
+            !! DEBUG
+            !!if (c == 25049) then
+            !!   write (iam+100, *) 'this%cation_vr', c, j, this%cation_vr(c,j,1:ncations), col_pp%dz(c,j)
+            !!   write (iam+100, *) 'this%cec_cation', c, j, this%cec_cation_vr(c,j,1:ncations), col_pp%dz(c,j)
+            !!end if
 
             this%proton(c) = this%proton(c) + this%proton_vr(c,j) * col_pp%dz(c,j)
             this%silica(c) = this%silica(c) + this%silica_vr(c,j) * col_pp%dz(c,j)
