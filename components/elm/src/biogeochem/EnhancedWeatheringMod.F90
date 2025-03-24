@@ -627,6 +627,7 @@ contains
     integer  :: kda                    ! day of month   (1, ..., 31)
     integer  :: mcsec                  ! seconds 
     integer  :: current_date
+    logical  :: is_hour                ! apply rock only at 10th hour of day
     real(r8) :: dt
     real(r8) :: log_k_dissolve_acid, log_k_dissolve_neutral, log_k_dissolve_base
     real(r8) :: saturation_ratio, log_silica, log_carbonate
@@ -707,11 +708,12 @@ contains
 
       ! if builtin_site > 0, manually overwrite the read-in values
       if (builtin_site == 1) then
-        if (current_date .eq. 19991019) then
+        is_hour = (secs_curr-36000.0_r8) > -dt/2.0_r8 .and. (secs_curr-36000.0_r8) <= dt/2.0_r8
+        if (current_date .eq. 19991019 .and. is_hour) then
             ! 55 tons / 11.8 ha = 0.466 kg / m2, applied over one day
             ! purity in Table 2: 89.9%
             ! Johnson, C. E., Driscoll, C. T., Blum, J. D., Fahey, T. J., & Battles, J. J. (2014). Soil Chemical Dynamics after Calcium Silicate Addition to a Northern Hardwood Forest. Soil Science Society of America Journal, 78(4), 1458–1468. https://doi.org/10.2136/sssaj2014.03.0114
-            forc_app(c) = 0.46_r8 * 0.9
+            forc_app(c) = 0.466_r8 * 0.9
         else
             forc_app(c) = 0._r8
         end if
@@ -727,21 +729,43 @@ contains
         forc_pho(c   ) = 0._r8
 
       else if (builtin_site == 2) then
-        if ((kyr .eq. 2019) .or. (kyr .eq. 2020)) then
-          if ((kmo .eq. 9) .or. (kmo .eq. 10) .or. (kmo .eq. 11)) then
-           ! 40 t ha-1 = 4 kg / m2, applied over 3 months, convert to per day
-            forc_app(c) = 4._r8 / 90._r8
-          else
-            forc_app(c) = 0._r8
-          end if
+        is_hour = (secs_curr-36000.0_r8) > -dt/2.0_r8 .and. (secs_curr-36000.0_r8) <= dt/2.0_r8
+
+        if (is_hour .and. ((kyr .eq. 2019) .or. (kyr .eq. 2020)) .and. &
+            ((kmo .eq. 9) .or. (kmo .eq. 10) .or. (kmo .eq. 11))) then
+          ! 40 t ha-1 = 4 kg / m2, applied over 3 months, convert to per day
+          forc_app(c) = 4._r8 / 90._r8
         else
           forc_app(c) = 0._r8
         end if
         forc_min(c,1:nminerals) = 0._r8
-        forc_min(c,3) = 0.334_r8
+        forc_min(c,3) = 0.167_r8
+        forc_min(c,4) = 0.167_r8
         forc_min(c,5) = 0.143_r8
-        forc_min(c,4) = 0.334_r8
-        forc_gra(c, 1:nminerals) = 105._r8
+        forc_gra(c, 1:nminerals) = 107._r8
+
+        forc_pho(c   ) = 0.0005365_r8
+
+      else if (builtin_site == 3) then
+        ! University of Illinois Energy Farm
+        is_hour = (secs_curr-36000.0_r8) > -dt/2.0_r8 .and. (secs_curr-36000.0_r8) <= dt/2.0_r8
+
+        if (is_hour .and. (kyr >= 2016) .and. (kyr <= 2019) .and. (kmo == 11)) then
+          ! 50 t ha−1 y−1 = 5 kg / m2, applied over 1 month, convert to per day
+          forc_app(c) = 5._r8 / 31._r8
+        else
+          forc_app(c) = 0._r8
+        end if
+
+        ! The minerals in the parameter file are different from above
+        forc_min(c,1:nminerals) = 0._r8
+        forc_min(c,3) = 0.233_r8
+        forc_min(c,5) = 0.178_r8
+        forc_min(c,6) = 0.026_r8
+        forc_min(c,7) = 0.116_r8
+        forc_min(c,8) = 0.340_r8
+        ! p80 = 267 um; lognormal distribution (\sigma = 1) would give p80/p50 = 2.32
+        forc_gra(c, 1:nminerals) = 115._r8
 
         forc_pho(c   ) = 0._r8
 
