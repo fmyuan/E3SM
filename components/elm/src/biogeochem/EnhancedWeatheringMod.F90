@@ -488,37 +488,43 @@ contains
       !------------------------------------------------------------------------------
       ! Define rainfall chemistry
       !------------------------------------------------------------------------------
-      if (builtin_site == 1) then
+      !if (builtin_site == 1) then
         ! Hubbard Brook
         ! rain pH data from the monitoring station in Hubbard Brook, 
         ! National Atmospheric Deposition Program
         ! https://nadp.slh.wisc.edu/sites/ntn-NH02/
-        rain_ph(c) = 4.8_r8
-        ! Ca = 0.055 mg/L, Mg = 0.015 mg/L, Na = 0.075 mg/L, K = 0.014 mg/L, Al = 0
-        rain_chem(c, 1) = 0.055_r8
-        rain_chem(c, 2) = 0.015_r8
-        rain_chem(c, 3) = 0.075_r8
-        rain_chem(c, 4) = 0.014_r8
-        rain_chem(c, 5) = 0._r8
 
-      else if (builtin_site == 2) then
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        ! This creates NaNf in HBR run, why?
+
+      !  rain_ph(c) = 4.8_r8
+        ! Ca = 0.055 mg/L, Mg = 0.015 mg/L, Na = 0.075 mg/L, K = 0.014 mg/L, Al = 0
+      !  rain_chem(c, 1) = 0.055_r8
+      !  rain_chem(c, 2) = 0.015_r8
+      !  rain_chem(c, 3) = 0.075_r8
+      !  rain_chem(c, 4) = 0.014_r8
+      !  rain_chem(c, 5) = 0._r8
+
+      !else if (builtin_site == 2) then
         ! U.C. Davis
         ! rain pH data from the monitoring station in Davis,  
         ! National Atmospheric Deposition Program
         ! https://nadp.slh.wisc.edu/sites/ntn-CA88/
-        rain_ph(c) = 6.2_r8
-        ! Ca = 0.055 mg/L, Mg = 0.015 mg/L, Na = 0.075 mg/L, K = 0.014 mg/L, Al = 0
-        rain_chem(c, 1) = 0.06_r8
-        rain_chem(c, 2) = 0.06_r8
-        rain_chem(c, 3) = 0.025_r8
-        rain_chem(c, 4) = 0.04_r8
-        rain_chem(c, 5) = 0._r8
+      !  rain_ph(c) = 6.2_r8
+      !  ! Ca = 0.055 mg/L, Mg = 0.015 mg/L, Na = 0.075 mg/L, K = 0.014 mg/L, Al = 0
+      !  rain_chem(c, 1) = 0.06_r8
+      !  rain_chem(c, 2) = 0.06_r8
+      !  rain_chem(c, 3) = 0.025_r8
+      !  rain_chem(c, 4) = 0.04_r8
+      !  rain_chem(c, 5) = 0._r8
 
-     else
+     !else
         !
         rain_ph(c) = 5.6_r8
         rain_chem(c, :) = 0.0_r8 ! in the new setup, rain_chem should no longer matter
-      end if
+      !end if
 
       !------------------------------------------------------------------------------
       ! Background weathering
@@ -611,6 +617,7 @@ contains
     use abortutils       , only : endrun
     use SharedParamsMod  , only : ParamsShareInst
     use timeinfoMod
+    use ewutils          , only : u_pdf, get_ssa
     !
     ! !ARGUMENTS:
     type(bounds_type)        , intent(in)    :: bounds
@@ -633,6 +640,12 @@ contains
     real(r8) :: saturation_ratio, log_silica, log_carbonate
     real(r8) :: k_tot
     real(r8), parameter :: depth_runoff_Mloss = 0.05   ! (m) depth over which runoff mixes with soil water for ions loss to runoff; same as nitrogen runoff depth
+    real(r8) :: theta                  ! parameter of the gamma distribution
+    real(r8) :: num, prob              ! helper variables to integrate over distribution
+    real(r8) :: u_min, u_max           ! bounds of integration
+    real(r8) :: u, du                  ! discretization step (size)
+    integer, parameter :: n_int = 1000 ! number of discretized intervals
+    integer  :: ii                     ! iterator for discretization
 
     associate( &
          !
@@ -752,7 +765,7 @@ contains
 
         if (is_hour .and. (kyr >= 2016) .and. (kyr <= 2019) .and. (kmo == 11)) then
           ! 50 t ha−1 y−1 = 5 kg / m2, applied over 1 month, convert to per day
-          forc_app(c) = 5._r8 / 31._r8
+          forc_app(c) = 5._r8 / 30._r8
         else
           forc_app(c) = 0._r8
         end if
@@ -764,7 +777,8 @@ contains
         forc_min(c,6) = 0.026_r8
         forc_min(c,7) = 0.116_r8
         forc_min(c,8) = 0.340_r8
-        ! p80 = 267 um; lognormal distribution (\sigma = 1) would give p80/p50 = 2.32
+        ! p80 = 267 um => use exponential distribution to convert 
+        ! P50 = P80 / ln(0.2) * ln(0.5) = 114.99
         forc_gra(c, 1:nminerals) = 115._r8
 
         forc_pho(c   ) = 0._r8
@@ -813,15 +827,58 @@ contains
       ! ---------------------------------------------------------------
       ! Primary mineral dissolution
       ! ---------------------------------------------------------------
-      ! Specific surface area depends on the grain size of the mineral, following
+      ! Specific surface area depends on the grain size of the mineral
       !    Strefler, J., Amann, T., Bauer, N., Kriegler, E., and Hartmann, J.: Potential and 
       !       costs of carbon dioxide removal by enhanced weathering of rocks, Environ. Res.
       !       Lett., 13, 034010, https://doi.org/10.1088/1748-9326/aaa9c4, 2018.
       ! TODO: more accurate method from geochemistry 
       !   at ~100 um magnitude, the grains are individual minerals
       !   weighted average of the specific surface area of each mineral (m^2 g-1)
+      ! 20250325
       do m = 1,nminerals
-        ssa(c,m) = 69.18_r8 * (forc_gra(c,m) ** (-1.24_r8)) ! unit: m^2 g-1
+
+        if (builtin_site == 1) then
+          ssa(c,m) = get_ssa(forc_gra(c,m)) ! unit: m^2 g-1
+        else
+          ! integrate over gamma distribution to calculate the surface area
+          ! range from 0.01 * grain size to 100 * grain size
+          u_min = sqrt(0.01_r8 * forc_gra(c,m))
+          u_max = sqrt(100._r8 * forc_gra(c,m))
+          du = (u_max - u_min) / n_int
+
+          num = get_ssa(u_min**2) * u_pdf(u_min, theta)
+          prob = u_pdf(u_min, theta)
+
+          do ii = 1, n_int-1
+            u = u_min + du * ii
+            if (mod(ii,2) == 1) then
+              num = num + 4_r8 * get_ssa(u**2) * u_pdf(u, theta)
+              prob = prob + 4_r8 * u_pdf(u, theta)
+            else
+              num = num + 2_r8 * get_ssa(u**2) * u_pdf(u, theta)
+              prob = prob + 2_r8 * u_pdf(u, theta)
+            end if
+          end do
+
+          num = num + get_ssa(u_max**2) * u_pdf(u_max, theta)
+          prob = prob + u_pdf(u_max, theta)
+
+          num = num * du / 3._r8
+          prob = prob * du / 3._r8
+
+          ssa(c,m) = num / prob
+
+          !! Add a roughness factor: lambda = (10^10 * r [m])**0.33
+          !!    Kanzaki et al. (2022) Soil Cycles of Elements simulator for Predicting TERrestrial
+          !!        regulation of greenhouse gases: SCEPTER v0.9. 
+          !!        https://doi.org/10.5194/gmd-15-4959-2022         Eq. 39
+          !!    Beerling, D. J., Kantzas, E. P., Lomas, M. R., Wade, P., Eufrasio, R. M., Renforth, 
+          !!        P., et al. (2020). Potential for large-scale CO2 removal via enhanced rock 
+          !!        weathering with croplands. Nature, 583(7815), 242–248. 
+          !!        https://doi.org/10.1038/s41586-020-2448-9        SI Eq. 8 
+          !!ssa(c,m) = (1e4_r8 * forc_gra(c,m)) ** 0.33_r8 * ssa(c,m)
+        end if
+
       end do
 
       do j = 1,nlevbed

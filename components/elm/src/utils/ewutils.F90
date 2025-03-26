@@ -26,6 +26,8 @@ module ewutils
   public :: objective_solveq
   public :: solve_eq
   public :: advection_diffusion
+  public :: u_pdf
+  public :: get_ssa
 
 contains
 
@@ -514,5 +516,21 @@ contains
     end do
 
   end subroutine advection_diffusion
+
+  function u_pdf(u, theta) result(f)
+    ! Gamma PDF with k = 0.5 transformed by x = u**2
+    !   pdf(x)dx = pdf(u^2) * 2u du
+    !    note gamma(0.5) = np.sqrt(pi)
+    real(r8), intent(in) :: u, theta
+    real(r8) :: f
+    f = 2 / sqrt(theta * 3.1415926535_r8) * exp(-u**2 / theta)
+  end function u_pdf
+
+  function get_ssa(gs) result(a)
+    ! calculate the specific surface area given grain size in um
+    real(r8), intent(in) :: gs
+    real(r8) :: a
+    a = 69.18_r8 * (gs ** (-1.24_r8)) ! unit: m^2 g-1
+  end function get_ssa
 
 end module ewutils
