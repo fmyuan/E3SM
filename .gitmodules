@@ -1,6 +1,6 @@
 [submodule "fates"]
 	path = components/elm/src/external_models/fates
-	url = git@github.com:NGEET/fates.git
+	url = https://github.com/ORNLngee/fates.git
 [submodule "alm-mpp"]
 	path = components/elm/src/external_models/mpp
 	url = git@github.com:MPP-LSM/MPP.git
