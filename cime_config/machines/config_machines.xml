@@ -736,6 +736,50 @@
 
   </machine>
 
+
+  <machine MACH="wsl">
+    <DESC>Windows Subsystem for Linux v2, using Ubuntu distribution</DESC>
+    <NODENAME_REGEX>none</NODENAME_REGEX>
+    <OS>LINUX</OS>
+    <COMPILERS>gnu</COMPILERS>
+    <MPILIBS>openmpi</MPILIBS>
+    <CIME_OUTPUT_ROOT>$ENV{HOME}/e3sm_scratch</CIME_OUTPUT_ROOT>
+    <DIN_LOC_ROOT>$ENV{HOME}/pt-e3sm-inputdata</DIN_LOC_ROOT>
+    <DIN_LOC_ROOT_CLMFORC>$ENV{HOME}/pt-e3sm-inputdata</DIN_LOC_ROOT_CLMFORC>
+    <DOUT_S_ROOT>$ENV{HOME}/e3sm_scratch/archive/$CASE</DOUT_S_ROOT>
+    <BASELINE_ROOT>$ENV{HOME}/e3sm_baselines</BASELINE_ROOT>
+    <CCSM_CPRNC>$CCSMROOT/tools/cprnc/build/cprnc</CCSM_CPRNC>
+    <GMAKE>make</GMAKE>
+    <GMAKE_J>4</GMAKE_J>
+    <TESTS>e3sm_developer</TESTS>
+    <BATCH_SYSTEM>none</BATCH_SYSTEM>
+    <SUPPORTED_BY>thorntonpe at ornl dot gov</SUPPORTED_BY>
+    <MAX_TASKS_PER_NODE>4</MAX_TASKS_PER_NODE>
+    <MAX_MPITASKS_PER_NODE>4</MAX_MPITASKS_PER_NODE>
+    <mpirun mpilib="openmpi">
+      <executable>mpirun</executable>
+      <arguments>
+        <arg name="num_tasks"> -np {{ total_tasks }}</arg>
+      </arguments>
+    </mpirun>
+    <module_system type="none"/>
+    <RUNDIR>$ENV{HOME}/e3sm_scratch/runs/$CASE/run</RUNDIR>
+    <EXEROOT>$ENV{HOME}/e3sm_scratch/runs/$CASE/bld</EXEROOT>
+    <environment_variables>
+      <env name="PATH">$ENV{PATH}</env>
+      <env name="CC_ROOT">/usr</env>
+      <env name="FC_ROOT">/usr</env>
+      <env name="MPI_ROOT">/usr/local/openmpi-5.x-gcc</env>
+      <env name="HDF5_PATH">/home/fmyuan/ATS_ROOT/INSTALLED/amanzi-tpls-opt-0.98.9/</env>
+      <env name="NETCDF_PATH">/home/fmyuan/ATS_ROOT/INSTALLED/amanzi-tpls-opt-0.98.9/</env>
+      <env name="NETCDF_C_PATH">/home/fmyuan/ATS_ROOT/INSTALLED/amanzi-tpls-opt-0.98.9/</env>
+      <env name="NETCDF_FORTRAN_PATH">/home/fmyuan/ATS_ROOT/INSTALLED/amanzi-tpls-opt-0.98.9/</env>
+      <env name="BLASLAPACK_LIBDIR">/usr/lib/x86_64-linux-gnu/</env>
+      <env name="PERL5LIB">/usr/lib/x86_64-linux-gnu/perl5/5.34</env>
+   </environment_variables>
+  </machine>
+
+
   <machine MACH="linux-generic">
     <DESC>Linux workstation or laptop</DESC>
     <NODENAME_REGEX>none</NODENAME_REGEX>
