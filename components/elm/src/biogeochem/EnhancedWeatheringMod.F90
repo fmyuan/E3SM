@@ -763,12 +763,15 @@ contains
         ! University of Illinois Energy Farm
         is_hour = (secs_curr-36000.0_r8) > -dt/2.0_r8 .and. (secs_curr-36000.0_r8) <= dt/2.0_r8
 
-        if (is_hour .and. (kyr >= 2016) .and. (kyr <= 2019) .and. (kmo == 11)) then
+        ! if (is_hour .and. (kyr >= 2016) .and. (kyr <= 2019) .and. (kmo == 11)) then
+        if (is_hour .and. (kyr >= 1850) .and. (kyr <= 1852) .and. (kmo == 11)) then
           ! 50 t ha−1 y−1 = 5 kg / m2, applied over 1 month, convert to per day
           forc_app(c) = 5._r8 / 30._r8
         else
           forc_app(c) = 0._r8
         end if
+
+        !!write (iulog, *) kyr, kmo, kda, c, secs_curr, forc_app(c)
 
         ! The minerals in the parameter file are different from above
         forc_min(c,1:nminerals) = 0._r8
@@ -778,8 +781,8 @@ contains
         forc_min(c,7) = 0.116_r8
         forc_min(c,8) = 0.340_r8
         ! p80 = 267 um => use exponential distribution to convert 
-        ! P50 = P80 / ln(0.2) * ln(0.5) = 114.99
-        forc_gra(c, 1:nminerals) = 115._r8
+        ! P50 = P80 / 1.218 / 4.395 = 73.994
+        forc_gra(c, 1:nminerals) = 73.994_r8
 
         forc_pho(c   ) = 0._r8
 
@@ -793,15 +796,14 @@ contains
         !end do
         !end if
 
-        ! do some checking
-        do m = 1, nminerals
-          if (forc_gra(c,m) /= forc_gra(c,m)) then
-            !'nan' cause math issue in following calculation
-            write (iulog, *), c, m, forc_gra(c, m)
-            call endrun(msg='Nan of powder grain size')
-
-          end if
-        end do
+        !! do some checking
+        !do m = 1, nminerals
+        !  if (forc_gra(c,m) /= forc_gra(c,m)) then
+        !    !'nan' cause math issue in following calculation
+        !    write (iulog, *), c, m, forc_gra(c, m)
+        !    call endrun(msg='Nan of powder grain size')
+        !  end if
+        !end do
 
         ! Need P content to affect NEE
         forc_pho(c) = 0._r8  ! (TODO) 0~namendnutr element(s) from soil amend application, by given index of phosphrous
@@ -824,6 +826,8 @@ contains
         end do
       end do
 
+      !!write (iulog, *) 'primary_added_vr(c,:,2)', primary_added_vr(c,1:nlevbed,2)
+
       ! ---------------------------------------------------------------
       ! Primary mineral dissolution
       ! ---------------------------------------------------------------
@@ -842,6 +846,7 @@ contains
         else
           ! integrate over gamma distribution to calculate the surface area
           ! range from 0.01 * grain size to 100 * grain size
+          theta = 4.395_r8 * forc_gra(c,m)
           u_min = sqrt(0.01_r8 * forc_gra(c,m))
           u_max = sqrt(100._r8 * forc_gra(c,m))
           du = (u_max - u_min) / n_int
@@ -867,6 +872,8 @@ contains
           prob = prob * du / 3._r8
 
           ssa(c,m) = num / prob
+
+          !!write (iulog, *) u_min, u_max, du, num, prob, ssa(c,m)
 
           !! Add a roughness factor: lambda = (10^10 * r [m])**0.33
           !!    Kanzaki et al. (2022) Soil Cycles of Elements simulator for Predicting TERrestrial
@@ -896,12 +903,24 @@ contains
               log_omega_vr(c,j,m) = soil_ph(c,j) * EWParamsInst%primary_stoi_proton(m) - &
                 EWParamsInst%log_keq_primary(m)
               do icat = 1,ncations
-                cation_vr(c,j,icat) = max(1.0e-15,cation_vr(c,j,icat))
                 log_omega_vr(c,j,m) = log_omega_vr(c,j,m) + & 
                   EWParamsInst%primary_stoi_cations(m,icat) * &
-                  mass_to_logmol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j))
+                  mass_to_logmol(max(1.0e-15, cation_vr(c,j,icat)), &
+                                 EWParamsInst%cations_mass(icat), h2osoi_vol(c,j))
               end do
- 
+              if (EWParamsInst%primary_stoi_hco3(m) > 0._r8) then
+                log_omega_vr(c,j,m) = log_omega_vr(c,j,m) + EWParamsInst%primary_stoi_hco3(m) * &
+                  mass_to_logmol(max(1.0e-15, bicarbonate_vr(c,j)), mass_hco3, h2osoi_vol(c,j))
+              end if
+              if (EWParamsInst%primary_stoi_sio2(m) > 0._r8) then
+                log_omega_vr(c,j,m) = log_omega_vr(c,j,m) + EWParamsInst%primary_stoi_sio2(m) * &
+                  mass_to_logmol(max(1.0e-15, silica_vr(c,j)), mass_sio2, h2osoi_vol(c,j))
+              end if
+
+              !!if (m == 6) then
+              !!  write (iulog, *) c, j, m, 'log_omega', log_omega_vr(c,j,m)
+              !!end if
+
               ! check the reaction rate is not negative
               if (log_omega_vr(c,j,m) >= 0._r8) then
                 r_dissolve_vr(c,j,m) = 0._r8
@@ -928,6 +947,12 @@ contains
                     EWParamsInst%n_primary(m,1) * soil_ph(c,j) + log10(1 - 10**log_omega_vr(c,j,m))
                   k_tot = k_tot + 10**log_k_dissolve_acid
 
+                  !!if (m == 6) then
+                  !!    write (iulog, *) c, j, m, 'log_k_dissolve_acid', log_k_dissolve_acid, &
+                  !!          EWParamsInst%log_k_primary(m,1), log10(exp(1.0)) * & 
+                  !!      (-1.0e6_r8 * EWParamsInst%e_primary(m,1) / rgas * (1/tsoi(c,j) - 1/298.15_r8)), EWParamsInst%n_primary(m,1) * soil_ph(c,j), log10(1 - 10**log_omega_vr(c,j,m))
+                  !!end if
+
                   !write (100+iam, *) 'log_k_dissolve_acid', ldomain%latc(g), ldomain%lonc(g), g, c, j, m, log_k_dissolve_acid, EWParamsInst%log_k_primary(m,1), EWParamsInst%e_primary(m,1), rgas, tsoi(c,j), EWParamsInst%n_primary(m,1), soil_ph(c,j), log_omega_vr(c,j,m)
                 end if
 
@@ -947,13 +972,31 @@ contains
                   ! write (100+iam, *) 'log_k_dissolve_base', ldomain%latc(g), ldomain%lonc(g), g, c, j, m, log_k_dissolve_base, EWParamsInst%log_k_primary(m,3), EWParamsInst%e_primary(m,3), rgas, tsoi(c,j), EWParamsInst%n_primary(m,3), soil_ph(c,j), log_omega_vr(c,j,m)
                 end if
 
+                !!if (m == 6) then
+                !!  write (iulog, *) c, j, m, 'k_tot', k_tot
+                !!end if
+
                 ! further scale down the reaction rate by soil moisture, use liquid only
                 ! may try more complex power law 
                 ! Bao, C., Li, L., Shi, Y., & Duffy, C. (2017). Understanding watershed hydrogeochemistry: 1. Development of RT-Flux-PIHM. Water Resources Research, 53(3), 2328–2345. https://doi.org/10.1002/2016WR018934
+                !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                ! TBC: change to saturation % (2/3)
+                !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                 k_tot = k_tot * h2osoi_liqvol(c,j)
 
+                !!if (m == 6) then
+                !!  write (iulog, *) c, j, m, 'k_tot h2o', k_tot * h2osoi_liqvol(c,j)
+                !!end if
+
                 ! calculate dissolution rate in mol m-3 s-1
+                !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                ! TBC: double check the unit
+                !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                 r_dissolve_vr(c,j,m) = ssa(c,m) * primary_mineral_vr(c,j,m) * k_tot
+
+                !!if (m == 6) then
+                !!  write (iulog, *) c, j, m, 'r_dissolve_vr', ssa(c,m), primary_mineral_vr(c,j,m), k_tot, r_dissolve_vr(c,j,m)
+                !!end if
 
                 !write (100+iam, *) c, j, m, 'r_dissolve_vr', r_dissolve_vr(c,j,m), k_tot, ssa(c,m), primary_mineral_vr(c,j,m)
               end if

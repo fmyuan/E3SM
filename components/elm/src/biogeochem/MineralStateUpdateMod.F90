@@ -9,7 +9,7 @@ module MineralStateUpdateMod
   use spmdMod                 , only : iam
   use elm_varpar              , only : nminerals, ncations, nminsecs, nlevgrnd, nlevsoi
   use elm_varcon              , only : zisoi, dzsoi, mass_h, mass_hco3, mass_co3, secspday
-  use elm_varctl              , only : use_erw_verbose
+  use elm_varctl              , only : iulog, use_erw_verbose
   use shr_sys_mod             , only : shr_sys_flush
   use spmdMod                 , only : masterproc
   use abortutils              , only : endrun
@@ -115,6 +115,11 @@ contains
         do m = 1,nminerals
           col_ms%primary_mineral_vr(c,j,m) = col_ms%primary_mineral_vr(c,j,m) + &
             col_mf%primary_added_vr(c,j,m)*dt - col_mf%primary_dissolve_vr(c,j,m)*dt
+
+          !!if (m == 6) then
+          !!  write (iulog, *) c, j, m, col_ms%primary_mineral_vr(c,j,m), col_mf%primary_added_vr(c,j,m), col_mf%primary_dissolve_vr(c,j,m), dt
+          !!end if
+
           ! non-SiO2 minerals
           col_ms%primary_residue_vr(c,j,m) = col_ms%primary_residue_vr(c,j,m) + &
             col_mf%primary_residue_flux_vr(c,j,m)*dt
