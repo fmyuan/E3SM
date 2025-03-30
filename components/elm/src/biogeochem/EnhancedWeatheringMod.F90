@@ -763,8 +763,8 @@ contains
         ! University of Illinois Energy Farm
         is_hour = (secs_curr-36000.0_r8) > -dt/2.0_r8 .and. (secs_curr-36000.0_r8) <= dt/2.0_r8
 
-        ! if (is_hour .and. (kyr >= 2016) .and. (kyr <= 2019) .and. (kmo == 11)) then
-        if (is_hour .and. (kyr >= 1850) .and. (kyr <= 1852) .and. (kmo == 11)) then
+        if (is_hour .and. (kyr >= 2016) .and. (kyr <= 2019) .and. (kmo == 11)) then
+        ! if (is_hour .and. (kyr >= 1850) .and. (kyr <= 1852) .and. (kmo == 11)) then
           ! 50 t ha−1 y−1 = 5 kg / m2, applied over 1 month, convert to per day
           forc_app(c) = 5._r8 / 30._r8
         else
@@ -896,7 +896,7 @@ contains
         else
           ! Primary mineral dissolution
           do m = 1,nminerals
-            if (primary_mineral_vr(c,j,m) == 0._r8) then
+            if (primary_mineral_vr(c,j,m) <= 0._r8) then
               r_dissolve_vr(c,j,m) = 0._r8
             else
               ! log10 of ion activity product divided by equilibrium constant
@@ -1018,6 +1018,11 @@ contains
           do m = 1,nminerals
             primary_cation_flux_vr(c,j,icat) = primary_cation_flux_vr(c,j,icat) + &
               r_dissolve_vr(c,j,m) * EWParamsInst%primary_stoi_cations(m,icat) * EWParamsInst%cations_mass(icat)
+
+            !!if (c == 1 .and. j == 1 .and. icat == 1) then
+            !!  write (iulog, *) c, j, icat, m, 'primary_cation_flux_vr', primary_cation_flux_vr(c,j,icat), r_dissolve_vr(c,j,m), EWParamsInst%primary_stoi_cations(m,icat), EWParamsInst%cations_mass(icat)
+            !!end if
+
           end do
         end do
 
@@ -1662,8 +1667,11 @@ contains
           !  a cation if it is already too tiny; adjust the total release accordingly)
           beta_for_release(1:ncations) = cece(1:ncations) / cect_dyn(c,j)
           beta_h_for_release = 1._r8 - sum(beta_for_release)
+          if (beta_h_for_release < 0.01_r8) then
+            beta_h_for_release = 0._r8
+          end if
           do icat = 1,ncations
-            if (beta_for_release(icat) < 2.0e-4_r8) then
+            if (beta_for_release(icat) < 0.01_r8) then
               beta_for_release(icat) = 0._r8
             end if
             cece_delta(c,j,icat) = cect_delta(c,j) * beta_for_release(icat)

@@ -683,7 +683,17 @@ contains
         end do
 
         ! - compare
-        if ((temp_avail_ceca(fc,j) + temp_delta_ceca(fc,j)) < 0._r8) then
+        if (temp_avail_ceca(fc,j) <= 0._r8) then
+
+          col_mf%proton_limit_vr(c,j) = 0._r8
+          do icat = 1,ncations
+            col_mf%background_cec_vr(c,j,icat) = col_mf%background_cec_vr(c,j,icat) * &
+                                                 col_mf%proton_limit_vr(c,j)
+            col_mf%cec_cation_flux_vr(c,j,icat) = col_mf%cec_cation_flux_vr(c,j,icat) * &
+              col_mf%proton_limit_vr(c,j)
+          end do
+
+        else if ((temp_avail_ceca(fc,j) + temp_delta_ceca(fc,j)) < 0._r8) then
           col_mf%proton_limit_vr(c,j) = - temp_avail_ceca(fc,j) / temp_delta_ceca(fc,j) &
                                         * residual_factor
           do icat = 1,ncations
