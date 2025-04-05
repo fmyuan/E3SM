@@ -167,7 +167,7 @@ contains
       do icat = 1,ncations
         do j = 1,nlevbed
           ! note the source sink terms are called in the advection_diffusion solver
-          col_ms%cation_vr(c, j, icat) = col_ms%cation_vr(c, j, icat) + & 
+          col_ms%cation_vr(c,j,icat) = col_ms%cation_vr(c,j,icat) + & 
             ( col_mf%background_flux_vr(c,j,icat) + & 
               col_mf%primary_cation_flux_vr(c,j,icat) + & 
               col_mf%cec_cation_flux_vr(c,j,icat) + &

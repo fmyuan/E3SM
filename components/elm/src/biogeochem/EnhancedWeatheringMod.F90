@@ -359,6 +359,8 @@ contains
       l = col_pp%landunit(c)
       nlevbed = min(nlev2bed(c), nlevsoi)
 
+      ! 2x CO2 run
+      !co2_atm = 2 * top_as%pco2bot(t) / 101325
       co2_atm = top_as%pco2bot(t) / 101325
 
       do j = 1,nlevbed

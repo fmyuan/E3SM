@@ -965,11 +965,11 @@ contains
       sm_loss(c) = 0._r8
 
       ! calculate the column-level balance error for this time step
-      err_sm(c) = (pm_add(c) - pm_loss(c)) * dt - (end_sm(c) - beg_sm(c))
+      err_pm(c) = (pm_add(c) - pm_loss(c)) * dt - (end_pm(c) - beg_pm(c))
       err_in(c) = (in_add(c) - in_loss(c)) * dt - (end_in(c) - beg_in(c))
       err_sm(c) = (sm_add(c) - sm_loss(c)) * dt - (end_sm(c) - beg_sm(c))
 
-      if (abs(err_sm(c)) > 1e-8_r8) then
+      if (abs(err_pm(c)) > 1e-8_r8) then
          iserr_pm = .true.
          err_index = c
       end if
