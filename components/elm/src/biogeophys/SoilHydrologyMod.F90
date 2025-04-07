@@ -8,6 +8,7 @@ module SoilHydrologyMod
   use shr_log_mod       , only : errMsg => shr_log_errMsg
   use decompMod         , only : bounds_type
   use elm_varctl        , only : iulog, use_vichydro
+  use elm_varctl        , only : use_hydro_xcols, num_hydro_xcols
   use elm_varcon        , only : e_ice, denh2o, denice, rpi
   use EnergyFluxType    , only : energyflux_type
   use SoilHydrologyType , only : soilhydrology_type
@@ -51,10 +52,10 @@ contains
     use elm_varpar      , only : nlevsoi, nlevgrnd, maxpatch_pft
     use elm_varpar      , only : nlayer, nlayert
     use elm_varctl      , only : use_var_soil_thick
-#if (defined HUM_HOL || defined MARSH || defined COL3RD)
+#if (defined HUM_HOL || defined MARSH || defined HYDRO_XCOLS)
     use pftvarcon       , only : humhol_ht
 #endif
-#if (defined COL3RD)
+#if (defined HYDRO_XCOLS)
     use pftvarcon       , only : humhol_ht_frac
 #endif
     use SoilWaterMovementMod, only : zengdecker_2009_with_var_soil_thick
@@ -185,7 +186,7 @@ contains
          if (c .eq. 2) fsat(c) = min(1.0 * exp(-3.0_r8/humhol_ht*(zwt(c)-h2osfc(c)/1000.+humhol_ht)), 1._r8) !TAO 0.3 t0 0.1, 0.15 to 0.35 !bsulman: what does 0.15 represent?
 #endif
 
-#if (defined COL3RD)
+#if (defined HYDRO_XCOLS)
          if (c .eq. 1) fsat(c) = 1.0 * exp(-3.0_r8/humhol_ht*humhol_ht_frac*(zwt(c)))   !at 30cm, hummock saturated at 5% changed to 0.1 TAO
          if (c .eq. 2) fsat(c) = 1.0 * exp(-3.0_r8/(humhol_ht)*(zwt(c)))   !at 30cm, hummock saturated at 5% changed to 0.1 TAO
          if (c .eq. 3) fsat(c) = min(1.0 * exp(-3.0_r8/(humhol_ht)*(zwt(c)-h2osfc(c)/1000.+humhol_ht)), 1._r8) !TAO 0.3 t0 0.1, 0.15 to 0.35 !bsulman: what does 0.15 represent?
@@ -206,7 +207,7 @@ contains
             if (c .eq. 2) fsat(c) = min(1.0 * exp(-3.0_r8/humhol_ht*(zwt(c)-h2osfc(c)/1000.+humhol_ht)), 1._r8) !TAO 0.3 t 0.1, 0.15 to 0.35
 #endif
  
-#if (defined COL3RD)
+#if (defined HYDRO_XCOLS)
             if (c .eq. 1) fsat(c) = 1.0 * exp(-3.0_r8/humhol_ht*humhol_ht_frac*(zwt(c)))   !at 30cm, hummock saturated at 5%
             if (c .eq. 2) fsat(c) = 1.0 * exp(-3.0_r8/(humhol_ht)*(zwt(c)))
             if (c .eq. 3) fsat(c) = min(1.0 * exp(-3.0_r8/(humhol_ht)*(zwt(c)-h2osfc(c)/1000.+humhol_ht)), 1._r8) !TAO 0.3 t 0.1, 0.15 to 0.35
@@ -225,7 +226,7 @@ contains
             if (c .eq. 2) fsat(c) = min(1.0 * exp(-3.0_r8/humhol_ht*(zwt(c)-h2osfc(c)/1000.+humhol_ht)), 1._r8) !TAO 0.3 t 1.5, 0.15 to 0.35
 #endif 
 
-#if (defined COL3RD)
+#if (defined HYDRO_XCOLS)
             if (c .eq. 1) fsat(c) = 1.0 * exp(-3.0_r8/humhol_ht*humhol_ht_frac*(zwt(c))) !at 30cm, hummock saturated at 5%
             if (c .eq. 2) fsat(c) = 1.0 * exp(-3.0_r8/(humhol_ht)*(zwt(c)))
             if (c .eq. 3) fsat(c) = min(1.0 * exp(-3.0_r8/(humhol_ht)*(zwt(c)-h2osfc(c)/1000.+humhol_ht)), 1._r8) !TAO 0.3 t 1.5, 0.15 to 0.35
@@ -261,7 +262,7 @@ contains
             else
              qflx_surf(c) = 0._r8   !turn off surface runoff for hollow
             endif
-#elif (defined COL3RD)
+#elif (defined HYDRO_XCOLS)
             if (c .eq. 1) then  !XS - only compute sfc runoff from hummock, send to hollow 
              qflx_surf(c) = fcov(c) * qflx_top_soil(c) !TAO
             else if (c .eq. 2) then
@@ -336,13 +337,13 @@ contains
      use column_varcon    , only : icol_roof, icol_road_imperv, icol_sunwall, icol_shadewall, icol_road_perv
      use landunit_varcon  , only : istsoil, istcrop
      use abortutils       , only : endrun
-#if (defined HUM_HOL || defined MARSH || defined COL3RD)
+#if (defined HUM_HOL || defined MARSH || defined HYDRO_XCOLS)
      use pftvarcon        , only : humhol_ht, humhol_dist, hum_frac, qflx_h2osfc_surfrate
 #endif
-#if (defined COL3RD)
+#if (defined HYDRO_XCOLS)
      use pftvarcon        , only : humhol_ht_frac
 #endif
-#if (defined MARSH || defined COL3RD)
+#if (defined MARSH || defined HYDRO_XCOLS)
       use pftvarcon       , only : num_tide_comps, tide_baseline,tide_coeff_period, tide_coeff_phase, tide_coeff_amp,sfcflow_ratescale
       use elm_instMod     , only : atm2lnd_vars
       use elm_varctl      , only : tide_file
@@ -400,9 +401,9 @@ contains
      real(r8) :: ka_ho                                     ! hydraulic conductivity terms at saturation for hummock (mmH2O/s)
      real(r8) :: ka_hu                                     ! hydraulic conductivity terms at saturation for hollow(mmH2O/s)
      real(r8) :: zwt_ho, zwt_hu                            ! water table depth for hollows and hummocks respectively (m)
-#if defined COL3RD
-     real(r8) :: ka_hu1, ka_hu2                    ! hydraulic conductivity terms at saturation for hummock (mmH2O/s)
-     real(r8) :: zwt_hu1, zwt_hu2                  ! water table depth for hollows and 2 hummocks (m) [Wei Huang 2022-08-10]
+#if defined HYDRO_XCOLS
+     real(r8) :: ka_xcols(1:num_hydro_xcols)               ! hydraulic conductivity terms at saturation for across-columns (mmH2O/s)
+     real(r8) :: zwt_xcols(1:num_hydro_xcols)              ! water table depth for hollows and 2 hummocks (m) [Wei Huang 2022-08-10]
 #endif
      integer  :: tide_time_idx
      real(r8) :: s_node
@@ -485,7 +486,7 @@ contains
           end do
        end do
 
-#if (defined HUM_HOL || defined MARSH || defined COL3RD) 
+#if (defined HUM_HOL || defined MARSH || defined HYDRO_XCOLS)
        do j = 1,nlevbed
           do fc = 1, num_hydrologyc
              c = filter_hydrologyc(fc)
@@ -513,9 +514,8 @@ contains
        enddo
 #endif
 
-#if defined COL3RD
-       ka_hu1 = 0._r8
-       ka_hu2 = 0._r8
+#if defined HYDRO_XCOLS
+       ka_xcols(:) = 0._r8
 #endif
 
        do fc = 1, num_hydrologyc
@@ -543,7 +543,7 @@ contains
              qflx_in_soil(c) = (1._r8 - frac_h2osfc(c)) * (qflx_top_soil(c) - qflx_surf(c) + qflx_surf_input(c))
              qflx_in_h2osfc(c) = frac_h2osfc(c) * (qflx_top_soil(c) - qflx_surf(c) + qflx_surf_input(c))
              qflx_gross_infl_soil(c) = qflx_in_soil(c)
-#elif (defined COL3RD)
+#elif (defined HYDRO_XCOLS)
              hol_frac = 1.0_r8 - hum_frac
              if (c .eq. 1) then
                qflx_surf_input(1) = 0._r8 !hummock TAO KEEP AT ZERO!!!
@@ -629,12 +629,12 @@ contains
              if (h2osfc(c) .gt. 0._r8) then
                 qflx_h2osfc_surf(c) = min(qflx_h2osfc_surfrate*h2osfc(c)**2.0_r8,h2osfc(c) / dtime)
 #elif (defined MARSH)   
-             qflx_tide(c) = 0._r8
-             if (h2osfc(c) .gt. 0._r8 .and. c==1) then
-                qflx_h2osfc_surf(c) = min(qflx_h2osfc_surfrate*h2osfc(c)**2.0_r8,h2osfc(c) / dtime) 
-             else if (c .eq. 2) then
-                qflx_h2osfc_surf(c) = 0._r8
-
+                qflx_tide(c) = 0._r8
+                if (c==1) then
+                   qflx_h2osfc_surf(c) = min(qflx_h2osfc_surfrate*h2osfc(c)**2.0_r8,h2osfc(c) / dtime)
+                elseif (c .eq. 2) then
+                   qflx_h2osfc_surf(c) = 0._r8
+                endif
 
                 ! bsulman : Changed to use flexible set of parameters up to full NOAA tidal components (37 coefficients)
                 ! Tidal cycle is the sum of all the sinusoidal components
@@ -646,22 +646,22 @@ contains
                ! h2osfc(c) = max(h2osfc(c) + tide_baseline, 0.0)
                ! qflx_tide(c) = (h2osfc(c)-h2osfc_before)/dtime
 
-#elif (defined COL3RD)
-             qflx_tide(c) = 0._r8
-             if (h2osfc(c) .gt. 0._r8 .and. c==1) then
-                qflx_h2osfc_surf(c) = min(qflx_h2osfc_surfrate*h2osfc(c)**2.0_r8,h2osfc(c) / dtime)
-             else if (h2osfc(c) .gt. 0._r8 .and. c==2) then
-                qflx_h2osfc_surf(c) = min(qflx_h2osfc_surfrate*h2osfc(c)**2.0_r8,h2osfc(c) / dtime) 
-             else if (c .eq. 3) then
-                qflx_h2osfc_surf(c) = 0._r8
+#elif (defined HYDRO_XCOLS)
+                qflx_tide(c) = 0._r8
+                if (h2osfc(c) .gt. 0._r8 .and. c==1) then
+                   qflx_h2osfc_surf(c) = min(qflx_h2osfc_surfrate*h2osfc(c)**2.0_r8,h2osfc(c) / dtime)
+                else if (h2osfc(c) .gt. 0._r8 .and. c==2) then
+                   qflx_h2osfc_surf(c) = min(qflx_h2osfc_surfrate*h2osfc(c)**2.0_r8,h2osfc(c) / dtime)
+                else if (c .eq. 3) then
+                   qflx_h2osfc_surf(c) = 0._r8
 
 #else
-             if(h2osfc(c) >= h2osfc_thresh(c) .and. h2osfcflag/=0) then
-                ! spatially variable k_wet
-                k_wet=1.0_r8 * sin((rpi/180.) * col_pp%topo_slope(c))
-                qflx_h2osfc_surf(c) = k_wet * frac_infclust * (h2osfc(c) - h2osfc_thresh(c))
+                if(h2osfc(c) >= h2osfc_thresh(c) .and. h2osfcflag/=0) then
+                   ! spatially variable k_wet
+                   k_wet=1.0_r8 * sin((rpi/180.) * col_pp%topo_slope(c))
+                   qflx_h2osfc_surf(c) = k_wet * frac_infclust * (h2osfc(c) - h2osfc_thresh(c))
 
-                qflx_h2osfc_surf(c)=min(qflx_h2osfc_surf(c),(h2osfc(c) - h2osfc_thresh(c))/dtime)
+                   qflx_h2osfc_surf(c)=min(qflx_h2osfc_surf(c),(h2osfc(c) - h2osfc_thresh(c))/dtime)
 #endif
 
              else
@@ -797,8 +797,10 @@ contains
              endif
 #endif
 
-#if (defined COL3RD)
-             if(num_hydrologyc .ne. 3) call endrun(msg="Error: Must have 3 columns if COL3RD is defined")
+#if (defined HYDRO_XCOLS)
+
+             if(mod(num_hydrologyc,num_hydro_xcols) .ne. 0) &
+                call endrun(msg="Error: hydrologyc Must have multiple time of cross-columns if HYDRO_XCOLS is defined")
              !compute lateral flux in aquifer
              if (jwt(c) .lt. nlevbed) then
                 do j=nlevbed,jwt(c)+1,-1
@@ -864,7 +866,7 @@ contains
                endif
                ! bsulman : Changed to use flexible set of parameters up to full NOAA tidal components (37 coefficients)
                ! Tidal cycle is the sum of all the sinusoidal components
-#ifdef COL3RD
+#ifdef HYDRO_XCOLS
                call get_curr_time(days, seconds)
                h2osfc_tide = 0.0_r8
                if(tide_file .ne. ' ') then
@@ -1084,16 +1086,13 @@ contains
           qflx_irrig         =>    col_wf%qflx_irrig         , & ! Input:  [real(r8) (:)   ]  irrigation flux (mm H2O /s)
           qflx_grnd_irrig_col=>    col_wf%qflx_grnd_irrig    , & ! Output: [real(r8) (:)   ]  col real groundwater irrigation flux (mm H2O /s)                                                                                                                                                               
                         
-#if (defined HUM_HOL || defined MARSH || defined COL3RD)
+#if (defined HUM_HOL || defined MARSH || defined HYDRO_XCOLS)
           icefrac            =>    soilhydrology_vars%icefrac_col      , &  !Output: [real(r8) (:,:) ]      
           qflx_surf_input    =>    col_wf%qflx_surf_input    , & ! Output: [real(r8) (:,:) ] surface runoff input to hollow (mmH2O/s)
           qflx_lat_aqu       =>    col_wf%qflx_lat_aqu       , & ! Output: [real(r8) (:,:) ] total lateral flow
           qflx_lat_aqu_layer =>    col_wf%qflx_lat_aqu_layer , & ! Output: [real(r8) (:,:) ] lateral flow for each layer
 #endif
-#ifdef MARSH
-          qflx_tide          =>    col_wf%qflx_tide          , & ! Output: [real(r8) (:,:) ]
-#endif
-#ifdef COL3RD
+#if (defined MARSH || defined HYDRO_XCOLS)
           qflx_tide          =>    col_wf%qflx_tide          , & ! Output: [real(r8) (:,:) ]
 #endif
           zwt                =>    soilhydrology_vars%zwt_col            , & ! Output: [real(r8) (:)   ]  water table depth (m)
@@ -1230,7 +1229,7 @@ contains
           qcharge(c) = qcharge_temp
        enddo
 
-#if (defined HUM_HOL || defined MARSH || defined COL3RD)
+#if (defined HUM_HOL || defined MARSH || defined HYDRO_XCOLS)
 !Compute lateral fluxes between Hummock and Hollow (code by XS)
 ! Water table changes due to lateral flux between hommock and hollow in aquifer 
        do fc = 1, num_hydrologyc
@@ -1456,7 +1455,7 @@ contains
      use elm_varctl       , only : use_vsfm, use_var_soil_thick
      use SoilWaterMovementMod, only : zengdecker_2009_with_var_soil_thick
      use pftvarcon        , only : rsub_top_globalmax
-#if (defined HUM_HOL || defined MARSH || defined COL3RD)
+#if (defined HUM_HOL || defined MARSH || defined HYDRO_XCOLS)
      use pftvarcon        , only : humhol_ht
 #endif
      !
@@ -1573,14 +1572,16 @@ contains
           qflx_drain_perched =>    col_wf%qflx_drain_perched , & ! Output: [real(r8) (:)   ] perched wt sub-surface runoff (mm H2O /s)
 
           h2osoi_liq         =>    col_ws%h2osoi_liq        , & ! Output: [real(r8) (:,:) ] liquid water (kg/m2)                            
-#if (defined HUM_HOL || defined MARSH || defined COL3RD)
+#if (defined HUM_HOL || defined MARSH || defined HYDRO_XCOLS)
           qflx_surf_input    =>    col_wf%qflx_surf_input      , & ! Output: [real(r8) (:,:) ] surface runoff input to hollow (mmH2O/s)
           qflx_lat_aqu       =>    col_wf%qflx_lat_aqu         , & ! Output: [real(r8) (:,:) ] total lateral flow
           qflx_lat_aqu_layer =>    col_wf%qflx_lat_aqu_layer   , & ! Output: [real(r8) (:,:) ] lateral flow for each layer
+#endif
+#if (defined MARSH || defined HYDRO_XCOLS)
           salinity             =>    col_ws%salinity           , & ! Input:  [real(r8) (:,:)   ] salinity concentration (ppt)
           salt_content         =>    col_ws%salt_content       , & ! Input:  [real(r8) (:,:) ] mass of salt in soil later (g)
-          qflx_adv           =>     col_wf%qflx_adv            , & ! Input:  [real(r8) (:,:) ] vertical water flux between layers (mm/s)
 #endif
+          qflx_adv           =>     col_wf%qflx_adv            , & ! Input:  [real(r8) (:,:) ] vertical water flux between layers (mm/s)
           h2osoi_ice         =>    col_ws%h2osoi_ice         & ! Output: [real(r8) (:,:) ] ice lens (kg/m2)   
           )
 
@@ -1814,12 +1815,12 @@ contains
                         - exp(-3._r8))/(1.0_r8-exp(-3._r8))
                    imped=(1._r8 - fracice_rsub(c))
                    rsub_top_max = 5.5e-3_r8
-#if (defined HUM_HOL || defined MARSH || defined COL3RD)                   
+#if (defined HUM_HOL || defined MARSH || defined HYDRO_XCOLS)
                    rsub_top_max = min(5.5e-3_r8, rsub_top_globalmax)
 #endif
                 end if
    !Salinity and salt content
-#if (defined MARSH || defined COL3RD)
+#if (defined MARSH || defined HYDRO_XCOLS)
          !do j=1,nlevgrnd
          !salinity(2,j) = 35.0_r8
          !salt_content(c,j)=salinity(c,j)*h2osoi_liq(c,j)

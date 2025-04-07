@@ -5516,12 +5516,14 @@ contains
          avgflag='A', long_name='sub-surface drainage', &
          ptr_col=this%qflx_drain, c2l_scale_type='urbanf')
 
-#if (defined HUM_HOL || defined MARSH || defined COL3RD)
+#if (defined HUM_HOL || defined MARSH || defined HYDRO_XCOLS)
     this%qflx_lat_aqu(begc:endc) = spval
     call hist_addfld1d (fname='QFLX_LAT_AQU',  units='mm/s',  &
          avgflag='A', long_name='Lateral flow between hummock and hollow', &
          ptr_col=this%qflx_lat_aqu, c2l_scale_type='urbanf')
+#endif
 
+#if (defined MARSH || defined HYDRO_XCOLS)
    !SLL added 7/27/21
     this%qflx_lat_aqu_layer(begc:endc, :) = spval
     call hist_addfld2d (fname='QFLX_LAT_AQU_LAYER',  units='mm/s', type2d='levgrnd', &

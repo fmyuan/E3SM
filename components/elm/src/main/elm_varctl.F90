@@ -477,6 +477,9 @@ module elm_varctl
   character(len=32), public :: alquimia_plantNH4demand_name = 'Plant_NH4_demand'
   logical, public           :: alquimia_handsoff    = .true.
 
+  ! hydrology of cross columns
+  logical, public           :: use_hydro_xcols      = .false.
+  integer, public           :: num_hydro_xcols      = 1
 
   ! cpl_bypass
    character(len=fname_len), public :: metdata_type   = ' '    ! metdata type for CPL_BYPASS mode

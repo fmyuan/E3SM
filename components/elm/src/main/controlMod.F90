@@ -290,6 +290,8 @@ contains
         alquimia_IC_name, alquimia_CO2_name, alquimia_NH4_name, &
         alquimia_NO3_name, alquimia_handsoff
 
+    namelist /elm_inparm/ use_hydro_xcols, num_hydro_xcols
+
     namelist /elm_inparm/ use_dynroot
 
     namelist /elm_inparm/ use_var_soil_thick, use_lake_wat_storage
@@ -888,6 +890,9 @@ contains
     call mpi_bcast (alquimia_NO3_name , len(alquimia_NO3_name) , MPI_CHARACTER, 0, mpicom, ier)
     call mpi_bcast (alquimia_NH4_name , len(alquimia_NH4_name) , MPI_CHARACTER, 0, mpicom, ier)
 
+    ! hydrology of cross-columns (surface and subsurface lateral flow of connected columns)
+    call mpi_bcast (use_hydro_xcols, 1, MPI_LOGICAL, 0, mpicom, ier)
+    call mpi_bcast (num_hydro_xcols, 1, MPI_INTEGER, 0, mpicom, ier)
 
     !cpl_bypass
      call mpi_bcast (metdata_type,   len(metdata_type),   MPI_CHARACTER, 0, mpicom, ier)
