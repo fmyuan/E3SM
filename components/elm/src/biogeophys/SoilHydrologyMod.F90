@@ -808,21 +808,35 @@ contains
                   s_node = min(1.0_r8, s_node)
                   s1 = 0.5_r8*(1.0+s_node)
                   s1 = min(1._r8, s1)
-                  if (c .eq. 1) ka_hu1 = ka_hu1+(hksat(c,j)*s1**(2._r8*bsw(c,j)+3._r8))* &
+
+                  !thickness-weighted over an entire column
+                  if (mod(c,num_hydro_xcols) .eq. 0) then
+                    ! the ending-column, e.g. hollow or under-water column?
+                    ka_xcols(num_hydro_xcols) = ka_xcols(num_hydro_xcols)+ &
+                                (hksat(c,j)*s1**(2._r8*bsw(c,j)+3._r8))* &
                                 dzmm(c,j)/sum(dzmm(c,jwt(c)+1:nlevbed))
-                  if (c .eq. 2) ka_hu2 = ka_hu2+(hksat(c,j)*s1**(2._r8*bsw(c,j)+3._r8))* &
+                  else
+                    ka_xcols(mod(c,num_hydro_xcols)) = ka_xcols(mod(c,num_hydro_xcols))+ &
+                                (hksat(c,j)*s1**(2._r8*bsw(c,j)+3._r8))* &
                                 dzmm(c,j)/sum(dzmm(c,jwt(c)+1:nlevbed))
-                  if (c .eq. 3) ka_ho = ka_ho+(hksat(c,j)*s1**(2._r8*bsw(c,j)+3._r8))* &
-                                dzmm(c,j)/sum(dzmm(c,jwt(c)+1:nlevbed))
+
+                  end if
+
                 end do
              else
                   s_node = max(h2osoi_vol(c,jwt(c))/watsat(c,jwt(c)), 0.01_r8)
                   s_node = min(1.0_r8, s_node)
                   s1 = 0.5_r8*(1.0+s_node)
                   s1 = min(1._r8, s1)
-                  if (c .eq. 1) ka_hu1 = ka_hu1+(hksat(c,jwt(c))*s1**(2._r8*bsw(c,jwt(c))+3._r8))
-                  if (c .eq. 2) ka_hu2 = ka_hu2+(hksat(c,jwt(c))*s1**(2._r8*bsw(c,jwt(c))+3._r8))
-                  if (c .eq. 3) ka_ho = ka_ho+(hksat(c,jwt(c))*s1**(2._r8*bsw(c,jwt(c))+3._r8))
+                  !thickness-weighted over an entire column
+                  if (mod(c,num_hydro_xcols) .eq. 0) then
+                    ! the ending-column, e.g. hollow or under-water column?
+                    ka_xcols(num_hydro_xcols) = ka_xcols(num_hydro_xcols)+ &
+                               (hksat(c,jwt(c))*s1**(2._r8*bsw(c,jwt(c))+3._r8))
+                  else
+                    ka_xcols(mod(c,num_hydro_xcols)) = ka_xcols(mod(c,num_hydro_xcols))+ &
+                               (hksat(c,jwt(c))*s1**(2._r8*bsw(c,jwt(c))+3._r8))
+                  endif
              end if
 
              if (c.eq.1) then
