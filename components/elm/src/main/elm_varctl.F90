@@ -675,6 +675,7 @@ contains
   ! for unknown reason
   subroutine elm_ctl_set_nls(nu_com_in,           &
                              use_dynroot_in,      &
+                           use_var_soil_thick_in, &
                              use_top_solar_rad_in)
 
     ! currently 3 nls identified: nu_com, use_dynroot, use_top_solar_rad
@@ -682,10 +683,12 @@ contains
     character(len=15), optional, intent(IN) :: nu_com_in                ! nu_com
     logical,           optional, intent(IN) :: use_dynroot_in           ! use_dynroot
     logical,           optional, intent(IN) :: use_top_solar_rad_in     ! use_top_solar_rad
+    logical,           optional, intent(IN) :: use_var_soil_thick_in    ! use_var_soil_thick
 
     !
     if (present(nu_com_in)             ) nu_com            = nu_com_in
     if (present(use_dynroot_in)        ) use_dynroot       = use_dynroot_in
+    if (present(use_var_soil_thick_in) ) use_var_soil_thick= use_var_soil_thick_in
     if (present(use_top_solar_rad_in)  ) use_top_solar_rad = use_top_solar_rad_in
 
   end subroutine elm_ctl_set_nls
