@@ -1614,6 +1614,7 @@ contains
           ! the limit of '1.-2e-4' would likely constrain soil pH of up to ~8.6.
           beta_list = beta_list * ((1.0_r8-2.0e-4_r8)/sum(beta_list))
         end if
+        beta_h = 1._r8 - sum(beta_list(1:ncations))
 
         soil_ph(c,j) = solve_eq(net_charge_vr(c,j), co2_atm, beta_list, keq_list, &
                                 EWParamsInst%cations_valence)
@@ -1627,6 +1628,21 @@ contains
 
         bicarbonate_vr(c,j) = mol_to_mass(bicarbonate_vr(c,j), mass_hco3, h2osoi_vol(c,j))
         carbonate_vr(c,j) = mol_to_mass(carbonate_vr(c,j), mass_co3, h2osoi_vol(c,j))
+
+        ! calculate the change in aqueous concentration due to equilibrium reaction
+        do icat = 1,ncations
+          conc(icat) = beta_list(icat) / (beta_h * keq_list(icat) / &
+                       10**(-soil_ph(c,j)))**EWParamsInst%cations_valence(icat)
+
+          !!write (100+iam, *) 'conc', j,icat, conc(icat), beta_list(icat), beta_h, soil_ph(c,j)
+
+          cec_cation_flux_vr(c,j,icat) = & 
+            ( mol_to_mass(conc(icat), EWParamsInst%cations_mass(icat), &
+                          h2osoi_liqvol(c,j)) - & 
+              cation_vr(c,j,icat) * h2osoi_liqvol(c,j) / h2osoi_vol(c,j) ) / dt
+
+          !!write (100+iam, *) 'cec_cation_flux_vr', j,icat, conc(icat), h2osoi_liqvol(c,j), cation_vr(c,j,icat), h2osoi_vol(c,j)
+        end do
 
         ! calculate the implications on cation exchange capacity
         ! 
@@ -1659,14 +1675,12 @@ contains
         if (cect_delta(c,j) > 0._r8) then
           ! do not release any cation
           cece_delta(c,j,1:ncations) = 0._r8
-          ! increase cation exchange phase H+ by reducing other beta's
-          do icat = 1,ncations
-            beta_list(icat) = cece(icat) / (cect_delta(c,j) + cect_dyn(c,j))
-          end do
         else
           ! equally release all the cations (negative)
           ! (but, similar to the numerical catch on beta_list above, do not release
           !  a cation if it is already too tiny; adjust the total release accordingly)
+          ! (this calculation is for cece_delta & cect_delta only; no effect on
+          !  cec_cation_flux_vr)
           beta_for_release(1:ncations) = cece(1:ncations) / cect_dyn(c,j)
           beta_h_for_release = 1._r8 - sum(beta_for_release)
           if (beta_h_for_release < 0.01_r8) then
@@ -1680,29 +1694,16 @@ contains
           end do
           cect_delta(c,j) = cect_delta(c,j) * (beta_h_for_release + &
                             sum(beta_for_release(1:ncations)))
+
+          !!write (iam+100, *) 'beta_for_release', c, j, beta_for_release(1:ncations), beta_h_for_release
         end if
 
-        !!write (iam+100, *) 'beta_h_for_release', c, j, beta_for_release(1:ncations), beta_h_for_release
         !!write (iam+100, *) 'cec_delta', c, j, cece_delta(c,j,1:ncations), sum(cece_delta(c,j,1:ncations)), cect_delta(c,j)
         !!write (iam+100, *) 'cec_state', c, j, cece(1:ncations), sum(cece(1:ncations)), cect_dyn(c,j)
 
-        ! calculate the implications on cations
-        beta_h = 1._r8
         do icat = 1,ncations
-          beta_h = beta_h - beta_list(icat)
-        end do
-
-        do icat = 1,ncations
-          ! calculate the part that is due to change in aqueous concentration
-          conc(icat) = beta_list(icat) / (beta_h * keq_list(icat) / &
-                       10**(-soil_ph(c,j)))**EWParamsInst%cations_valence(icat)
-
-          cec_cation_flux_vr(c,j,icat) = & 
-            ( mol_to_mass(conc(icat), EWParamsInst%cations_mass(icat), &
-                          h2osoi_liqvol(c,j)) - & 
-              cation_vr(c,j,icat) * h2osoi_liqvol(c,j) / h2osoi_vol(c,j) ) / dt
-
-          ! calculate the part due to change in total cation exchange capacity
+          ! calculate the change in aqueuous concentration due to change in total cation 
+          ! exchange capacity
           ! this flux is guaranteed >= 0
           !  - is = 0, when cect_delta(c,j) > 0
           !  - is > 0 (flow into solution), when cect_delta(c,j) < 0
