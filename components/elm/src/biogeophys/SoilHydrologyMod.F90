@@ -1034,7 +1034,7 @@ contains
      real(r8) :: theta_unsat
      real(r8) :: f_unsat
      real(r8) :: s_y
-     integer  :: k,k_frz,k_perch
+     integer  :: k,k_frz,k_perch(bounds%begc:bounds%endc)
      real(r8) :: sat_lev
      real(r8) :: s1
      real(r8) :: s2
@@ -1260,36 +1260,36 @@ contains
              ! sat_lev is an arbitrary saturation level used to determine perched water table
              sat_lev=0.9
 
-             k_perch=1
+             k_perch(c)=1
              do k=k_frz,1,-1
                 h2osoi_vol = h2osoi_liq(c,k)/(dz(c,k)*denh2o) &
                      + h2osoi_ice(c,k)/(dz(c,k)*denice)
 
                 if (h2osoi_vol/watsat(c,k) <= sat_lev) then
-                   k_perch=k
+                   k_perch(c)=k
                    exit
                 endif
              enddo
 
              ! if frost_table = nlevsoi, only compute perched water table if frozen
-             if (t_soisno(c,k_frz) > tfrz) k_perch=k_frz
+             if (t_soisno(c,k_frz) > tfrz) k_perch(c)=k_frz
 
              ! if perched water table exists
-             if (k_frz > k_perch) then
-                ! interpolate between k_perch and k_perch+1 to find perched water table height
-                s1 = (h2osoi_liq(c,k_perch)/(dz(c,k_perch)*denh2o) &
-                     + h2osoi_ice(c,k_perch)/(dz(c,k_perch)*denice))/watsat(c,k_perch)
-                s2 = (h2osoi_liq(c,k_perch+1)/(dz(c,k_perch+1)*denh2o) &
-                     + h2osoi_ice(c,k_perch+1)/(dz(c,k_perch+1)*denice))/watsat(c,k_perch+1)
+             if (k_frz > k_perch(c)) then
+                ! interpolate between k_perch(c) and k_perch(c)+1 to find perched water table height
+                s1 = (h2osoi_liq(c,k_perch(c))/(dz(c,k_perch(c))*denh2o) &
+                     + h2osoi_ice(c,k_perch(c))/(dz(c,k_perch(c))*denice))/watsat(c,k_perch(c))
+                s2 = (h2osoi_liq(c,k_perch(c)+1)/(dz(c,k_perch(c)+1)*denh2o) &
+                     + h2osoi_ice(c,k_perch(c)+1)/(dz(c,k_perch(c)+1)*denice))/watsat(c,k_perch(c)+1)
 
-                m=(z(c,k_perch+1)-z(c,k_perch))/(s2-s1)
-                b=z(c,k_perch+1)-m*s2
+                m=(z(c,k_perch(c)+1)-z(c,k_perch(c)))/(s2-s1)
+                b=z(c,k_perch(c)+1)-m*s2
                 zwt_perched(c)=max(0._r8,m*sat_lev+b)
 
                 ! compute drainage from perched saturated region
                 wtsub = 0._r8
                 q_perch = 0._r8
-                do k = k_perch, k_frz
+                do k = k_perch(c), k_frz
                    imped=10._r8**(-e_ice*(0.5_r8*(icefrac(c,k)+icefrac(c,min(nlevbed, k+1)))))
                    q_perch = q_perch + imped*hksat(c,k)*dzmm(c,k)
                    wtsub = wtsub + dzmm(c,k)
@@ -1304,7 +1304,7 @@ contains
 
                 ! remove drainage from perched saturated layers
                 rsub_top_tot = -  qflx_drain_perched(c) * dtime
-                do k = k_perch+1, k_frz
+                do k = k_perch(c)+1, k_frz
                    rsub_top_layer=max(rsub_top_tot,-(h2osoi_liq(c,k)-watmin))
                    rsub_top_layer=min(rsub_top_layer,0._r8)
                    if (use_vsfm) rsub_top_layer = 0._r8
@@ -1330,7 +1330,7 @@ contains
 
              else
                 qflx_drain_perched(c) = 0._r8
-             endif !k_frz > k_perch
+             endif !k_frz > k_perch(c)
 
              !-- Topographic runoff  ----------------------------------------------------------------------
              fff(c)         = 1._r8/ hkdepth(c)
@@ -1377,11 +1377,11 @@ contains
                 ! make sure baseflow isn't negative
                 rsub_top(c) = max(0._r8, rsub_top(c))
              else
-	        if (jwt(c) == nlevbed .and. zengdecker_2009_with_var_soil_thick) then
+                if (jwt(c) == nlevbed .and. zengdecker_2009_with_var_soil_thick) then
                    rsub_top(c)    = 0._r8
                 else
                    rsub_top(c)    = imped * rsub_top_max* exp(-fff(c)*zwt(c))
-		end if
+                end if
              end if
 
              if (use_vsfm) rsub_top(c) = 0._r8
@@ -1407,7 +1407,7 @@ contains
                    h2osoi_liq(c,nlevbed) = h2osoi_liq(c,nlevbed) + rsub_top_layer
 
                    if (rsub_top_layer<=0._r8) then
-                      ! water drained out from groundwater layer(s) (always negative)
+                      ! water drained out to groundwater layer(s) (always negative)
                       qout_external(c,nlevbed) = qout_external(c,nlevbed) + rsub_top_layer/dtime
                    else
                       ! water recharge from groundwater layer(s) (always positive)
@@ -1431,7 +1431,7 @@ contains
                    wa(c)  = min(wa(c), 5000._r8)
 
                    if (rsub_top(c)>0._r8) then
-                      ! water drained out from groundwater layer(s) (always negative)
+                      ! water drained out to groundwater layer(s) (always negative)
                       qout_external(c,nlevbed) = qout_external(c,nlevbed) - rsub_top(c)
                    else
                       ! water recharge from groundwater layer(s) (always positive)? - need CHECKING
@@ -1563,7 +1563,8 @@ contains
           if (lun_pp%urbpoi(col_pp%landunit(c))) then
              qflx_rsub_sat(c)     = xs1(c) / dtime
           else
-             if(h2osfcflag == 1) then
+             !if(h2osfcflag == 1) then
+             if(h2osfcflag == 1 .and. (jwt(c) == 1 .or. k_perch(c) ==1)) then  ! only do so if water table in the first layer
                 ! send this water up to h2osfc rather than sending to drainage
                 h2osfc(c) = h2osfc(c) + xs1(c)
                 qflx_rsub_sat(c)     = 0._r8
