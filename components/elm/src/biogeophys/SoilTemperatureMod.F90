@@ -383,6 +383,7 @@ contains
            tk(begc:endc, :), &
            cv(begc:endc, :), &
            tk_h2osfc(begc:endc), &
+           canopystate_vars, &
            urbanparams_vars, soilstate_vars)
 
       ! Net ground heat flux into the surface and its temperature derivative
@@ -811,7 +812,7 @@ contains
   !-----------------------------------------------------------------------
   subroutine SoilThermProp (bounds,  num_nolakec, filter_nolakec, &
        tk, cv, tk_h2osfc, &
-       urbanparams_vars, soilstate_vars)
+       canopystate_vars, urbanparams_vars, soilstate_vars)
 
     !
     ! !DESCRIPTION:
@@ -844,6 +845,7 @@ contains
     real(r8)               , intent(out)   :: tk( bounds%begc: , -nlevsno+1: ) ! thermal conductivity at the layer interface [W/(m K) ] [col, lev]
     real(r8)               , intent(out)   :: tk_h2osfc( bounds%begc: )        ! thermal conductivity of h2osfc [W/(m K)              ] [col]
     type(urbanparams_type) , intent(in)    :: urbanparams_vars
+    type(canopystate_type) , intent(in)    :: canopystate_vars
     type(soilstate_type)   , intent(inout) :: soilstate_vars
     !
     ! !LOCAL VARIABLES:
