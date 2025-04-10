@@ -877,6 +877,9 @@ contains
 
          t_soisno     =>    col_es%t_soisno    , & ! Input:  [real(r8) (:,:) ]  soil temperature (Kelvin)
 
+         htop         =>    canopystate_vars%htop_patch      , & ! Input: [real(r8) (:) ] canopy top (m)
+
+         snow_depth   =>    col_ws%snow_depth                , & ! Input:  [real(r8) (:)   ]  snow height (m)
          frac_sno     =>    col_ws%frac_sno_eff , & ! Input:  [real(r8) (:)   ]  fractional snow covered area
          h2osfc       =>    col_ws%h2osfc            , & ! Input:  [real(r8) (:)   ]  surface (mm H2O)
          h2osno       =>    col_ws%h2osno            , & ! Input:  [real(r8) (:)   ]  snow water (mm H2O)
@@ -949,6 +952,14 @@ contains
             if (snl(c)+1 < 1 .AND. (j >= snl(c)+1) .AND. (j <= 0)) then
                bw(c,j) = (h2osoi_ice(c,j)+h2osoi_liq(c,j))/(frac_sno(c)*dz(c,j))
                thk(c,j) = tkair + (7.75e-5_r8 *bw(c,j) + 1.105e-6_r8*bw(c,j)*bw(c,j))*(tkice-tkair)
+
+               ! snow-fence effects hacked
+               if (frac_sno(c)>0._r8 .and. snow_depth(c)>=0.20_r8) then
+                  !TODO: needs to put in conditions relevant to canopy height to mimic 'fence'
+                  !      but no idea how good of current height estimation in model
+                  !     Also those numbers used here totally made up.
+                  thk(c,j) = thk(c,j) * 0.2_r8
+               endif
             end if
 
          end do
