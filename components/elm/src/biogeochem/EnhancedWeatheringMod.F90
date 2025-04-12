@@ -978,13 +978,9 @@ contains
                 !!  write (iulog, *) c, j, m, 'k_tot', k_tot
                 !!end if
 
-                ! further scale down the reaction rate by soil moisture, use liquid only
-                ! may try more complex power law 
+                ! further scale down the reaction rate using the 2/3 of saturation ratio
                 ! Bao, C., Li, L., Shi, Y., & Duffy, C. (2017). Understanding watershed hydrogeochemistry: 1. Development of RT-Flux-PIHM. Water Resources Research, 53(3), 2328–2345. https://doi.org/10.1002/2016WR018934
-                !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                ! TBC: change to saturation % (2/3)
-                !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                k_tot = k_tot * h2osoi_liqvol(c,j)
+                k_tot = k_tot * (h2osoi_liqvol(c,j) / soilstate_vars%watsat_col(c,j))**0.67_r8
 
                 !!if (m == 6) then
                 !!  write (iulog, *) c, j, m, 'k_tot h2o', k_tot * h2osoi_liqvol(c,j)
