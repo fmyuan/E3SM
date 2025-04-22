@@ -325,15 +325,6 @@ macro(build_model COMP_CLASS COMP_NAME)
           target_link_libraries(${TARGET_NAME} PRIVATE "${PETSC_LIBRARIES}")
           target_include_directories(${TARGET_NAME} PRIVATE "${PETSC_INCLUDES}")
         endif()
-
-        # for coupling pflotran-bgc via alquimia interface (TODO)
-        #if (ELM_USE_ALQUIMIA)
-        #  #
-        #  if (NOT USE_PETSC)
-        #    target_link_libraries(${TARGET_NAME} PRIVATE "${PETSC_LIBRARIES}")
-        #    target_include_directories(${TARGET_NAME} PRIVATE "${PETSC_INCLUDES}")
-        #  endif()
-        #endif()
       endif()
       if (COMP_NAME STREQUAL "ww3")
 
