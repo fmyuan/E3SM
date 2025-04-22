@@ -117,6 +117,9 @@ if (NOT ${ALQUIMIA_PATH} STREQUAL "")
 
   set(CPPDEFS "${CPPDEFS} -DUSE_ALQUIMIA_LIB")
 
+else()
+  set(ELM_USE_ALQUIMIA FALSE)
+
 endif()
 
 
