@@ -1064,20 +1064,27 @@ contains
       !$OMP PARALLEL DO PRIVATE (nc, bounds_clump)
       do nc = 1,nclumps
          call get_clump_bounds(nc, bounds_clump)
-         call EMI_Driver(                                    &
-            em_id             = EM_ID_ALQUIMIA            , &
-            em_stage          = EM_ALQUIMIA_COLDSTART_STAGE   , &
-            clump_rank        = bounds_clump%clump_index        , &
-            dt                = dtime      , &
-            soilstate_vars    = soilstate_vars            , &
-            waterstate_vars   = waterstate_vars           , &
-            col_chem          = col_chem            , &
-            num_soilc         = filter(nc)%num_soilc                 , &
-            filter_soilc      = filter(nc)%soilc              , &
-            col_es            = col_es               , &
-            col_ws            = col_ws        )
-         end do
-         !$OMP END PARALLEL DO
+
+         call EMI_Driver(                                     &
+              em_id             = EM_ID_ALQUIMIA            , &
+              em_stage          = EM_ALQUIMIA_COLDSTART_STAGE,&
+              clump_rank        = bounds_clump%clump_index  , &
+              dt                = dtime                     , &
+              soilstate_vars    = soilstate_vars            , &
+              carbonstate_vars  = col_cs                    , &
+              carbonflux_vars   = col_cf                    , &
+              nitrogenstate_vars= col_ns                    , &
+              nitrogenflux_vars = col_nf                    , &
+              waterstate_vars   = waterstate_vars           , &
+              soilhydrology_vars= soilhydrology_vars        , &
+              col_chem          = col_chem                  , &
+              num_soilc         = filter(nc)%num_soilc      , &
+              filter_soilc      = filter(nc)%soilc          , &
+              col_es            = col_es                    , &
+              col_ws            = col_ws                    , &
+              col_wf            = col_wf                      )
+      end do
+      !$OMP END PARALLEL DO
     endif
 
 
