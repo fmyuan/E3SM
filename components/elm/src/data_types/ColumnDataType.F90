@@ -2251,13 +2251,13 @@ contains
     allocate(this%totsomc_1m           (begc:endc))     ; this%totsomc_1m           (:)     = spval
     allocate(this%totlitc              (begc:endc))     ; this%totlitc              (:)     = spval
     allocate(this%totsomc              (begc:endc))     ; this%totsomc              (:)     = spval
-    allocate(this%DOC_vr    (begc:endc,1:nlevdecomp_full))                   ; this%DOC_vr    (:,:)   = 0.0_r8
-    allocate(this%DIC_vr    (begc:endc,1:nlevdecomp_full))                   ; this%DIC_vr    (:,:)   = 0.0_r8
-    allocate(this%CH4_vr    (begc:endc,1:nlevdecomp_full))                   ; this%CH4_vr    (:,:)   = 0.0_r8
-    allocate(this%totDOC    (begc:endc))                   ; this%totDOC    (:)   = 0.0_r8
-    allocate(this%totDIC    (begc:endc))                   ; this%totDIC    (:)   = 0.0_r8
-    allocate(this%SIC_vr    (begc:endc,1:nlevdecomp_full)) ; this%SIC_vr    (:,:) = 0.0_r8
-    allocate(this%totSIC    (begc:endc))                   ; this%totSIC    (:)   = 0.0_r8
+    allocate(this%DOC_vr    (begc:endc,1:nlevdecomp_full))                   ; this%DOC_vr    (:,:)   = spval
+    allocate(this%DIC_vr    (begc:endc,1:nlevdecomp_full))                   ; this%DIC_vr    (:,:)   = spval
+    allocate(this%CH4_vr    (begc:endc,1:nlevdecomp_full))                   ; this%CH4_vr    (:,:)   = spval
+    allocate(this%totDOC    (begc:endc))                   ; this%totDOC    (:)   = spval
+    allocate(this%totDIC    (begc:endc))                   ; this%totDIC    (:)   = spval
+    allocate(this%SIC_vr    (begc:endc,1:nlevdecomp_full)) ; this%SIC_vr    (:,:) = spval
+    allocate(this%totSIC    (begc:endc))                   ; this%totSIC    (:)   = spval
 
     !-----------------------------------------------------------------------
     ! initialize history fields for select members of col_cs
@@ -2641,6 +2641,17 @@ contains
           this%prod1c(c)     = 0._r8
           this%totprodc(c)   = 0._r8
 
+          ! alquimia bgc variables
+          this%totDOC(c)     = 0._r8
+          this%totDIC(c)     = 0._r8
+          this%totSIC(c)     = 0._r8
+          do j = 1, nlevdecomp_full
+             this%DOC_vr(c,j) = 0._r8
+             this%DIC_vr(c,j) = 0._r8
+             this%SIC_vr(c,j) = 0._r8
+             this%CH4_vr(c,j) = 0._r8
+          end do
+
        end if !  landunit istsoil or istcrop
 
     end do ! columns loop
@@ -2847,6 +2858,11 @@ contains
                dim1name='column', dim2name='levgrnd', switchdim=.true., &
                long_name='',  units='', fill_value=0.0_r8, &
                interpinic_flag='interp', readvar=readvar, data=this%DOC_vr)
+
+         call restartvar(ncid=ncid, flag=flag, varname='CH4_vr', xtype=ncd_double,  &
+               dim1name='column', dim2name='levgrnd', switchdim=.true., &
+               long_name='',  units='', fill_value=0.0_r8, &
+               interpinic_flag='interp', readvar=readvar, data=this%CH4_vr)
 
          call restartvar(ncid=ncid, flag=flag, varname='SIC_vr', xtype=ncd_double,  &
                dim1name='column', dim2name='levgrnd', switchdim=.true., &
@@ -7529,6 +7545,7 @@ contains
     ! !DESCRIPTION:
     ! column-level carbon flux summary calculations
     !
+    use elm_varctl      , only : alquimia_pf_coupled
     !
     ! !ARGUMENTS:
     class(column_carbon_flux)              :: this
@@ -7588,7 +7605,7 @@ contains
 
     if ( (.not. is_active_betr_bgc           ) .and. &
          (.not. (use_pflotran .and. pf_cmode)) .and. &
-         (.not. use_alquimia) ) then
+         (.not. (use_alquimia .and. alquimia_pf_coupled)) ) then
 
        ! vertically integrate HR and decomposition cascade fluxes
        do k = 1, ndecomp_cascade_transitions
@@ -7627,7 +7644,8 @@ contains
        this%somhr(c)              = 0._r8
        this%lithr(c)              = 0._r8
        this%decomp_cascade_hr(c,1:ndecomp_cascade_transitions)= 0._r8
-       if (.not. ((use_pflotran .and. pf_cmode) .or. use_alquimia)) then
+       if (.not.(use_pflotran .and. pf_cmode) .and. &
+           .not.(use_alquimia .and. alquimia_pf_coupled) ) then
        ! pflotran has returned 'hr_vr(begc:endc,1:nlevdecomp)' to ALM before this subroutine is called in CNEcosystemDynNoLeaching2
        ! thus 'hr_vr_col' should NOT be set to 0
             this%hr_vr(c,1:nlevdecomp) = 0._r8
@@ -7674,7 +7692,7 @@ contains
     end do
 
     ! total heterotrophic respiration, vertically resolved (HR)
-    if(.not. use_alquimia) then ! hr_vr was already calculated in alquimia
+    if(.not. (use_alquimia .and. alquimia_pf_coupled)) then ! hr_vr was already calculated in alquimia
     do k = 1, ndecomp_cascade_transitions
        do j = 1,nlevdecomp
           do fc = 1,num_soilc
@@ -7940,6 +7958,7 @@ contains
     ! summarize column-level fluxes for methane calculation
     !
     ! !USES:
+    use elm_varctl      , only : alquimia_pf_coupled
     !
     ! !ARGUMENTS:
     class(column_carbon_flux)     :: this
@@ -7961,7 +7980,8 @@ contains
        this%somhr(c)              = 0._r8
        this%lithr(c)              = 0._r8
        this%decomp_cascade_hr(c,1:ndecomp_cascade_transitions)= 0._r8
-       if (.not. (use_pflotran .and. pf_cmode) .and. .not. use_alquimia) then
+       if (.not. (use_pflotran .and. pf_cmode) .and. &
+           .not. (use_alquimia .and. alquimia_pf_coupled)) then
        ! pflotran has returned 'hr_vr(begc:endc,1:nlevdecomp)' to ALM before this subroutine is called in CNEcosystemDynNoLeaching2
        ! thus 'hr_vr_col' should NOT be set to 0
             this%hr_vr(c,1:nlevdecomp) = 0._r8
@@ -7970,7 +7990,7 @@ contains
 
     if ( (.not. is_active_betr_bgc           ) .and. &
          (.not. (use_pflotran .and. pf_cmode)) .and. &
-         (.not. use_alquimia           ) ) then
+         (.not. (use_alquimia .and. alquimia_pf_coupled)) ) then
       ! vertically integrate HR and decomposition cascade fluxes
       do k = 1, ndecomp_cascade_transitions
 
