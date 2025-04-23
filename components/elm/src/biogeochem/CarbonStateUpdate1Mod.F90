@@ -12,7 +12,7 @@ module CarbonStateUpdate1Mod
   use elm_varctl              , only : nu_com, use_c13, use_c14
   use elm_varctl              , only : use_pflotran, pf_cmode, use_fates
   use pftvarcon               , only : iscft
-  use elm_varctl              , only : use_alquimia
+  use elm_varctl              , only : use_alquimia, alquimia_pf_coupled
   use CNDecompCascadeConType  , only : decomp_cascade_type
   use CNStateType             , only : cnstate_type
   use CNDecompCascadeConType  , only : decomp_cascade_con
@@ -237,7 +237,7 @@ contains
          end if
 
          ! litter and SOM HR fluxes
-         if(.not. use_alquimia) then
+        if(.not. (use_alquimia .and. alquimia_pf_coupled)) then
          do k = 1, ndecomp_cascade_transitions
             do j = 1,nlevdecomp
                ! column loop
@@ -262,7 +262,7 @@ contains
                end do
             end if
          end do
-      endif   ! alquimia
+        endif   ! alquimia
       endif   !end if is_active_betr_bgc()
 
       if (.not.use_fates) then

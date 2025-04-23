@@ -36,9 +36,9 @@ module ExternalModelAlquimiaMod
    use alquimia_fortran_interface_mod, only : AlquimiaFortranInterface
    use iso_c_binding, only : c_ptr
    use c_f_interface_module, only : c_f_string_ptr, f_c_string_ptr
-#endif
 
   use, intrinsic :: iso_c_binding, only : C_CHAR, c_double, c_int, c_bool, c_f_pointer
+#endif
 
   implicit none
 
@@ -662,6 +662,7 @@ contains
                                             AllocateAlquimiaAuxiliaryOutputData, &
                                             AllocateAlquimiaGeochemicalCondition
                                             
+    use elm_varctl, only : use_alquimia, alquimia_pf_coupled
     use elm_varctl, only : alquimia_inputfile,alquimia_engine_name,alquimia_IC_name,alquimia_handsoff
 
     use elm_varpar            , only : alquimia_num_primary, alquimia_num_minerals,&
@@ -698,6 +699,9 @@ contains
     
     write(iulog,*), 'Entering Alquimia setup'
     
+    ! a control option
+    alquimia_pf_coupled = .true.
+
     inputfile   = alquimia_inputfile
     engine_name = alquimia_engine_name
     IC_name     = alquimia_IC_name  ! Name of initial condition
@@ -776,6 +780,12 @@ contains
     
 
 #else
+
+  use elm_varctl, only : use_alquimia, alquimia_pf_coupled
+  use elm_varpar, only : alquimia_num_primary, alquimia_num_minerals,                 &
+                         alquimia_num_surface_sites, alquimia_num_ion_exchange_sites, &
+                         alquimia_num_aux_doubles, alquimia_num_aux_ints
+
   implicit none
   !
   ! !ARGUMENTS
@@ -785,7 +795,28 @@ contains
   integer              , intent(in)    :: iam
   type(bounds_type)    , intent (in)   :: bounds_clump
 
-  call endrun(msg='ERROR: Attempting to run with alquimia when model not compiled with USE_ALQUIMIA_LIB')
+
+  if (use_alquimia) then
+    ! test EMI for Alquimia to check data passing but bypassing of alquimia BGC solve
+    write(iulog,*)
+    write(iulog,*) '--WARNING-- Testing data passing of ELM-EMI-alquimia, WIHTOUT actual alquimia calls '
+    !
+
+    alquimia_pf_coupled = .false.
+
+    ! the following is set to 1 so that it won't break any fortran array dimensioned from 1:alquimia_num_*
+    alquimia_num_primary            = 1
+    alquimia_num_minerals           = 1
+    alquimia_num_surface_sites      = 1
+    alquimia_num_ion_exchange_sites = 1
+    alquimia_num_aux_doubles        = 1
+    alquimia_num_aux_ints           = 1
+
+  else
+
+    call endrun(msg='ERROR: Attempting to run with alquimia when model not compiled with USE_ALQUIMIA_LIB')
+
+  endif
 #endif
 
   end subroutine EMAlquimia_Init
@@ -826,7 +857,7 @@ case (EM_ALQUIMIA_SOLVE_STAGE)
 
 
 case (EM_ALQUIMIA_COLDSTART_STAGE)
-  call EMAlquimia_Coldstart(this, clump_rank, l2e_list, e2l_list, bounds_clump)
+   call EMAlquimia_Coldstart(this, clump_rank, l2e_list, e2l_list, bounds_clump)
 
 case default
    write(iulog,*)'EM_Alquimia_Solve: Unknown em_stage.'
@@ -930,14 +961,18 @@ end subroutine EMAlquimia_Coldstart
        bounds_clump)
 
     
-#ifdef USE_ALQUIMIA_LIB
-
+    use elm_varctl, only : use_alquimia, alquimia_pf_coupled
+    use elm_varpar, only : alquimia_num_primary, alquimia_num_minerals,                 &
+                           alquimia_num_surface_sites, alquimia_num_ion_exchange_sites, &
+                           alquimia_num_aux_doubles, alquimia_num_aux_ints
     use elm_varpar, only : nlevdecomp,ndecomp_pools
     use landunit_varcon, only : istcrop,istsoil
     ! use clm_varcon, only : catomw,natomw ! Replacing these with constants that are the same as PFLOTRAN defs
+#ifdef USE_ALQUIMIA_LIB
     use AlquimiaContainers_module, only : AlquimiaEngineStatus
     use alquimia_fortran_interface_mod, only :  ReactionStepOperatorSplit, GetAuxiliaryOutput
     use PFloTranAlquimiaInterface_module, only : printState
+#endif
     
     use CNDecompCascadeConType, only : decomp_cascade_con
 
@@ -990,16 +1025,17 @@ end subroutine EMAlquimia_Coldstart
     ! Setting these to the values in PFLOTRAN clm_rspfuncs.F90
     real(r8), parameter :: natomw = 14.0067d0 ! Value in clmvarcon is 14.007
     real(r8), parameter :: catomw = 12.0110d0 ! Value in clmvarcon is 12.011
-    real(r8),dimension(this%chem_sizes%num_primary)  :: surf_flux, surf_bc, lat_flux, lat_bc
+    real(r8),dimension(alquimia_num_primary)  :: surf_flux, surf_bc, lat_flux, lat_bc
     real(r8) :: kgwater_perm3soil             ! mass water per m3 bulk soil
     real(r8) :: lsat                          ! liq water saturation
     
+#ifdef USE_ALQUIMIA_LIB
     character(kind=C_CHAR,len=kAlquimiaMaxStringLength) :: status_message
+
     procedure(ReactionStepOperatorSplit), pointer :: engine_ReactionStepOperatorSplit
     procedure(GetAuxiliaryOutput), pointer   :: engine_getAuxiliaryOutput
     ! real (c_double), pointer :: alquimia_mobile_data(:), alquimia_immobile_data(:), alquimia_rates_data(:)
-
-    ! write(iulog,*) 'Alquimia solving step!'
+#endif
     
     ! Pass data from ELM
     
@@ -1105,6 +1141,10 @@ end subroutine EMAlquimia_Coldstart
 
     call e2l_list%GetPointerToReal1D(this%index_e2l_chem_dt , actual_dt_e2l)
 
+     !----------------------------------------------------------------------------------------------------------------------------------
+
+#ifdef USE_ALQUIMIA_LIB
+
     ! First check if pools have been mapped between ELM and Alquimia
     if(.not. associated(this%carbon_pool_mapping)) then
       call this%map_alquimia_pools()
@@ -1158,6 +1198,8 @@ end subroutine EMAlquimia_Coldstart
       call print_alquimia_state(this)
 
     endif
+
+     !----------------------------------------------------------------------------------------------------------------------------------
     
      ! Run the reactions engine for a step. Alquimia works on one cell at a time
      ! TODO: Transport needs to be integrated somehow. 
@@ -1239,7 +1281,7 @@ end subroutine EMAlquimia_Coldstart
               liq_frac(j) = 0.0_r8
              endif
 
-             do k=1, this%chem_sizes%num_primary
+             do k=1, alquimia_num_primary
               DON_before = DON_before + total_mobile_l2e(c,j,k)*natomw*this%DON_content(k)*dz(c,j)
               totalC_before = totalC_before + total_mobile_l2e(c,j,k)*catomw*(this%DOC_content(k)+this%DIC_content(k))*dz(c,j)
              enddo
@@ -1346,7 +1388,7 @@ end subroutine EMAlquimia_Coldstart
 
               enddo
 
-
+     !----------------------------------------------------------------------------------------------------------------------------------
 
               ! Problem: in elm_driver, vertical water movement and lateral (tidal) flow are calculated, then BGC, then drainage. 
               ! So including drainage here is inconsistent order of operations (actually applying drainage from previous time step)
@@ -1378,6 +1420,7 @@ end subroutine EMAlquimia_Coldstart
               ! write(iulog,*), 'surf_flux (mol/m2) = ',surf_flux
               ! write(iulog,*), 'bc',this%bc
 
+     !----------------------------------------------------------------------------------------------------------------------------------
 
               ! Save back to ELM
               water_density_e2l(c,:)                 = water_density_l2e(c,:)
@@ -1432,7 +1475,7 @@ end subroutine EMAlquimia_Coldstart
               DONrunoff_e2l(c) = 0.0_r8
               DOCrunoff_e2l(c) = 0.0_r8
               DICrunoff_e2l(c) = -hr_e2l(c)-methaneflux_e2l(c) ! Subtract HR to avoid double counting surface flux
-              do k=1, this%chem_sizes%num_primary
+              do k=1, alquimia_num_primary
                 DONrunoff_e2l(c) = DONrunoff_e2l(c) - (surf_flux(k)+lat_flux(k))*this%DON_content(k)*natomw/dt
                 DOCrunoff_e2l(c) = DOCrunoff_e2l(c) - (surf_flux(k)+lat_flux(k))*this%DOC_content(k)*catomw/dt
                 DICrunoff_e2l(c) = DICrunoff_e2l(c) - (surf_flux(k)+lat_flux(k))*this%DIC_content(k)*catomw/dt
@@ -1478,7 +1521,7 @@ end subroutine EMAlquimia_Coldstart
               DOC_e2l(c,j) = 0.0_r8
               DON_e2l(c,j) = 0.0_r8
               DIC_e2l(c,j) = 0.0_r8
-              do k=1, this%chem_sizes%num_primary
+              do k=1, alquimia_num_primary
                 DOC_e2l(c,j) = DOC_e2l(c,j) + total_mobile_e2l(c,j,k)*catomw*this%DOC_content(k)
                 DON_e2l(c,j) = DON_e2l(c,j) + total_mobile_e2l(c,j,k)*natomw*this%DON_content(k)
                 DIC_e2l(c,j) = DIC_e2l(c,j) + total_mobile_e2l(c,j,k)*catomw*this%DIC_content(k) 
@@ -1497,7 +1540,7 @@ end subroutine EMAlquimia_Coldstart
               endif
 
               carbonate_e2l(c,j) = 0.0_r8
-              do k=1, this%chem_sizes%num_minerals
+              do k=1, alquimia_num_minerals
                 ! volume fraction (m3 mineral/m3 bulk) * C_content (mol C/m3 mineral) * catomw (gC/mol) = gC/m3 bulk
                 carbonate_e2l(c,j) = carbonate_e2l(c,j) + mineral_volume_fraction_e2l(c,j,k)*this%carbonate_C_content(k)*catomw
               enddo
@@ -1733,18 +1776,60 @@ end subroutine EMAlquimia_Coldstart
      ! Again, need to convert units back to ELM style, keeping track of what kind of species we are using so units are correct
 
 #else
-  implicit none
-  !
-  ! !ARGUMENTS
-  class(em_alquimia_type)              :: this
-  real(r8)             , intent(in)    :: dt ! s
-  integer              , intent(in)    :: nstep
-  integer              , intent(in)    :: clump_rank
-  class(emi_data_list) , intent(in)    :: l2e_list
-  class(emi_data_list) , intent(inout) :: e2l_list
-  type(bounds_type)    , intent (in)   :: bounds_clump
-  
-  call endrun(msg='ERROR: Attempting to run with alquimia when model not compiled with USE_ALQUIMIA_LIB')
+
+    if (use_alquimia .and. .not. alquimia_pf_coupled) then
+      ! test EMI for Alquimia to check data passing but bypassing of alquimia BGC solve
+       write(iulog,*)
+       write(iulog,*) '--WARNING-- Testing data passing of ELM-EMI-alquimia, WIHTOUT actual initial alquimia/pflotran condition setting '
+
+       do fc = 1, num_soilc
+           c = filter_soilc(fc)
+
+           ! pass 'l2e' data back to 'e2l',
+           ! or assign a zero to 'e2l' if not from 'l2e'.
+           ! (NOTE: this is necessary, because those 'call e2l_list%' may overwrite global variables if any in ELM datatypes.
+           do j=1, nlevdecomp
+              do poolnum=1,ndecomp_pools
+                 soilcarbon_e2l(c,j,poolnum)   = soilcarbon_l2e(c,j,poolnum)
+                 soilnitrogen_e2l(c,j,poolnum) = soilnitrogen_l2e(c,j,poolnum)
+              enddo
+              no3_e2l(c,j)   = no3_l2e(c,j)
+              nh4_e2l(c,j)   = nh4_l2e(c,j)
+
+              n2o_e2l(c,j)        = 0._r8
+              n2_e2l(c,j)         = 0._r8
+              methane_vr_e2l(c,j) = 0._r8
+              DIC_e2l(c,j)        = 0._r8
+              DOC_e2l(c,j)        = 0._r8
+              DON_e2l(c,j)        = 0._r8
+              carbonate_e2l(c,j)  = 0._r8
+
+              !
+              hrimm_e2l(c,j)          = 0._r8
+              Nimm_e2l(c,j)           = 0._r8
+              Nimp_e2l(c,j)           = 0._r8
+              Nmin_e2l(c,j)           = 0._r8
+              plantNO3uptake_e2l(c,j) = plantNdemand_l2e(c,j)/2.0
+              plantNH4uptake_e2l(c,j) = plantNdemand_l2e(c,j)/2.0
+
+           end do
+
+           hr_e2l(c)           = 0._r8
+           methaneflux_e2l(c)  = 0._r8
+           n2oflux_e2l(c)      = 0._r8
+           n2flux_e2l(c)       = 0._r8
+           NO3runoff_e2l(c)    = 0._r8
+           DONrunoff_e2l(c)    = 0._r8
+           DOCrunoff_e2l(c)    = 0._r8
+           DICrunoff_e2l(c)    = 0._r8
+       enddo ! Column loop
+
+    !
+    else
+
+       call endrun(msg='ERROR: Attempting to run with alquimia when model not compiled with USE_ALQUIMIA_LIB')
+
+    endif
 #endif
 
   end subroutine EMAlquimia_Solve_BGC

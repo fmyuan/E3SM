@@ -16,7 +16,8 @@ module PhosphorusStateUpdate1Mod
   use VegetationType              , only : veg_pp
   use tracer_varcon          , only : is_active_betr_bgc
   ! bgc interface & pflotran:
-  use elm_varctl             , only : use_pflotran, pf_cmode, use_alquimia
+  use elm_varctl             , only : use_pflotran, pf_cmode
+  use elm_varctl             , only : use_alquimia, alquimia_pf_coupled
   use elm_varctl             , only : nu_com
   ! forest fertilization experiment
   use elm_time_manager       , only : get_curr_date
@@ -177,7 +178,7 @@ contains
       end if
 
       ! decomposition fluxes
-      if(.not. use_alquimia) then
+      if(.not. (use_alquimia .and. alquimia_pf_coupled)) then
       do k = 1, ndecomp_cascade_transitions
          do j = 1, nlevdecomp
             ! column loop
