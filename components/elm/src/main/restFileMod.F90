@@ -15,7 +15,8 @@ module restFileMod
   use accumulMod           , only : accumulRest
   use histFileMod          , only : hist_restart_ncd
   use elm_varpar           , only : crop_prog
-  use elm_varctl           , only : use_cn, use_c13, use_c14, use_lch4, use_fates, use_betr, use_alquimia
+  use elm_varctl           , only : use_cn, use_c13, use_c14, use_lch4, use_fates, use_betr
+  use elm_varctl           , only : use_alquimia
   use elm_varctl           , only : use_erosion
   use elm_varctl           , only : create_glacier_mec_landunit, iulog 
   use elm_varcon           , only : c13ratio, c14ratio
