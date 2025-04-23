@@ -20,7 +20,7 @@ module NitrogenStateUpdate1Mod
   use tracer_varcon          , only : is_active_betr_bgc
   ! bgc interface & pflotran:
   use elm_varctl             , only : use_pflotran, pf_cmode
-  use elm_varctl             , only : use_alquimia
+  use elm_varctl             , only : use_alquimia, alquimia_pf_coupled
   ! forest fertilization experiment
   use elm_time_manager       , only : get_curr_date
   use CNStateType            , only : fert_type , fert_continue, fert_dose, fert_start, fert_end
@@ -182,7 +182,7 @@ contains
             end do
          end if
 
-         if(.not. use_alquimia) then
+         if(.not. (use_alquimia .and. alquimia_pf_coupled)) then
          ! decomposition fluxes
          do k = 1, ndecomp_cascade_transitions
             do j = 1, nlevdecomp
