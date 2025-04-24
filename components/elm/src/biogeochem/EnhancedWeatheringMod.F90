@@ -1312,15 +1312,16 @@ contains
         end do
       end do
 
-      do icat = 1,ncations
-        write (iulog, *), icat, 'cation_vr', cation_vr(c, 1:nlevsoi, icat)
-      end do
-      do icat = 1,ncations
-        write (iulog, *), icat, 'sourcesink', sourcesink_cations(1:nlevsoi, icat) * dt
-      end do
-      do icat = 1,ncations
-        write (iulog, *), icat, 'dcation_dt', dcation_dt(1:nlevsoi, icat) * dt
-      end do
+      !DEBUG
+      !do icat = 1,ncations
+      !  write (iulog, *), icat, 'cation_vr', cation_vr(c, 1:nlevsoi, icat)
+      !end do
+      !do icat = 1,ncations
+      !  write (iulog, *), icat, 'sourcesink', sourcesink_cations(1:nlevsoi, icat) * dt
+      !end do
+      !do icat = 1,ncations
+      !  write (iulog, *), icat, 'dcation_dt', dcation_dt(1:nlevsoi, icat) * dt
+      !end do
 
       !------------------------------------------------------------------------------
       ! Calculate the bottom layer drainage of HCO3- and CO3--
