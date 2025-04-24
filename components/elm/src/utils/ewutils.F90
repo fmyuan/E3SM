@@ -28,6 +28,11 @@ module ewutils
   public :: advection_diffusion
   public :: u_pdf
   public :: get_ssa
+  !
+  ! !PRIVATE MEMBER FUNCTIONS:
+  private :: analytical_c
+  private :: analytical_c_int
+  private :: analytical_dt
 
 contains
 
@@ -314,208 +319,455 @@ contains
   end function solve_eq
 
 
-  subroutine advection_diffusion(conc_trcr,adv_flux,diffus,source,surf_bc,nlevbed,dtime,vwc,conc_change_rate)
-    ! From B. Sulman; edited layer depth; soil bulk concentration can use g/m3
-    ! 
-    ! Advection and diffusion for a single tracer in one column given diffusion coefficient, flow, and source-sink terms
-    ! Based on SoilLittVertTranspMod, which implements S. V. Patankar, Numerical Heat Transfer and Fluid Flow, Series in Computational Methods in Mechanics and Thermal Sciences, Hemisphere Publishing Corp., 1980. Chapter 5
-    ! Not sure if this belongs here or somewhere else. Is it bad to do this in the EMI subroutine?
+  pure function analytical_c(C0, r, k, t1, t2) result(c)
+    !------------------------------------------------------------------
+    ! Concentration at t2, starting from C0 at t1,  dC/dt = k C + r
+    !------------------------------------------------------------------
+    real(r8), intent(in) :: C0, r, k, t1, t2
+    real(r8)             :: c
+    c = (C0 + r/k) * exp(k*(t2 - t1)) - r/k
+  end function analytical_c
 
-    use elm_varcon       , only : zsoi, zisoi, dzsoi_decomp
+
+  pure function analytical_c_int(C0, r, k, t1, t2) result(c_int)
+    !------------------------------------------------------------------
+    ! Integral of C over [t1, t2] for the same ODE
+    !------------------------------------------------------------------
+    real(r8), intent(in) :: C0, r, k, t1, t2
+    real(r8)             :: c_int
+    c_int = (C0 + r/k)/k * (exp(k*(t2 - t1)) - 1.0_r8) - (r/k) * (t2 - t1)
+  end function analytical_c_int
+
+
+  pure function analytical_dt(c1, c2, r, k) result(dt)
+    !------------------------------------------------------------------
+    ! Time Δt needed for C to evolve from c1 to c2
+    !------------------------------------------------------------------
+    real(r8), intent(in) :: c1, c2, r, k
+    real(r8)             :: dt
+    dt = log((c2 + r/k) / (c1 + r/k)) / k
+  end function analytical_dt
+
+
+  subroutine advection_diffusion(conc_in, rain_conc, q_int, theta, watsat, srcsk, &
+                                 d0, dt, dz, nlevbed, dcdt)
+    !------------------------------------------------------------------
+    ! Use the explicit solution at each time step
+    ! 
+    ! If we ignore spatial dependency, the equation becomes very simple
+    ! 
+    ! Consider a generic cell C_i with adjacent cells
+    !     C_{i-1} <--- Δ x_i ---> C_i, D_{eff,i} <--- Δ x_{i+1} ---> C_{i+1}
+    ! 
+    ! Total mass change within C_i due to outflow
+    !     Δ x  * θ * \frac{ dC_i }{ dt }
+    ! 
+    ! Diffusion to the upper cell, if C_i > C_{i-1}
+    !     dup = D_{eff,i} * I[C_i > C_{i-1}] * \frac{C_i - C_{i-1}}{Δ x_i}
+    ! 
+    ! Diffusion to the lower cell, if C_i > C_{i+1}
+    !     dlow = D_{eff,i} * I[C_i > C_{i+1}] * \frac{C_i - C_{i+1}}{Δ x_{i+1}}
+    ! 
+    ! Advection to upper cell, if q_{in,i} < 0
+    !     aup = I[q_{in,i} < 0] * abs( q_{in,i} ) * C_i
+    ! 
+    ! Advection to lower cell, if q_{out,i} > 0
+    !     alow = I[q_{out,i} > 0] * q_{out,i} * C_i
+    ! 
+    ! Rain inflow
+    !     rain = I[q_{in,i} > 0] * q_{in,0} * C_{rain}
+    ! 
+    ! The relationship between self-change and the four outflow and internal source/sink, 
+    !     after simplification, is
+    ! 
+    !     Δ x * θ * \frac{ dC_i }{ dt } = 
+    !       - ( \frac{ D_{eff,i} * I[C_i > C_{i-1}] }{Δ x_i} + 
+    !           \frac{ D_{eff,i} * I[C_i > C_{i+1}] }{Δ x_{i+1}} + 
+    !           I[q_{in,i} < 0] * abs( q_{in,i} ) + I[q_{out,i} > 0] * q_{out,i} ) * C_i
+    !       + ( D_{eff,i} * I[C_i > C_{i-1}] \frac{C_{i-1}}{Δ x_i} )
+    !       + ( D_{eff,i} * I[C_i > C_{i+1}] \frac{C_{i+1}}{Δ x_{i+1}} )
+    !       + I[q_{in,i} > 0] * q_{in,0} * C_{rain}
+    !       + R
+    ! 
+    !     , which is of the form dC/dt = kC + r, and the analytical solution is just
+    !          C = (C0 + r/k)e^{kt} - r/k
+    !          on the interval [t, t + Δ t]
+    ! 
+    ! The equations means when t → ∞, C → -r/k
+    ! 
+    ! It is guaranteed that k < 0. Therefore, 
+    ! 
+    ! if r > 0, the concentration will not be negative for large t (we can be sure )
+    ! 
+    ! If r < 0, the concentration may be negative because the equilibrium value is
+    !     negative. This can only happen when r < 0. In this case, the analytical 
+    !     form may need to be assessed piecewise to insure non-negativity:
+    ! 
+    !     Step 1. We evaluate the analytical form at (t + Δ t),
+    !             if the resulting C_t' > C_{i-1} and C_t' > C_{i+1}, then C_t = C_t', 
+    !             otherwise, we need to go to step 2
+    !     Step 2. We assess piecewise: 
+    !             first, find the dt' such that C(t + dt') = max(C_{i-1}, C_{i+1})
+    !             then, on the interval [t+dt', t + Δ t], set the appropriate I[⋅]
+    !                    term to 0, re-evaluate to t + Δ t
+    !             third, if the result gives C(t + Δ t) > min(C_{i-1}, C_{i}), stop
+    !                    otherwise, need a third piecewise, go to step 3
+    !     Step 3. find the dt" such that C(t + dt") = min(C_{i-1}, C_{i+1}), on the
+    !             interval [t+dt", t + Δ t], all the diffusion terms need to be 0.
+    !             Re-integrate the pure-advection term to t + Δ t
+    !------------------------------------------------------------------
+    use elm_varcon       , only : zsoi, zisoi
     use elm_varpar       , only : nlevsoi
     use abortutils       , only : endrun
 
-    real(r8), intent(in) :: conc_trcr(1:nlevsoi)  ! Bulk concentration (e.g. mol/m3)
-    real(r8), intent(in) :: adv_flux(1:nlevsoi+1) ! (m/s), vertical into layer (down is negative)
-    real(r8), intent(in) :: diffus(1:nlevsoi)  ! diffusivity (m2/s)
-    real(r8), intent(in) :: source(1:nlevsoi)  ! Source term (mol/m3/s)
-    integer , intent(in) :: nlevbed ! Number of hydrologically active layers
-
-    real(r8), intent(in) :: surf_bc                 ! Surface boundary layer concentration (for infiltration)
-    real(r8), intent(in) :: dtime                   ! Time step (s)
-    real(r8), intent(in) :: vwc(1:nlevsoi)     ! Volumetric soil moisture in layer (m3/m3)
-    real(r8), intent(out):: conc_change_rate(1:nlevsoi) ! Bulk concentration (e.g. mol/m3/s)
+    ! Input-output variables
+    real(r8), intent(in) :: conc_in(1:nlevsoi) ! start concentration (mol/m3-soil)
+    real(r8), intent(in) :: rain_conc ! upper boundary condition (rain chemistry) (mol/m3-water)
+    real(r8), intent(in) :: q_int(1:nlevsoi+1) ! water flux at grid boundaries, positive downwards (m/s)
+    real(r8), intent(in) :: theta(1:nlevsoi) ! soil moisture (m3/m3)
+    real(r8), intent(in) :: watsat(1:nlevsoi) ! soil porosity (m3/m3)
+    real(r8), intent(in) :: srcsk(1:nlevsoi) ! source/sink strength (mol/m3-soil/s)
+    real(r8), intent(in) :: d0 ! diffusion coefficient in water (m2/s)
+    real(r8), intent(in) :: dt ! time step size (s)
+    real(r8), intent(in) :: dz(1:nlevsoi) ! soil layer thickness (m)
+    integer , intent(in) :: nlevbed ! number of hydrologically active layers
+    real(r8), intent(out) :: dcdt(1:nlevsoi) ! rate of change of concentration (mol/m3-soil/s)
 
     ! Local variables
-    real(r8) :: aaa                          ! "A" function in Patankar
-    real(r8) :: pe                           ! Pe for "A" function in Patankar
-    real(r8) :: w_m1, w_p1                   ! Weights for calculating harmonic mean of diffusivity
-    real(r8) :: d_m1, d_p1                   ! Harmonic mean of diffusivity
-    real(r8) :: vwc_m1, vwc_p1                ! Harmonic mean of soil moisture
-    real(r8) :: a_tri(0:nlevsoi+1)      ! "a" vector for tridiagonal matrix
-    real(r8) :: b_tri(0:nlevsoi+1)      ! "b" vector for tridiagonal matrix
-    real(r8) :: c_tri(0:nlevsoi+1)      ! "c" vector for tridiagonal matrix
-    real(r8) :: r_tri(0:nlevsoi+1)      ! "r" vector for tridiagonal solution
-    real(r8) :: d_p1_zp1(1:nlevsoi+1)   ! diffusivity/delta_z for next j  (set to zero for no diffusion)
-    real(r8) :: d_m1_zm1(1:nlevsoi+1)   ! diffusivity/delta_z for previous j (set to zero for no diffusion)
-    real(r8) :: f_p1(1:nlevsoi+1)       ! water flux for next j
-    real(r8) :: f_m1(1:nlevsoi+1)       ! water flux for previous j
-    real(r8) :: pe_p1(1:nlevsoi+1)      ! Peclet # for next j
-    real(r8) :: pe_m1(1:nlevsoi+1)      ! Peclet # for previous j
-    real(r8) :: dz_node(1:nlevsoi+1)    ! difference between nodes
-    real(r8) :: a_p_0
-    real(r8) :: conc_after(0:nlevsoi+1)
+    real(r8) :: c_prev(1:nlevsoi) ! start concentration, converted to (mol/m3-water)
+    real(r8) :: c_next(1:nlevsoi) ! end concentration (mol/m3-water)
+    real(r8) :: Deff(1:nlevsoi) ! effective diffusion coefficient in porous media (m2/s)
+    real(r8) :: dx(1:nlevsoi+2) ! padded dz; the first & last elements don't matter so long as >0
+    real(r8) :: scaler(1:nlevsoi) ! \Delta x * 0 on the LHS
+    real(r8) :: sourcesink(1:nlevsoi) ! source sink, converted from mol/m3-soil/s to mol/m2/s; with upper boundary
+    integer  :: i, i1, i2, i3, i4 ! indices and boolean indicators
+    integer  :: i1_keep, i2_keep  ! side of diffusion
+    real(r8) :: k, r ! temporary variables to save the ODE parameters
+    real(r8) :: c, c_p, cmax, cmin, c_int, c_int_p, c_int_pp, dt_p, dt_pp ! temporary variables for ODE integration
 
-    integer :: j, info
+    ! Local variables, can be converted to diagnostic outputs if needed
+    real(r8) :: niter(1:nlevsoi) ! keep track how many piecewise integrations are done
+    real(r8) :: dc_up(1:nlevsoi) ! flow upward due to diffusion and advection (mol/m2-ground/s)
+    real(r8) :: dc_down(1:nlevsoi) ! flow downward due to diffusion and advection (mol/m2-ground/s)
 
-    ! Statement function
-    aaa (pe) = max (0._r8, (1._r8 - 0.1_r8 * abs(pe))**5)  ! "A" function from Patankar, Table 5.2, pg 95
+    ! convert concentration from per m3-soil to per m3-water
+    c_prev = conc_in / theta
 
-    ! Set the distance between the node and the one ABOVE it   
-    dz_node(1) = zsoi(1)
-    do j = 2,nlevsoi+1
-      dz_node(j)= zsoi(j) - zsoi(j-1)
-    enddo
+    ! convert diffusion coefficient from in soil to in water
+    Deff = d0 * theta**(10.0_r8/3.0_r8) / watsat**2
 
-    !write(100+iam,*) 'adv_flux',adv_flux(1:nlevsoi+1)
-    !write(100+iam,*) 'diffus',diffus(1:nlevsoi)
-    !write(100+iam,*) 'source',source(1:nlevsoi)
+    ! pad the dz's
+    dx(2:nlevsoi+1) = dz(1:nlevsoi)
+    dx(1) = 100._r8
+    dx(nlevsoi+2) = 100._r8
 
-    ! Calculate the D and F terms in the Patankar algorithm
-    ! d: diffusivity
-    ! f: flow
-    ! m: layer above
-    ! p: layer below
-    ! pe: Peclet number (ratio of convection to diffusion)
-    do j = 1,nlevbed
-      if (j == 1) then
-        d_m1_zm1(j) = 0._r8
-        w_p1 = (zsoi(j+1) - zisoi(j)) / dz_node(j+1)
-        if ( diffus(j+1) > 0._r8 .and. diffus(j) > 0._r8) then
-          d_p1 = 1._r8 / ((1._r8 - w_p1) / diffus(j) + w_p1 / diffus(j+1)) ! Harmonic mean of diffus
-        else
-          d_p1 = 0._r8
-        endif
-        d_p1_zp1(j) = d_p1 / dz_node(j+1)
-        vwc_m1 = vwc(j)
-        vwc_p1 = 1._r8 / ((1._r8 - w_p1) / vwc(j) + w_p1 / vwc(j+1))
-        f_m1(j) = adv_flux(j) / vwc_m1  ! Include infiltration here
-        f_p1(j) = adv_flux(j+1) / vwc_p1
-        pe_m1(j) = 0._r8
-        pe_p1(j) = f_p1(j) / d_p1_zp1(j) ! Peclet #
-      elseif (j == nlevbed) then
-          ! At the bottom, assume no gradient in d_z (i.e., they're the same)
-          w_m1 = (zisoi(j-1) - zsoi(j-1)) / dz_node(j)
-          if ( diffus(j) > 0._r8 .and. diffus(j-1) > 0._r8) then
-            d_m1 = 1._r8 / ((1._r8 - w_m1) / diffus(j) + w_m1 / diffus(j-1)) ! Harmonic mean of diffus
-          else
-            d_m1 = 0._r8
-          endif
-          d_m1_zm1(j) = d_m1 / dz_node(j)
-          d_p1_zp1(j) = d_m1_zm1(j) ! Set to be the same
-          vwc_m1 = 1. / ((1. - w_m1) / vwc(j-1) + w_m1 / vwc(j))
-          f_m1(j) = adv_flux(j) / vwc_m1
-          !f_p1(j) = adv_flux(j+1)
-          f_p1(j) = 0._r8
-          pe_m1(j) = f_m1(j) / d_m1_zm1(j) ! Peclet #
-          pe_p1(j) = f_p1(j) / d_p1_zp1(j) ! Peclet #
+    ! LHS scaler
+    scaler = dz * theta
+
+    ! convert sourcesink from mol/m3-soil/s to mol/m2/s
+    sourcesink = srcsk * dz
+    if (q_int(1) > 0._r8) then
+      sourcesink(1) = sourcesink(1) + q_int(1) * rain_conc
+    end if
+
+    do i = 1,nlevbed
+      if (i == 1) then
+        ! top layer: no diffusion to above
+        i1 = 0
+        i2 = merge(1, 0, c_prev(i) > c_prev(i+1)) ! boolean to integer
+
+      elseif (i < nlevsoi) then
+        ! middle layers
+        i1 = merge(1, 0, c_prev(i) > c_prev(i-1))
+        i2 = merge(1, 0, c_prev(i) > c_prev(i+1))
+
       else
-          ! Use distance from j-1 node to interface with j divided by distance between nodes
-          w_m1 = (zisoi(j-1) - zsoi(j-1)) / dz_node(j)
-          if ( diffus(j-1) > 0._r8 .and. diffus(j) > 0._r8) then
-            d_m1 = 1._r8 / ((1._r8 - w_m1) / diffus(j) + w_m1 / diffus(j-1)) ! Harmonic mean of diffus
-          else
-            d_m1 = 0._r8
-          endif
-          w_p1 = (zsoi(j+1) - zisoi(j)) / dz_node(j+1)
-          if ( diffus(j+1) > 0._r8 .and. diffus(j) > 0._r8) then
-            d_p1 = 1._r8 / ((1._r8 - w_p1) / diffus(j) + w_p1 / diffus(j+1)) ! Harmonic mean of diffus
-          else
-            d_p1 = (1._r8 - w_p1) * diffus(j) + w_p1 * diffus(j+1) ! Arithmetic mean of diffus
-          endif
-          d_m1_zm1(j) = d_m1 / dz_node(j)
-          d_p1_zp1(j) = d_p1 / dz_node(j+1)
-          vwc_m1 = 1. / ((1. - w_m1) / vwc(j-1) + w_m1 / vwc(j))
-          vwc_p1 = 1. / ((1. - w_p1) / vwc(j) + w_p1 / vwc(j+1))
-          f_m1(j) = adv_flux(j) / vwc_m1
-          f_p1(j) = adv_flux(j+1) / vwc_p1
-          pe_m1(j) = f_m1(j) / d_m1_zm1(j) ! Peclet #
-          pe_p1(j) = f_p1(j) / d_p1_zp1(j) ! Peclet #
+        ! bottom layer: no diffusion to below
+        i1 = merge(1, 0, c_prev(i) > c_prev(i-1))
+        i2 = 0
       end if
-    enddo ! j; nlevbed
 
+      i3 = merge(1, 0, q_int(i) < 0)
+      i4 = merge(1, 0, q_int(i+1) > 0)
 
-    ! Calculate the tridiagonal coefficients
-    ! Coefficients of tridiagonal problem: a_i*x_(i-1) + b_i*(x_i) + c_i*x_(i+1) = r_i
-    ! Here, this is equivalent to Patankar equation 5.56 and 5.57 (but in one dimension):
-    ! a_P*phi_P = a_E*phi_E + a_W*phi_W + b [phi is concentration, = x in tridiagonal]. Converting East/West to above/below
-    ! -> -a_E*phi_E + a_P*phi_P - a_W+phi_W = b
-    ! -a_tri = a_above = D_above*A(Pe)+max(-F_above,0); D_above=diffus_above/dz
-    ! b_tri = a_above+a_below+rho*dz/dt
-    ! -c_tri = D_below*A(Pe)+max(F_below,0); D_below = diffus_below/dz
-    ! r_tri = b = source_const*dz + conc*rho*dz/dt
-    do j = 0,nlevbed +1
+      k = - (i1*Deff(i)/dx(i) + i2*Deff(i)/dx(i+1) + i3*abs(q_int(i)) + i4*q_int(i+1)) / scaler(i)
 
-      if (j > 0 .and. j < nlevbed+1) then
-          a_p_0 =  dzsoi_decomp(j) / dtime / vwc(j) ! Should this be multiplied by layer water content (for vwc)?
-      endif
+      if (i == 1) then
+        r = (Deff(i)*i2*c_prev(i+1)/dx(i+1) + sourcesink(i)) / scaler(i)
+      elseif (i < nlevsoi) then
+        r = (Deff(i)*i1*c_prev(i-1)/dx(i) + Deff(i)*i2*c_prev(i+1)/dx(i+1) \
+                + sourcesink(i)) / scaler(i)
+      else
+        r = (Deff(i)*i1*c_prev(i-1)/dx(i) + sourcesink(i)) / scaler(i)
+      end if
 
-      if (j == 0) then ! top layer (atmosphere)
-          a_tri(j) = 0._r8
-          b_tri(j) = 1._r8
-          c_tri(j) = -1._r8
-          r_tri(j) = 0._r8
-      elseif (j == 1) then
-          a_tri(j) = -(d_m1_zm1(j) * aaa(pe_m1(j)) + max( f_m1(j), 0._r8)) ! Eqn 5.47 Patankar
-          c_tri(j) = -(d_p1_zp1(j) * aaa(pe_p1(j)) + max(-f_p1(j), 0._r8))
-          b_tri(j) = -a_tri(j) - c_tri(j) + a_p_0
-          ! r_tri includes infiltration assuming same concentration as top layer. May want to change to either provide upper boundary condition or include in source term
-          ! r_tri(j) = source(j) * dzsoi_decomp(j) + (a_p_0 - adv_flux(j)) * conc_trcr(j)
-          r_tri(j) = source(j) * dzsoi_decomp(j) + a_p_0 * conc_trcr(j)
-          if(adv_flux(j)<0) then ! downward flow (infiltration)
-            r_tri(j) = r_tri(j) - adv_flux(j)*surf_bc
-            !  write (100+iam,*) __LINE__,adv_flux(j),surf_bc,adv_flux(j)*surf_bc
-          else ! upward flow to the surface
-            r_tri(j) = r_tri(j) - adv_flux(j)*conc_trcr(j)
-            ! write (100+iam,*) __LINE__,adv_flux(j),conc_trcr(j),adv_flux(j)*conc_trcr(j)
-          endif
+      ! if there is no flow out of this cell, degrades to linear source
+      if (k == 0._r8) then
+        c_next(i) = c_prev(i) + r*dt
+        dc_up(i) = 0
+        dc_down(i) = 0
 
-      elseif (j < nlevbed+1) then
-          a_tri(j) = -(d_m1_zm1(j) * aaa(pe_m1(j)) + max( f_m1(j), 0._r8)) ! Eqn 5.47 Patankar
-          c_tri(j) = -(d_p1_zp1(j) * aaa(pe_p1(j)) + max(-f_p1(j), 0._r8))
-          b_tri(j) = -a_tri(j) - c_tri(j) + a_p_0
-          r_tri(j) = source(j) * dzsoi_decomp(j) + a_p_0 * conc_trcr(j) ! Eq. 5.57
-      else ! j==nlevbed+1; 0 concentration gradient at bottom
-          a_tri(j) = -1._r8
-          b_tri(j) = 1._r8
-          c_tri(j) = 0._r8 
-          r_tri(j) = 0._r8
-      endif
-    enddo ! j; nlevbed
+      else
+        ! otherwise, do actual calculations
 
-    ! write(100+iam,'(11a18)'),'a','b','c','r','ap0','pe_m','pe_p','f_m','f_p','d_m','d_p'
-    ! j=0
-    ! write(100+iam,'(i3,4e18.9)'),j,a_tri(j),b_tri(j),c_tri(j),r_tri(j)
-    ! do j=1,nlevbed
-    !   write(100+iam,'(i3,11e18.9)'),j,a_tri(j),b_tri(j),c_tri(j),r_tri(j),dzsoi_decomp(j) / dtime * vwc(j) ,pe_m1(j),pe_p1(j),f_m1(j),f_p1(j),d_m1_zm1(j)*dz_node(j),d_p1_zp1(j)*dz_node(j+1)
-    ! enddo
-    ! j=nlevbed+1
-    ! write(100+iam,'(i3,4e18.9)'),j,a_tri(j),b_tri(j),c_tri(j),r_tri(j)
+        ! step 1: find end-of-step solution
+        c = analytical_c(c_prev(i), r, k, 0._r8, dt)
 
-    ! Solve for the concentration profile for this time step
-    ! call Tridiagonal(0, nlevbed+1, 0, a_tri, b_tri, c_tri, r_tri, conc_after)
-    ! This is the LAPACK tridiagonal solver which gave more accurate results in my testing
-    call dgtsv( nlevbed+2, 1, c_tri(0:nlevbed), b_tri, a_tri(1:nlevbed+1),  & 
-                r_tri, nlevbed+2, info )
+        ! top layer
+        if (i == 1) then
+          cmax = c_prev(i+1)
 
-    if(info < 0) call endrun(msg='dgtsv error in adv_diff line __LINE__: illegal argument')
-    if(info > 0) call endrun(msg='dgtsv error in adv_diff line __LINE__: singular matrix')
-    conc_after = r_tri
+          ! end-of-step solution works, or there is no diffusion to begin with
+          if ((c > cmax) .or. (i2 == 0)) then
+              c_next(i) = c
+              niter(i) = 1
 
-    !write (100+iam,*) 'conc_before',conc_trcr
-    !write (100+iam,*) 'conc_after',conc_after(1:nlevsoi)
-    !write (100+iam,*) 'dcation_dt',(conc_after(1:nlevsoi)-conc_trcr)/dtime
-    !write (100+iam,*) 'Diff=',sum((conc_after(1:nlevsoi)-conc_trcr)*dzsoi_decomp)
-    !write (100+iam,*) 'Flow',adv_flux(1:nlevsoi+1)
-    !write (100+iam,*) 'Diffus',diffus
-    !write (100+iam,*) 'dz',dzsoi_decomp
-    !write (100+iam,*) 'dznode',dz_node
+              ! integration of c over [0, dt]
+              c_int = analytical_c_int(c_prev(i), r, k, 0._r8, dt)
 
-    do j = 1,nlevbed
-      conc_change_rate(j) = (conc_after(j)-conc_trcr(j))/dtime
-    end do
+              ! use c_int to calculate the fluxes
+              dc_up(i) = i3*abs(q_int(i))*c_int
+              dc_down(i) = i2*Deff(i)/dx(i+1) * (c_int - c_prev(i+1)*dt) + i4*q_int(i+1)*c_int
+
+          else
+              ! step 2: piecewise integrate to cmax, then update k, r and continue
+              dt_p = analytical_dt(c_prev(i), cmax, r, k)
+
+              ! integration of c over [0, dt']
+              c_int_p = analytical_c_int(c_prev(i), r, k, 0._r8, dt_p)
+
+              ! use c_int to calculate the fluxes during [0, dt']
+              dc_up(i) = i3*abs(q_int(i))*c_int_p
+              dc_down(i) = i2*Deff(i)/dx(i+1) * (c_int_p - c_prev(i+1)*dt_p) &
+                            + i4*q_int(i+1)*c_int_p
+
+              ! update k & r (no more diffusion)
+              k = - (i3*abs(q_int(i)) + i4*q_int(i+1)) / scaler(i)
+              r = sourcesink(i) / scaler(i)
+
+              ! itegration of c over [dt', dt]
+              c_int_pp = analytical_c_int(cmax, r, k, dt_p, dt)
+
+              ! add to the fluxes
+              dc_up(i) = dc_up(i) + i3*abs(q_int(i))*c_int_pp
+              dc_down(i) = dc_down(i) + i4*q_int(i+1)*c_int_pp
+
+              ! find final value
+              c_next(i) = analytical_c(cmax, r, k, dt_p, dt)
+              niter(i) = 2
+
+          end if
+
+        ! intermediate layer
+        else if (i < nlevsoi) then
+
+          if ((i1 == 0) .and. (i2 == 0)) then
+            ! if there is no diffusion to begin with, end of solution works
+
+            ! final value found
+            c_next(i) = c
+            niter(i) = 1
+
+            ! integration of c over (0, dt)
+            c_int = analytical_c_int(c_prev(i), r, k, 0._r8, dt)
+
+            ! calculate the fluxes during (0, dt) (all diffusion)
+            dc_up(i) = i3*abs(q_int(i))*c_int
+            dc_down(i) = i4*q_int(i+1)*c_int
+
+          else
+            ! if there is only one side diffusion
+            if (i1 == 0) then
+                cmax = c_prev(i+1) ! diffuse down
+                cmin = 0._r8
+                i1_keep = 0
+                i2_keep = 1
+
+            else if (i2 == 0) then
+                cmax = c_prev(i-1) ! diffuse up
+                cmin = 0._r8
+                i1_keep = 1
+                i2_keep = 0
+
+            else
+                ! both sides have diffusion, decide which side to begin with
+
+                if (c_prev(i-1) > c_prev(i+1)) then
+                    cmax = c_prev(i-1)
+                    cmin = c_prev(i+1)
+                    i1_keep = 0
+                    i2_keep = 1
+                else
+                    cmax = c_prev(i+1)
+                    cmin = c_prev(i-1)
+                    i1_keep = 1
+                    i2_keep = 0
+                end if
+
+            end if
+
+            ! if end of solution works
+            if (c > cmax) then
+
+                ! final value found
+                c_next(i) = c
+                niter(i) = 1
+
+                ! integration of c over [0, dt]
+                c_int = analytical_c_int(c_prev(i), r, k, 0._r8, dt)
+
+                ! calculate the fluxes during [0, dt] (all diffusion)
+                dc_up(i) = i1*Deff(i)/dx(i) * (c_int - c_prev(i-1)*dt) + i3*abs(q_int(i))*c_int
+                dc_down(i) = i2*Deff(i)/dx(i+1) * (c_int - c_prev(i+1)*dt) + i4*q_int(i+1)*c_int
+
+            else
+                ! step 2: piecewise integrate to cmax, then update k, r and continue
+                dt_p = analytical_dt(c_prev(i), cmax, r, k)
+
+                ! integration of c over (0, dt')
+                c_int_p = analytical_c_int(c_prev(i), r, k, 0._r8, dt_p)
+
+                ! calculate the fluxes during (0, dt') (all diffusion)
+                dc_up(i) = i1*Deff(i)/dx(i) * (c_int_p - c_prev(i-1)*dt_p) &
+                            + i3*abs(q_int(i))*c_int_p
+                dc_down(i) = i2*Deff(i)/dx(i+1) * (c_int_p - c_prev(i+1)*dt_p) &
+                              + i4*q_int(i+1)*c_int_p
+
+                ! update k & r (drop one side of diffusion)
+                k = - (i1_keep*i1*Deff(i)/dx(i) + i2_keep*i2*Deff(i)/dx(i+1) + &
+                      i3*abs(q_int(i)) + i4*q_int(i+1)) / scaler(i)
+                r = (Deff(i)*i1_keep*i1*c_prev(i-1)/dx(i) + &
+                      Deff(i)*i2_keep*i2*c_prev(i+1)/dx(i+1) + sourcesink(i)) / scaler(i)
+
+                ! continue to end, but we need another check
+                c_p = analytical_c(cmax, r, k, dt_p, dt)
+
+                if (c_p > cmin) then
+
+                    ! itegration of c over [dt', dt]
+                    c_int_p = analytical_c_int(cmax, r, k, dt_p, dt)
+
+                    ! add the fluxes during (dt', dt) (drop one side of diffusion)
+                    dc_up(i) = dc_up(i) &
+                        + i1_keep*i1*Deff(i)/dx(i) * (c_int_p - cmax*(dt-dt_p)) &
+                        + i3*abs(q_int(i))*c_int_p
+                    dc_down(i) = dc_down(i) &
+                        + i2_keep*i2*Deff(i)/dx(i+1) * (c_int_p - cmax*(dt-dt_p)) &
+                        + i4*q_int(i+1)*c_int_p
+
+                    ! final value at dt
+                    c_next(i) = analytical_c(cmax, r, k, dt_p, dt)
+                    niter(i) = 2
+
+                else
+                    ! step 3: do another piecewise integration
+
+                    ! second stop point
+                    dt_pp = analytical_dt(cmax, cmin, r, k)
+
+                    ! itegration of c over [dt', dt"]
+                    c_int_pp = analytical_c_int(c_p, r, k, dt_p, dt_pp)
+
+                    ! add the fluxes during [dt', dt"] (drop one side of diffusion)
+                    dc_up(i) = dc_up(i) &
+                        + i1_keep*i1*Deff(i)/dx(i) * (c_int_pp - cmin*(dt_pp-dt_p)) &
+                        + i3*abs(q_int(i))*c_int_pp
+                    dc_down(i) = dc_down(i) &
+                        + i2_keep*i2*Deff(i)/dx(i+1) * (c_int_pp - cmin*(dt_pp-dt_p)) &
+                        + i4*q_int(i+1)*c_int_pp
+
+                    ! update the k & r (drop all diffusion)
+                    k = - (i3*abs(q_int(i)) + i4*q_int(i+1)) / scaler(i)
+                    r = sourcesink(i) / scaler(i)
+
+                    ! itegration of c over [dt", dt]
+                    c_int_pp = analytical_c_int(cmin, r, k, dt_pp, dt)
+
+                    ! add the fluxes during [dt", dt]
+                    dc_up(i) = dc_up(i) + i3*abs(q_int(i))*c_int_pp
+                    dc_down(i) = dc_down(i) + i4*q_int(i+1)*c_int_pp
+
+                    ! final value
+                    c_next(i) = analytical_c(cmin, r, k, dt_pp, dt)
+                    niter(i) = 3
+              end if
+            end if
+          end if
+
+        ! last soil layer
+        else
+          cmax = c_prev(i-1)
+
+          ! end-of-step solution works, or there is no diffusion to begin with 
+          if ((c > cmax) .or. (i1 == 0)) then
+              c_next(i) = c
+              niter(i) = 1
+
+              ! integration of c over (0, dt)
+              c_int = analytical_c_int(c_prev(i), r, k, 0._r8, dt)
+
+              ! use c_int to calculate the fluxes
+              dc_up(i) = i1*Deff(i)/dx(i) * (c_int - c_prev(i-1)*dt) + i3*abs(q_int(i))*c_int
+              dc_down(i) = i4*q_int(i+1)*c_int
+
+          else
+              ! step 2: piecewise integrate to cmax, then update k, r and continue
+              dt_p = analytical_dt(c_prev(i-1), cmax, r, k)
+
+              ! integration of c over [0, dt']
+              c_int_p = analytical_c_int(c_prev(i), r, k, 0._r8, dt_p)
+
+              ! calculate the fluxes during [0, dt'] (all diffusion)
+              dc_up(i) = i1*Deff(i)/dx(i) * (c_int_p - c_prev(i-1)*dt_p) + i3*abs(q_int(i))*c_int_p
+              dc_down(i) = i4*q_int(i+1)*c_int_p
+
+              ! update k & r (no more diffusion)
+              k = - (i3*abs(q_int(i)) + i4*q_int(i+1)) / scaler(i)
+              r = sourcesink(i) / scaler(i)
+
+              ! itegration of c over [dt', dt]
+              c_int_pp = analytical_c_int(cmax, r, k, dt_p, dt)
+
+              ! add to the fluxes
+              dc_up(i) = dc_up(i) + i3*abs(q_int(i))*c_int_pp
+              dc_down(i) = dc_down(i) + i4*q_int(i+1)*c_int_pp
+
+              ! find final value
+              c_next(i) = analytical_c(cmax, r, k, dt_p, dt)
+              niter(i) = 2
+          end if
+
+        end if ! end distinction of first, last, and intermediate layers
+
+      end if ! end distinction between having diffusion-advection or not
+
+    end do ! end iteration thru soil layers
+
+    ! we still need to catch the case when r is simply too negative
+    ! in that case, we really need to reduce r (secondary mineral
+    ! precipitation, etc.)
+    ! (TBD)
+
+    ! write (iulog, *) 'dc', (c_next - c_prev)*dz*theta
+    ! write (iulog, *) 'q_int', q_int
+    ! write (iulog, *) 'dc_up', dc_up
+    ! write (iulog, *) 'dc_down', dc_down
+    ! write (iulog, *) 'dc - outflux', (c_next - c_prev)*dz*theta + (dc_up + dc_down)
+    ! write (iulog, *) sum(dc_up + dc_down)
+    ! write (iulog, *) sum((c_next - c_prev)*dz*theta)
+    ! write (iulog, *) sum((c_next - c_prev)*dz*theta + (dc_up + dc_down))
+
+    ! calculate the net between self-outflow and inflow fluxes
+    ! note the inflow fluxes need to be scalerd by soil moisture
+    ! to get the correct concentration implications
+    c_next(:nlevsoi-1) = c_next(:nlevsoi-1) + dc_up(2:nlevsoi)/theta(:nlevsoi-1)/dz(:nlevsoi-1)
+    c_next(2:nlevsoi) = c_next(2:nlevsoi) + dc_down(:nlevsoi-1)/theta(2:nlevsoi)/dz(2:nlevsoi)
+
+    ! convert end concentration from per m3-water to per m3-soil, and perform delta
+    dcdt = ((c_next * theta) - conc_in) / dt
 
   end subroutine advection_diffusion
+
 
   function u_pdf(u, theta) result(f)
     ! Gamma PDF with k = 0.5 transformed by x = u**2
@@ -526,11 +778,13 @@ contains
     f = 2 / sqrt(theta * 3.1415926535_r8) * exp(-u**2 / theta)
   end function u_pdf
 
+
   function get_ssa(gs) result(a)
     ! calculate the specific surface area given grain size in um
     real(r8), intent(in) :: gs
     real(r8) :: a
     a = 69.18_r8 * (gs ** (-1.24_r8)) ! unit: m^2 g-1
   end function get_ssa
+
 
 end module ewutils

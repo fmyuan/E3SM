@@ -846,7 +846,7 @@ contains
         if (builtin_site == 1) then
           ssa(c,m) = get_ssa(forc_gra(c,m)) ! unit: m^2 g-1
         else
-          ! integrate over gamma distribution to calculate the surface area
+          ! integrate over grain size distribution to calculate the surface area
           ! range from 0.01 * grain size to 100 * grain size
           theta = 4.395_r8 * forc_gra(c,m)
           u_min = sqrt(0.01_r8 * forc_gra(c,m))
@@ -1150,7 +1150,7 @@ contains
 
 
   !-----------------------------------------------------------------------
-  subroutine MineralVerticalMovement(bounds, num_soilc, filter_soilc, dt)
+  subroutine MineralVerticalMovement(bounds, num_soilc, filter_soilc, dt, soilstate_vars)
     !
     ! !DESCRIPTION:
     ! On the radiation time step, update the boundary conditions of
@@ -1161,6 +1161,7 @@ contains
     !
     ! !ARGUMENTS:
     type(bounds_type)        , intent(in)    :: bounds
+    type(soilstate_type)     , intent(in)    :: soilstate_vars
     integer                  , intent(in)    :: num_soilc       ! number of soil columns in filter
     integer                  , intent(in)    :: filter_soilc(:) ! filter for soil columns
     real(r8)                 , intent(in)    :: dt              ! radiation time step (seconds)
@@ -1181,8 +1182,6 @@ contains
     real(r8) :: sourcesink_zero(1:nlevsoi)             ! src/sink term (g m-3 soil s-1)
     real(r8) :: sourcesink_cations(1:nlevsoi,1:ncations) ! src/sink term (g m-3 soil s-1)
     real(r8) :: adv_water(1:nlevsoi+1)                 ! m H2O / s, negative downward
-    real(r8) :: diffus(1:nlevsoi)                      ! m2/s
-    real(r8) :: rho(1:nlevsoi)                         ! "density" factor using soil water content
     real(r8) :: dcation_dt(1:nlevsoi, 1:ncations)      ! cation concentration change rate, g m-3 s-1
     real(r8) :: dhco3_dt(1:nlevsoi)                    ! HCO3- concentration change rate, g m-3 s-1
     real(r8) :: dco3_dt(1:nlevsoi)                     ! CO3-- concentration change rate, g m-3 s-1
@@ -1237,7 +1236,7 @@ contains
       rain_carbonate = mol_to_mass(hco3_to_co3(ph_to_hco3(rain_ph(c), co2_atm), &
                                                rain_ph(c)), mass_co3, 1._r8)
       do icat = 1,ncations
-        ! mg/L rain => g/m3 rain
+        ! mg/L rain => m/m3 rain
         rain_cations(icat) = rain_chem(c,icat)
       end do
 
@@ -1275,33 +1274,33 @@ contains
       ! Calculate the vertical transport
       !------------------------------------------------------------------------------
       do j = 1,nlevbed
-        ! note the flux rate is negative downward
-        adv_water(j) = -1.0e-3_r8 * qin(c,j) * mixing_fraction(c,j)
+        ! note the flux rate is positive downward
+        adv_water(j) = 1.0e-3_r8 * qin(c,j) * mixing_fraction(c,j)
       end do
-      adv_water(nlevbed + 1) = -1.0e-3_r8 * qin(c,nlevbed+1) * mixing_fraction(c,nlevbed+1)
+      adv_water(nlevbed + 1) = 1.0e-3_r8 * qin(c,nlevbed+1) * mixing_fraction(c,nlevbed+1)
 
       do icat = 1,ncations
-        diffus(1:nlevsoi) = EWParamsInst%cations_diffusivity(icat)
-        call advection_diffusion( & 
-          cation_vr(c, 1:nlevsoi, icat), adv_water(1:nlevsoi+1), diffus(1:nlevsoi), &
-          sourcesink_cations(1:nlevsoi, icat), rain_cations(icat), nlevbed, dt, &
-          h2osoi_vol(c, 1:nlevsoi), dcation_dt(1:nlevsoi, icat) &
-        )
+        call advection_diffusion(cation_vr(c, 1:nlevsoi, icat), rain_cations(icat), &
+                                 adv_water(1:nlevsoi+1), h2osoi_vol(c, 1:nlevsoi), &
+                                 soilstate_vars%watsat_col(c,1:nlevsoi), &
+                                 sourcesink_cations(1:nlevsoi, icat), &
+                                 EWParamsInst%cations_diffusivity(icat), &
+                                 dt, dz(c,1:nlevsoi), nlevbed, dcation_dt(1:nlevsoi, icat))
       end do
 
-      diffus(1:nlevsoi) = EWParamsInst%bicarbonate_diffusivity
-      call advection_diffusion( &
-        bicarbonate_vr(c, 1:nlevsoi), adv_water(1:nlevsoi+1), diffus(1:nlevsoi), &
-        sourcesink_zero(1:nlevsoi), rain_bicarbonate, nlevbed, dt, &
-        h2osoi_vol(c, 1:nlevsoi), dhco3_dt(1:nlevsoi) &
-      )
+      call advection_diffusion(bicarbonate_vr(c, 1:nlevsoi), rain_bicarbonate, &
+                               adv_water(1:nlevsoi+1), h2osoi_vol(c, 1:nlevsoi), &
+                               soilstate_vars%watsat_col(c,1:nlevsoi), &
+                               sourcesink_zero(1:nlevsoi), &
+                               EWParamsInst%bicarbonate_diffusivity, &
+                               dt, dz(c,1:nlevsoi), nlevbed, dhco3_dt(1:nlevsoi))
 
-      diffus(1:nlevsoi) = EWParamsInst%carbonate_diffusivity
-      call advection_diffusion( &
-        carbonate_vr(c, 1:nlevsoi), adv_water(1:nlevsoi+1), diffus(1:nlevsoi), &
-        sourcesink_zero(1:nlevsoi), rain_carbonate, nlevbed, dt, &
-        h2osoi_vol(c, 1:nlevsoi), dco3_dt(1:nlevsoi) &
-      )
+      call advection_diffusion(carbonate_vr(c, 1:nlevsoi), rain_carbonate, &
+                               adv_water(1:nlevsoi+1), h2osoi_vol(c, 1:nlevsoi), &
+                               soilstate_vars%watsat_col(c,1:nlevsoi), &
+                               sourcesink_zero(1:nlevsoi), &
+                               EWParamsInst%carbonate_diffusivity, &
+                               dt, dz(c,1:nlevsoi), nlevbed, dco3_dt(1:nlevsoi))
 
       !------------------------------------------------------------------------------
       ! Update the cation concentrations using the vertical transport
@@ -1316,17 +1315,8 @@ contains
       !------------------------------------------------------------------------------
       ! Calculate the bottom layer drainage of HCO3- and CO3--
       ! 
-      ! To convert the delta to vertical flux, note that: 
-      ! delta c_i * dz = f_{i-1} - f_{i}
-      ! , where 1 <= i <= n
-      !   delta c_i - rate of change of the concentration of layer i, gC m-3 s-1
-      !   dz - thickness of layer i, m
-      !   f_{i-1} - flux from layer i-1 into layer i, positive for downwards, gC m-2 s-1
-      !   f_i     - flux from layer i into layer i+1, positive for downwards, gC m-2 s-1
-      !
-      ! Sum up all the layers and cancel duplicate terms,
-      ! sum(delta c_i * dz) = f0 - f_{N}
-      ! => f_{N} = f0 - sum(delta c_i * dz)
+      ! Rain - Outflow = ΔStorage
+      ! => Outflow = Rain - ΔStorage
       !------------------------------------------------------------------------------
       bicarbonate_drainage(c) = rain_bicarbonate * 1.0e-3_r8 * qin(c,1)
       carbonate_drainage(c) = rain_carbonate * 1.0e-3_r8 * qin(c,1)

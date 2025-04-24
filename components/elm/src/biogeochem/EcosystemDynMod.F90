@@ -159,9 +159,7 @@ contains
     type(cnstate_type)       , intent(inout) :: cnstate_vars
     type(frictionvel_type)   , intent(in)    :: frictionvel_vars
     type(canopystate_type)   , intent(inout) :: canopystate_vars
-
-    ! DEBUG
-    type(soilstate_type), intent(in) :: soilstate_vars
+    type(soilstate_type)     , intent(in)    :: soilstate_vars
 
     character(len=64) :: event
     real(r8) :: dt
@@ -218,7 +216,7 @@ contains
 
      if (use_erw) then
        if (spinup_state == 0 .and. year >= year_start_erw) then
-          call MineralVerticalMovement(bounds, num_soilc, filter_soilc, dt)
+          call MineralVerticalMovement(bounds, num_soilc, filter_soilc, dt, soilstate_vars)
           call MineralStateUpdate2(num_soilc, filter_soilc, col_ms, col_mf, dt)
           call MineralLeaching(bounds, num_soilc, filter_soilc, dt)
        end if
