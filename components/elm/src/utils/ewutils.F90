@@ -9,6 +9,7 @@ module ewutils
   use elm_varpar  , only: ncations
   use shr_sys_mod , only: shr_sys_flush
   use spmdMod     , only: iam
+  use elm_varctl  , only : iulog
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -444,6 +445,7 @@ contains
     integer  :: i1_keep, i2_keep  ! side of diffusion
     real(r8) :: k, r ! temporary variables to save the ODE parameters
     real(r8) :: c, c_p, cmax, cmin, c_int, c_int_p, c_int_pp, dt_p, dt_pp ! temporary variables for ODE integration
+    real(r8) :: c_final, dt_final ! catch for negative concentrations
 
     ! Local variables, can be converted to diagnostic outputs if needed
     real(r8) :: niter(1:nlevsoi) ! keep track how many piecewise integrations are done
@@ -463,6 +465,12 @@ contains
 
     ! LHS scaler
     scaler = dz * theta
+
+    ! the algorithm generates negative values when sourcesink gets too negative
+    ! because my sourcesink is guaranteeded not to directly cause negative
+    ! concentrations, the best approach is to update the cation concentrations
+    ! first, and then apply vertial movement
+    
 
     ! convert sourcesink from mol/m3-soil/s to mol/m2/s
     sourcesink = srcsk * dz
@@ -513,6 +521,10 @@ contains
         ! step 1: find end-of-step solution
         c = analytical_c(c_prev(i), r, k, 0._r8, dt)
 
+        if (i == 7) then
+          write (iulog, *) 'c', i, c_prev(i), r, k, c
+        end if
+
         ! top layer
         if (i == 1) then
           cmax = c_prev(i+1)
@@ -545,16 +557,29 @@ contains
               k = - (i3*abs(q_int(i)) + i4*q_int(i+1)) / scaler(i)
               r = sourcesink(i) / scaler(i)
 
-              ! itegration of c over [dt', dt]
-              c_int_pp = analytical_c_int(cmax, r, k, dt_p, dt)
+              ! here we run into the danger of negative concentration
+              c_final = analytical_c(cmax, r, k, dt_p, dt)
 
-              ! add to the fluxes
-              dc_up(i) = dc_up(i) + i3*abs(q_int(i))*c_int_pp
-              dc_down(i) = dc_down(i) + i4*q_int(i+1)*c_int_pp
+              if (c_final > 0._r8) then
+                ! if non-negative, proceed to end of time step
 
-              ! find final value
-              c_next(i) = analytical_c(cmax, r, k, dt_p, dt)
-              niter(i) = 2
+                ! itegration of c over [dt', dt]
+                c_int_pp = analytical_c_int(cmax, r, k, dt_p, dt)
+
+                ! add to the fluxes
+                dc_up(i) = dc_up(i) + i3*abs(q_int(i))*c_int_pp
+                dc_down(i) = dc_down(i) + i4*q_int(i+1)*c_int_pp
+
+                ! find final value
+                c_next(i) = c_final
+                niter(i) = 2
+
+              else
+                ! Step 4. in the negative case, we stop the outflow early @ cmin
+                c_next(i) = cmax
+                niter(i) = 4
+
+              end if
 
           end if
 
@@ -621,75 +646,88 @@ contains
                 dc_down(i) = i2*Deff(i)/dx(i+1) * (c_int - c_prev(i+1)*dt) + i4*q_int(i+1)*c_int
 
             else
-                ! step 2: piecewise integrate to cmax, then update k, r and continue
-                dt_p = analytical_dt(c_prev(i), cmax, r, k)
+              ! step 2: piecewise integrate to cmax, then update k, r and continue
+              dt_p = analytical_dt(c_prev(i), cmax, r, k)
 
-                ! integration of c over (0, dt')
-                c_int_p = analytical_c_int(c_prev(i), r, k, 0._r8, dt_p)
+              ! integration of c over (0, dt')
+              c_int_p = analytical_c_int(c_prev(i), r, k, 0._r8, dt_p)
 
-                ! calculate the fluxes during (0, dt') (all diffusion)
-                dc_up(i) = i1*Deff(i)/dx(i) * (c_int_p - c_prev(i-1)*dt_p) &
-                            + i3*abs(q_int(i))*c_int_p
-                dc_down(i) = i2*Deff(i)/dx(i+1) * (c_int_p - c_prev(i+1)*dt_p) &
-                              + i4*q_int(i+1)*c_int_p
+              ! calculate the fluxes during (0, dt') (all diffusion)
+              dc_up(i) = i1*Deff(i)/dx(i) * (c_int_p - c_prev(i-1)*dt_p) &
+                          + i3*abs(q_int(i))*c_int_p
+              dc_down(i) = i2*Deff(i)/dx(i+1) * (c_int_p - c_prev(i+1)*dt_p) &
+                            + i4*q_int(i+1)*c_int_p
 
-                ! update k & r (drop one side of diffusion)
-                k = - (i1_keep*i1*Deff(i)/dx(i) + i2_keep*i2*Deff(i)/dx(i+1) + &
-                      i3*abs(q_int(i)) + i4*q_int(i+1)) / scaler(i)
-                r = (Deff(i)*i1_keep*i1*c_prev(i-1)/dx(i) + &
-                      Deff(i)*i2_keep*i2*c_prev(i+1)/dx(i+1) + sourcesink(i)) / scaler(i)
+              ! update k & r (drop one side of diffusion)
+              k = - (i1_keep*i1*Deff(i)/dx(i) + i2_keep*i2*Deff(i)/dx(i+1) + &
+                    i3*abs(q_int(i)) + i4*q_int(i+1)) / scaler(i)
+              r = (Deff(i)*i1_keep*i1*c_prev(i-1)/dx(i) + &
+                    Deff(i)*i2_keep*i2*c_prev(i+1)/dx(i+1) + sourcesink(i)) / scaler(i)
 
-                ! continue to end, but we need another check
-                c_p = analytical_c(cmax, r, k, dt_p, dt)
+              ! continue to end, but we need another check
+              c_p = analytical_c(cmax, r, k, dt_p, dt)
 
-                if (c_p > cmin) then
+              if (c_p > cmin) then
 
-                    ! itegration of c over [dt', dt]
-                    c_int_p = analytical_c_int(cmax, r, k, dt_p, dt)
+                ! itegration of c over [dt', dt]
+                c_int_p = analytical_c_int(cmax, r, k, dt_p, dt)
 
-                    ! add the fluxes during (dt', dt) (drop one side of diffusion)
-                    dc_up(i) = dc_up(i) &
-                        + i1_keep*i1*Deff(i)/dx(i) * (c_int_p - cmax*(dt-dt_p)) &
-                        + i3*abs(q_int(i))*c_int_p
-                    dc_down(i) = dc_down(i) &
-                        + i2_keep*i2*Deff(i)/dx(i+1) * (c_int_p - cmax*(dt-dt_p)) &
-                        + i4*q_int(i+1)*c_int_p
+                ! add the fluxes during (dt', dt) (drop one side of diffusion)
+                dc_up(i) = dc_up(i) &
+                    + i1_keep*i1*Deff(i)/dx(i) * (c_int_p - cmax*(dt-dt_p)) &
+                    + i3*abs(q_int(i))*c_int_p
+                dc_down(i) = dc_down(i) &
+                    + i2_keep*i2*Deff(i)/dx(i+1) * (c_int_p - cmax*(dt-dt_p)) &
+                    + i4*q_int(i+1)*c_int_p
 
-                    ! final value at dt
-                    c_next(i) = analytical_c(cmax, r, k, dt_p, dt)
-                    niter(i) = 2
+                ! final value at dt
+                c_next(i) = analytical_c(cmax, r, k, dt_p, dt)
+                niter(i) = 2
+
+              else
+                ! step 3: do another piecewise integration
+
+                ! second stop point
+                dt_pp = analytical_dt(cmax, cmin, r, k)
+
+                ! itegration of c over [dt', dt"]
+                c_int_pp = analytical_c_int(c_p, r, k, dt_p, dt_pp)
+
+                ! add the fluxes during [dt', dt"] (drop one side of diffusion)
+                dc_up(i) = dc_up(i) &
+                    + i1_keep*i1*Deff(i)/dx(i) * (c_int_pp - cmin*(dt_pp-dt_p)) &
+                    + i3*abs(q_int(i))*c_int_pp
+                dc_down(i) = dc_down(i) &
+                    + i2_keep*i2*Deff(i)/dx(i+1) * (c_int_pp - cmin*(dt_pp-dt_p)) &
+                    + i4*q_int(i+1)*c_int_pp
+
+                ! update the k & r (drop all diffusion)
+                k = - (i3*abs(q_int(i)) + i4*q_int(i+1)) / scaler(i)
+                r = sourcesink(i) / scaler(i)
+
+                ! here we run into the danger of negative concentration
+                c_final = analytical_c(cmin, r, k, dt_pp, dt)
+
+                if (c_final > 0._r8) then
+                  ! if non-negative, proceed to end of time step
+
+                  ! itegration of c over [dt", dt]
+                  c_int_pp = analytical_c_int(cmin, r, k, dt_pp, dt)
+
+                  ! add the fluxes during [dt", dt]
+                  dc_up(i) = dc_up(i) + i3*abs(q_int(i))*c_int_pp
+                  dc_down(i) = dc_down(i) + i4*q_int(i+1)*c_int_pp
+
+                  ! final value
+                  c_next(i) = c_final
+                  niter(i) = 3
 
                 else
-                    ! step 3: do another piecewise integration
+                  ! Step 4. in the negative case, we stop the outflow early @ cmin
+                  c_next(i) = cmin
+                  niter(i) = 4
 
-                    ! second stop point
-                    dt_pp = analytical_dt(cmax, cmin, r, k)
-
-                    ! itegration of c over [dt', dt"]
-                    c_int_pp = analytical_c_int(c_p, r, k, dt_p, dt_pp)
-
-                    ! add the fluxes during [dt', dt"] (drop one side of diffusion)
-                    dc_up(i) = dc_up(i) &
-                        + i1_keep*i1*Deff(i)/dx(i) * (c_int_pp - cmin*(dt_pp-dt_p)) &
-                        + i3*abs(q_int(i))*c_int_pp
-                    dc_down(i) = dc_down(i) &
-                        + i2_keep*i2*Deff(i)/dx(i+1) * (c_int_pp - cmin*(dt_pp-dt_p)) &
-                        + i4*q_int(i+1)*c_int_pp
-
-                    ! update the k & r (drop all diffusion)
-                    k = - (i3*abs(q_int(i)) + i4*q_int(i+1)) / scaler(i)
-                    r = sourcesink(i) / scaler(i)
-
-                    ! itegration of c over [dt", dt]
-                    c_int_pp = analytical_c_int(cmin, r, k, dt_pp, dt)
-
-                    ! add the fluxes during [dt", dt]
-                    dc_up(i) = dc_up(i) + i3*abs(q_int(i))*c_int_pp
-                    dc_down(i) = dc_down(i) + i4*q_int(i+1)*c_int_pp
-
-                    ! final value
-                    c_next(i) = analytical_c(cmin, r, k, dt_pp, dt)
-                    niter(i) = 3
+                end if
               end if
             end if
           end if
@@ -725,16 +763,30 @@ contains
               k = - (i3*abs(q_int(i)) + i4*q_int(i+1)) / scaler(i)
               r = sourcesink(i) / scaler(i)
 
-              ! itegration of c over [dt', dt]
-              c_int_pp = analytical_c_int(cmax, r, k, dt_p, dt)
+              ! here we run into the danger of negative concentration
+              c_final = analytical_c(cmax, r, k, dt_p, dt)
 
-              ! add to the fluxes
-              dc_up(i) = dc_up(i) + i3*abs(q_int(i))*c_int_pp
-              dc_down(i) = dc_down(i) + i4*q_int(i+1)*c_int_pp
+              if (c_final > 0._r8) then
+                ! if non-negative, proceed to end of time step
 
-              ! find final value
-              c_next(i) = analytical_c(cmax, r, k, dt_p, dt)
-              niter(i) = 2
+                ! itegration of c over [dt', dt]
+                c_int_pp = analytical_c_int(cmax, r, k, dt_p, dt)
+
+                ! add to the fluxes
+                dc_up(i) = dc_up(i) + i3*abs(q_int(i))*c_int_pp
+                dc_down(i) = dc_down(i) + i4*q_int(i+1)*c_int_pp
+
+                ! find final value
+                c_next(i) = c_final
+                niter(i) = 2
+
+              else
+                ! Step 4. in the negative case, we stop the outflow early @ cmin
+                c_next(i) = cmax
+                niter(i) = 4
+
+              end if
+
           end if
 
         end if ! end distinction of first, last, and intermediate layers
@@ -748,20 +800,26 @@ contains
     ! precipitation, etc.)
     ! (TBD)
 
+    !(iulog, *) 'c_prev', c_prev(1:nlevsoi)
+
     ! write (iulog, *) 'dc', (c_next - c_prev)*dz*theta
     ! write (iulog, *) 'q_int', q_int
-    ! write (iulog, *) 'dc_up', dc_up
-    ! write (iulog, *) 'dc_down', dc_down
+    !write (iulog, *) 'dc_up', dc_up
+    !write (iulog, *) 'dc_down', dc_down
     ! write (iulog, *) 'dc - outflux', (c_next - c_prev)*dz*theta + (dc_up + dc_down)
     ! write (iulog, *) sum(dc_up + dc_down)
     ! write (iulog, *) sum((c_next - c_prev)*dz*theta)
     ! write (iulog, *) sum((c_next - c_prev)*dz*theta + (dc_up + dc_down))
+
+    !write (iulog, *) 'c_next', c_next(1:nlevsoi)
 
     ! calculate the net between self-outflow and inflow fluxes
     ! note the inflow fluxes need to be scalerd by soil moisture
     ! to get the correct concentration implications
     c_next(:nlevsoi-1) = c_next(:nlevsoi-1) + dc_up(2:nlevsoi)/theta(:nlevsoi-1)/dz(:nlevsoi-1)
     c_next(2:nlevsoi) = c_next(2:nlevsoi) + dc_down(:nlevsoi-1)/theta(2:nlevsoi)/dz(2:nlevsoi)
+
+    !write (iulog, *) 'c_next2', c_next(1:nlevsoi)
 
     ! convert end concentration from per m3-water to per m3-soil, and perform delta
     dcdt = ((c_next * theta) - conc_in) / dt
