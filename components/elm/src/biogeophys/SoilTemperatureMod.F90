@@ -174,11 +174,15 @@ contains
       !$acc routine seq
     use elm_varpar               , only : nlevsno, nlevgrnd, nlevurb
     use elm_varctl               , only : iulog
-    use elm_varcon               , only : cnfac, cpice, cpliq, denh2o
+    use elm_varcon               , only : cnfac, cpice, cpliq, denh2o, secspday
+    use elm_time_manager         , only : get_step_size, get_curr_date, get_curr_time
     use landunit_varcon          , only : istice, istice_mec, istsoil, istcrop
     use column_varcon            , only : icol_roof, icol_sunwall, icol_shadewall, icol_road_perv, icol_road_imperv
     use landunit_varcon          , only : istwet, istice, istice_mec, istsoil, istcrop
     use BandDiagonalMod          , only : BandDiagonal
+#ifdef MARSH
+    use elm_varctl      , only : tide_file
+#endif
 
     !
     ! !ARGUMENTS:
@@ -221,10 +225,14 @@ contains
     real(r8) :: hs_soil(bounds%begc:bounds%endc)                            ! heat flux on soil [W/m2]
     real(r8) :: hs_top_snow(bounds%begc:bounds%endc)                        ! heat flux on top snow layer [W/m2]
     real(r8) :: hs_h2osfc(bounds%begc:bounds%endc)                          ! heat flux on standing water [W/m2]
+#ifdef MARSH
+    real(r8) :: tide_temp                                                   ! temperature of tide water
+#endif
     integer  :: jbot(bounds%begc:bounds%endc)                               ! bottom level at each column
     integer  :: num_nolakec_and_nourbanc
     integer  :: num_nolakec_and_urbanc
     integer  :: num_filter_lun
+    integer  :: days, seconds
     integer, allocatable :: filter_nolakec_and_nourbanc(:)
     integer, allocatable :: filter_nolakec_and_urbanc(:)
     integer, allocatable :: filter_lun(:)
@@ -277,6 +285,9 @@ contains
          eflx_urban_ac           => col_ef%eflx_urban_ac       , & ! Output: [real(r8) (:)   ]  urban air conditioning flux (W/m**2)
          eflx_urban_heat         => col_ef%eflx_urban_heat     , & ! Output: [real(r8) (:)   ]  urban heating flux (W/m**2)
 
+#ifdef MARSH
+         eflx_sh_tide            => col_ef%eflx_sh_tide        , & ! Input: [real(r8) (:) ] sensible heat flux from tide
+#endif
          emg                     => col_es%emg                              , & ! Input:  [real(r8) (:)   ]  ground emissivity
          hc_soi                  => col_es%hc_soi                           , & ! Input:  [real(r8) (:)   ]  soil heat content (MJ/m2)               ! TODO: make a module variable
          hc_soisno               => col_es%hc_soisno                        , & ! Input:  [real(r8) (:)   ]  soil plus snow plus lake heat content (MJ/m2) !TODO: make a module variable
@@ -559,6 +570,18 @@ contains
                else
                   t_h2osfc(c)         = tvector_nourbanc(c,0)          !surface water
                endif
+!#ifdef MARSH
+!               call get_curr_time(days, seconds)
+!               eflx_sh_tide(c)=0.0_r8
+!               if(tide_file .ne. ' ') then
+!#ifdef CPL_BYPASS               
+!                  !heat exchange with tide
+!                  tide_temp = atm2lnd_vars%tide_temp(1,1+mod(int((days*secspday+seconds)/3600),atm2lnd_vars%tide_forcing_len))
+!                  eflx_sh_tide(c) = eflx_sh_tide(c) + (tide_temp - t_h2osfc(c))
+!                  t_h2osfc(c) = t_h2osfc(c) + eflx_sh_tide(c)
+!               endif
+!#endif
+!#endif
             endif
 
          endif
