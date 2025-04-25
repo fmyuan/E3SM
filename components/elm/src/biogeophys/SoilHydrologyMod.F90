@@ -312,6 +312,8 @@ contains
 #endif
 #if defined MARSH
       use pftvarcon       , only : num_tide_comps, tide_baseline,tide_coeff_period, tide_coeff_phase, tide_coeff_amp,sfcflow_ratescale
+      use elm_instMod     , only : atm2lnd_vars
+      use elm_varctl      , only : tide_file
 #endif
      use clm_time_manager , only : get_step_size, get_curr_date, get_curr_time
      use elm_varcon       , only : secspday
@@ -372,6 +374,8 @@ contains
      integer  :: days, seconds               !
      integer  :: ii
      real(r8) :: h2osfc_tide
+     real(r8) :: h2osfc_before
+     real(r8) :: salt_content(bounds%begc:bounds%endc, 1:nlevgrnd)     !salt mass in marsh column
      !-----------------------------------------------------------------------
 
      associate(                                                                &
@@ -388,6 +392,8 @@ contains
           h2osno               =>    col_ws%h2osno              , & ! Input:  [real(r8) (:)   ]  snow water (mm H2O)
           snow_depth           =>    col_ws%snow_depth          , & ! Input:  [real(r8) (:)   ]  snow height (m)
           h2osfc               =>    col_ws%h2osfc              , & ! Output: [real(r8) (:)   ]  surface water (mm)
+          salinity             =>    col_ws%salinity            , & ! Input:  [real(r8) (:,:)   ] salinity concentration (ppt)
+          salt_content         =>    col_ws%salt_content        , & ! Input:  [real(r8) (:,:) ] mass of salt in soil later (g)
 
           qflx_ev_soil         =>    col_wf%qflx_ev_soil         , & ! Input:  [real(r8) (:)   ]  evaporation flux from soil (W/m**2) [+ to atm]
           qflx_evap_soi        =>    col_wf%qflx_evap_soi        , & ! Input:  [real(r8) (:)   ]  ground surface evaporation rate (mm H2O/s) [+]
@@ -426,7 +432,7 @@ contains
           h2osfcflag           =>    soilhydrology_vars%h2osfcflag           , & ! Input:  logical
           icefrac              =>    soilhydrology_vars%icefrac_col          , & ! Output: [real(r8) (:,:) ]  fraction of ice
           h2osoi_vol           =>    col_ws%h2osoi_vol                       , & ! Input: [real(r8) (:,:) ]  volumetric soil water (0<=h2osoi_vol<=watsat) [m3/m3]
-          zi                   =>    col_pp%zi                                 & ! Input: [real(r8) (:,:) ]  interface level below a "z" level (m)           
+          zi                   =>    col_pp%zi                                 & ! Input: [real(r8) (:,:) ]  interface level below a "z" level (m)
               )
 
 
@@ -437,8 +443,8 @@ contains
           do j = 1,nlevbed
              ! Porosity of soil, partial volume of ice and liquid
              vol_ice(c,j) = min(watsat(c,j), h2osoi_ice(c,j)/(dz(c,j)*denice))
-             eff_porosity(c,j) = max(0.01_r8,watsat(c,j)-vol_ice(c,j))
-             icefrac(c,j) = min(1._r8,vol_ice(c,j)/watsat(c,j))
+             eff_porosity(c,j) = max(0.01_r8, watsat(c,j)-vol_ice(c,j))
+             icefrac(c,j) = min(1._r8, vol_ice(c,j)/watsat(c,j))
           end do
        end do
 
@@ -552,6 +558,7 @@ contains
                 qflx_surf(1) = qflx_surf(1) + qflx_in_h2osfc(c)
                 qflx_surf_input(2) = qflx_surf_input(2) + qflx_in_h2osfc(c)
                 qflx_in_h2osfc(c) = 0._r8  !TAO 22/8/2018 changing to sin function gave an error
+                !qflx_surf(1) is set to 0 earlier
              end if
 #endif
 
@@ -576,6 +583,17 @@ contains
                 qflx_h2osfc_surf(c) = min(qflx_h2osfc_surfrate*h2osfc(c)**2.0_r8,h2osfc(c) / dtime) 
              else if (c .eq. 2) then
                 qflx_h2osfc_surf(c) = 0._r8
+
+
+                ! bsulman : Changed to use flexible set of parameters up to full NOAA tidal components (37 coefficients)
+                ! Tidal cycle is the sum of all the sinusoidal components
+               !h2osfc_before = h2osfc(c)
+               !h2osfc(c) = 0.0_r8
+               ! do ii=1,num_tide_comps
+               !   h2osfc(c) =    h2osfc(c)    +  tide_coeff_amp(ii) * sin(2.0_r8*SHR_CONST_PI*(1/tide_coeff_period(ii)*(days*secspday+seconds) + tide_coeff_phase(ii)))
+               ! enddo
+               ! h2osfc(c) = max(h2osfc(c) + tide_baseline, 0.0)
+               ! qflx_tide(c) = (h2osfc(c)-h2osfc_before)/dtime
 
 #else
              if(h2osfc(c) >= h2osfc_thresh(c) .and. h2osfcflag/=0) then
@@ -647,7 +665,7 @@ contains
              if (c.eq.1) then
                zwt_hu = zwt(1)
                zwt_hu = zwt_hu - h2osfc(1)/1000._r8
-            endif
+             endif
 
              if (c.eq.2) then
                zwt_ho = zwt(2)
@@ -670,27 +688,49 @@ contains
                      humhol_ht) / humhol_dist * sqrt(hol_frac/hum_frac)
                  qflx_lat_aqu(2) = -2._r8/(1._r8/ka_hu+1._r8/ka_ho) * (zwt_hu-zwt_ho- &
                      humhol_ht) / humhol_dist * sqrt(hum_frac/hol_frac)
+                 !salinity(1) = 25._r8 + 20_r8*qflx_lat_aqu(2)*dtime
+                 !salinity(1) = 0._r8
+                 !salinity(2) = 30._r8
+                 !SLL column 1 is marsh, column 2 is tidal channel
                endif
                ! bsulman : Changed to use flexible set of parameters up to full NOAA tidal components (37 coefficients)
                ! Tidal cycle is the sum of all the sinusoidal components
 #ifdef MARSH
                call get_curr_time(days, seconds)
                h2osfc_tide = 0.0_r8
-                do ii=1,num_tide_comps
-                  h2osfc_tide =    h2osfc_tide    +  tide_coeff_amp(ii) * sin(2.0_r8*SHR_CONST_PI*(1/tide_coeff_period(ii)*(days*secspday+seconds) + tide_coeff_phase(ii)))
-                enddo
+               if(tide_file .ne. ' ') then
+#ifdef CPL_BYPASS
+                  ! If external forcing tide file is specified then use that via coupler bypass
+                  ! Indexing assumes that tide forcing is a time series of hourly values
+
+                  h2osfc_tide = (atm2lnd_vars%tide_height(1,1+mod(int((days*secspday+seconds)/3600),atm2lnd_vars%tide_forcing_len)))*1000 !*1000 converts from m to mm SL 5-5-22
+                  col_ws%salinity(c) = atm2lnd_vars%tide_salinity(1,1+mod(int((days*secspday+seconds)/3600),atm2lnd_vars%tide_forcing_len))
+                  salinity(1) = col_ws%salinity(c)
+                  write(iulog,*) h2osfc_tide
+#endif
+               else
+                  do ii=1,num_tide_comps
+                     h2osfc_tide =    h2osfc_tide    +  tide_coeff_amp(ii) * sin(2.0_r8*SHR_CONST_PI*(1/tide_coeff_period(ii)*(days*secspday+seconds) + tide_coeff_phase(ii)))
+                  enddo
+               endif
+
                 h2osfc_tide = max(h2osfc_tide + tide_baseline, 0.0)
                !  qflx_tide(c) = (h2osfc(c)-h2osfc_before)/dtime
                 qflx_lat_aqu(2) = qflx_lat_aqu(2) + (h2osfc_tide-h2osfc(c))/dtime
-                
+                write(iulog,*), 'qflx_lat_aqu(1)', qflx_lat_aqu(1)
+                write(iulog,*), 'qflx_lat_aqu(2)', qflx_lat_aqu(2)
+                write(iulog,*), 'h2osfc(c)', h2osfc(1), h2osfc(2)                
                 ! If flooded water surface of one column is higher than the other, add faster flow since aquifer transfer (ka parameters) is slow
                 if(h2osfc(2)>0 .and. h2osfc(2)>(h2osfc(1)+humhol_ht*1000.0)) then
                   qflx_lat_aqu(2) = qflx_lat_aqu(2) - min((h2osfc(2)-(h2osfc(1)+humhol_ht*1000.0))*sfcflow_ratescale,h2osfc(2)*0.5/dtime)
                   qflx_lat_aqu(1) = qflx_lat_aqu(1) + min((h2osfc(2)-(h2osfc(1)+humhol_ht*1000.0))*sfcflow_ratescale,h2osfc(2)*0.5/dtime)
-                elseif(h2osfc(1)>0 .and. h2osfc(1)>(h2osfc(2)-humhol_ht*1000.0)) then
+                elseif(h2osfc(1)>0 .and. (h2osfc(1)+humhol_ht*1000.0) > h2osfc(2)) then
                   qflx_lat_aqu(2) = qflx_lat_aqu(2) + min((h2osfc(1)-(h2osfc(2)-humhol_ht*1000.0))*sfcflow_ratescale,h2osfc(1)*0.5/dtime)
                   qflx_lat_aqu(1) = qflx_lat_aqu(1) - min((h2osfc(1)-(h2osfc(2)-humhol_ht*1000.0))*sfcflow_ratescale,h2osfc(1)*0.5/dtime)
                 endif
+                write(iulog,*), 'qflx_lat_aqu(1) after', qflx_lat_aqu(1)
+                write(iulog,*), 'qflx_lat_aqu(2) after', qflx_lat_aqu(2)                 
+                write(iulog,*), 'h2osfc(c) after', h2osfc(1), h2osfc(2) 
 #endif
              endif
 #endif
@@ -976,6 +1016,8 @@ contains
 ! Water table changes due to lateral flux between hommock and hollow in aquifer 
        do fc = 1, num_hydrologyc
            c = filter_hydrologyc(fc)
+
+           !qflx_lat_aqu_layer(c,:) = 0.0
     
     ! use analytical expression for aquifer specific yield
              rous = watsat(c,nlevbed) &
@@ -1013,7 +1055,6 @@ contains
                    qflx_lat_aqu_layer(c,j)=max(qflx_lat_aqu_layer(c,j),0._r8)
                    h2osoi_liq(c,j) = h2osoi_liq(c,j) + qflx_lat_aqu_layer(c,j)
                    qflx_lat_aqu_tot = qflx_lat_aqu_tot - qflx_lat_aqu_layer(c,j)
-   
                    !new code test DMR 4/29/13
                    if(s_y > 0._r8) zwt(c) = zwt(c) - qflx_lat_aqu_layer(c,j)/s_y/1000._r8
                    if (qflx_lat_aqu_tot <= 0.) then
@@ -1053,7 +1094,6 @@ contains
                    else
                       zwt(c) = zi(c,j)
                    endif
-   
                 enddo
                 if (qflx_lat_aqu_tot > 0.) zwt(c) = zwt(c) - qflx_lat_aqu_tot/1000._r8/rous
              endif
@@ -1262,6 +1302,7 @@ contains
      real(r8) :: rel_moist                ! relative moisture, temporary variable
      real(r8) :: wtsub_vic                ! summation of hk*dzmm for layers in the third VIC layer
      real(r8) :: deep_seep                ! Deep seepage for SPRUCE
+     real(r8) :: qflx_adv_tot(bounds%begc:bounds%endc,1:nlevgrnd)             ! amount of water transported between layers during a time step (mm)
 
      !-----------------------------------------------------------------------
 
@@ -1314,9 +1355,12 @@ contains
 
           h2osoi_liq         =>    col_ws%h2osoi_liq        , & ! Output: [real(r8) (:,:) ] liquid water (kg/m2)                            
 #if (defined HUM_HOL || defined MARSH)
-          qflx_surf_input    =>    col_wf%qflx_surf_input   , & ! Output: [real(r8) (:,:) ] surface runoff input to hollow (mmH2O/s)
-          qflx_lat_aqu       =>    col_wf%qflx_lat_aqu      , & ! Output: [real(r8) (:,:) ] total lateral flow
-          qflx_lat_aqu_layer =>    col_wf%qflx_lat_aqu_layer, & ! Output: [real(r8) (:,:) ] lateral flow for each layer
+          qflx_surf_input    =>    col_wf%qflx_surf_input      , & ! Output: [real(r8) (:,:) ] surface runoff input to hollow (mmH2O/s)
+          qflx_lat_aqu       =>    col_wf%qflx_lat_aqu         , & ! Output: [real(r8) (:,:) ] total lateral flow
+          qflx_lat_aqu_layer =>    col_wf%qflx_lat_aqu_layer   , & ! Output: [real(r8) (:,:) ] lateral flow for each layer
+          salinity             =>    col_ws%salinity           , & ! Input:  [real(r8) (:,:)   ] salinity concentration (ppt)
+          salt_content         =>    col_ws%salt_content       , & ! Input:  [real(r8) (:,:) ] mass of salt in soil later (g)
+          qflx_adv           =>     col_wf%qflx_adv            , & ! Input:  [real(r8) (:,:) ] vertical water flux between layers (mm/s)
 #endif
           h2osoi_ice         =>    col_ws%h2osoi_ice         & ! Output: [real(r8) (:,:) ] ice lens (kg/m2)   
           )
@@ -1555,6 +1599,47 @@ contains
                    rsub_top_max = min(5.5e-3_r8, rsub_top_globalmax)
 #endif
                 end if
+   !Salinity and salt content
+#if (defined MARSH)
+         !do j=1,nlevgrnd
+         !salinity(2,j) = 35.0_r8
+         !salt_content(c,j)=salinity(c,j)*h2osoi_liq(c,j)
+         !qflx_adv_tot(c,j) = qflx_adv(c,j)*dtime
+         !   if (c==1) then
+         !      if (abs(qflx_adv_tot(c,j)) > h2osoi_liq(c,j)) then
+         !         qflx_adv_tot(c,j) = h2osoi_liq(c,j)
+         !      endif
+         !         write(iulog,*), "qflx", qflx_adv_tot(c,j)
+         !         if (qflx_lat_aqu_layer(c,j) < 0.0_r8) then
+         !            if (qflx_adv_tot(c,j) < 0.0_r8) then                      
+         !               salt_content(c,j) = max(salt_content(c,j) + salinity(c,j)*qflx_lat_aqu_layer(c,j) &
+         !               - salinity(c,j-1)*qflx_adv_tot(c,j-1) + salinity(c,j)*qflx_adv_tot(c,j), 0.0_r8)
+         !            elseif (qflx_adv_tot(c,j) >=0.0_r8) then
+         !               salt_content(c,j) = max(salt_content(c,j) + salinity(c,j)*qflx_lat_aqu_layer(c,j) &
+         !               + salinity(c,j+1)*qflx_adv_tot(c,j+1) - salinity(c,j)*qflx_adv_tot(c,j), 0.0_r8)
+         !            endif
+         !         elseif (qflx_lat_aqu_layer(c,j) >= 0.0_r8) then
+         !            if (qflx_adv_tot(c,j) < 0.0_r8) then
+         !               salt_content(c,j) = max(salt_content(c,j) + salinity(2,j)*qflx_lat_aqu_layer(c,j) &
+         !               - salinity(c,j-1)*qflx_adv_tot(c,j-1) + salinity(c,j)*qflx_adv_tot(c,j), 0.0_r8)
+         !            elseif (qflx_adv_tot(c,j) >=0.0_r8) then
+         !               salt_content(c,j) = max(salt_content(c,j) + salinity(2,j)*qflx_lat_aqu_layer(c,j) &
+         !               + salinity(c,j+1)*qflx_adv_tot(c,j+1) - salinity(c,j)*qflx_adv_tot(c,j), 0.0_r8)
+         !            endif
+         !         endif
+         !      if(h2osoi_liq(c,j)>0.0_r8) then
+         !         salinity(c,j) = salt_content(1,j)/h2osoi_liq(c,j)
+         !      else
+         !         salinity(c,j) = 0.0
+         !      endif
+         !      write(iulog,*), "sal", salinity(c,j)
+         !   elseif (c==2) then
+         !         salinity(c,j) = 35.0_r8
+
+             !endif
+ 
+         !enddo
+#endif    
              else
                 if (use_vichydro) then
                    imped=10._r8**(-e_ice*min(1.0_r8,ice(c,nlayer)/max_moist(c,nlayer)))
@@ -1585,6 +1670,8 @@ contains
               rsub_top(c)    = deep_seep
             endif
           endif
+       !enddo
+
 #else
 
 

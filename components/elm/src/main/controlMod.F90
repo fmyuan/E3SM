@@ -273,7 +273,7 @@ contains
 
     ! cpl_bypass variables
     namelist /elm_inparm/ metdata_type, metdata_bypass, metdata_biases, &
-         co2_file, aero_file,const_climate_hist
+         co2_file, aero_file,const_climate_hist,tide_file
 
     ! bgc & pflotran interface
     namelist /elm_inparm/ use_elm_interface, use_elm_bgc, use_pflotran
@@ -877,6 +877,7 @@ contains
      call mpi_bcast (metdata_biases, len(metdata_biases), MPI_CHARACTER, 0, mpicom, ier)
      call mpi_bcast (co2_file,       len(co2_file),       MPI_CHARACTER, 0, mpicom, ier)
      call mpi_bcast (aero_file,      len(aero_file),      MPI_CHARACTER, 0, mpicom, ier)
+     call mpi_bcast (tide_file,      len(tide_file),      MPI_CHARACTER, 0, mpicom, ier)
 
     ! plant hydraulics
     call mpi_bcast (use_hydrstress, 1, MPI_LOGICAL, 0, mpicom, ier)

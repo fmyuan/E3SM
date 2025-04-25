@@ -325,7 +325,15 @@ module pftvarcon
   real(r8),allocatable  :: tide_coeff_period(:)        ! Period of tide component (s)
   real(r8),allocatable  :: tide_coeff_phase(:)         ! Phase shift of tide component (s)
   real(r8)              :: sfcflow_ratescale         ! Rate scale for surface water flow across columns (s-1)
-!endif
+ ! parameters for salinity response function
+  real(r8), allocatable :: sal_threshold(:) !threshold for salinity effects (ppt)
+  real(r8), allocatable :: KM_salinity(:)    !half saturation constant for omotic inhibition function (ppt)
+  real(r8), allocatable :: osm_inhib(:)      !osmotic inhibition factor
+  real(r8), allocatable :: sal_opt(:)        !Salinity at which optimal biomass occurs (ppt)
+  real(r8), allocatable :: sal_tol(:)        !Salinity tolerance; width parameter for Gaussian distribution (ppt -1)
+  !real(r8), allocatable :: floodf(:)         !flood factor, inhibit growth due to inundation
+
+  !endif
   !phenology
   real(r8)              :: phen_a
   real(r8)              :: phen_b
@@ -667,11 +675,29 @@ contains
     tide_coeff_amp(:)    = 0.0
     tide_coeff_phase(:)  = 0.0
     tide_coeff_period(:) = 1.0 ! Making period 0 would cause divide by 0 error in sinusoid calculation
+
   !----------------------F.-M. Yuan (2018-03-23): user-defined parameter file ---------------------------------------------------------------------
     allocate( needleleaf         (0:mxpft) )
     allocate( nonvascular        (0:mxpft) )
     allocate( nfixer             (0:mxpft) )
-  !----------------------F.-M. Yuan (2018-03-23): user-defined parameter file ---------------------------------------------------------------------
+
+    ! salinity parameters -should this be an "if defined MARSH"? -SLL
+    
+    ! salinity parameters
+    allocate( sal_threshold (0:mxpft) )
+    allocate( KM_salinity (0:mxpft) )
+    allocate( osm_inhib (0:mxpft) )
+    allocate( sal_opt (0:mxpft) )
+    allocate( sal_tol (0:mxpft) )
+    !allocate( floodf (0:mxpft) )
+
+    ! Make sure they are initialized to some values
+    sal_threshold(:) = 50.0_r8
+    KM_salinity(:) = 1.0_r8
+    osm_inhib(:) = 1.8_r8
+    sal_opt(:) = 0.0_r8
+    sal_tol(:) = 50.0_r8
+    !floodf(:) = 1.0_r8
 
     ! Set specific vegetation type values
 
@@ -1057,6 +1083,7 @@ contains
     if ( .not. readv) hum_frac = 0.5_r8
     call ncd_io('qflx_h2osfc_surfrate', qflx_h2osfc_surfrate, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) qflx_h2osfc_surfrate = 1.0e-7_r8
+
 #ifdef MARSH
 ! Tidal cycle parameters
     ! Defaults from Teri's hard coded numbers
@@ -1090,6 +1117,20 @@ contains
    endif
    call ncd_io('sfcflow_ratescale',sfcflow_ratescale, 'read', ncid, readvar=readv, posNOTonfile=.true.)
    if (.not. readv) sfcflow_ratescale = 7.0e-5_r8 ! Probably better to have default be zero for safety
+
+   ! salinity parameters
+   call ncd_io('sal_threshold', sal_threshold(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+   if ( .not. readv ) sal_threshold(:) = 50.0_r8 !placeholder value for now-update with more accurate -SLL
+   call ncd_io('KM_salinity', KM_salinity(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+   if ( .not. readv ) KM_salinity(:) = 1.0_r8 !placeholder value for now-update with more accurate -SLL
+   call ncd_io('osm_inhib', osm_inhib(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+   if ( .not. readv ) osm_inhib(:) = 1.0_r8 
+   call ncd_io('sal_opt', sal_opt(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+   if ( .not. readv ) sal_opt(:) = 0.0_r8 
+   call ncd_io('sal_tol', sal_tol(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+   if ( .not. readv ) sal_tol(:) = 50.0_r8 
+   !call ncd_io('floodf', floodf(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+   !if ( .not. readv ) floodf(:) = 1.0_r8 
 #endif
 
     call ncd_io('phen_a', phen_a, 'read', ncid, readvar=readv, posNOTonfile=.true.)
