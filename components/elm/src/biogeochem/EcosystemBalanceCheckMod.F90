@@ -12,7 +12,7 @@ module EcosystemBalanceCheckMod
   use decompMod           , only : bounds_type
   use abortutils          , only : endrun
   use elm_varctl          , only : iulog, use_fates, use_fan
-  use elm_varctl          , only : spinup_state, year_start_erw
+  use elm_varctl          , only : spinup_state, year_start_erw, nyear_erw_calibrate
   use elm_time_manager    , only : get_step_size,get_nstep
   use elm_varpar          , only : crop_prog
   use elm_varpar          , only : nlevdecomp
@@ -985,8 +985,8 @@ contains
       end if
     end do ! end of columns loop
 
-   if (spinup_state == 0 .and. year >= (year_start_erw + 3)) then
-      if (year == (year_start_erw+3) .and. mon_curr == 1 .and. day_curr == 1 .and. secs_curr == 0) then
+   if (spinup_state == 0 .and. year >= (year_start_erw + nyear_erw_calibrate)) then
+      if (year == (year_start_erw+nyear_erw_calibrate) .and. mon_curr == 1 .and. day_curr == 1 .and. secs_curr == 0) then
          if (masterproc) then
             write(iulog,*) '--WARNING-- skipping mineral balance check for initialization'
          end if

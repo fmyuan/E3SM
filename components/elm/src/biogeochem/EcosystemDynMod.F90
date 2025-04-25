@@ -637,10 +637,13 @@ contains
     ! Enhanced weathering reactions
     if (use_erw) then
       ! initialize during normal spin-up or transient, not ad-spinup
-      if ((spinup_state == 0 .and. year == year_start_erw) .and. &
+      ! initialize again post-calibration
+      if (spinup_state == 0 .and. &
+          (year == year_start_erw .or. year == (year_start_erw+nyear_erw_calibrate)) .and. &
           (mon == 1 .and. day == 1 .and. secs_curr == 0)) then
          call MineralInit(bounds, num_soilc, filter_soilc, soilstate_vars)
       end if
+
       if (spinup_state == 0 .and. year >= year_start_erw) then
          call MineralBackground(bounds, num_soilc, filter_soilc, soilstate_vars)
          call MineralDynamics(bounds, num_soilc, filter_soilc, soilstate_vars)

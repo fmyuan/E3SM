@@ -61,7 +61,6 @@ module elm_varpar
 
   real(r8)            :: mixing_depth          ! calculate the evenly mixed depth of the soil
 
-  integer, parameter  :: mixing_layer = 5      ! assume weathering mineral is evenly mixed in the top 5 layer of soil (28.9cm)
   !
 
   integer, parameter :: nlayer      =   3     ! number of VIC soil layer --Added by AWang

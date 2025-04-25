@@ -470,9 +470,9 @@ contains
     ! LHS scaler
     scaler = dz * theta
 
-    ! convert sourcesink from mol/m3-soil/s to mol/m2/s
     sourcesink(1:nlevsoi) = 0._r8
     if (q_int(1) > 0._r8) then
+      ! convert rainfall input from mol/m3-water/s to mol/m2/s
       sourcesink(1) = sourcesink(1) + q_int(1) * rain_conc
     end if
 
@@ -512,6 +512,7 @@ contains
         c_next(i) = c_prev(i) + r*dt
         dc_up(i) = 0
         dc_down(i) = 0
+        niter(i) = 0
 
       else
         ! otherwise, do actual calculations
@@ -582,17 +583,18 @@ contains
             dc_down(i) = i4*q_int(i+1)*c_int
 
           else
+
             ! if there is only one side diffusion
             if (i1 == 0) then
                 cmax = c_prev(i+1) ! diffuse down
                 cmin = 0._r8
-                i1_keep = 0
-                i2_keep = 1
+                i1_keep = 0 ! once cmax is hit, no more diffusion
+                i2_keep = 0
 
             else if (i2 == 0) then
                 cmax = c_prev(i-1) ! diffuse up
                 cmin = 0._r8
-                i1_keep = 1
+                i1_keep = 0 ! once cmax is hit, no more diffusion
                 i2_keep = 0
 
             else
@@ -602,11 +604,11 @@ contains
                     cmax = c_prev(i-1)
                     cmin = c_prev(i+1)
                     i1_keep = 0
-                    i2_keep = 1
+                    i2_keep = 1 ! once cmax is hit, cmin still diffuse
                 else
                     cmax = c_prev(i+1)
                     cmin = c_prev(i-1)
-                    i1_keep = 1
+                    i1_keep = 1 ! once cmax is hit, cmin still diffuse
                     i2_keep = 0
                 end if
 
@@ -639,9 +641,13 @@ contains
               dc_down(i) = i2*Deff(i)/dx(i+1) * (c_int_p - c_prev(i+1)*dt_p) &
                             + i4*q_int(i+1)*c_int_p
 
+              !DEBUG
+              !write (iulog, *) '1 dc_up', dc_up(i), i, i1, Deff(i), dx(i), c_int_p, c_prev(i-1), dt_p, i3, abs(q_int(i))
+              !write (iulog, *) '1 dc_down', dc_down(i), i, i2, Deff(i), dx(i+1), c_int_p, c_prev(i+1), dt_p, i4, q_int(i+1)
+
               ! update k & r (drop one side of diffusion)
               k = - (i1_keep*i1*Deff(i)/dx(i) + i2_keep*i2*Deff(i)/dx(i+1) + &
-                    i3*abs(q_int(i)) + i4*q_int(i+1)) / scaler(i)
+                     i3*abs(q_int(i)) + i4*q_int(i+1)) / scaler(i)
               r = (Deff(i)*i1_keep*i1*c_prev(i-1)/dx(i) + &
                     Deff(i)*i2_keep*i2*c_prev(i+1)/dx(i+1) + sourcesink(i)) / scaler(i)
 
@@ -655,14 +661,18 @@ contains
 
                 ! add the fluxes during (dt', dt) (drop one side of diffusion)
                 dc_up(i) = dc_up(i) &
-                    + i1_keep*i1*Deff(i)/dx(i) * (c_int_p - cmax*(dt-dt_p)) &
+                    + i1_keep*i1*Deff(i)/dx(i) * (c_int_p - c_prev(i-1)*(dt-dt_p)) &
                     + i3*abs(q_int(i))*c_int_p
                 dc_down(i) = dc_down(i) &
-                    + i2_keep*i2*Deff(i)/dx(i+1) * (c_int_p - cmax*(dt-dt_p)) &
+                    + i2_keep*i2*Deff(i)/dx(i+1) * (c_int_p - c_prev(i+1)*(dt-dt_p)) &
                     + i4*q_int(i+1)*c_int_p
 
+                !DEBUG
+                !write (iulog, *) '2 dc_up', dc_up(i), i, i1_keep, i1, Deff(i), dx(i), c_int_p, cmax, dt_p, dt, i3, abs(q_int(i))
+                !write (iulog, *) '2 dc_down', dc_down(i), i, i2_keep, i2, Deff(i), dx(i+1), c_int_p, cmax, dt_p, dt, i4, q_int(i+1)
+
                 ! final value at dt
-                c_next(i) = analytical_c(cmax, r, k, dt_p, dt)
+                c_next(i) = c_p
                 niter(i) = 2
 
               else
@@ -676,10 +686,10 @@ contains
 
                 ! add the fluxes during [dt', dt"] (drop one side of diffusion)
                 dc_up(i) = dc_up(i) &
-                    + i1_keep*i1*Deff(i)/dx(i) * (c_int_pp - cmin*(dt_pp-dt_p)) &
+                    + i1_keep*i1*Deff(i)/dx(i) * (c_int_pp - c_prev(i-1)*(dt_pp-dt_p)) &
                     + i3*abs(q_int(i))*c_int_pp
                 dc_down(i) = dc_down(i) &
-                    + i2_keep*i2*Deff(i)/dx(i+1) * (c_int_pp - cmin*(dt_pp-dt_p)) &
+                    + i2_keep*i2*Deff(i)/dx(i+1) * (c_int_pp - c_prev(i+1)*(dt_pp-dt_p)) &
                     + i4*q_int(i+1)*c_int_pp
 
                 ! update the k & r (drop all diffusion)
@@ -757,29 +767,23 @@ contains
     ! precipitation, etc.)
     ! (TBD)
 
-    !(iulog, *) 'c_prev', c_prev(1:nlevsoi)
-
-    ! write (iulog, *) 'dc', (c_next - c_prev)*dz*theta
-    ! write (iulog, *) 'q_int', q_int
-    !write (iulog, *) 'dc_up', dc_up
-    !write (iulog, *) 'dc_down', dc_down
-    ! write (iulog, *) 'dc - outflux', (c_next - c_prev)*dz*theta + (dc_up + dc_down)
-    ! write (iulog, *) sum(dc_up + dc_down)
-    ! write (iulog, *) sum((c_next - c_prev)*dz*theta)
-    ! write (iulog, *) sum((c_next - c_prev)*dz*theta + (dc_up + dc_down))
-
-    !write (iulog, *) 'c_next', c_next(1:nlevsoi)
+    !write (iam+100, *) 'c_prev', c_prev(1:nlevbed)
+    !write (iam+100, *) 'q_int', q_int(1:nlevbed+1)
+    !write (iam+100, *) 'dc_up', dc_up(1:nlevbed)
+    !write (iam+100, *) 'dc_down', dc_down(1:nlevbed)
+    !write (iam+100, *) 'c_next', c_next(1:nlevbed)
+    !write (iam+100, *) 'niter', niter(1:nlevbed)
 
     ! calculate the net between self-outflow and inflow fluxes
     ! note the inflow fluxes need to be scalerd by soil moisture
     ! to get the correct concentration implications
-    c_next(:nlevsoi-1) = c_next(:nlevsoi-1) + dc_up(2:nlevsoi)/theta(:nlevsoi-1)/dz(:nlevsoi-1)
-    c_next(2:nlevsoi) = c_next(2:nlevsoi) + dc_down(:nlevsoi-1)/theta(2:nlevsoi)/dz(2:nlevsoi)
+    !c_next(1:nlevbed-1) = c_next(1:nlevbed-1) + dc_up(2:nlevbed)/theta(1:nlevbed-1)/dz(1:nlevbed-1)
+    !c_next(2:nlevbed) = c_next(2:nlevbed) + dc_down(:nlevbed-1)/theta(2:nlevbed)/dz(2:nlevbed)
 
-    !write (iulog, *) 'c_next2', c_next(1:nlevsoi)
+    !write (iam+100, *) 'c_next2', c_next(1:nlevbed)
 
     ! convert end concentration from per m3-water to per m3-soil, and perform delta
-    dcdt = ((c_next * theta) - conc_in) / dt
+    dcdt = (c_next - c_prev) * theta / dt
 
   end subroutine advection_diffusion
 

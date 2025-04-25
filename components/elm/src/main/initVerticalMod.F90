@@ -13,10 +13,10 @@ module initVerticalMod
   use decompMod      , only : bounds_type
   use spmdMod        , only : masterproc
   use elm_varpar     , only : more_vertlayers, nlevsno, nlevgrnd, nlevlak
-  use elm_varpar     , only : mixing_layer, mixing_depth
+  use elm_varpar     , only : mixing_depth
   use elm_varpar     , only : toplev_equalspace, nlev_equalspace
   use elm_varpar     , only : nlevsoi, nlevsoifl, nlevurb, nlevslp 
-  use elm_varctl     , only : fsurdat, iulog, use_var_soil_thick
+  use elm_varctl     , only : fsurdat, iulog, use_var_soil_thick, mixing_layer
   use elm_varctl     , only : use_vancouver, use_mexicocity, use_vertsoilc, use_extralakelayers, use_extrasnowlayers
   use elm_varctl     , only : use_erosion
   use elm_varcon     , only : zlak, dzlak, zsoi, dzsoi, zisoi, dzsoi_decomp, spval, grlnd 

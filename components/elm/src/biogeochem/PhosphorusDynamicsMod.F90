@@ -14,8 +14,8 @@ module PhosphorusDynamicsMod
   use elm_varcon          , only : dzsoi_decomp, zisoi
   use atm2lndType         , only : atm2lnd_type
   use CNCarbonFluxType    , only : carbonflux_type
-  use elm_varpar          , only : nlevdecomp, mixing_layer
-  use elm_varctl          , only : use_vertsoilc, use_erw
+  use elm_varpar          , only : nlevdecomp
+  use elm_varctl          , only : use_vertsoilc, use_erw, mixing_layer
 
   use subgridAveMod       , only : p2c
   use CNStateType         , only : cnstate_type

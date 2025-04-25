@@ -9,11 +9,11 @@ module EnhancedWeatheringMod
   !
   ! !USES:
   use shr_kind_mod        , only : r8 => shr_kind_r8
-  use elm_varctl          , only : iulog, year_start_erw, nyear_erw_calibrate
+  use elm_varctl          , only : iulog, year_start_erw, nyear_erw_calibrate, mixing_layer
   use elm_varcon          , only : log_keq_co3, log_keq_hco3, log_keq_sio2am
   use elm_varcon          , only : mass_co3, mass_hco3, mass_co2, mass_h2o, mass_sio2, mass_h
   use elm_varcon          , only : zisoi
-  use elm_varpar          , only : mixing_layer, mixing_depth, nlevgrnd, nlevsoi
+  use elm_varpar          , only : mixing_depth, nlevgrnd, nlevsoi
   use elm_varpar          , only : nminerals, ncations, nminsecs, nks
   use decompMod           , only : bounds_type
   use ColumnDataType      , only : col_ew, col_ms, col_mf, col_es, col_ws, col_wf
@@ -90,7 +90,7 @@ contains
   ! Read namelist for elm-pflotran interface
   !
   ! !USES:
-    use elm_varctl    , only : iulog
+    use elm_varctl    , only : iulog, mixing_layer
     use elm_varctl    , only : year_start_erw, elm_erw_paramfile, use_erw_verbose, builtin_site
     use spmdMod       , only : masterproc, mpicom, MPI_CHARACTER, MPI_INTEGER
     use shr_log_mod   , only : errMsg => shr_log_errMsg
@@ -113,7 +113,7 @@ contains
     character(len=32) :: subname = 'elm_erw_readnl'  ! subroutine name
   !EOP
   !-----------------------------------------------------------------------
-    namelist / elm_erw_inparm / year_start_erw, nyear_erw_calibrate, elm_erw_paramfile, use_erw_verbose, builtin_site
+    namelist / elm_erw_inparm / year_start_erw, nyear_erw_calibrate, elm_erw_paramfile, use_erw_verbose, builtin_site, mixing_layer
 
     ! ----------------------------------------------------------------------
     ! Read namelist from standard namelist file.
@@ -144,6 +144,7 @@ contains
        write(iulog, '(A, " : ", A,/)') "   elm-erw parameter file ", trim(elm_erw_paramfile)
        write(iulog, '(A, " : ", I0,/)') "   verbose logs ", use_erw_verbose
        write(iulog, '(A, " : ", I0,/)') "   built-in validation site ", builtin_site
+       write(iulog, '(A, " : ", I0,/)') "   number of soil layers to mix rock powder", mixing_layer
     end if
 
     ! Broadcast namelist variables read in
@@ -152,6 +153,7 @@ contains
     call mpi_bcast (elm_erw_paramfile, len(elm_erw_paramfile), MPI_CHARACTER, 0, mpicom, ierr)
     call mpi_bcast (use_erw_verbose, 1, MPI_INTEGER, 0, mpicom, ierr)
     call mpi_bcast (builtin_site, 1, MPI_INTEGER, 0, mpicom, ierr)
+    call mpi_bcast (mixing_layer, 1, MPI_INTEGER, 0, mpicom, ierr)
   end subroutine elm_erw_readnl
 
   !-----------------------------------------------------------------------
@@ -495,11 +497,6 @@ contains
         ! rain pH data from the monitoring station in Hubbard Brook, 
         ! National Atmospheric Deposition Program
         ! https://nadp.slh.wisc.edu/sites/ntn-NH02/
-
-        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        ! This creates NaNf in HBR run, why?
 
       !  rain_ph(c) = 4.8_r8
         ! Ca = 0.055 mg/L, Mg = 0.015 mg/L, Na = 0.075 mg/L, K = 0.014 mg/L, Al = 0
@@ -1280,12 +1277,16 @@ contains
       adv_water(nlevbed + 1) = 1.0e-3_r8 * qin(c,nlevbed+1) * mixing_fraction(c,nlevbed+1)
 
       do icat = 1,ncations
+        !write (iam+100, *) '---------------------------------------------------------'
+        !write (iam+100, *) c, icat
+
         call advection_diffusion(cation_vr(c, 1:nlevsoi, icat), rain_cations(icat), &
                                  adv_water(1:nlevsoi+1), h2osoi_vol(c, 1:nlevsoi), &
                                  soilstate_vars%watsat_col(c,1:nlevsoi), &
                                  sourcesink_cations(1:nlevsoi, icat), &
                                  EWParamsInst%cations_diffusivity(icat), &
                                  dt, dz(c,1:nlevsoi), nlevbed, dcation_dt(1:nlevsoi, icat))
+        !write (iam+100, *) '---------------------------------------------------------'
       end do
 
       call advection_diffusion(bicarbonate_vr(c, 1:nlevsoi), rain_bicarbonate, &
@@ -1307,7 +1308,7 @@ contains
       !------------------------------------------------------------------------------
       do j = 1, nlevbed
         do icat = 1, ncations
-          cation_infl_vr(c,j,icat) = dcation_dt(j, icat) - sourcesink_cations(j,icat)
+          cation_infl_vr(c,j,icat) = dcation_dt(j, icat) ! - sourcesink_cations(j,icat)
           cation_oufl_vr(c,j,icat) = 0._r8
         end do
       end do
