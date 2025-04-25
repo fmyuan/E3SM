@@ -256,6 +256,7 @@ contains
 #endif
 #if (defined MARSH)
           qflx_tide                  =>    col_wf%qflx_tide               , & ! Input:   [real(r8) (:)   ]  tidal flux between consecutive timesteps (mm H2O /s)
+          eflx_sh_tide               =>    col_ef%eflx_sh_tide            , & ! Input:   [real(r8) (:)   ]  sensible heat flux from tide
 #endif
           qflx_lateral               =>    col_wf%qflx_lateral            , & ! Input:  [real(r8) (:)   ]  lateral flux of water to neighboring column (mm H2O /s)
           qflx_h2orof_drain          =>    col_wf%qflx_h2orof_drain       , & ! Input:  [real(r8) (:)   ] drainange from floodplain inundation volume (mm H2O/s) 
@@ -648,6 +649,9 @@ contains
              if (.not. lun_pp%urbpoi(l)) then
                 errseb(p) = sabv(p) + sabg_chk(p) + forc_lwrad(t) - eflx_lwrad_out(p) &
                      - eflx_sh_tot(p) - eflx_lh_tot(p) - eflx_soil_grnd(p)
+#if (defined MARSH)
+                errseb(p) = errseb(p) + eflx_sh_tide(c) !SL added eflx_sh_tide 5-5-22
+#endif
              else
                 errseb(p) = sabv(p) + sabg(p) &
                      - eflx_lwrad_net(p) &

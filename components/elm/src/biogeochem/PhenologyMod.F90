@@ -738,8 +738,16 @@ contains
             ! update offset_counter and test for the end of the offset period
             if (offset_flag(p) == 1.0_r8) then
                ! decrement counter for offset period
+#if (defined MARSH)
+               if (c==2) then
+                  offset_counter(p) = offset_counter(p)
+               else if (c==1) then
+                  offset_counter(p) = offset_counter(p) - dt
+               endif
+#else
                offset_counter(p) = offset_counter(p) - dt
 
+#endif
                ! if this is the end of the offset_period, reset phenology
                ! flags and indices
                if (offset_counter(p) == 0.0_r8) then
@@ -760,7 +768,15 @@ contains
             ! update onset_counter and test for the end of the onset period
             if (onset_flag(p) == 1.0_r8) then
                ! decrement counter for onset period
+#if (defined MARSH)
+               if (c==2) then
+                  onset_counter(p) = onset_counter(p)
+               else if (c==1) then
+                  onset_counter(p) = onset_counter(p) - dt
+               endif
+#else
                onset_counter(p) = onset_counter(p) - dt
+#endif
 
                ! if this is the end of the onset period, reset phenology
                ! flags and indices
@@ -918,7 +934,7 @@ contains
                end if
 
                ! test for switching from growth period to offset period
-            else if (offset_flag(p) == 0.0_r8) then
+            else if (dormant_flag(p)==0.0_r8 .and. offset_flag(p) == 0.0_r8) then
                ! only begin to test for offset daylength once past the summer sol
 
               if (ivt(p) == 3) then
@@ -954,6 +970,12 @@ contains
               end if
             end if
 
+            !make sure a second onset period doesn't occur SL 02-09-22
+            if (ws_flag == 0._r8 .and. dayl(g) < PhenolParamsInst%crit_dayl) then
+               onset_flag(p) = 0._r8
+               onset_counter = 0._r8 !SL this might interfere with arctic stuff but fixes random fall onset_counter > 0
+               !dormant_flag(p) = 1._r8
+            endif
          end if ! end if seasonal deciduous
 
       end do ! end of pft loop
@@ -1008,6 +1030,8 @@ contains
          froot_long                          =>    veg_vp%froot_long                                 , & ! Input:  [real(r8)  (:)   ]  fine root longevity (yrs)
          woody                               =>    veg_vp%woody                                      , & ! Input:  [real(r8)  (:)   ]  woody lifeform flag (0 = non-woody, 1 = tree, 2 = shrub)
          stress_decid                        =>    veg_vp%stress_decid                               , & ! Input:  [real(r8)  (:)   ]  binary flag for stress-deciduous leaf habit (0 or 1)
+         crit_gdd1                           =>    veg_vp%crit_gdd1                                  , & ! Input:  [real(r8) (:) ] critical GDD intercept (at t = 0)
+         crit_gdd2                           =>    veg_vp%crit_gdd2                                  , & ! Input:  [real(r8) (:) ] critical GDD slope (funtion of MAT)
 
          soilpsi                             =>    soilstate_vars%soilpsi_col                            , & ! Input:  [real(r8)  (:,:) ]  soil water potential in each soil layer (MPa)
 
@@ -1134,7 +1158,7 @@ contains
             psi = soilpsi(c,3)
 
             ! onset gdd sum from Biome-BGC, v4.1.2
-            crit_onset_gdd = exp(4.8_r8 + 0.13_r8*(annavg_t2m(p) - SHR_CONST_TKFRZ))
+            crit_onset_gdd = exp(crit_gdd1(ivt(p)) + crit_gdd2(ivt(p))*(annavg_t2m(p) - SHR_CONST_TKFRZ))
 
 
             ! update offset_counter and test for the end of the offset period
