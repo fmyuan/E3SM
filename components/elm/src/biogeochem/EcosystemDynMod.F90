@@ -637,9 +637,9 @@ contains
     ! Enhanced weathering reactions
     if (use_erw) then
       ! initialize during normal spin-up or transient, not ad-spinup
-      ! initialize again post-calibration
+      ! initialize every year during calibration and first year after calibration done
       if (spinup_state == 0 .and. &
-          (year == year_start_erw .or. year == (year_start_erw+nyear_erw_calibrate)) .and. &
+          (year >= year_start_erw .and. year <= (year_start_erw+nyear_erw_calibrate)) .and. &
           (mon == 1 .and. day == 1 .and. secs_curr == 0)) then
          call MineralInit(bounds, num_soilc, filter_soilc, soilstate_vars)
       end if

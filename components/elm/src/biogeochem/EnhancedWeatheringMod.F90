@@ -351,7 +351,8 @@ contains
          cec_proton_vr                  => col_ms%cec_proton_vr           , & ! Output: [real(r8) (:,:,:)] adsorbed H+ concentration each soil layer (1:nlevgrnd) (g m-3 soil [not dry soil])
          net_charge_vr                  => col_ms%net_charge_vr           , & ! Output:  [real(r8) (:,:)] net charge of the tracked ions in the soil solution system, constant over time (1:nlevgrnd) (mol kg-1)
          equilibria_conc                => col_ms%equilibria_conc         , & ! Output:  [real(r8) (:,:,:)] soil pore water cation concentration implied by the input soil CEC status and exchange coefficients (mol kg-1)
-         cation_vr                      => col_ms%cation_vr               & ! Output [real(r8) (:,:,:)] cation mass in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd, 1:ncations)
+         cation_vr                      => col_ms%cation_vr               , & ! Output [real(r8) (:,:,:)] cation mass in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd, 1:ncations)
+         cect_dyn                            => col_ms%cect_dyn             & ! Input:  [real(r8) (:,:)] pH-dependent total cation exchange capacity (1:nlevgrnd)
     )
 
     do fc = 1,num_soilc
@@ -403,6 +404,9 @@ contains
         ! mol/kg
         net_charge_vr(c,j) = find_net_charge(soilstate_vars%sph(c,j), co2_atm, beta_list, &
                                              keq_list, EWParamsInst%cations_valence)
+        
+        ! reset the total cation exchange capacity
+        cect_dyn(c,j) = soilstate_vars%cect_col(c,j)
       end do
     end do
 

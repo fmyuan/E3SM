@@ -111,6 +111,20 @@ contains
         col_ms%cec_proton_vr(c,j) = col_ms%cec_proton_vr(c,j) + &
           meq_to_mass(col_mf%cect_delta(c,j), 1._r8, mass_h, soilstate_vars%bd_col(c,j))
 
+        !!DEBUG
+        !!write (iulog, *) j, 'cect_dyn', col_ms%cect_dyn(c,j), col_mf%cect_delta(c,j)
+        !!do icat = 1,ncations
+        !!  write (iulog, *) j, 'cec_cation_vr', &
+        !!    mass_to_meq(col_ms%cec_cation_vr(c,j,icat), &
+        !!    EWParamsInst%cations_valence(icat), EWParamsInst%cations_mass(icat), &
+        !!    soilstate_vars%bd_col(c,j)), mass_to_meq(col_mf%cec_cation_flux2_vr(c,j,icat), &
+        !!    EWParamsInst%cations_valence(icat), EWParamsInst%cations_mass(icat), &
+        !!    soilstate_vars%bd_col(c,j)), icat
+        !!end do
+        !!write (iulog, *) j, 'cec_proton', mass_to_meq(col_ms%cec_proton_vr(c,j), &
+        !!    1._r8, mass_h, soilstate_vars%bd_col(c,j))
+        !!write (iulog, *) j, 'col_mf%cec_delta_limit(c,j)', col_mf%cec_delta_limit(c,j)
+
         ! primary mineral
         do m = 1,nminerals
           col_ms%primary_mineral_vr(c,j,m) = col_ms%primary_mineral_vr(c,j,m) + &
