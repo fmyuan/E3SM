@@ -90,7 +90,7 @@ contains
   ! Read namelist for elm-pflotran interface
   !
   ! !USES:
-    use elm_varctl    , only : iulog, mixing_layer
+    use elm_varctl    , only : iulog
     use elm_varctl    , only : year_start_erw, elm_erw_paramfile, use_erw_verbose, builtin_site
     use spmdMod       , only : masterproc, mpicom, MPI_CHARACTER, MPI_INTEGER
     use shr_log_mod   , only : errMsg => shr_log_errMsg
