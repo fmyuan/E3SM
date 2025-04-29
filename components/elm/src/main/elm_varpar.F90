@@ -82,6 +82,7 @@ module elm_varpar
   ! modified.
   real(r8), parameter :: scalez  = 0.025_r8
   real(r8), parameter :: zecoeff = 0.50_r8
+  integer, parameter :: max_tide_coeffs = 37 ! Number in NOAA tide tables
 
   ! constants for decomposition cascade
 
