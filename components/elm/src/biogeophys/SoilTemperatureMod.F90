@@ -923,11 +923,21 @@ contains
                   satw = (h2osoi_liq(c,j)/denh2o + h2osoi_ice(c,j)/denice)/(dz(c,j)*watsat(c,j))
                   satw = min(1._r8, satw)
                   if (satw > .1e-6_r8) then
+                     ! This is the Johansen method
                      if (t_soisno(c,j) >= tfrz) then       ! Unfrozen soil
                         dke = max(0._r8, log10(satw) + 1.0_r8)
                      else                               ! Frozen soil
                         dke = satw
                      end if
+                     !! Test the Cote method as reported in 
+                     !! Yang et al. (2021) Evaluation of soil thermal conductivity schemes incorporated into CLM5.0 in permafrost regions on the Tibetan Plateau. Geoderma, 401, 1, 115330.
+                     !! Du et al. (2022) A new model for predicting soil thermal conductivity for dry soils. International Journal of Thermal Sciences. 2022, 176, 107487.
+                     !if (t_soisno(c,j) >= tfrz) then
+                     !    dke = 3.55_r8*satw/(1._r8 + (3.55_r8-1._r8)*satw)
+                     !else
+                     !    dke = 0.95_r8*satw/(1._r8 + (0.95_r8-1._r8)*satw)
+                     !end if
+
                      fl = (h2osoi_liq(c,j)/(denh2o*dz(c,j))) / (h2osoi_liq(c,j)/(denh2o*dz(c,j)) + &
                           h2osoi_ice(c,j)/(denice*dz(c,j)))
                      dksat = tkmg(c,j)*tkwat**(fl*watsat(c,j))*tkice**((1._r8-fl)*watsat(c,j))

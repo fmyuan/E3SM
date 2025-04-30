@@ -906,8 +906,19 @@ contains
 
                 this%tksatu_col(c,lev) = this%tkmg_col(c,lev)*0.57_r8**this%watsat_col(c,lev)
 
+                ! This is the Johansen method
                 this%tkdry_col(c,lev)  = ((0.135_r8*this%bd_col(c,lev) + 64.7_r8) / &
                      (2.7e3_r8 - 0.947_r8*this%bd_col(c,lev)))*(1._r8-om_frac) + om_tkd*om_frac
+                ! Test the Cote method as reported in 
+                ! Yang et al. (2021) Evaluation of soil thermal conductivity schemes incorporated into CLM5.0 in permafrost regions on the Tibetan Plateau. Geoderma, 401, 1, 115330.
+                ! Du et al. (2022) A new model for predicting soil thermal conductivity for dry soils. International Journal of Thermal Sciences. 2022, 176, 107487.
+                !if (om_frac >= 0.5_r8) then
+                !   ! organic fibrous soils
+                !   this%tkdry_col(c,lev) = 0.30_r8 * 10._r8 ** (-0.87_r8 * this%watsat_col(c,lev))
+                !else
+                !   ! natural mineral soil
+                !   this%tkdry_col(c,lev) = 0.75_r8 * 10._r8 ** (-1.20_r8 * this%watsat_col(c,lev))
+                !end if
 
                 this%csol_col(c,lev)   = ((1._r8-om_frac)*(2.128_r8*sand+2.385_r8*clay) / (sand+clay) + &
                      om_csol*om_frac)*1.e6_r8  ! J/(m3 K)

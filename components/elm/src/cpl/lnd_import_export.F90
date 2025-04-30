@@ -760,14 +760,14 @@ contains
                                         atm2lnd_vars%add_offsets(13)))*atm2lnd_vars%var_mult(13,g,mon) + &
                                           atm2lnd_vars%var_offset(13,g,mon)), 0.0_r8)
         else
-          !if (use_erw .and. (builtin_site == 1)) then
-          !  ! reduce the amount of snow for HBR site: shift to 
-          !  frac = (atm2lnd_vars%forc_t_not_downscaled_grc(g) - SHR_CONST_TKFRZ)*0.25_R8 + 0.5_R8       ! ramp near freezing
-          !  frac = min(1._R8,max(0.5_R8,frac))           ! bound in [0.5,1]
-          !else
+          if (use_erw .and. (builtin_site == 1)) then
+            ! reduce the amount of snow for HBR site: shift to single threshold
+            ! "However, in the eastern US, Jordan's method generated too much snowfall and subsequently overestimated SWE as compared to observations from the New York State Mesonet (Letcher et al., 2022)." https://hess.copernicus.org/articles/26/5721/2022/#section2
+            frac = merge(1._r8, 0._r8, atm2lnd_vars%forc_t_not_downscaled_grc(g) > SHR_CONST_TKFRZ)
+          else
             frac = (atm2lnd_vars%forc_t_not_downscaled_grc(g) - SHR_CONST_TKFRZ)*0.5_R8       ! ramp near freezing
             frac = min(1.0_R8,max(0.0_R8,frac))           ! bound in [0,1]
-          !end if
+          end if
 
           !Don't interpolate rainfall data
           forc_rainc = 0.1_R8 * frac * max((((atm2lnd_vars%atm_input(5,g,1,tindex(5,2))*atm2lnd_vars%scale_factors(5)+ &
