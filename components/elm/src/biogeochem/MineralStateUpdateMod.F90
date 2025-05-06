@@ -240,7 +240,7 @@ contains
           ! transported to ocean: 2x for 2+ cations, 1x for 1+ cations, multiply by
           ! ocean efficiency (0.86)
           ! - col_mf%background_flux_vr(c,j,icat)
-          do icat = 1,ncations
+          do icat = 1,ncations-1
             col_mf%r_sequestration(c) = col_mf%r_sequestration(c) + & 
                 ( col_mf%cation_leached_vr(c,j,icat) + col_mf%cation_runoff_vr(c,j,icat) - &
                   col_mf%cation_infl_vr(c,j,icat) ) * 0.86_r8 * col_pp%dz(c,j) / &
