@@ -205,7 +205,7 @@ contains
     allocate(this%tindex               (begg:endg,1:14,1:2))        ; this%tindex                    (:,:,:)   = ival_int
     allocate(this%metsource                                )        ; this%metsource                           = ival_int   
     allocate(this%npf                                (1:14))        ; this%npf                           (:)   = ival
-    !allocate(this%atm_input       (14,begg:endg,1,1:600000))        ; this%atm_input               (:,:,:,:)   = ival_short
+    allocate(this%atm_input       (14,begg:endg,1,1:600000))        ; this%atm_input               (:,:,:,:)   = ival_short
     allocate(this%loaded_bypassdata                        )        ; this%loaded_bypassdata                   = 0
     allocate(this%add_offsets                        (1:14))        ; this%add_offsets                   (:)   = ival_float 
     allocate(this%scale_factors                      (1:14))        ; this%scale_factors                 (:)   = ival_float

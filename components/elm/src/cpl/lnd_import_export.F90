@@ -346,7 +346,7 @@ contains
               metsource_str = 'gfdl_historical'
               atm2lnd_vars%startyear_met      = 1951
               atm2lnd_vars%endyear_met_spinup = 1970
-              atm2lnd_vars%endyear_met_trans  = 2014
+              atm2lnd_vars%endyear_met_trans  = 2100
           end if
 
           if (use_livneh) then 
@@ -468,7 +468,7 @@ contains
                     metdata_fname = 'crujra.v2.4.5d_' // trim(metvars(v)) // '_1901-2022_z' // zst(2:3) // '.nc'
                 end if
             else if (atm2lnd_vars%metsource == 7) then
-                    metdata_fname = 'gfdl-esm4.historical.c2107.0.5x0.5'  // '_' // trim(metvars(v)) // '_1951-2014_z' // zst(2:3) // '.nc'
+                    metdata_fname = 'gfdl-esm4.historical.c2107.0.5x0.5'  // '_' // trim(metvars(v)) // '_1951-2100_z' // zst(2:3) // '.nc'
             end if
   
             ierr = nf90_open(trim(metdata_bypass) // '/' // trim(metdata_fname), NF90_NOWRITE, met_ncids(v))
@@ -503,9 +503,9 @@ contains
             counti(2) = 1
             if (.not. const_climate_hist .and. (yr .ge. 1850 .or. use_sitedata)) counti(1) = atm2lnd_vars%timelen(v)
 
-            if (i == 1 .and. v == 1)  then 
-              allocate(atm2lnd_vars%atm_input       (met_nvars,bounds%begg:bounds%endg,1,1:counti(1)))
-            end if 
+            !if (i == 1 .and. v == 1)  then 
+            !  allocate(atm2lnd_vars%atm_input       (max(met_nvars,7),bounds%begg:bounds%endg,1,1:counti(1)))
+            !end if 
 
             ierr = nf90_get_var(met_ncids(v), varid, atm2lnd_vars%atm_input(v,g:g,1,1:counti(1)), starti(1:2), counti(1:2))
             ierr = nf90_close(met_ncids(v))
