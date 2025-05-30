@@ -357,6 +357,10 @@ contains
 
     !-----------------------------------------------------------------------
     ! Write mass balance diagnostics only if verbose level is set to high
+
+    !if ((ldomain%latc(g) > 44.7) .and. (ldomain%latc(g) < 44.8) .and. &
+    !    (ldomain%lonc(g) > -69.8) .and. (ldomain%lonc(g) < -69.7)) then
+
     if (use_erw_verbose == 2) then
       ! print soil solution proton
       do fc = 1,num_soilc
@@ -544,6 +548,9 @@ contains
         end do
       end do
     end do
+
+    !end if
+
     !------------------------------------------------------------------------------
   end subroutine MineralStateDiags
 

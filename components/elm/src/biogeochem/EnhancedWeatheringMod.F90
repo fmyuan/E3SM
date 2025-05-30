@@ -1101,7 +1101,6 @@ contains
           secondary_mineral_flux_vr(c,j,isec) = r_precip_vr(c,j,isec) * EWParamsInst%minsecs_mass(isec)
          end if
 
-
          ! Kaolinite formation (Al3+ is cation #5)
          isec = 2
          icat = 5
@@ -1118,8 +1117,8 @@ contains
           ! r [mol m-3 s-1] = A_{bulk} [m2 m-3] * k * (\Omega - 1)
           ! Perez-Fodich, A., & Derry, L. A. (2020). A model for germanium-silicon equilibrium fractionation in kaolinite. Geochimica et Cosmochimica Acta, 288, 199–213. https://doi.org/10.1016/j.gca.2020.07.046
           r_precip_vr(c,j,isec) = EWParamsInst%alpha_minsecs(isec) * &
-            (soilstate_vars%bd_col(c,j)*1e3*(1-soilstate_vars%cellorg_col(c,j)/ &
-             ParamsShareInst%organic_max)*soilstate_vars%kaolinite_col(c,j)/100._r8) * &
+            (soilstate_vars%bd_col(c,j)*1e3*max(1-soilstate_vars%cellorg_col(c,j)/ &
+             ParamsShareInst%organic_max, 0._r8)*soilstate_vars%kaolinite_col(c,j)/100._r8) * &
             max(10**saturation_ratio - 1._r8, 0._r8)
 
           ! convert to mol kg-1 water s-1
