@@ -1,1 +1,2 @@
 set(CXX_LINKER "CXX")
+string(APPEND CMAKE_EXE_LINKER_FLAGS " -Wl,-rpath,$ENV{FC_ROOT}/lib")
