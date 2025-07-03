@@ -440,9 +440,9 @@ module ColumnDataType
       real(r8), pointer :: cation_vr               (:,:,:) => null() ! cation concentration in soil water in each soil layer (1:nlevgrnd,1:ncations) (g m-3 soil [not water])
       real(r8), pointer :: silica_vr               (:,:)   => null() ! SiO2 concentration in soil water in each soil layer (1:nlevgrnd) (g m-3 soil [not water])
       real(r8), pointer :: primary_residue_vr      (:,:,:) => null() ! non-SiO2 solids concentration in solid phase in each soil layer (1:nlevgrnd,1:nminerals) (g m-3)
-      real(r8), pointer :: armor_thickness_vr      (:,:)   => null() ! armoring layer thickness due to preferential release and formation of secondary mineral (1:nlevgrnd) (um)
       real(r8), pointer :: ssa                     (:,:)   => null() ! specific surface area of the primary mineral (1:nminerals) (m2 g-1 mineral)
       real(r8), pointer :: secondary_mineral_vr    (:,:,:) => null() ! secondary mineral concentration in solid phase in each soil layer (1:nlevgrnd,1:nminsecs) (g m-3)
+      real(r8), pointer :: passivation_thickness   (:,:)   => null() ! armoring layer thickness due to preferential release and formation of secondary mineral (1:nlevgrnd) (m)
 
       real(r8), pointer :: cec_cation_vr           (:,:,:) => null() ! adsorbed cation concentration each soil layer (1:nlevgrnd,1:ncations) (g m-3 soil [not dry soil])
       real(r8), pointer :: cec_proton_vr           (:,:)   => null() ! adsorbed H+ concentration in each soil layer (1:nlevgrnd) (g m-3 soil [not dry soil])
@@ -1148,6 +1148,7 @@ module ColumnDataType
       real(r8), pointer :: secondary_cation_flux_vr     (:,:,:)   => null() ! rate at which cations consumed due to precipitation of secondary minerals (1:nlevgrnd,1:ncations) (g m-3 s-1)
       real(r8), pointer :: secondary_silica_flux_vr     (:,:)     => null() ! rate at which SiO2 is consumed by secondary mineral precipitation (1:nlevgrnd,1:ncations) (g m-3 s-1)
       real(r8), pointer :: r_precip_vr                  (:,:,:)   => null() ! reaction rate of the precipitation of the secondary mineral (1:nlevgrnd,1:nminsecs) (mol reaction m-3 s-1)
+      real(r8), pointer :: passivation_rate             (:,:)     => null() ! rate at which secondary mineral accumulates on the surface of primary mineral (1:nlevgrnd) (m s-1)
 
       real(r8), pointer :: cec_cation_flux_vr           (:,:,:)   => null() ! rate at which cation is released into water due to cation exchange  (negative for adsorption into soil) (vertically resolved) (1:nlevgrnd, 1:ncations) (g m-3 s-1)
       real(r8), pointer :: cec_cation_flux2_vr          (:,:,:)   => null() ! rate at which cation is released into water due to cation exchange  (negative for adsorption into soil) (vertically resolved) (1:nlevgrnd, 1:ncations) (g m-3 s-1)
@@ -5865,9 +5866,9 @@ contains
       allocate(this%cation_vr           (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cation_vr              (:,:,:) = spval
       allocate(this%silica_vr           (begc:endc,1:nlevgrnd            ))       ; this%silica_vr              (:,:) = spval
       allocate(this%primary_residue_vr  (begc:endc,1:nlevgrnd,1:nminerals))       ; this%primary_residue_vr     (:,:,:) = spval
-      allocate(this%armor_thickness_vr  (begc:endc,1:nlevgrnd            ))       ; this%armor_thickness_vr     (:,:) = spval
       allocate(this%ssa                 (begc:endc,1:nminerals           ))       ; this%ssa                    (:,:) = spval
-      allocate(this%secondary_mineral_vr(begc:endc,1:nlevgrnd,1:nminsecs  ))       ; this%secondary_mineral_vr   (:,:,:) = spval
+      allocate(this%secondary_mineral_vr(begc:endc,1:nlevgrnd,1:nminsecs ))       ; this%secondary_mineral_vr   (:,:,:) = spval
+      allocate(this%passivation_thickness (begc:endc,1:nlevgrnd          ))       ; this%passivation_thickness  (:,:) = spval
       allocate(this%cec_cation_vr       (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cec_cation_vr          (:,:,:) = spval
       allocate(this%cec_proton_vr       (begc:endc,1:nlevgrnd            ))       ; this%cec_proton_vr          (:,:) = spval
       allocate(this%net_charge_vr       (begc:endc,1:nlevgrnd            ))       ; this%net_charge_vr          (:,:) = spval
@@ -5875,7 +5876,7 @@ contains
       allocate(this%proton              (begc:endc                       ))       ; this%proton                 (:) = spval
       allocate(this%cation              (begc:endc,1:ncations            ))       ; this%cation                 (:,:) = spval
       allocate(this%silica              (begc:endc                       ))       ; this%silica                 (:) = spval
-      allocate(this%secondary_mineral   (begc:endc,1:nminsecs             ))       ; this%secondary_mineral      (:,:) = spval
+      allocate(this%secondary_mineral   (begc:endc,1:nminsecs            ))       ; this%secondary_mineral      (:,:) = spval
       allocate(this%primary_residue     (begc:endc,1:nminerals           ))       ; this%primary_residue        (:,:) = spval
       allocate(this%cec_cation          (begc:endc,1:ncations            ))       ; this%cec_cation             (:,:) = spval
       allocate(this%cec_proton          (begc:endc                       ))       ; this%cec_proton             (:)   = spval
@@ -5972,12 +5973,6 @@ contains
             ptr_col=data2dptr, l2g_scale_type='veg')
       end do
 
-      this%armor_thickness_vr(begc:endc,1:nlevgrnd) = spval
-      data2dptr => this%armor_thickness_vr(:,:)
-      call hist_addfld2d (fname='armor_thickness_vr',  units='um', type2d='levgrnd', &
-         avgflag='A', long_name='thickness of armoring layer on primary mineral (vertically resolved)', &
-         ptr_col=data2dptr, l2g_scale_type='veg')
-
       this%ssa(begc:endc,1:nminerals) = spval
       call hist_addfld2d (fname='ssa',  units='m2 g-1', type2d='minerals', &
          avgflag='A', long_name='specific surface area of the primary mineral', &
@@ -5993,6 +5988,12 @@ contains
             avgflag='A', long_name='secondary mineral concentration in the soil (vertically resolved)', &
             ptr_col=data2dptr, l2g_scale_type='veg')
       end do
+
+      this%passivation_thickness(begc:endc,1:nlevgrnd) = spval
+      data2dptr => this%passivation_thickness(:,:)
+      call hist_addfld2d (fname='passivation_thickness',  units='m', type2d='levgrnd', &
+         avgflag='A', long_name='thickness of armoring layer on primary mineral (vertically resolved)', &
+         ptr_col=data2dptr, l2g_scale_type='veg')
 
       this%cec_cation_vr(begc:endc,1:nlevgrnd,1:ncations) = spval
       do a = 1, ncations
@@ -6087,29 +6088,29 @@ contains
             this%primary_mineral_vr      (c,1:nlevsoi,1:nminerals ) = 0._r8
             this%silica_vr               (c,1:nlevsoi             ) = 1e-10_r8 ! need a small nonzero number to avoid initializing to infinity
             this%primary_residue_vr      (c,1:nlevsoi,1:nminerals ) = 0._r8
-            this%armor_thickness_vr      (c,1:nlevsoi             ) = 0._r8
-            this%ssa                     (c,1:nminerals            ) = 0._r8
-            this%secondary_mineral_vr    (c,1:nlevsoi,1:nminsecs   ) = 0._r8
+            this%passivation_thickness   (c,1:nlevsoi             ) = 0._r8
+            this%ssa                     (c,1:nminerals           ) = 0._r8
+            this%secondary_mineral_vr    (c,1:nlevsoi,1:nminsecs  ) = 0._r8
 
             ! will be re-initialized after hydrology reaches equilibrium
             this%cec_proton_vr           (c,1:nlevsoi             ) = 0._r8
             this%cec_cation_vr           (c,1:nlevsoi,1:ncations  ) = 0._r8
-            this%cation_vr               (c,1:nlevgrnd,1:ncations      ) = 0._r8
+            this%cation_vr               (c,1:nlevgrnd,1:ncations ) = 0._r8
             this%net_charge_vr           (c,1:nlevsoi             ) = 0._r8
 
-            this%primary_mineral         (c,1:nminerals            ) = 0._r8
-            this%proton                  (c                        ) = 0._r8
-            this%cation                  (c,1:ncations             ) = 0._r8
-            this%silica                  (c                        ) = 0._r8
-            this%secondary_mineral       (c,1:nminsecs              ) = 0._r8
-            this%primary_residue         (c,1:nminerals            ) = 0._r8
+            this%primary_mineral         (c,1:nminerals           ) = 0._r8
+            this%proton                  (c                       ) = 0._r8
+            this%cation                  (c,1:ncations            ) = 0._r8
+            this%silica                  (c                       ) = 0._r8
+            this%secondary_mineral       (c,1:nminsecs            ) = 0._r8
+            this%primary_residue         (c,1:nminerals           ) = 0._r8
 
-            this%cec_cation              (c,1:ncations             ) = 0._r8
-            this%cec_proton              (c                        ) = 0._r8
+            this%cec_cation              (c,1:ncations            ) = 0._r8
+            this%cec_proton              (c                       ) = 0._r8
 
-            this%err_pm                  (c                        ) = 0._r8
-            this%err_in                  (c                        ) = 0._r8
-            this%err_sm                  (c                        ) = 0._r8
+            this%err_pm                  (c                       ) = 0._r8
+            this%err_in                  (c                       ) = 0._r8
+            this%err_sm                  (c                       ) = 0._r8
          !end if
       end do ! columns loop
 
@@ -6217,12 +6218,6 @@ contains
             interpinic_flag='interp', readvar=readvar, data=ptr2d)
       end do
 
-      ptr2d => this%armor_thickness_vr(:,:)
-      call restartvar(ncid=ncid, flag=flag, varname='armor_thickness_vr', xtype=ncd_double,  &
-         dim1name='column', dim2name='levgrnd', switchdim=.true., &
-         long_name='thickness of the armoring layer on the rock powder (vertically resolved)', units='um', &
-         interpinic_flag='interp', readvar=readvar, data=ptr2d)
-
       ptr2d => this%ssa(:,:)
       call restartvar(ncid=ncid, flag=flag, varname='ssa', xtype=ncd_double, &
          dim1name='column', dim2name='minerals', switchdim=.true., &
@@ -6240,6 +6235,12 @@ contains
             units='g m-3', &
             interpinic_flag='interp', readvar=readvar, data=ptr2d)
       end do
+
+      ptr2d => this%passivation_thickness(:,:)
+      call restartvar(ncid=ncid, flag=flag, varname='passivation_thickness', xtype=ncd_double,  &
+         dim1name='column', dim2name='levgrnd', switchdim=.true., &
+         long_name='thickness of the armoring layer on the rock powder (vertically resolved)', units='um', &
+         interpinic_flag='interp', readvar=readvar, data=ptr2d)
 
       do a = 1, ncations
          write (a_str, '(I6)') a
@@ -12526,11 +12527,12 @@ contains
       allocate(this%r_dissolve_vr                  (begc:endc,1:nlevgrnd,1:nminerals))       ; this%r_dissolve_vr               (:,:,:) = spval
       allocate(this%log_omega_vr                   (begc:endc,1:nlevgrnd,1:nminerals))       ; this%log_omega_vr                (:,:,:) = spval
 
-      allocate(this%secondary_mineral_flux_vr      (begc:endc,1:nlevgrnd,1:nminsecs  ))       ; this%secondary_mineral_flux_vr     (:,:,:) = spval
+      allocate(this%secondary_mineral_flux_vr      (begc:endc,1:nlevgrnd,1:nminsecs ))       ; this%secondary_mineral_flux_vr     (:,:,:) = spval
       allocate(this%secondary_cation_flux_vr       (begc:endc,1:nlevgrnd,1:ncations ))       ; this%secondary_cation_flux_vr      (:,:,:) = spval
       allocate(this%secondary_silica_flux_vr       (begc:endc,1:nlevgrnd            ))       ; this%secondary_silica_flux_vr      (:,:)   = spval
 
-      allocate(this%r_precip_vr                    (begc:endc,1:nlevgrnd,1:nminsecs  ))       ; this%r_precip_vr                   (:,:,:) = spval
+      allocate(this%r_precip_vr                    (begc:endc,1:nlevgrnd,1:nminsecs ))       ; this%r_precip_vr                   (:,:,:) = spval
+      allocate(this%passivation_rate               (begc:endc,1:nlevgrnd            ))       ; this%passivation_rate              (:,:)   = spval
 
       allocate(this%cec_cation_flux_vr             (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cec_cation_flux_vr                   (:,:,:) = spval
       allocate(this%cec_cation_flux2_vr            (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cec_cation_flux2_vr                  (:,:,:) = spval
@@ -12753,6 +12755,11 @@ contains
             avgflag='A', long_name='reaction rate of the precipitation of the secondary mineral (vertically resolved)', &
             ptr_col=data2dptr, l2g_scale_type='veg')
       end do
+
+      this%passivation_rate(begc:endc,:) = spval
+      call hist_addfld2d (fname='passivation_rate',  units='m s-1', type2d='levgrnd', &
+         avgflag='A', long_name='rate at which secondary mineral accumulates on primary mineral (vertically resolved)', &
+         ptr_col=this%passivation_rate, l2g_scale_type='veg')
 
       this%cec_cation_flux_vr(begc:endc,:,:) = spval
       do a = 1,ncations
@@ -13016,10 +13023,11 @@ contains
             this%r_dissolve_vr                   (c,1:nlevsoi,1:nminerals) = 0._r8
             this%log_omega_vr                    (c,1:nlevsoi,1:nminerals) = 0._r8
 
-            this%secondary_mineral_flux_vr       (c,1:nlevsoi,1:nminsecs  ) = 0._r8
+            this%secondary_mineral_flux_vr       (c,1:nlevsoi,1:nminsecs ) = 0._r8
             this%secondary_cation_flux_vr        (c,1:nlevsoi,1:ncations ) = 0._r8
             this%secondary_silica_flux_vr        (c,1:nlevsoi            ) = 0._r8
-            this%r_precip_vr                     (c,1:nlevsoi,1:nminsecs  ) = 0._r8
+            this%r_precip_vr                     (c,1:nlevsoi,1:nminsecs ) = 0._r8
+            this%passivation_rate                (c,1:nlevsoi            ) = 0._r8
 
             this%cec_cation_flux_vr              (c,1:nlevsoi,1:ncations ) = 0._r8
             this%cec_cation_flux2_vr             (c,1:nlevsoi,1:ncations ) = 0._r8
@@ -13117,303 +13125,6 @@ contains
             long_name='annual average rate of change in adsorbed cation concentration before mineral application (vertically resolved)', units='g m-3 s-1', &
             interpinic_flag='interp', readvar=readvar, data=ptr2d)
       end do
-
-      do a = 1,nminerals
-         write (a_str, '(I6)') a
-         a_str = adjustl(a_str)  ! Remove leading spaces
-         varname = 'primary_added_vr_'//trim(a_str)
-         ptr2d => this%primary_added_vr(:,:,a)
-         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double,   &
-            dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='rate at which primary mineral is added (vertically resolved)', units='g m-3 s-1', &
-            interpinic_flag='interp', readvar=readvar, data=ptr2d)
-      end do
-
-      do a = 1,nminerals
-         write (a_str, '(I6)') a
-         a_str = adjustl(a_str)  ! Remove leading spaces
-         varname = 'primary_dissolve_vr_'//trim(a_str)
-         ptr2d => this%primary_dissolve_vr(:,:,a)
-         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double,   &
-            dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='rate at which primary mineral is dissolved (vertically resolved)', units='g m-3 s-1', &
-            interpinic_flag='interp', readvar=readvar, data=ptr2d)
-      end do
-
-      do a = 1,ncations
-         write (a_str, '(I6)') a
-         a_str = adjustl(a_str)  ! Remove leading spaces
-         varname = 'primary_cation_flux_vr_'//trim(a_str)
-         ptr2d => this%primary_cation_flux_vr(:,:,a)
-         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double,  &
-            dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='rate at which cation is created by primary mineral dissolution (vertically resolved)', units='g m-3 s-1', &
-            interpinic_flag='interp', readvar=readvar, data=ptr2d)
-      end do
-
-      call restartvar(ncid=ncid, flag=flag, varname='primary_h2o_flux_vr', xtype=ncd_double,  &
-         dim1name='column', dim2name='levgrnd', switchdim=.true., &
-         long_name='rate at which the primary reaction creates (+) or consumes (-) water (vertically resolved)', units='g m-3 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%primary_h2o_flux_vr)
-
-      call restartvar(ncid=ncid, flag=flag, varname='primary_silica_flux_vr', xtype=ncd_double, &
-         dim1name='column', dim2name='levgrnd', switchdim=.true., &
-         long_name='rate at which SiO2 is generated by primary mineral dissolution (vertically resolved)', units='g m-3 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%primary_silica_flux_vr)
-
-      do a = 1,nminerals
-         write (a_str, '(I6)') a
-         a_str = adjustl(a_str)  ! Remove leading spaces
-         varname = 'primary_residue_flux_vr_'//trim(a_str)
-         ptr2d => this%primary_residue_flux_vr(:,:,a)
-         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
-            dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='rate at which non-SiO2 solid is generated by primary mineral dissolution (vertically resolved)', units='g m-3 s-1', &
-            interpinic_flag='interp', readvar=readvar, data=ptr2d)
-      end do
-
-      call restartvar(ncid=ncid, flag=flag, varname='primary_prelease_vr', xtype=ncd_double, &
-         dim1name='column', dim2name='levgrnd', switchdim=.true., &
-         long_name='release of soluble phosphorus with primary mineral dissolution (vertically resolved)', units='gP m-3 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%primary_prelease_vr)
-
-      do a = 1,nminerals
-         write (a_str, '(I6)') a
-         a_str = adjustl(a_str)  ! Remove leading spaces
-         varname = 'r_dissolve_vr_'//trim(a_str)
-         ptr2d => this%r_dissolve_vr(:,:,a)
-         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
-            dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='reaction rate of the dissolution of the primary mineral (vertically resolved)', units='mol m-3 s-1', &
-            interpinic_flag='interp', readvar=readvar, data=ptr2d)
-      end do
-
-      do a = 1,nminerals
-         write (a_str, '(I6)') a
-         a_str = adjustl(a_str)  ! Remove leading spaces
-         varname = 'log_omega_vr_'//trim(a_str)
-         ptr2d => this%log_omega_vr(:,:,a)
-         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
-            dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='omega parameter in the dissolution equation (vertically resolved)', units='', &
-            interpinic_flag='interp', readvar=readvar, data=ptr2d)
-      end do
-
-      do a = 1,nminsecs
-         write (a_str, '(I6)') a
-         a_str = adjustl(a_str)  ! Remove leading spaces
-         varname = 'secondary_mineral_flux_vr_'//trim(a_str)
-         ptr2d => this%secondary_mineral_flux_vr(:,:,a)
-         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
-            dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='rate at which secondary mineral is formed (vertically resolved)', units='g m-3 s-1', &
-            interpinic_flag='interp', readvar=readvar, data=ptr2d)
-      end do
-
-      do a = 1,ncations
-         write (a_str, '(I6)') a
-         a_str = adjustl(a_str)  ! Remove leading spaces
-         varname = 'secondary_cation_flux_vr_'//trim(a_str)
-         ptr2d => this%secondary_cation_flux_vr(:,:,a)
-         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
-            dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='rate at which cations consumed due to precipitation of secondary minerals (vertically resolved)', units='g m-3 s-1', &
-            interpinic_flag='interp', readvar=readvar, data=ptr2d)
-      end do
-
-      call restartvar(ncid=ncid, flag=flag, varname='secondary_silica_flux_vr', xtype=ncd_double, &
-         dim1name='column', dim2name='levgrnd', switchdim=.true., &
-         long_name='rate at which SiO2 is consumed due to precipitation of secondary minerals vertically resolved)', units='g m-3 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%secondary_silica_flux_vr)
-
-      do a = 1,nminsecs
-         write (a_str, '(I6)') a
-         a_str = adjustl(a_str)  ! Remove leading spaces
-         varname = 'r_precip_vr_'//trim(a_str)
-         ptr2d => this%r_precip_vr(:,:,a)
-         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
-            dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='reaction rate of the precipitation of the secondary mineral (vertically resolved)', units='mol m-3 s-1', &
-            interpinic_flag='interp', readvar=readvar, data=ptr2d)
-      end do
-
-      do a = 1,ncations
-         write (a_str, '(I6)') a
-         a_str = adjustl(a_str)  ! Remove leading spaces
-         varname = 'cec_cation_flux_vr_'//trim(a_str)
-         ptr2d => this%cec_cation_flux_vr(:,:,a)
-         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
-            dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='rate at which cation is released into water (negative for adsorption into soil) (vertically resolved)', units='g m-3 s-1', &
-            interpinic_flag='interp', readvar=readvar, data=ptr2d)
-      end do
-
-      !call restartvar(ncid=ncid, flag=flag, varname='cec_delta_limit', xtype=ncd_double, &
-      !   dim1name='column', dim2name='levgrnd', switchdim=.true., &
-      !   long_name='limit on total cation exchange capacity change per time step', units='', &
-      !   interpinic_flag='interp', readvar=readvar, data=this%cec_delta_limit)
-
-      call restartvar(ncid=ncid, flag=flag, varname='proton_limit_vr', xtype=ncd_double, &
-         dim1name='column', dim2name='levgrnd', switchdim=.true., &
-         long_name='flux limit factor due to insufficient H+ exchange', units='', &
-         interpinic_flag='interp', readvar=readvar, data=this%proton_limit_vr)
-
-      do a = 1,ncations
-         write (a_str, '(I6)') a
-         a_str = adjustl(a_str)  ! Remove leading spaces
-         varname = 'cec_limit_vr_'//trim(a_str)
-         ptr2d => this%cec_limit_vr(:,:,a)
-         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
-            dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='flux limit factor due to insufficient cation exchange', units='', &
-            interpinic_flag='interp', readvar=readvar, data=ptr2d)
-      end do
-
-      do a = 1,ncations
-         write (a_str, '(I6)') a
-         a_str = adjustl(a_str)  ! Remove leading spaces
-         varname = 'flux_limit_vr_'//trim(a_str)
-         ptr2d => this%flux_limit_vr(:,:,a)
-         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
-            dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='flux limit factor on cation exchange and secondary mineral precipitation', units='', &
-            interpinic_flag='interp', readvar=readvar, data=ptr2d)
-      end do
-
-      do a = 1,ncations
-         write (a_str, '(I6)') a
-         a_str = adjustl(a_str)  ! Remove leading spaces
-         varname = 'cation_infl_vr_'//trim(a_str)
-         ptr2d => this%cation_infl_vr(:,:,a)
-         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
-            dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='rate which cations are infiltrated from above (vertically resolved)', units='g m-3 s-1', &
-            interpinic_flag='interp', readvar=readvar, data=ptr2d)
-      end do
-
-      do a = 1,ncations
-         write (a_str, '(I6)') a
-         a_str = adjustl(a_str)  ! Remove leading spaces
-         varname = 'cation_oufl_vr_'//trim(a_str)
-         ptr2d => this%cation_oufl_vr(:,:,a)
-         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
-            dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='rate which cations are infiltrated to below (vertically resolved)', units='g m-3 s-1', &
-            interpinic_flag='interp', readvar=readvar, data=ptr2d)
-      end do
-
-      do a = 1,ncations
-         write (a_str, '(I6)') a
-         a_str = adjustl(a_str)  ! Remove leading spaces
-         varname = 'cation_uptake_vr_'//trim(a_str)
-         ptr2d => this%cation_uptake_vr(:,:,a)
-         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
-            dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='rate which cations are uptaken by plants (vertically resolved)', units='g m-3 s-1', &
-            interpinic_flag='interp', readvar=readvar, data=ptr2d)
-      end do
-
-      do a = 1,ncations
-         write (a_str, '(I6)') a
-         a_str = adjustl(a_str)  ! Remove leading spaces
-         varname = 'cation_leached_vr_'//trim(a_str)
-         ptr2d => this%cation_leached_vr(:,:,a)
-         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
-            dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='rate which cations are lost to stream (vertically resolved)', units='g m-3 s-1', &
-            interpinic_flag='interp', readvar=readvar, data=ptr2d)
-      end do
-
-      do a = 1,ncations
-         write (a_str, '(I6)') a
-         a_str = adjustl(a_str)  ! Remove leading spaces
-         varname = 'cation_runoff_vr_'//trim(a_str)
-         ptr2d => this%cation_runoff_vr(:,:,a)
-         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double, &
-            dim1name='column', dim2name='levgrnd', switchdim=.true., &
-            long_name='rate which cations are lost to stream (vertically resolved)', units='g m-3 s-1', &
-            interpinic_flag='interp', readvar=readvar, data=ptr2d)
-      end do
-
-      call restartvar(ncid=ncid, flag=flag, varname='primary_added', xtype=ncd_double, &
-         dim1name='column', dim2name='minerals', switchdim=.true., &
-         long_name='rate at which primary mineral is added', units='g m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%primary_added)
-
-      call restartvar(ncid=ncid, flag=flag, varname='primary_dissolve', xtype=ncd_double, &
-         dim1name='column', dim2name='minerals', switchdim=.true., &
-         long_name='rate at which primary mineral is dissolved', units='g m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%primary_dissolve)
-
-      call restartvar(ncid=ncid, flag=flag, varname='primary_cation_flux', xtype=ncd_double, &
-         dim1name='column', dim2name='cations', switchdim=.true., &
-         long_name='rate at which cation is created by primary mineral dissolution', units='g m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%primary_cation_flux)
-
-      call restartvar(ncid=ncid, flag=flag, varname='primary_h2o_flux', xtype=ncd_double, &
-         dim1name='column', &
-         long_name='rate at which the primary reaction uses up water', units='g m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%primary_h2o_flux)
-
-      call restartvar(ncid=ncid, flag=flag, varname='primary_silica_flux', xtype=ncd_double, &
-         dim1name='column', &
-         long_name='rate at which SiO2 is generated by primary mineral dissolution', units='g m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%primary_silica_flux)
-
-      call restartvar(ncid=ncid, flag=flag, varname='primary_residue_flux', xtype=ncd_double, &
-         dim1name='column', &
-         long_name='rate at which non-SiO2  solids is generated by primary mineral dissolution', units='g m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%primary_silica_flux)
-
-      call restartvar(ncid=ncid, flag=flag, varname='secondary_mineral_flux', xtype=ncd_double, &
-         dim1name='column', dim2name='minsec', switchdim=.true., &
-         long_name='vertically integrated rate at which secondary mineral is formed', units='g m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%secondary_mineral_flux)
-
-      call restartvar(ncid=ncid, flag=flag, varname='secondary_cation_flux', xtype=ncd_double, &
-         dim1name='column', dim2name='cations', switchdim=.true., &
-         long_name='vertically integrated rate at which cations consumed due to precipitation of secondary minerals', units='g m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%secondary_cation_flux)
-
-      call restartvar(ncid=ncid, flag=flag, varname='secondary_silica_flux', xtype=ncd_double, &
-         dim1name='column', &
-         long_name='rate at which SiO2 is consumed due to precipitation of secondary minerals', units='g m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%secondary_silica_flux)
-
-      call restartvar(ncid=ncid, flag=flag, varname='cec_cation_flux', xtype=ncd_double, &
-         dim1name='column', dim2name='cations', switchdim=.true., &
-         long_name='rate at which adsorbed cation is released into water (negative for adsorption into soil)', units='g m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%cec_cation_flux)
-
-      call restartvar(ncid=ncid, flag=flag, varname='cation_infl', xtype=ncd_double, &
-         dim1name='column', dim2name='cations', switchdim=.true., &
-         long_name='rate which cations are infiltrated from above', units='g m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%cation_infl)
-
-      call restartvar(ncid=ncid, flag=flag, varname='cation_oufl', xtype=ncd_double, &
-         dim1name='column', dim2name='cations', switchdim=.true., &
-         long_name='rate which cations are infiltrated to below', units='g m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%cation_oufl)
-
-      call restartvar(ncid=ncid, flag=flag, varname='cation_uptake', xtype=ncd_double, &
-         dim1name='column', dim2name='cations', switchdim=.true., &
-         long_name='rate which cations are taken up by plants', units='g m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%cation_uptake)
-
-      call restartvar(ncid=ncid, flag=flag, varname='cation_leached', xtype=ncd_double, &
-         dim1name='column', dim2name='cations', switchdim=.true., &
-         long_name='rate which cations are lost to stream', units='g m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%cation_leached)
-
-      call restartvar(ncid=ncid, flag=flag, varname='cation_runoff', xtype=ncd_double, &
-         dim1name='column', dim2name='cations', switchdim=.true., &
-         long_name='rate which cations are lost to stream', units='g m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%cation_runoff)
-
-      call restartvar(ncid=ncid, flag=flag, varname='r_sequestration', xtype=ncd_double, &
-         dim1name='column', &
-         long_name='net sequestration rate of the dissolution and precipitation reactions', units='gC m-2 s-1', &
-         interpinic_flag='interp', readvar=readvar, data=this%r_sequestration)
 
    end subroutine col_mf_restart
 

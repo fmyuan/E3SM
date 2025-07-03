@@ -237,6 +237,15 @@ module elm_varcon
   real(r8) :: mass_h     = 1.007_r8 ! proton H+
   ! secondary mineral precipitation reaction's equilibrium constant
   real(r8) :: log_keq_sio2am = -2.71_r8 ! SiO2(am), Taylor et al. (2016) DOI: 10.1038/NCLIMATE2882
+  real(r8) :: D_h        = 9.310e-9_r8 ! diffusion coefficient of H+ in water (m2/s)
+  real(r8) :: passivation_phi  = 0.2 ! assumed porosity of the passivation layer
+  real(r8) :: passivation_tau = 1.3 ! typical tortuosity of rock
+
+  ! specific volume of CaCO3 (m3/mol) and kaolinite (m3/mol)
+  real(r8) :: vol_minsecs(1:2) = (/ 3.693e-5_r8, 9.929e-5_r8 /)
+
+  ! specific volume of amorphous silica (m3/mol)
+  real(r8) :: vol_sio2 = 2.73e-5
 
 contains
 
@@ -267,11 +276,6 @@ contains
     if (use_extrasnowlayers) then
        h2osno_max = 30000._r8
     end if
-
-    !log_keq_minsec(1) = -8.48_r8 ! CaCO3, phreeqc.dat
-    !log_keq_minsec(2) = 6.8101_r8 ! Al2Si2O5(OH)4, llnl.dat
-    !mass_minsec(1) = 100.0869 ! CaCO3
-    !mass_minsec(2) = 258.1604 ! Al2Si2O5(OH)4
 
     ! Set equal to CaCO3 rate in
     ! Kirk, G. J. D., Versteegen, A., Ritz, K. & Milodowski, A. E. A simple reactive-transport model of calcite precipitation in soils and other porous media. Geochimica et Cosmochimica Acta 165, 108–122 (2015).

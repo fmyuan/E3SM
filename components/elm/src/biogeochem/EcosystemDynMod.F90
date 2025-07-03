@@ -563,7 +563,7 @@ contains
     use RootDynamicsMod        , only: RootDynamics
     use SoilLittDecompMod            , only: SoilLittDecompAlloc
     use SoilLittDecompMod            , only: SoilLittDecompAlloc2 !after SoilLittDecompAlloc
-    use EnhancedWeatheringMod        , only: MineralInit, MineralBackground, MineralEquilibria, MineralDynamics
+    use EnhancedWeatheringMod        , only: MineralInit, MineralBackground, MineralEquilibria, MineralDynamics, MineralPassivation
     use MineralStateUpdateMod        , only: MineralFluxLimit, MineralStateUpdate1
     !
     ! !ARGUMENTS:
@@ -647,6 +647,7 @@ contains
       if (spinup_state == 0 .and. year >= year_start_erw) then
          call MineralBackground(bounds, num_soilc, filter_soilc, soilstate_vars)
          call MineralDynamics(bounds, num_soilc, filter_soilc, soilstate_vars)
+         call MineralPassivation(bounds, num_soilc, filter_soilc)
          call MineralEquilibria(bounds, num_soilc, filter_soilc, soilstate_vars)
          call MineralFluxLimit(num_soilc, filter_soilc, col_ms, col_mf, dt, soilstate_vars)
          call MineralStateUpdate1(num_soilc, filter_soilc, col_ms, col_mf, dt, soilstate_vars)
