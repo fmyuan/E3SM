@@ -1105,6 +1105,7 @@ contains
     associate(                                                                                             &
          ivt                                 =>    veg_pp%itype                                             , & ! Input:  [integer   (:)   ]  pft vegetation type
          dayl                                =>    grc_pp%dayl                                              , & ! Input:  [real(r8)  (:)   ]  daylength (s)
+         prev_dayl                           =>    grc_pp%prev_dayl                                         , & ! Input:  [real(r8)  (:)   ]  daylength from previous time step (s)
 
          leaf_long                           =>    veg_vp%leaf_long                                  , & ! Input:  [real(r8)  (:)   ]  leaf longevity (yrs)
          froot_long                          =>    veg_vp%froot_long                                 , & ! Input:  [real(r8)  (:)   ]  fine root longevity (yrs)
@@ -1462,7 +1463,14 @@ contains
                   offset_fdd(p) = offset_fdd(p) + fracday
 
                   ! if freezing degree day sum is greater than critical value, initiate offset
-                  if (offset_fdd(p) > crit_offset_fdd .and. onset_flag(p) == 0._r8) offset_flag(p) = 1._r8
+                  if (offset_fdd(p) > crit_offset_fdd .and. onset_flag(p) == 0._r8) then
+                    ! only allow freezing induced offset during winter period
+                    ! this is to avoid early spring frosting caused offset/dormant phenological sequence (currently it lasts about 80 days)
+                    ! (TODO: need to add something for frosting death and regrowth)
+                    if (dayl(g) < prev_dayl(g) .and. dayl(g) < PhenolParamsInst%crit_dayl) then
+                       offset_flag(p) = 1._r8
+                    endif
+                  endif
                end if
 
                ! force offset if daylength is < 6 hrs
