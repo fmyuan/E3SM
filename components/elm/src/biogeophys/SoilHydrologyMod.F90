@@ -1186,6 +1186,10 @@ contains
                 enddo
                 if (qflx_lat_aqu_tot > 0.) zwt(c) = zwt(c) - qflx_lat_aqu_tot/1000._r8/rous
              endif
+
+             ! qflx_lat_aqu_layer(:,:) needs to convert unit of per seconds
+             qflx_lat_aqu_layer(c,:) = qflx_lat_aqu_layer(c,:)/dtime
+
    !-- recompute jwt for following calculations  ---------------------------------
    ! allow jwt to equal zero when zwt is in top layer
              jwt(c) = nlevbed
