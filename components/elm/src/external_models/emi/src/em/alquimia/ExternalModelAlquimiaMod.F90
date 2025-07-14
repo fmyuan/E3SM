@@ -1085,7 +1085,7 @@ end subroutine EMAlquimia_Coldstart
     call l2e_list%GetPointerToInt3D(this%index_l2e_aux_ints, aux_ints_l2e)
 
     call l2e_list%GetPointerToReal2D(this%index_l2e_flux_qflx_adv       , qflx_adv_l2e     )
-    call l2e_list%GetPointerToReal2D(this%index_l2e_flux_qflx_lat_aqu_layer    , qflx_lat_aqu_l2e     ) ! ELM units are mm/m2 (integrated over time step)
+    call l2e_list%GetPointerToReal2D(this%index_l2e_flux_qflx_lat_aqu_layer    , qflx_lat_aqu_l2e     ) ! ELM units are mm/m2/s (integrated over time step)
     call l2e_list%GetPointerToReal2D(this%index_l2e_flux_qflx_drain    , qflx_drain_l2e     )
 
     call l2e_list%GetPointerToReal1D(this%index_l2e_state_wtd       , wtd_l2e     )
@@ -1379,7 +1379,7 @@ end subroutine EMAlquimia_Coldstart
                 if((h2o_liqvol(c,j))/porosity_l2e(c,j)<0.7_r8 .or. (liq_frac(j)<0.5)) then
                   qflx_adv_l2e(c,j) = 0.0_r8
                 endif
-                  qflx_lat_aqu_l2e(c,j) = qflx_lat_aqu_l2e(c,j) - (qflx_adv_l2e(c,j-1)-qflx_adv_l2e(c,j))*dt
+                  qflx_lat_aqu_l2e(c,j) = qflx_lat_aqu_l2e(c,j) - (qflx_adv_l2e(c,j-1)-qflx_adv_l2e(c,j))
               enddo
 
 
@@ -1410,7 +1410,7 @@ end subroutine EMAlquimia_Coldstart
                   (h2o_liqvol(c,:)+h2o_icevol(c,:))/porosity_l2e(c,:),    &    ! Water content as fraction of saturation
                   liq_frac(:),  &  ! Liquid fraction of soil water
                   -qflx_adv_l2e(c,0:nlevdecomp),&  ! Vertical water flux (mm/s)
-                  qflx_lat_aqu_l2e(c,:)/dt,         &      ! Horizontal water flux (depth-resolved) mm/s
+                  qflx_lat_aqu_l2e(c,:),         &      ! Horizontal water flux (depth-resolved) mm/s
                   lat_bc,                   &      ! Lateral flux concentration boundary condition
                   lat_flux,                 &      ! Output: Lateral flux of each solute
                   surf_bc,                  &      ! Surface boundary condition
