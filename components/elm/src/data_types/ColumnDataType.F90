@@ -442,7 +442,7 @@ module ColumnDataType
       real(r8), pointer :: primary_residue_vr      (:,:,:) => null() ! non-SiO2 solids concentration in solid phase in each soil layer (1:nlevgrnd,1:nminerals) (g m-3)
       real(r8), pointer :: ssa                     (:,:)   => null() ! specific surface area of the primary mineral (1:nminerals) (m2 g-1 mineral)
       real(r8), pointer :: secondary_mineral_vr    (:,:,:) => null() ! secondary mineral concentration in solid phase in each soil layer (1:nlevgrnd,1:nminsecs) (g m-3)
-      real(r8), pointer :: passivation_thickness   (:,:)   => null() ! armoring layer thickness due to preferential release and formation of secondary mineral (1:nlevgrnd) (m)
+      real(r8), pointer :: passivation_thickness   (:,:,:) => null() ! armoring layer thickness due to preferential release and formation of secondary mineral (1:nlevgrnd,1:nminerals) (m)
 
       real(r8), pointer :: cec_cation_vr           (:,:,:) => null() ! adsorbed cation concentration each soil layer (1:nlevgrnd,1:ncations) (g m-3 soil [not dry soil])
       real(r8), pointer :: cec_proton_vr           (:,:)   => null() ! adsorbed H+ concentration in each soil layer (1:nlevgrnd) (g m-3 soil [not dry soil])
@@ -1148,7 +1148,7 @@ module ColumnDataType
       real(r8), pointer :: secondary_cation_flux_vr     (:,:,:)   => null() ! rate at which cations consumed due to precipitation of secondary minerals (1:nlevgrnd,1:ncations) (g m-3 s-1)
       real(r8), pointer :: secondary_silica_flux_vr     (:,:)     => null() ! rate at which SiO2 is consumed by secondary mineral precipitation (1:nlevgrnd,1:ncations) (g m-3 s-1)
       real(r8), pointer :: r_precip_vr                  (:,:,:)   => null() ! reaction rate of the precipitation of the secondary mineral (1:nlevgrnd,1:nminsecs) (mol reaction m-3 s-1)
-      real(r8), pointer :: passivation_rate             (:,:)     => null() ! rate at which secondary mineral accumulates on the surface of primary mineral (1:nlevgrnd) (m s-1)
+      real(r8), pointer :: passivation_rate             (:,:,:)   => null() ! rate at which secondary mineral accumulates on the surface of primary mineral (1:nlevgrnd,1:nminerals) (m s-1)
 
       real(r8), pointer :: cec_cation_flux_vr           (:,:,:)   => null() ! rate at which cation is released into water due to cation exchange  (negative for adsorption into soil) (vertically resolved) (1:nlevgrnd, 1:ncations) (g m-3 s-1)
       real(r8), pointer :: cec_cation_flux2_vr          (:,:,:)   => null() ! rate at which cation is released into water due to cation exchange  (negative for adsorption into soil) (vertically resolved) (1:nlevgrnd, 1:ncations) (g m-3 s-1)
@@ -5868,7 +5868,7 @@ contains
       allocate(this%primary_residue_vr  (begc:endc,1:nlevgrnd,1:nminerals))       ; this%primary_residue_vr     (:,:,:) = spval
       allocate(this%ssa                 (begc:endc,1:nminerals           ))       ; this%ssa                    (:,:) = spval
       allocate(this%secondary_mineral_vr(begc:endc,1:nlevgrnd,1:nminsecs ))       ; this%secondary_mineral_vr   (:,:,:) = spval
-      allocate(this%passivation_thickness (begc:endc,1:nlevgrnd          ))       ; this%passivation_thickness  (:,:) = spval
+      allocate(this%passivation_thickness (begc:endc,1:nlevgrnd,1:nminerals))     ; this%passivation_thickness  (:,:,:) = spval
       allocate(this%cec_cation_vr       (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cec_cation_vr          (:,:,:) = spval
       allocate(this%cec_proton_vr       (begc:endc,1:nlevgrnd            ))       ; this%cec_proton_vr          (:,:) = spval
       allocate(this%net_charge_vr       (begc:endc,1:nlevgrnd            ))       ; this%net_charge_vr          (:,:) = spval
@@ -5989,11 +5989,16 @@ contains
             ptr_col=data2dptr, l2g_scale_type='veg')
       end do
 
-      this%passivation_thickness(begc:endc,1:nlevgrnd) = spval
-      data2dptr => this%passivation_thickness(:,:)
-      call hist_addfld2d (fname='passivation_thickness',  units='m', type2d='levgrnd', &
-         avgflag='A', long_name='thickness of armoring layer on primary mineral (vertically resolved)', &
-         ptr_col=data2dptr, l2g_scale_type='veg')
+      this%passivation_thickness(begc:endc,1:nlevgrnd,1:nminerals) = spval
+      do a = 1,nminerals
+         data2dptr => this%passivation_thickness(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'passivation_thickness_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname,  units='m', type2d='levgrnd', &
+            avgflag='A', long_name='thickness of armoring layer on primary mineral (vertically resolved)', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
+      end do
 
       this%cec_cation_vr(begc:endc,1:nlevgrnd,1:ncations) = spval
       do a = 1, ncations
@@ -6088,7 +6093,7 @@ contains
             this%primary_mineral_vr      (c,1:nlevsoi,1:nminerals ) = 0._r8
             this%silica_vr               (c,1:nlevsoi             ) = 1e-10_r8 ! need a small nonzero number to avoid initializing to infinity
             this%primary_residue_vr      (c,1:nlevsoi,1:nminerals ) = 0._r8
-            this%passivation_thickness   (c,1:nlevsoi             ) = 0._r8
+            this%passivation_thickness   (c,1:nlevsoi,1:nminerals ) = 0._r8
             this%ssa                     (c,1:nminerals           ) = 0._r8
             this%secondary_mineral_vr    (c,1:nlevsoi,1:nminsecs  ) = 0._r8
 
@@ -6236,11 +6241,16 @@ contains
             interpinic_flag='interp', readvar=readvar, data=ptr2d)
       end do
 
-      ptr2d => this%passivation_thickness(:,:)
-      call restartvar(ncid=ncid, flag=flag, varname='passivation_thickness', xtype=ncd_double,  &
-         dim1name='column', dim2name='levgrnd', switchdim=.true., &
-         long_name='thickness of the armoring layer on the rock powder (vertically resolved)', units='um', &
-         interpinic_flag='interp', readvar=readvar, data=ptr2d)
+      do a = 1, nminerals
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'passivation_thickness_'//trim(a_str)
+         ptr2d => this%passivation_thickness(:,:,a)
+         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double,  &
+            dim1name='column', dim2name='levgrnd', switchdim=.true., &
+            long_name='thickness of the armoring layer on the rock powder (vertically resolved)', units='m', &
+            interpinic_flag='interp', readvar=readvar, data=ptr2d)
+      end do
 
       do a = 1, ncations
          write (a_str, '(I6)') a
@@ -12532,7 +12542,7 @@ contains
       allocate(this%secondary_silica_flux_vr       (begc:endc,1:nlevgrnd            ))       ; this%secondary_silica_flux_vr      (:,:)   = spval
 
       allocate(this%r_precip_vr                    (begc:endc,1:nlevgrnd,1:nminsecs ))       ; this%r_precip_vr                   (:,:,:) = spval
-      allocate(this%passivation_rate               (begc:endc,1:nlevgrnd            ))       ; this%passivation_rate              (:,:)   = spval
+      allocate(this%passivation_rate               (begc:endc,1:nlevgrnd,1:nminerals))       ; this%passivation_rate              (:,:,:) = spval
 
       allocate(this%cec_cation_flux_vr             (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cec_cation_flux_vr                   (:,:,:) = spval
       allocate(this%cec_cation_flux2_vr            (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cec_cation_flux2_vr                  (:,:,:) = spval
@@ -12756,10 +12766,16 @@ contains
             ptr_col=data2dptr, l2g_scale_type='veg')
       end do
 
-      this%passivation_rate(begc:endc,:) = spval
-      call hist_addfld2d (fname='passivation_rate',  units='m s-1', type2d='levgrnd', &
-         avgflag='A', long_name='rate at which secondary mineral accumulates on primary mineral (vertically resolved)', &
-         ptr_col=this%passivation_rate, l2g_scale_type='veg')
+      this%passivation_rate(begc:endc,:,:) = spval
+      do a = 1,nminerals
+         data2dptr => this%passivation_rate(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'passivation_rate_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname,  units='m s-1', type2d='levgrnd', &
+            avgflag='A', long_name='rate at which secondary mineral accumulates on primary mineral (vertically resolved)', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
+      end do
 
       this%cec_cation_flux_vr(begc:endc,:,:) = spval
       do a = 1,ncations
@@ -13027,7 +13043,7 @@ contains
             this%secondary_cation_flux_vr        (c,1:nlevsoi,1:ncations ) = 0._r8
             this%secondary_silica_flux_vr        (c,1:nlevsoi            ) = 0._r8
             this%r_precip_vr                     (c,1:nlevsoi,1:nminsecs ) = 0._r8
-            this%passivation_rate                (c,1:nlevsoi            ) = 0._r8
+            this%passivation_rate                (c,1:nlevsoi,1:nminerals) = 0._r8
 
             this%cec_cation_flux_vr              (c,1:nlevsoi,1:ncations ) = 0._r8
             this%cec_cation_flux2_vr             (c,1:nlevsoi,1:ncations ) = 0._r8

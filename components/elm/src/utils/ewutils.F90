@@ -805,5 +805,34 @@ contains
     a = 69.18_r8 * (gs ** (-1.24_r8)) ! unit: m^2 g-1
   end function get_ssa
 
+  function get_r(r0, m0, m) result(r)
+    ! calculate the change in grain size after dissolution
+    ! per time step
+    !
+    ! assume general density of rock rho = 2.9 g/cm3
+    ! note: 1 meter = 1e6 um
+    ! 
+    ! V - volume [m3], m - mass [g], r - radius [m]
+    !
+    !! dV = SSA * m * dr
+    !! => dm = SSA * rho * m * dr
+    !! => dm = 69.18 * (2 * r * 1e6) ^{-1.24} * rho * m * dr
+    !! => ln(m/m0) = (69.18 * 2 * 1e6^{-1.24} * rho / (-0.24)) * (r^{-1.24} - r0^{-1.24})
+    !! => ln(m/m0) = -60.70 (r^{-1.24} - r0^{-1.24})
+    !! => r = [ - 0.0164744 * ln(m/m0) + r0^{-1.24} ]^{-1/1.24}
+    !
+    ! dV = 4 pi r^2 * dr
+    ! => dr = (36*pi)^{-1/3} V^{-2/3} dV
+    ! => r - r0 = (36*pi)^{-1/3} * 3 * (V^{1/3} - V0^{1/3})
+
+    real(r8), intent(in) :: r0 ! start grain size (um)
+    real(r8), intent(in) :: m0 ! start mineral mass (g)
+    real(r8), intent(in) :: m  ! end mineral mass (g)
+    real(r8) :: r ! end mineral grain size
+    real(r8) :: rho = 2.9e6
+
+    ! r = (-0.03295_r8 * log(m/m0) + r0**(-1.24_r8))**(-1/1.24_r8)
+    r = r0 + (36*3.1415926)**(-1/3) * 3 * ((m/rho)**(1/3_r8) - (m0/rho)**(1/3_r8))
+  end function get_r
 
 end module ewutils

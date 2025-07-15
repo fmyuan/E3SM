@@ -655,8 +655,7 @@ contains
     real(r8) :: tau                    ! tortuosity of the passivation layer
     real(r8) :: D_h_eff                ! effective diffusivity of H+ in the passivation layer (m2/s)
     real(r8) :: Jflux                  ! H+ sink strength due to previous step's dissolution (mol m-2 s-1)
-    real(r8) :: inner_h                ! H+ concentration at the inner surface of the passivation layer) (mol/kg)
-    real(r8) :: inner_ph               ! soil pH at the inner surface of the passivation layer (unitless)
+    real(r8) :: dNb_dt                 ! H+ diffusion limited dissolution rate (mol m-3 s-1)
 
     associate( &
          !
@@ -670,7 +669,7 @@ contains
          !
          ! soil pH and ionic states 
          !
-         soil_ph                        => col_ms%soil_ph                 , & ! Output: [real(r8) (:,:)] calculated soil pH (1:nlevgrnd)
+         soil_ph                        => col_ms%soil_ph                 , & ! Input: [real(r8) (:,:)] calculated soil pH (1:nlevgrnd)
          bicarbonate_vr                 => col_ms%bicarbonate_vr          , & ! Output: [real(r8) (:,:)] calculated HCO3- concentration in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd)
          carbonate_vr                   => col_ms%carbonate_vr            , & ! Output: [real(r8) (:,:)] calculated CO3 2- concentration in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd)
          cation_vr                      => col_ms%cation_vr               , & ! Output [real(r8) (:,:,:)] cation mass in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd, 1:ncations)
@@ -711,9 +710,10 @@ contains
          !
          ! Other related
          !
-         tsoi                          => col_es%t_soisno     , & ! Input: [real(r8) (:,:) ] soil temperature [K]
-         h2osoi_vol                    => col_ws%h2osoi_vol   , & ! Input:  [real(r8) (:)] volumetric soil water content, ice + water (m3 m-3)
-         h2osoi_liqvol                 => col_ws%h2osoi_liqvol, & ! Input:  [real(r8) (:)] volumetric soil water content, liquid only (m3 m-3)
+         dz                             => col_pp%dz                       , & ! Input:  [real(r8) (:,:) ]  layer thickness (m)
+         tsoi                           => col_es%t_soisno                 , & ! Input: [real(r8) (:,:) ] soil temperature [K]
+         h2osoi_vol                     => col_ws%h2osoi_vol               , & ! Input:  [real(r8) (:)] volumetric soil water content, ice + water (m3 m-3)
+         h2osoi_liqvol                  => col_ws%h2osoi_liqvol            , & ! Input:  [real(r8) (:)] volumetric soil water content, liquid only (m3 m-3)
          nlev2bed                       => col_pp%nlevbed      & ! Input:  [integer  (:)   ]  number of layers to bedrock
     )
 
@@ -825,13 +825,14 @@ contains
       ! ---------------------------------------------------------------
       ! Apply the primary minerals
       ! ---------------------------------------------------------------
-      do j = 1,nlevbed
+      do j = 1,nlevbed   
         do m = 1,nminerals
           ! evenly distributed in the mixing_depth
           ! 20241203: double checked that forc_app reading and unit conversion are both correct
           ! 20241206: forc_app is the annual applied amount; distribute it within one time step
+          ! 20250714: round the application to the nearest discrete ELM vertical layer
           if (j <= mixing_layer) then
-            primary_added_vr(c,j,m) = 1000._r8 * forc_app(c) * forc_min(c,m) / mixing_depth / dt
+            primary_added_vr(c,j,m) = 1000._r8 * forc_app(c) * forc_min(c,m) / sum(dz(c,1:mixing_layer)) / dt
           else
             primary_added_vr(c,j,m) = 0._r8
           end if
@@ -904,45 +905,16 @@ contains
           ! Primary mineral dissolution
           do m = 1,nminerals
             !-------------------------------------------------------------------
-            ! Calculate the dissolution rate based on reduced H+ concentration
+            ! Calculate the dissolution rate based on soil pH
             !-------------------------------------------------------------------
             if (primary_mineral_vr(c,j,m) <= 0._r8) then
               r_dissolve_vr(c,j,m) = 0._r8
 
             else
 
-              !-------------------------------------------------------------------
-              ! Tame down the accessible H+ concentration due to passivation layer
-              !     on the primary mineral surface (ignore potential effects on 
-              !     cation concentrations and HCO3-)
-              ! 
-              ! Emmanuel, S. (2022). Modeling the effect of mineral armoring on the rates 
-              !          of coupled dissolution-precipitation reactions: Implications for 
-              !          chemical weathering. Chemical Geology, 601, 120868.
-              !          https://doi.org/10.1016/j.chemgeo.2022.120868
-              !-------------------------------------------------------------------
-
-              ! Assume steady state diffusion, J = - D * (dC/dx)
-              ! => C = C0 - J/D * x
-              ! J - flux of H+ through the passivation layer (mol m-2 s-1)
-              ! D - diffusivity of H+ in the passivation layer (m2 s-1)
-              ! C - concentration of H+ in the passivation layer (mol m-3)
-              D_h_eff = D_h * passivation_phi / passivation_tau
-              ! mol m-3 soil s-1 => mol m-2 mineral surface s-1
-              Jflux = r_dissolve_vr(c,j,m) / EWParamsInst%primary_mass(m) / ssa(c,m) / primary_mineral_vr(c,j,m) * EWParamsInst%primary_stoi_proton(m)
-              inner_h = 10**(-soil_ph(c,j)) - Jflux/D_h_eff * passivation_thickness(c,j) / 1e3_r8
-
-              inner_ph = -log10(max(1.0e-14, inner_h))
-              
-              if (passivation_thickness(c,j) > 0._r8) then
-                write (iulog, *) 'D_h_eff', c, j, m, D_h_eff, D_h, passivation_phi, passivation_tau
-                write (iulog, *) 'Jflux', c, j, m, Jflux, r_dissolve_vr(c,j,m), EWParamsInst%primary_mass(m), ssa(c,m), primary_mineral_vr(c,j,m), EWParamsInst%primary_stoi_proton(m)
-                write (iulog, *) 'inner_h', inner_ph, inner_h, soil_ph(c,j), passivation_thickness(c,j)
-              end if
-
               ! log10 of ion activity product divided by equilibrium constant
               log_omega_vr(c,j,m) = - EWParamsInst%log_keq_primary(m) + &
-                                    inner_ph * EWParamsInst%primary_stoi_proton(m)
+                                    soil_ph(c,j) * EWParamsInst%primary_stoi_proton(m)
               do icat = 1,ncations
                 log_omega_vr(c,j,m) = log_omega_vr(c,j,m) + & 
                   EWParamsInst%primary_stoi_cations(m,icat) * &
@@ -969,7 +941,7 @@ contains
                 if (use_erw_verbose > 0) then
                   write (100+iam,*) ' WARNING! Omega > 1 meaning dissolution reaction cannot proceed', ldomain%latc(g), ldomain%lonc(g), g, c, j, m, log_omega_vr(c,j,m)
 
-                  !write (100+iam, *) 'log_omega_vr part 1', inner_ph * EWParamsInst%primary_stoi_proton(m) - EWParamsInst%log_keq_primary(m)
+                  !write (100+iam, *) 'log_omega_vr part 1', soil_ph(c,j) * EWParamsInst%primary_stoi_proton(m) - EWParamsInst%log_keq_primary(m)
                   !do icat = 1,ncations
                   !  write (100+iam, *) 'log_omega_vr cation', icat, EWParamsInst%cations_name(icat), EWParamsInst%primary_stoi_cations(m,icat) * &
                   !  mass_to_logmol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j))
@@ -985,16 +957,16 @@ contains
                 if (EWParamsInst%log_k_primary(m,1) > -9000) then
                   log_k_dissolve_acid = EWParamsInst%log_k_primary(m,1) + log10(exp(1.0)) * & 
                     (-1.0e6_r8 * EWParamsInst%e_primary(m,1) / rgas * (1/tsoi(c,j) - 1/298.15_r8)) - &
-                    EWParamsInst%n_primary(m,1) * inner_ph + log10(1 - 10**log_omega_vr(c,j,m))
+                    EWParamsInst%n_primary(m,1) * soil_ph(c,j) + log10(1 - 10**log_omega_vr(c,j,m))
                   k_tot = k_tot + 10**log_k_dissolve_acid
 
                   !!if (m == 6) then
                   !!    write (iulog, *) c, j, m, 'log_k_dissolve_acid', log_k_dissolve_acid, &
                   !!          EWParamsInst%log_k_primary(m,1), log10(exp(1.0)) * & 
-                  !!      (-1.0e6_r8 * EWParamsInst%e_primary(m,1) / rgas * (1/tsoi(c,j) - 1/298.15_r8)), EWParamsInst%n_primary(m,1) * inner_ph, log10(1 - 10**log_omega_vr(c,j,m))
+                  !!      (-1.0e6_r8 * EWParamsInst%e_primary(m,1) / rgas * (1/tsoi(c,j) - 1/298.15_r8)), EWParamsInst%n_primary(m,1) * soil_ph(c,j), log10(1 - 10**log_omega_vr(c,j,m))
                   !!end if
 
-                  !write (100+iam, *) 'log_k_dissolve_acid', ldomain%latc(g), ldomain%lonc(g), g, c, j, m, log_k_dissolve_acid, EWParamsInst%log_k_primary(m,1), EWParamsInst%e_primary(m,1), rgas, tsoi(c,j), EWParamsInst%n_primary(m,1), inner_ph, log_omega_vr(c,j,m)
+                  !write (100+iam, *) 'log_k_dissolve_acid', ldomain%latc(g), ldomain%lonc(g), g, c, j, m, log_k_dissolve_acid, EWParamsInst%log_k_primary(m,1), EWParamsInst%e_primary(m,1), rgas, tsoi(c,j), EWParamsInst%n_primary(m,1), soil_ph(c,j), log_omega_vr(c,j,m)
                 end if
 
                 if (EWParamsInst%log_k_primary(m,2) > -9000) then
@@ -1008,9 +980,9 @@ contains
                 if (EWParamsInst%log_k_primary(m,3) > -9000) then
                   log_k_dissolve_base = EWParamsInst%log_k_primary(m,3) + log10(exp(1.0)) * & 
                     (-1.0e6_r8 * EWParamsInst%e_primary(m,3) / rgas * (1/tsoi(c,j) - 1/298.15_r8)) - &
-                    EWParamsInst%n_primary(m,3) * (14 - inner_ph) + log10(1 - 10**log_omega_vr(c,j,m))
+                    EWParamsInst%n_primary(m,3) * (14 - soil_ph(c,j)) + log10(1 - 10**log_omega_vr(c,j,m))
                   k_tot = k_tot + 10**log_k_dissolve_base
-                  ! write (100+iam, *) 'log_k_dissolve_base', ldomain%latc(g), ldomain%lonc(g), g, c, j, m, log_k_dissolve_base, EWParamsInst%log_k_primary(m,3), EWParamsInst%e_primary(m,3), rgas, tsoi(c,j), EWParamsInst%n_primary(m,3), inner_ph, log_omega_vr(c,j,m)
+                  ! write (100+iam, *) 'log_k_dissolve_base', ldomain%latc(g), ldomain%lonc(g), g, c, j, m, log_k_dissolve_base, EWParamsInst%log_k_primary(m,3), EWParamsInst%e_primary(m,3), rgas, tsoi(c,j), EWParamsInst%n_primary(m,3), soil_ph(c,j), log_omega_vr(c,j,m)
                 end if
 
                 !!if (m == 6) then
@@ -1025,8 +997,6 @@ contains
                 !!  write (iulog, *) c, j, m, 'k_tot h2o', k_tot * h2osoi_liqvol(c,j)
                 !!end if
 
-                ! further scale 
-
                 ! calculate dissolution rate in mol m-3 s-1
                 r_dissolve_vr(c,j,m) = ssa(c,m) * primary_mineral_vr(c,j,m) * k_tot
 
@@ -1036,6 +1006,32 @@ contains
 
                 !write (100+iam, *) c, j, m, 'r_dissolve_vr', r_dissolve_vr(c,j,m), k_tot, ssa(c,m), primary_mineral_vr(c,j,m)
               end if
+            end if
+
+            !-------------------------------------------------------------------
+            ! Take the minimum between reaction rate and diffusion rate, following
+            ! shrinking core model, simplified
+            ! p362-366 of
+            ! Levenspiel, O. (1972). Chapter 12. Fluid-Particle Reactions. In Chemical 
+            ! Reaction Engineering (2nd ed., pp. 357–408). USA: John Wiley & Sons, Inc.
+            ! 
+            ! When the reaction rate is diffusion-rate controlled, then the key
+            ! assumption is [H+] = 0 at the passivation layer-primary mineral interface
+            !-------------------------------------------------------------------
+
+            ! Two orders of magnitude too big??????????????
+
+            if (passivation_thickness(c,j,m) > 0._r8) then
+              D_h_eff = D_h * passivation_phi / passivation_tau
+              Jflux = D_h_eff * 10**(-soil_ph(c,j)) * 1e3_r8 / (forc_gra(c,m)*1e-6_r8 - passivation_thickness(c,j,m))
+              dNb_dt = ssa(c,m) * primary_mineral_vr(c,j,m) * Jflux / EWParamsInst%primary_stoi_proton(m)
+
+              !!write (iulog, *) 'D_h_eff', c, j, m, D_h_eff, D_h, passivation_phi, passivation_tau
+              !!write (iulog, *) 'Jflux', c, j, m, Jflux, 10**(-soil_ph(c,j)), forc_gra(c,m), passivation_thickness(c,j,m)
+              !!write (iulog, *) 'dNb_dt', c, j, m, dNb_dt, ssa(c,m), primary_mineral_vr(c,j,m), EWParamsInst%primary_stoi_proton(m)
+              !!write (iulog, *) 'r_dissolve_vr', c, j, m, r_dissolve_vr(c,j,m)
+
+              r_dissolve_vr(c,j,m) = min(r_dissolve_vr(c,j,m), dNb_dt)
             end if
           end do
         end if
@@ -1054,11 +1050,6 @@ contains
           do m = 1,nminerals
             primary_cation_flux_vr(c,j,icat) = primary_cation_flux_vr(c,j,icat) + &
               r_dissolve_vr(c,j,m) * EWParamsInst%primary_stoi_cations(m,icat) * EWParamsInst%cations_mass(icat)
-
-            !!if (c == 1 .and. j == 1 .and. icat == 1) then
-            !!  write (iulog, *) c, j, icat, m, 'primary_cation_flux_vr', primary_cation_flux_vr(c,j,icat), r_dissolve_vr(c,j,m), EWParamsInst%primary_stoi_cations(m,icat), EWParamsInst%cations_mass(icat)
-            !!end if
-
           end do
         end do
 
@@ -1205,33 +1196,37 @@ contains
 
 
   !-----------------------------------------------------------------------
-  subroutine MineralPassivation(bounds, num_soilc, filter_soilc)
+  subroutine MineralPassivation(bounds, num_soilc, dt, filter_soilc)
     !
     ! !DESCRIPTION:
     ! On the radiation time step, update the rate at which secondary minerals
     ! accumulate in the passivation layer
     !
     ! !USES:
-    use elm_varcon           , only: vol_minsecs
+    use elm_varcon           , only: vol_sio2
+    use ewutils              , only: get_r
     !$acc routine seq
     !
     ! !ARGUMENTS:
     type(bounds_type)        , intent(in)    :: bounds
     integer                  , intent(in)    :: num_soilc       ! number of soil columns in filter
+    real(r8)                 , intent(in)    :: dt              ! time step size (s)
     integer                  , intent(in)    :: filter_soilc(:) ! filter for soil columns
     !
     ! !LOCAL VARIABLES:
-    integer  :: fc,c,j,g,nlevbed
-    integer  :: m, isec, icat          ! indices
+    integer  :: fc,c,j,g,nlevbed,m
     real(r8) :: tot_surf               ! total surface area of primary minerals in the soil column (m2 m-3)
+    real(r8) :: mass0, mass            ! mineral mass
+    real(r8) :: r0, r                  ! mineral radius
 
     associate( &
          nlev2bed                       => col_pp%nlevbed                   , & ! Input:  [integer  (:)   ] number of layers to bedrock
-         secondary_mineral_vr           => col_ms%secondary_mineral_vr      , & ! Input:  [real(r8) (:,:,:) ] secondary mineral content in the soil column (g m-3) (1:ncol, 1:nlevgrnd, 1:nminsecs)
          primary_mineral_vr             => col_ms%primary_mineral_vr        , & ! Input:  [real(r8) (:,:,:) ] primary mineral content in the soil column (g m-3) (1:ncol, 1:nlevgrnd, 1:nminerals)
+         forc_gra                       => col_ew%forc_gra                  , & ! Input:  [real(r8) (:,:)] grain size (1:nminerals) (um diameter)
          ssa                            => col_ms%ssa                       , & ! Input:  [real(r8) (:,:)] specific surface area of primary minerals (m2 g-1) (1:ncol, 1:nminerals)
-         r_precip_vr                    => col_mf%r_precip_vr               , & ! Output [real(r8) (:,:)] rate at which the precipitation of secondary mineral happens (mol m-3 s-1) (1:nlevgrnd, 1:nminsecs)
-         passivation_rate               => col_mf%passivation_rate         & ! Output: [real(r8) (:,:)] rate at which the passivation layer accumulates (m s-1) (1:nlevgrnd, 1:nminsecs)
+         r_dissolve_vr                  => col_mf%r_dissolve_vr             , & ! Input [real(r8) (:,:)] rate at which primary mineral dissolves (mol m-3 s-1) (1:nlevgrnd, 1:nminerals)
+         passivation_rate               => col_mf%passivation_rate          , & ! Output: [real(r8) (:)] rate at which the passivation layer accumulates (m s-1) (1:nlevgrnd)
+         passivation_thickness          => col_ms%passivation_thickness     & ! Output: [real(r8) (:)] thickness of the passivation layer (m) (1:nlevgrnd)
     )
 
     do fc = 1,num_soilc
@@ -1241,34 +1236,18 @@ contains
       nlevbed = min(nlev2bed(c), nlevsoi)
 
       do j = 1,nlevbed
+        do m = 1,nminerals
+          if (primary_mineral_vr(c,j,m) > 0._r8) then
+            passivation_rate(c,j,m) = r_dissolve_vr(c,j,m) * EWParamsInst%primary_mass(m) / (2.9e6_r8) / (primary_mineral_vr(c,j,m) * ssa(c,m))
 
-        if (sum(primary_mineral_vr(c,j,1:nminerals)) > 0._r8) then
+            !!write (iulog, *) 'passivation', c, j, m, passivation_rate(c,j,m), r_dissolve_vr(c,j,m), EWParamsInst%primary_mass(m), primary_mineral_vr(c,j,m), ssa(c,m)
 
-          ! calculate the total surface area of primary minerals + secondary minerals in the soil layer (m2 m-3 soil)
-          tot_surf = sum(ssa(c,1:nminerals) * primary_mineral_vr(c,j,1:nminerals))
-          tot_surf = tot_surf + tot_surf / sum(primary_mineral_vr(c,j,1:nminerals)) * sum(secondary_mineral_vr(c,j,1:nminsecs))
+            passivation_rate(c,j,m) = min(passivation_rate(c,j,m), forc_gra(c,m)*1e-6_r8 / dt)
+          else
+            passivation_rate(c,j,m) = 0._r8
+          end if
 
-          ! assume all the secondary minerals are evenly spread over all the primary mineral surface
-          ! mol m-3 soil s-1 => mol m-2 mineral surface s-1 => m3 m-2 mineral surface s-1
-          passivation_rate(c,j) = sum( r_precip_vr(c,j,1:nminsecs) / EWParamsInst%minsecs_mass(1:nminsecs) / tot_surf * vol_minsecs(1:nminsecs) )
-
-          ! scale up by porosity - note porosity is a volume, need to convert to grain size
-          ! 
-          ! particle's specific surface area scales with grain size by r^(-1.24) in the exponent
-          ! surface area scales by r^(2 \beta), suppose beta is fractal factor
-          ! volume scales by r^(3 \beta)
-          ! specific area scales by r^(- \beta), so \beta = -1.24
-          ! therefore, r scales with volume as r ~ v^(1 / (3 \beta))
-
-          passivation_rate(c,j) = passivation_rate(c,j) / ((1._r8 - passivation_phi)**0.2688_r8)
-        
-        else
-          passivation_rate(c,j) = 0._r8
-
-        end if
-
-        write (iulog, *) 'passivation_rate', c, j, r_precip_vr(c,j,1:nminsecs), tot_surf, passivation_rate(c,j)
-
+        end do
       end do
     end do
 

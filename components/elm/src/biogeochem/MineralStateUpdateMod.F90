@@ -150,8 +150,10 @@ contains
         ! ignore the effect on soil water content for now
 
         ! passivation layer thickness
-        col_ms%passivation_thickness(c,j) = col_ms%passivation_thickness(c,j) + &
-          col_mf%passivation_rate(c,j) * dt
+        do m = 1,nminerals
+          col_ms%passivation_thickness(c,j,m) = col_ms%passivation_thickness(c,j,m) + &
+            col_mf%passivation_rate(c,j,m) * dt
+        end do
       end do
     end do
   end subroutine MineralStateUpdate1
