@@ -13005,7 +13005,7 @@ contains
       this%cation_runoff(begc:endc,:) = spval
       call hist_addfld2d (fname='cation_runoff',  units='g m-2 s-1', type2d='cations', &
             avgflag='A', long_name='rate at which cations are lost to stream', &
-            ptr_col=this%cation_leached, l2g_scale_type='veg')
+            ptr_col=this%cation_runoff, l2g_scale_type='veg')
 
       this%r_sequestration(begc:endc) = spval
       call hist_addfld1d (fname='r_sequestration',  units='gC m-2 s-1', &
