@@ -237,12 +237,9 @@ module elm_varcon
   real(r8) :: mass_h     = 1.007_r8 ! proton H+
   ! secondary mineral precipitation reaction's equilibrium constant
   real(r8) :: log_keq_sio2am = -2.71_r8 ! SiO2(am), Taylor et al. (2016) DOI: 10.1038/NCLIMATE2882
-  real(r8) :: D_h        = 9.310e-9_r8 ! diffusion coefficient of H+ in water (m2/s)
-  real(r8) :: passivation_phi  = 0.2 ! assumed porosity of the passivation layer
-  real(r8) :: passivation_tau = 1.3 ! typical tortuosity of rock
-
-  ! specific volume of CaCO3 (m3/mol) and kaolinite (m3/mol)
-  real(r8) :: vol_minsecs(1:2) = (/ 3.693e-5_r8, 9.929e-5_r8 /)
+  real(r8) :: D_h        = 3e-14_r8 ! 9.310e-9_r8 ! 3e-14 ! diffusion coefficient of H+ in water (m2/s)
+  real(r8) :: passivation_phi  = 1_r8 ! 0.2 ! 0.002 ! 0.2 ! assumed porosity of the passivation layer
+  real(r8) :: passivation_tau = 1.3_r8 ! typical tortuosity of rock
 
   ! specific volume of amorphous silica (m3/mol)
   real(r8) :: vol_sio2 = 2.73e-5

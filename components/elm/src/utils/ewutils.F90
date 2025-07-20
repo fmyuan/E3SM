@@ -482,7 +482,7 @@ contains
         i1 = 0
         i2 = merge(1, 0, c_prev(i) > c_prev(i+1)) ! boolean to integer
 
-      elseif (i < nlevsoi) then
+      elseif (i < nlevbed) then
         ! middle layers
         i1 = merge(1, 0, c_prev(i) > c_prev(i-1))
         i2 = merge(1, 0, c_prev(i) > c_prev(i+1))
@@ -500,12 +500,14 @@ contains
 
       if (i == 1) then
         r = (Deff(i)*i2*c_prev(i+1)/dx(i+1) + sourcesink(i)) / scaler(i)
-      elseif (i < nlevsoi) then
+      elseif (i < nlevbed) then
         r = (Deff(i)*i1*c_prev(i-1)/dx(i) + Deff(i)*i2*c_prev(i+1)/dx(i+1) \
                 + sourcesink(i)) / scaler(i)
       else
         r = (Deff(i)*i1*c_prev(i-1)/dx(i) + sourcesink(i)) / scaler(i)
       end if
+
+      !!write (iulog, *) 'advection_diffusion', i, i1, i2, i3, i4, k, r
 
       ! if there is no flow out of this cell, degrades to linear source
       if (k == 0._r8) then
@@ -566,7 +568,7 @@ contains
           end if
 
         ! intermediate layer
-        else if (i < nlevsoi) then
+        else if (i < nlevbed) then
 
           if ((i1 == 0) .and. (i2 == 0)) then
             ! if there is no diffusion to begin with, end of solution works

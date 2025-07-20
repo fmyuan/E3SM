@@ -31,7 +31,7 @@ module EcosystemDynMod
   use ColumnDataType      , only : col_cf, c13_col_cf, c14_col_cf
   use ColumnDataType      , only : col_ns, col_nf
   use ColumnDataType      , only : col_ps, col_pf
-  use ColumnDataType      , only : col_ms, col_mf, col_wf
+  use ColumnDataType      , only : col_ms, col_mf, col_wf, col_ew
   use VegetationDataType  , only : veg_cs, c13_veg_cs, c14_veg_cs
   use VegetationDataType  , only : veg_cf, c13_veg_cf, c14_veg_cf
   use VegetationDataType  , only : veg_ns, veg_nf
@@ -650,7 +650,7 @@ contains
          call MineralPassivation(bounds, num_soilc, dt, filter_soilc)
          call MineralEquilibria(bounds, num_soilc, filter_soilc, soilstate_vars)
          call MineralFluxLimit(num_soilc, filter_soilc, col_ms, col_mf, dt, soilstate_vars)
-         call MineralStateUpdate1(num_soilc, filter_soilc, col_ms, col_mf, dt, soilstate_vars)
+         call MineralStateUpdate1(num_soilc, filter_soilc, col_ms, col_mf, col_ew, dt, soilstate_vars)
       end if
     end if
 

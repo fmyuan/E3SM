@@ -749,7 +749,9 @@ contains
         ! SSA matches, instead of using the provided grain size
         ! 
         ! Johnson, C. E., Driscoll, C. T., Blum, J. D., Fahey, T. J., & Battles, J. J. (2014). Soil Chemical Dynamics after Calcium Silicate Addition to a Northern Hardwood Forest. Soil Science Society of America Journal, 78(4), 1458–1468. https://doi.org/10.2136/sssaj2014.03.0114
-        forc_gra(c, 1:nminerals) = 20.8_r8 ! 9.6 um
+        if ((current_date .lt. 19991019) .or. (current_date .eq. 19991019 .and. is_hour)) then
+          forc_gra(c, 1:nminerals) = 20.8_r8 ! 9.6 um
+        end if
 
         forc_pho(c   ) = 0._r8
 
@@ -1023,7 +1025,7 @@ contains
 
             if (passivation_thickness(c,j,m) > 0._r8) then
               D_h_eff = D_h * passivation_phi / passivation_tau
-              Jflux = D_h_eff * 10**(-soil_ph(c,j)) * 1e3_r8 / (forc_gra(c,m)*1e-6_r8 - passivation_thickness(c,j,m))
+              Jflux = D_h_eff * 10**(-soil_ph(c,j)) * 1e3_r8 / passivation_thickness(c,j,m)
               dNb_dt = ssa(c,m) * primary_mineral_vr(c,j,m) * Jflux / EWParamsInst%primary_stoi_proton(m)
 
               !!write (iulog, *) 'D_h_eff', c, j, m, D_h_eff, D_h, passivation_phi, passivation_tau
@@ -1035,6 +1037,11 @@ contains
             end if
           end do
         end if
+
+        ! Limit the dissolution rate to prevent primary mineral from going negative
+        do m = 1,nminerals
+          r_dissolve_vr(c,j,m) = min(r_dissolve_vr(c,j,m), primary_mineral_vr(c,j,m) / dt)
+        end do
 
         ! Update the mineral and cation fluxes based on the reaction rates
         do m = 1,nminerals
@@ -1097,6 +1104,12 @@ contains
       do j = 1,nlevbed
 
         if (h2osoi_liqvol(c,j) > 1e-6) then
+
+          ! General precipitation rate law
+          ! r [mol m-3 s-1] = k [mol m-2 s-1] * S [m2 m-3] * (\Omega^\theta - 1)^\eta
+          ! 
+
+
 
           ! Calcite precipitation (Ca2+ is cation #1)
           isec = 1
@@ -1386,8 +1399,14 @@ contains
       adv_water(nlevbed + 1) = 1.0e-3_r8 * qin(c,nlevbed+1) * mixing_fraction(c,nlevbed+1)
 
       do icat = 1,ncations
-        !write (iam+100, *) '---------------------------------------------------------'
-        !write (iam+100, *) c, icat
+        !!write (iulog, *) 'cation_vr', c, icat, cation_vr(c, 1:nlevsoi, icat)
+        !!write (iulog, *) 'rain_cations', c, icat, rain_cations(icat)
+        !!write (iulog, *) 'adv_water', c, icat, adv_water(1:nlevsoi+1)
+        !!write (iulog, *) 'h2osoi_vol', c, icat, h2osoi_vol(c, 1:nlevsoi)
+        !!write (iulog, *) 'watsat_col', c, icat, soilstate_vars%watsat_col(c,1:nlevsoi)
+        !!write (iulog, *) 'sourcesink_cations', c, icat, sourcesink_cations(1:nlevsoi, icat)
+        !!write (iulog, *) 'cations_diffusivity', c, icat, EWParamsInst%cations_diffusivity(icat)
+        !!write (iulog, *) 'dz', c, icat, dt, nlevbed, dz(c,1:nlevsoi)
 
         call advection_diffusion(cation_vr(c, 1:nlevsoi, icat), rain_cations(icat), &
                                  adv_water(1:nlevsoi+1), h2osoi_vol(c, 1:nlevsoi), &
@@ -1395,7 +1414,9 @@ contains
                                  sourcesink_cations(1:nlevsoi, icat), &
                                  EWParamsInst%cations_diffusivity(icat), &
                                  dt, dz(c,1:nlevsoi), nlevbed, dcation_dt(1:nlevsoi, icat))
-        !write (iam+100, *) '---------------------------------------------------------'
+
+        !!write (iulog, *) 'dcation_dt', c, j, icat, dcation_dt(1:nlevsoi, icat)
+
       end do
 
       call advection_diffusion(bicarbonate_vr(c, 1:nlevsoi), rain_bicarbonate, &
@@ -1725,9 +1746,6 @@ contains
 
         soil_ph(c,j) = solve_eq(net_charge_vr(c,j), co2_atm, beta_list, keq_list, &
                                 EWParamsInst%cations_valence)
-        !!write (100+iam, *) 'beta_list', c, j, beta_list(1), beta_list(2), beta_list(3), beta_list(4), beta_list(5)
-        !!write (100+iam, *) 'keq_list', c, j, keq_list(1), keq_list(2), keq_list(3), keq_list(4), keq_list(5)
-        !!write (100+iam, *) 'rest', c, j, soil_ph(c,j), net_charge_vr(c,j), co2_atm, EWParamsInst%cations_valence
 
         ! calculate the implications on HCO3- & CO3 --
         bicarbonate_vr(c,j) = ph_to_hco3(soil_ph(c,j), co2_atm)

@@ -15,9 +15,8 @@ module MineralStateUpdateMod
   use abortutils              , only : endrun
   use shr_log_mod             , only : errMsg => shr_log_errMsg
   use ewutils                 , only : mass_to_mol, mass_to_meq, mol_to_mass, meq_to_mass
-  use ColumnDataType          , only : col_ws
-  use ColumnDataType          , only : col_ms, col_mf, col_pp
-  use ColumnDataType          , only : column_mineral_state, column_mineral_flux, column_water_flux
+  use ColumnDataType          , only : col_ws, col_ms, col_mf, col_pp, col_ew
+  use ColumnDataType          , only : column_mineral_state, column_mineral_flux, column_water_flux, column_erw_forcing
   use SoilStateType           , only : soilstate_type
   use CNStateType             , only : cnstate_type
   use EnhancedWeatheringMod   , only : EWParamsInst
@@ -41,7 +40,7 @@ module MineralStateUpdateMod
 contains
 
   !-----------------------------------------------------------------------
-  subroutine MineralStateUpdate1(num_soilc, filter_soilc, col_ms, col_mf, dt, soilstate_vars)
+  subroutine MineralStateUpdate1(num_soilc, filter_soilc, col_ms, col_mf, col_ew, dt, soilstate_vars)
     !
     ! !DESCRIPTION:
     ! On the radiation time step, update the mineral state variables that are not
@@ -52,6 +51,7 @@ contains
     ! !ARGUMENTS:
     integer                      , intent(in)    :: num_soilc       ! number of soil columns filter
     integer                      , intent(in)    :: filter_soilc(:) ! filter for soil columns
+    type(column_erw_forcing)     , intent(inout) :: col_ew
     type(column_mineral_state)   , intent(inout) :: col_ms
     type(column_mineral_flux)    , intent(inout) :: col_mf
     real(r8)                     , intent(in)    :: dt              ! radiation time step (seconds)
@@ -130,6 +130,9 @@ contains
           col_ms%primary_mineral_vr(c,j,m) = col_ms%primary_mineral_vr(c,j,m) + &
             col_mf%primary_added_vr(c,j,m)*dt - col_mf%primary_dissolve_vr(c,j,m)*dt
 
+          ! catch tiny negative values
+          col_ms%primary_mineral_vr(c,j,m) = max(col_ms%primary_mineral_vr(c,j,m), 0._r8)
+
           !!if (m == 6) then
           !!  write (iulog, *) c, j, m, col_ms%primary_mineral_vr(c,j,m), col_mf%primary_added_vr(c,j,m), col_mf%primary_dissolve_vr(c,j,m), dt
           !!end if
@@ -154,6 +157,15 @@ contains
           col_ms%passivation_thickness(c,j,m) = col_ms%passivation_thickness(c,j,m) + &
             col_mf%passivation_rate(c,j,m) * dt
         end do
+
+        ! specific surface area
+        ! XXXXXXXX only for HBR now
+        do m = 1,nminerals
+          col_ew%forc_gra(c,m) = col_ew%forc_gra(c,m) - col_mf%passivation_rate(c,1,m)*1e6_r8 * dt
+          ! make sure non-zero
+          col_ew%forc_gra(c,m) = max(col_ew%forc_gra(c,m), 1e-3_r8)
+        end do
+
       end do
     end do
   end subroutine MineralStateUpdate1

@@ -597,6 +597,9 @@ contains
          amx(c,j) =  0._r8
          bmx(c,j) =  dzmm(c,j)*(sdamp+1._r8/dtime) + dqodw1(c,j)
          cmx(c,j) =  dqodw2(c,j)
+
+         write (iulog, *) c, j, qflx_infl(c), qin(c,j), qout(c,j)
+
       end do
 
       ! Nodes j=2 to j=nlevsoi-1
@@ -621,6 +624,9 @@ contains
             amx(c,j)    = -dqidw0(c,j)
             bmx(c,j)    =  dzmm(c,j)/dtime - dqidw1(c,j) + dqodw1(c,j)
             cmx(c,j)    =  dqodw2(c,j)
+
+            write (iulog, *) c, j, qin(c,j), qout(c,j)
+
          end do
       end do
 
@@ -649,6 +655,9 @@ contains
             amx(c,j+1) = 0._r8
             bmx(c,j+1) = dzmm(c,j+1)/dtime
             cmx(c,j+1) = 0._r8
+
+            write (iulog, *) c, j, qin(c,j), qout(c,j)
+
          else ! water table is below soil column
 
             ! compute aquifer soil moisture as average of layer 10 and saturation
@@ -710,6 +719,8 @@ contains
                bmx(c,j+1) =  dzmm(c,j+1)/dtime - dqidw1(c,j+1) + dqodw1(c,j+1)
                cmx(c,j+1) =  0._r8
             end if
+
+            write (iulog, *) c, j, qin(c,j), qout(c,j)
          endif
       end do
 
