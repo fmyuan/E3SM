@@ -101,8 +101,9 @@ module SoilStateType
      real(r8), pointer :: cece_col             (:,:,:)! col "effective" cation exchange capacity = sum of base cations + aluminum (meq/100g dry soil)
      real(r8), pointer :: ceca_col             (:,:)  ! col "acid" cation exchange capacity = H+ (meq/100g dry soil)
      real(r8), pointer :: log_km_col           (:,:,:)! col Gaines-Thomas convention product for the exchange between each cation and H+ (H+ as the product) (1:ncations) (vertically resolved)
-     real(r8), pointer :: kaolinite_col        (:,:)  ! col percentage kaolinite in mineral soil (g 100g-1 soil)
-     real(r8), pointer :: calcite_col          (:,:)  ! col percentage CaCO3 in mineral soil (g 100g-1 soil)
+     real(r8), pointer :: calcite_col          (:,:)  ! col weight percentage CaCO3 in mineral soil (g 100g-1 soil)
+     real(r8), pointer :: kaolinite_col        (:,:)  ! col weight percentage kaolinite in mineral soil (g 100g-1 soil)
+     real(r8), pointer :: gibbsite_col         (:,:)  ! col weight percentage gibbsite in mineral soil (g 100g-1 soil)
    contains
 
      procedure, public  :: Init
@@ -201,12 +202,13 @@ contains
     allocate(this%soil_conductance_patch(begp:endp,1:nlevsoi))          ; this%soil_conductance_patch (:,:) = spval
 
     allocate(this%sph                  (begc:endc,1:nlevgrnd))          ; this%sph                 (:,:)   = spval
-    allocate(this%cect_col             (begc:endc,1:nlevgrnd))          ; this%cect_col           (:,:)   = spval
-    allocate(this%cece_col             (begc:endc,1:nlevgrnd,1:ncations)); this%cece_col          (:,:,:)   = spval
-    allocate(this%ceca_col             (begc:endc,1:nlevgrnd))          ; this%ceca_col             (:,:)   = spval
+    allocate(this%cect_col             (begc:endc,1:nlevgrnd))          ; this%cect_col            (:,:)   = spval
+    allocate(this%cece_col             (begc:endc,1:nlevgrnd,1:ncations)); this%cece_col           (:,:,:)   = spval
+    allocate(this%ceca_col             (begc:endc,1:nlevgrnd))          ; this%ceca_col            (:,:)   = spval
     allocate(this%log_km_col           (begc:endc,1:nlevgrnd,1:ncations)); this%log_km_col         (:,:,:) = spval
-    allocate(this%kaolinite_col        (begc:endc,1:nlevgrnd))          ; this%kaolinite_col      (:,:)   = spval
-    allocate(this%calcite_col          (begc:endc,1:nlevgrnd))          ; this%calcite_col        (:,:)   = spval
+    allocate(this%calcite_col          (begc:endc,1:nlevgrnd))          ; this%calcite_col         (:,:)   = spval
+    allocate(this%kaolinite_col        (begc:endc,1:nlevgrnd))          ; this%kaolinite_col       (:,:)   = spval
+    allocate(this%gibbsite_col         (begc:endc,1:nlevgrnd))          ; this%gibbsite_col        (:,:)   = spval
 
   end subroutine InitAllocate
 
@@ -362,13 +364,17 @@ contains
                ptr_col=data2dptr, default='inactive')
        end do
 
+      call hist_addfld2d(fname='calcite_col', units='g 100g-1 dry soil', type2d='levgrnd', &
+            avgflag='A', long_name='percentage naturally occuring CaCO3 in soil', &
+            ptr_col=this%calcite_col, default='inactive')
+
       call hist_addfld2d(fname='kaolinite_col', units='g 100g-1 dry soil', type2d='levgrnd', &
             avgflag='A', long_name='percentage naturally occuring kaolinite in soil', &
             ptr_col=this%kaolinite_col, default='inactive')
 
-      call hist_addfld2d(fname='calcite_col', units='g 100g-1 dry soil', type2d='levgrnd', &
-            avgflag='A', long_name='percentage naturally occuring CaCO3 in soil', &
-            ptr_col=this%calcite_col, default='inactive')
+      call hist_addfld2d(fname='gibbsite_col', units='g 100g-1 dry soil', type2d='levgrnd', &
+            avgflag='A', long_name='percentage naturally occuring gibbsite in soil', &
+            ptr_col=this%gibbsite_col, default='inactive')
 
       ! This is needed to convert CEC to meq 100g-1 soil
       call hist_addfld2d(fname='bd_col', units='kg m-3', type2d='levgrnd', &
@@ -444,8 +450,8 @@ contains
     logical            :: calc_logkm
     character(6)       :: a_str
     character(24)      :: fieldname
-    real(r8), parameter :: min_liquid_pressure = -10132500._r8 ! Minimum soil liquid water pressure [mm]
-    real(r8) ,pointer  :: sph_in(:,:,:), cect_in(:,:,:), cece_in(:,:,:), ceca_in(:,:,:), logkm_in(:,:,:), kaolinite_in(:,:,:), calcite_in(:,:,:) ! reac in - cation exchange capacity variables
+    real(r8), parameter:: min_liquid_pressure = -10132500._r8 ! Minimum soil liquid water pressure [mm]
+    real(r8), pointer  :: sph_in(:,:,:), cect_in(:,:,:), cece_in(:,:,:), ceca_in(:,:,:), logkm_in(:,:,:), calcite_in(:,:,:), kaolinite_in(:,:,:), gibbsite_in(:,:,:) ! reac in - cation exchange capacity variables
     real(r8), dimension(4) :: kex_ca, kex_mg, kex_na, kex_k, kex_al
     !-----------------------------------------------------------------------
     begc = bounds%begc; endc= bounds%endc
@@ -615,8 +621,9 @@ contains
        allocate(cece_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
        allocate(ceca_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
        allocate(logkm_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
-       allocate(kaolinite_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
        allocate(calcite_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
+       allocate(kaolinite_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
+       allocate(gibbsite_col(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
 
        do a = 1,ncations
           write (a_str, '(I6)') a
@@ -649,13 +656,17 @@ contains
        if (.not. readvar) then
           call endrun(msg=' ERROR: CEC_ACID NOT on surfdata file'//errMsg(__FILE__, __LINE__))
        end if
+       call ncd_io(ncid=ncid, varname='PCT_CALCITE', flag='read', data=calcite_in, dim1name=grlnd, readvar=readvar)
+       if (.not. readvar) then
+          call endrun(msg=' ERROR: PCT_CALCITE NOT on surfdata file'//errMsg(__FILE__, __LINE__))
+       end if
        call ncd_io(ncid=ncid, varname='PCT_KAOLINITE', flag='read', data=kaolinite_in, dim1name=grlnd, readvar=readvar)
        if (.not. readvar) then
           call endrun(msg=' ERROR: PCT_KAOLINITE NOT on surfdata file'//errMsg(__FILE__, __LINE__))
        end if
-       call ncd_io(ncid=ncid, varname='PCT_CALCITE', flag='read', data=calcite_in, dim1name=grlnd, readvar=readvar)
+       call ncd_io(ncid=ncid, varname='PCT_GIBBSITE', flag='read', data=gibbsite_in, dim1name=grlnd, readvar=readvar)
        if (.not. readvar) then
-          call endrun(msg=' ERROR: PCT_CALCITE NOT on surfdata file'//errMsg(__FILE__, __LINE__))
+          call endrun(msg=' ERROR: PCT_GIBBSITE NOT on surfdata file'//errMsg(__FILE__, __LINE__))
        end if
        do c = bounds%begc, bounds%endc
           g = col_pp%gridcell(c)
@@ -666,8 +677,9 @@ contains
             this%sph     (c, lev) =  sph_in(g,ti,lev)
             this%cect_col(c, lev) = cect_in(g,ti,lev)
             this%ceca_col(c, lev) = ceca_in(g,ti,lev)
-            this%kaolinite_col(c, lev) = kaolinite_in(g,ti,lev)
             this%calcite_col(c, lev) = calcite_in(g,ti,lev)
+            this%kaolinite_col(c, lev) = kaolinite_in(g,ti,lev)
+            this%gibbsite_col(c, lev) = gibbsite_in(g,ti,lev)
           end do
        end do
 
@@ -689,7 +701,7 @@ contains
             end do
           end if
        end do
-       deallocate(sph_in, cect_in, cece_in, ceca_in, logkm_in, kaolinite_in, calcite_in)
+       deallocate(sph_in, cect_in, cece_in, ceca_in, logkm_in, calcite_in, kaolinite_in, gibbsite_in)
     end if
 
     ! Close file

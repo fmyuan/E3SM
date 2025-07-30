@@ -72,7 +72,9 @@ contains
       annavg_tot_delta            => col_mf%annavg_tot_delta, &
       tempavg_tot_delta           => col_mf%tempavg_tot_delta, &
       annavg_cec_delta            => col_mf%annavg_cec_delta, &
-      tempavg_cec_delta           => col_mf%tempavg_cec_delta &
+      tempavg_cec_delta           => col_mf%tempavg_cec_delta, &
+      annavg_minsecs_delta        => col_mf%annavg_cec_delta, &
+      tempavg_minsecs_delta       => col_mf%tempavg_minsecs_delta, &
     )
 
     dt = dtime_mod
@@ -140,6 +142,11 @@ contains
             annavg_cec_delta(c,j,1:ncations) = annavg_cec_delta(c,j,1:ncations) + &
                   tempavg_cec_delta(c,j,1:ncations) / nyear_erw_calibrate
             tempavg_cec_delta(c,j,1:ncations) = 0._r8
+
+            ! calibrate the annual secondary mineral change rate for background weathering
+            annavg_minsecs_delta(c,j,1:nminsecs) = annavg_minsecs_delta(c,j,1:nminsecs) + &
+                  tempavg_minsecs_delta(c,j,1:nminsecs) / nyear_erw_calibrate
+            tempavg_minsecs_delta(c,j,1:nminsecs) = 0._r8
           end if
         end do
       end do

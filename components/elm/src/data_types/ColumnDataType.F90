@@ -440,7 +440,7 @@ module ColumnDataType
       real(r8), pointer :: cation_vr               (:,:,:) => null() ! cation concentration in soil water in each soil layer (1:nlevgrnd,1:ncations) (g m-3 soil [not water])
       real(r8), pointer :: silica_vr               (:,:)   => null() ! SiO2 concentration in soil water in each soil layer (1:nlevgrnd) (g m-3 soil [not water])
       real(r8), pointer :: primary_residue_vr      (:,:,:) => null() ! non-SiO2 solids concentration in solid phase in each soil layer (1:nlevgrnd,1:nminerals) (g m-3)
-      real(r8), pointer :: ssa                     (:,:)   => null() ! specific surface area of the primary mineral (1:nminerals) (m2 g-1 mineral)
+      real(r8), pointer :: ssa_dyn                 (:,:,:) => null() ! specific surface area of the primary mineral (1:nlevgrnd,1:nminerals) (m2 g-1 mineral)
       real(r8), pointer :: secondary_mineral_vr    (:,:,:) => null() ! secondary mineral concentration in solid phase in each soil layer (1:nlevgrnd,1:nminsecs) (g m-3)
       real(r8), pointer :: passivation_thickness   (:,:,:) => null() ! armoring layer thickness due to preferential release and formation of secondary mineral (1:nlevgrnd,1:nminerals) (m)
 
@@ -5866,7 +5866,7 @@ contains
       allocate(this%cation_vr           (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cation_vr              (:,:,:) = spval
       allocate(this%silica_vr           (begc:endc,1:nlevgrnd            ))       ; this%silica_vr              (:,:) = spval
       allocate(this%primary_residue_vr  (begc:endc,1:nlevgrnd,1:nminerals))       ; this%primary_residue_vr     (:,:,:) = spval
-      allocate(this%ssa                 (begc:endc,1:nminerals           ))       ; this%ssa                    (:,:) = spval
+      allocate(this%ssa_dyn             (begc:endc,1:nlevgrnd,1:nminerals))       ; this%ssa_dyn                (:,:,:) = spval
       allocate(this%secondary_mineral_vr(begc:endc,1:nlevgrnd,1:nminsecs ))       ; this%secondary_mineral_vr   (:,:,:) = spval
       allocate(this%passivation_thickness (begc:endc,1:nlevgrnd,1:nminerals))     ; this%passivation_thickness  (:,:,:) = spval
       allocate(this%cec_cation_vr       (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cec_cation_vr          (:,:,:) = spval
@@ -5973,10 +5973,16 @@ contains
             ptr_col=data2dptr, l2g_scale_type='veg')
       end do
 
-      this%ssa(begc:endc,1:nminerals) = spval
-      call hist_addfld2d (fname='ssa',  units='m2 g-1', type2d='minerals', &
-         avgflag='A', long_name='specific surface area of the primary mineral', &
-         ptr_col=this%ssa, l2g_scale_type='veg')
+      this%ssa_dyn(begc:endc,1:nlevgrnd,1:nminerals) = spval
+      do a = 1,nminerals
+         data2dptr => this%ssa_dyn(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'ssa_dyn_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname, units='m2 g-1', type2d='levgrnd', &
+            avgflag='A', long_name='specific surface area of the primary mineral (vertically resolved)', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
+      end do
 
       this%secondary_mineral_vr(begc:endc,1:nlevgrnd,1:nminsecs) = spval
       do a = 1,nminsecs
@@ -6094,7 +6100,7 @@ contains
             this%silica_vr               (c,1:nlevsoi             ) = 1e-10_r8 ! need a small nonzero number to avoid initializing to infinity
             this%primary_residue_vr      (c,1:nlevsoi,1:nminerals ) = 0._r8
             this%passivation_thickness   (c,1:nlevsoi,1:nminerals ) = 0._r8
-            this%ssa                     (c,1:nminerals           ) = 0._r8
+            this%ssa_dyn                 (c,1:nlevsoi,1:nminerals ) = 0._r8
             this%secondary_mineral_vr    (c,1:nlevsoi,1:nminsecs  ) = 0._r8
 
             ! will be re-initialized after hydrology reaches equilibrium
@@ -6223,11 +6229,16 @@ contains
             interpinic_flag='interp', readvar=readvar, data=ptr2d)
       end do
 
-      ptr2d => this%ssa(:,:)
-      call restartvar(ncid=ncid, flag=flag, varname='ssa', xtype=ncd_double, &
-         dim1name='column', dim2name='minerals', switchdim=.true., &
-         long_name='specific surface area of the primary mineral', units='m2 g-1', &
-         interpinic_flag='interp', readvar=readvar, data=ptr2d)
+      do a = 1, nminerals
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'ssa_dyn_'//trim(a_str)
+         ptr2d => this%ssa_dyn(:,:,a)
+         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double,   &
+            dim1name='column', dim2name='levgrnd', switchdim=.true., &
+            long_name='specific surface area of the primary mineral (vertically resolved)', units='m2 g-1', fill_value=spval, &
+            interpinic_flag='interp', readvar=readvar, data=ptr2d)
+      end do
 
       do a = 1, nminsecs
          write (a_str, '(I6)') a
@@ -12516,12 +12527,15 @@ contains
       !-----------------------------------------------------------------------
       allocate(this%background_flux_vr             (begc:endc,1:nlevgrnd,1:ncations ))       ; this%background_flux_vr          (:,:,:) = spval
       allocate(this%background_cec_vr              (begc:endc,1:nlevgrnd,1:ncations ))       ; this%background_cec_vr           (:,:,:) = spval
+      allocate(this%background_minsecs_vr          (begc:endc,1:nlevgrnd,1:nminsecs ))       ; this%background_minsecs_vr       (:,:,:) = spval
 
       allocate(this%annavg_tot_delta               (begc:endc,1:nlevgrnd,1:ncations ))       ; this%annavg_tot_delta            (:,:,:) = spval
-      allocate(this%tempavg_tot_delta              (begc:endc,1:nlevgrnd,1:ncations ))       ; this%tempavg_tot_delta           (:,:,:) = spval
-
       allocate(this%annavg_cec_delta               (begc:endc,1:nlevgrnd,1:ncations ))       ; this%annavg_cec_delta            (:,:,:) = spval
+      allocate(this%annavg_minsecs_delta           (begc:endc,1:nlevgrnd,1:nminsecs ))       ; this%annavg_minsecs_delta        (:,:,:) = spval
+
+      allocate(this%tempavg_tot_delta              (begc:endc,1:nlevgrnd,1:ncations ))       ; this%tempavg_tot_delta           (:,:,:) = spval
       allocate(this%tempavg_cec_delta              (begc:endc,1:nlevgrnd,1:ncations ))       ; this%tempavg_cec_delta           (:,:,:) = spval
+      allocate(this%tempavg_minsecs_delta          (begc:endc,1:nlevgrnd,1:nminsecs ))       ; this%tempavg_minsecs_delta       (:,:,:) = spval
 
       allocate(this%mixing_fraction                (begc:endc,1:nlevgrnd))                   ; this%mixing_fraction             (:,:)   = spval
 
@@ -12531,7 +12545,6 @@ contains
       allocate(this%primary_h2o_flux_vr            (begc:endc,1:nlevgrnd            ))       ; this%primary_h2o_flux_vr         (:,:)   = spval
       allocate(this%primary_silica_flux_vr         (begc:endc,1:nlevgrnd            ))       ; this%primary_silica_flux_vr      (:,:)   = spval
       allocate(this%primary_residue_flux_vr        (begc:endc,1:nlevgrnd,1:nminerals))       ; this%primary_residue_flux_vr     (:,:,:) = spval
-
       allocate(this%primary_prelease_vr            (begc:endc,1:nlevgrnd            ))       ; this%primary_prelease_vr         (:,:)   = spval
 
       allocate(this%r_dissolve_vr                  (begc:endc,1:nlevgrnd,1:nminerals))       ; this%r_dissolve_vr               (:,:,:) = spval
@@ -12549,9 +12562,9 @@ contains
 
       allocate(this%cect_delta                     (begc:endc,1:nlevgrnd            ))       ; this%cect_delta                    (:,:  ) = spval
       allocate(this%cece_delta                     (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cece_delta                    (:,:,:) = spval
-      allocate(this%cec_delta_limit                (begc:endc,1:nlevgrnd            ))       ; this%cec_delta_limit               (:,:  ) = spval
 
-      allocate(this%proton_limit_vr                (begc:endc,1:nlevgrnd            ))       ; this%proton_limit_vr               (:,:  ) = spval
+      allocate(this%cec_delta_limit                (begc:endc,1:nlevgrnd            ))       ; this%cec_delta_limit               (:,:  ) = spval
+      allocate(this%cect_delta_add                 (begc:endc,1:nlevgrnd            ))       ; this%cect_delta_add                (:,:  ) = spval
       allocate(this%cec_limit_vr                   (begc:endc,1:nlevgrnd,1:ncations ))       ; this%cec_limit_vr                  (:,:,:) = spval
       allocate(this%flux_limit_vr                  (begc:endc,1:nlevgrnd,1:ncations ))       ; this%flux_limit_vr                 (:,:,:) = spval
 
@@ -12569,6 +12582,7 @@ contains
 
       allocate(this%background_flux               (begc:endc,1:ncations            ))       ; this%background_flux              (:,:)   = spval
       allocate(this%background_cec                (begc:endc,1:ncations            ))       ; this%background_cec               (:,:)   = spval
+      allocate(this%background_minsecs            (begc:endc,1:nminsecs            ))       ; this%background_cec               (:,:)   = spval
 
       allocate(this%primary_added                  (begc:endc,1:nminerals           ))       ; this%primary_added                 (:,:)   = spval
       allocate(this%primary_dissolve               (begc:endc,1:nminerals           ))       ; this%primary_dissolve              (:,:)   = spval
@@ -12620,6 +12634,17 @@ contains
             ptr_col=data2dptr, l2g_scale_type='veg')
       end do
 
+      this%background_minsecs_vr(begc:endc,:,:) = spval
+      do a = 1,nminsecs
+         data2dptr => this%background_minsecs_vr(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'background_minsecs_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname,  units='g m-3 s-1', type2d='levgrnd', &
+            avgflag='A', long_name='background flux rate of secondary minerals (e.g. through bedrock weathering) (vertically resolved)', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
+      end do
+
       this%annavg_tot_delta(begc:endc,:,:) = spval
       do a = 1,ncations
          data2dptr => this%annavg_tot_delta(:,:,a)
@@ -12639,6 +12664,17 @@ contains
          fieldname = 'annavg_cec_delta_vr_'//trim(a_str)
          call hist_addfld2d (fname=fieldname,  units='g m-3 s-1', type2d='levgrnd', &
             avgflag='A', long_name='annual average rate of change in adsorbed cation concentration before mineral application (vertically resolved)', &
+            ptr_col=data2dptr, l2g_scale_type='veg')
+      end do
+
+      this%annavg_minsecs_delta(begc:endc,:,:) = spval
+      do a = 1,nminsecs
+         data2dptr => this%annavg_minsecs_delta(:,:,a)
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         fieldname = 'annavg_minsecs_delta_vr_'//trim(a_str)
+         call hist_addfld2d (fname=fieldname,  units='g m-3 s-1', type2d='levgrnd', &
+            avgflag='A', long_name='annual average rate of change in secondary minerals before mineral application (vertically resolved)', &
             ptr_col=data2dptr, l2g_scale_type='veg')
       end do
 
@@ -12820,6 +12856,11 @@ contains
          avgflag='A', long_name='limit on total cation exchange capacity change per time step', &
          ptr_col=this%cec_delta_limit, l2g_scale_type='veg')
 
+      this%cect_delta_add(begc:endc,:) = spval
+      call hist_addfld2d (fname='cect_delta_add',  units='', type2d='levgrnd', &
+         avgflag='A', long_name='increase on total cation exchange capacity change to accomodate H+ per time step', &
+         ptr_col=this%cect_delta_add, l2g_scale_type='veg')
+
       this%proton_limit_vr(begc:endc,:) = spval
       call hist_addfld2d (fname='proton_limit_vr',  units='', type2d='levgrnd', &
          avgflag='A', long_name='flux limit factor due to insufficient H+ exchange', &
@@ -12932,6 +12973,11 @@ contains
          avgflag='A', long_name='vertically integrated background flux rate of adsorbed cations (e.g. through weathering)', &
          ptr_col=this%background_cec, l2g_scale_type='veg')
 
+      this%background_minsecs(begc:endc,:) = spval
+      call hist_addfld2d (fname='background_minsecs',  units='g m-2 s-1', type2d='cations', &
+         avgflag='A', long_name='vertically integrated background flux rate of secondary minerals (e.g. through bedrock weathering)', &
+         ptr_col=this%background_cec, l2g_scale_type='veg')
+
       this%primary_added(begc:endc,:) = spval
       call hist_addfld2d (fname='primary_added',  units='g m-2 s-1', type2d='minerals', &
          avgflag='A', long_name='rate at which primary mineral is added', &
@@ -13022,11 +13068,15 @@ contains
          !if (lun_pp%itype(l)==istsoil .or. lun_pp%itype(l)==istcrop) then
             this%background_flux_vr              (c,1:nlevsoi,1:ncations ) = 0._r8
             this%background_cec_vr               (c,1:nlevsoi,1:ncations ) = 0._r8
+            this%background_minsecs_vr           (c,1:nlevsoi,1:nminsecs ) = 0._r8
+
+            this%annavg_tot_delta                (c,1:nlevsoi,1:ncations ) = 0._r8
+            this%annavg_cec_delta                (c,1:nlevsoi,1:ncations ) = 0._r8
+            this%annavg_minsecs_delta            (c,1:nlevsoi,1:nminsecs ) = 0._r8
 
             this%tempavg_tot_delta               (c,1:nlevsoi,1:ncations ) = 0._r8
-            this%annavg_tot_delta                (c,1:nlevsoi,1:ncations ) = 0._r8
             this%tempavg_cec_delta               (c,1:nlevsoi,1:ncations ) = 0._r8
-            this%annavg_cec_delta                (c,1:nlevsoi,1:ncations ) = 0._r8
+            this%tempavg_minsecs_delta           (c,1:nlevsoi,1:nminsecs ) = 0._r8
 
             this%primary_added_vr                (c,1:nlevsoi,1:nminerals) = 0._r8
             this%primary_dissolve_vr             (c,1:nlevsoi,1:nminerals) = 0._r8
@@ -13042,15 +13092,18 @@ contains
             this%secondary_mineral_flux_vr       (c,1:nlevsoi,1:nminsecs ) = 0._r8
             this%secondary_cation_flux_vr        (c,1:nlevsoi,1:ncations ) = 0._r8
             this%secondary_silica_flux_vr        (c,1:nlevsoi            ) = 0._r8
+
             this%r_precip_vr                     (c,1:nlevsoi,1:nminsecs ) = 0._r8
             this%passivation_rate                (c,1:nlevsoi,1:nminerals) = 0._r8
 
             this%cec_cation_flux_vr              (c,1:nlevsoi,1:ncations ) = 0._r8
             this%cec_cation_flux2_vr             (c,1:nlevsoi,1:ncations ) = 0._r8
+
             this%cect_delta                      (c,1:nlevsoi            ) = 0._r8
             this%cece_delta                      (c,1:nlevsoi,1:ncations ) = 0._r8
-            this%cec_delta_limit                 (c,1:nlevsoi            ) = 1._r8
 
+            this%cec_delta_limit                 (c,1:nlevsoi            ) = 1._r8
+            this%cect_delta_add                  (c,1:nlevsoi            ) = 0._r8
             this%cec_limit_vr                    (c,1:nlevsoi,1:ncations ) = 1._r8
             this%proton_limit_vr                 (c,1:nlevsoi            ) = 1._r8
             this%flux_limit_vr                   (c,1:nlevsoi,1:ncations ) = 1._r8
@@ -13142,6 +13195,17 @@ contains
             interpinic_flag='interp', readvar=readvar, data=ptr2d)
       end do
 
+      do a = 1,ncations
+         write (a_str, '(I6)') a
+         a_str = adjustl(a_str)  ! Remove leading spaces
+         varname = 'annavg_minsecs_delta_vr_'//trim(a_str)
+         ptr2d => this%annavg_minsecs_delta(:,:,a)
+         call restartvar(ncid=ncid, flag=flag, varname=varname, xtype=ncd_double,   &
+            dim1name='column', dim2name='levgrnd', switchdim=.true., &
+            long_name='annual average rate of change in secondary minerals before mineral application (vertically resolved)', units='g m-3 s-1', &
+            interpinic_flag='interp', readvar=readvar, data=ptr2d)
+      end do
+
    end subroutine col_mf_restart
 
    !------------------------------------------------------------------------
@@ -13164,6 +13228,8 @@ contains
 
          this%background_flux(c,:)             = 0._r8
          this%background_cec(c,:)              = 0._r8
+         this%background_minsecs(c,:)          = 0._r8
+
          this%primary_added(c,:)               = 0._r8
          this%primary_dissolve(c,:)            = 0._r8
          this%primary_cation_flux(c,:)         = 0._r8
@@ -13229,6 +13295,11 @@ contains
                   this%cation_runoff(c,a) + this%cation_runoff_vr(c,j,a) * col_pp%dz(c,j)
             end do
 
+            do a = 1,nminsecs
+               this%background_minsecs(c,a) = this%background_minsecs(c,a) + &
+                  this%background_minsecs_vr(c,j,a) * col_pp%dz(c,j)
+            end do
+
             this%primary_h2o_flux(c) = &
                this%primary_h2o_flux(c) + this%primary_h2o_flux_vr(c,j) * col_pp%dz(c,j)
 
@@ -13239,8 +13310,8 @@ contains
                this%secondary_silica_flux(c) + this%secondary_silica_flux_vr(c,j) * col_pp%dz(c,j)
 
             do a = 1,nminsecs
-               this%secondary_mineral_flux(c,a) = &
-                  this%secondary_mineral_flux(c,a) + this%secondary_mineral_flux_vr(c,j,a) * col_pp%dz(c,j)
+               this%secondary_mineral_flux(c,a) = this%secondary_mineral_flux(c,a) + &
+                  this%secondary_mineral_flux_vr(c,j,a) * col_pp%dz(c,j)
             end do
 
          end do

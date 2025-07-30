@@ -68,9 +68,9 @@ contains
     !
     ! !ARGUMENTS: 
     real(r8), intent(in) :: mass_conc ! g m-3 soil
-    real(r8), intent(in) :: valence ! g mol-1, molar mass of the cation or solid
+    real(r8), intent(in) :: valence ! eq mol-1 (note this need x1000 to meq), valance of the cation or solid
     real(r8), intent(in) :: molar_mass ! g mol-1, molar mass of the cation or solid
-    real(r8), intent(in) :: bd ! kg cm-3, soil bulk density
+    real(r8), intent(in) :: bd ! kg m-3, soil bulk density
     real(r8) :: meq_conc ! mol kg-1 water
 
     meq_conc = mass_conc * 1000._r8 * valence / molar_mass / 10._r8 / bd
@@ -137,9 +137,9 @@ contains
     !
     ! !ARGUMENTS: 
     real(r8), intent(in) :: meq_conc ! mol kg-1 water
-    real(r8), intent(in) :: valence ! g mol-1, molar mass of the cation or solid
+    real(r8), intent(in) :: valence ! eq mol-1 (note this need x1000 to meq), valance of the cation or solid
     real(r8), intent(in) :: molar_mass ! g mol-1, molar mass of the cation or solid
-    real(r8), intent(in) :: bd ! kg cm-3, soil bulk density
+    real(r8), intent(in) :: bd ! kg m-3, soil bulk density
     real(r8) :: mass_conc ! g m-3 soil
 
     mass_conc = meq_conc * molar_mass * 10._r8 * bd / 1000._r8 / valence

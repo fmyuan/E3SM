@@ -882,6 +882,7 @@ contains
 
          background_flux       => col_mf%background_flux, &
          background_cec        => col_mf%background_cec, &
+         background_minsecs    => col_mf%background_minsecs, &
 
          secondary_mineral_flux=> col_mf%secondary_mineral_flux, &
          secondary_cation_flux => col_mf%secondary_cation_flux , &
@@ -959,7 +960,7 @@ contains
 
       sm_add(c) = 0._r8
       do m = 1, nminsecs
-         sm_add(c) = sm_add(c) + secondary_mineral_flux(c,m)
+         sm_add(c) = sm_add(c) + secondary_mineral_flux(c,m) + background_minsecs(c,m)
       end do
 
       sm_loss(c) = 0._r8

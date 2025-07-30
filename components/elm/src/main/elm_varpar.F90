@@ -56,10 +56,10 @@ module elm_varpar
   integer :: nminerals   = 10      ! maximum allowed number of minerals that are contained in the rock in enhanced weathering (specify fraction = zero in the input file if < nminerals are contained in the rock powder)
                                    ! (currently: wollastonite, forsterite, albite, anorthite, epidote, diopside, enstatite, tremonlite, calcite)
   integer :: ncations    =  5      ! number of cations in chemical reactions for enhanced weathering: Ca2+, Mg2+, Na+, K+, Al3+ (H+ is tracked in soil pH)
-  integer :: nminsecs    =  2      ! number of secondary minerals formed in chemical reactions during enhanced weathering: CaCO3, kaolinite
-  integer,  parameter :: nks         =  3      ! number of dissolution mechanisms (H+, H2O, OH-) for primary minerals
+  integer :: nminsecs    =  3      ! number of secondary minerals formed in chemical reactions during enhanced weathering: CaCO3, kaolinite, gibbsite
+  integer,  parameter :: nks =  3  ! number of dissolution mechanisms (H+, H2O, OH-) for primary minerals
 
-  real(r8)            :: mixing_depth          ! calculate the evenly mixed depth of the soil
+  real(r8) :: mixing_depth          ! calculate the evenly mixed depth of the soil
 
   !
 
@@ -81,10 +81,10 @@ module elm_varpar
 
   ! constants for decomposition cascade
 
-  integer :: i_met_lit 
-  integer :: i_cel_lit 
-  integer :: i_lig_lit 
-  integer :: i_cwd 
+  integer :: i_met_lit
+  integer :: i_cel_lit
+  integer :: i_lig_lit
+  integer :: i_cwd
 
   integer :: ndecomp_pools
   integer :: ndecomp_cascade_transitions

@@ -48,6 +48,9 @@ contains
     !
     !$acc routine seq
     !
+    ! !USES:
+    use ewutils          , only : u_pdf, get_ssa
+    !
     ! !ARGUMENTS:
     integer                      , intent(in)    :: num_soilc       ! number of soil columns filter
     integer                      , intent(in)    :: filter_soilc(:) ! filter for soil columns
@@ -58,9 +61,16 @@ contains
     type(soilstate_type)         , intent(in)    :: soilstate_vars
     !
     ! !LOCAL VARIABLES:
-    integer  :: c,p,j,k,icat,m,g ! indices
-    integer  :: fp,fc         ! lake filter indices
+    integer  :: c,p,j,k,icat,m,g       ! indices
+    integer  :: fp,fc                  ! lake filter indices
     integer  :: nlevbed
+    real(r8) :: temp_gra               ! temporary variable for grain size
+    real(r8) :: theta                  ! parameter of the gamma distribution
+    real(r8) :: num, prob              ! helper variables to integrate over distribution
+    real(r8) :: u_min, u_max           ! bounds of integration
+    real(r8) :: u, du                  ! discretization step (size)
+    integer, parameter :: n_int = 1000 ! number of discretized intervals
+    integer  :: ii                     ! iterator for discretization
     !-----------------------------------------------------------------------
 
     ! Update mineral state
@@ -71,8 +81,7 @@ contains
       do j = 1,nlevbed
         ! soil H+ concentration
         ! only determined by CEC equilibrium
-        col_ms%proton_vr(c,j) = mol_to_mass(10**(-col_ms%soil_ph(c,j)), mass_h, & 
-                                            col_ws%h2osoi_vol(c,j))
+        col_ms%proton_vr(c,j) = mol_to_mass(10**(-col_ms%soil_ph(c,j)), mass_h, col_ws%h2osoi_vol(c,j))
 
         ! soil cation concentration - not updated here
         ! must be preserved before calling the vertical solute movement solver
@@ -81,49 +90,23 @@ contains
         col_ms%cect_dyn(c,j) = col_mf%cect_delta(c,j) + col_ms%cect_dyn(c,j)
 
         ! CEC cations - only depends on flux limit
-
         do icat = 1,ncations
-
-          !!write (iam+100, *) '++++++++++++++++++++++++++'
-          !!write (iam+100, *) c, j, icat, col_ms%cec_cation_vr(c,j,icat), col_mf%cec_cation_flux_vr(c,j,icat)*dt, col_mf%cec_cation_flux2_vr(c,j,icat)*dt, col_mf%background_cec_vr(c,j,icat)*dt
-          !!write (iam+100, *) '++++++++++++++++++++++++++'
-
-          col_ms%cec_cation_vr(c,j,icat) = col_ms%cec_cation_vr(c,j,icat) - &
-                  (col_mf%cec_cation_flux_vr(c,j,icat) + col_mf%cec_cation_flux2_vr(c,j,icat) &
-                   - col_mf%background_cec_vr(c,j,icat))*dt
-
-          !!write (iam+100, *) '++++++++++++++++++++++++++'
-          !!write (iam+100, *) c, j, icat, col_ms%cec_cation_vr(c,j,icat),  col_mf%cec_cation_flux_vr(c,j,icat)*dt, col_mf%cec_cation_flux2_vr(c,j,icat)*dt, col_mf%background_cec_vr(c,j,icat)*dt
-          !!write (iam+100, *) '++++++++++++++++++++++++++'
-
+          col_ms%cec_cation_vr(c,j,icat) = col_ms%cec_cation_vr(c,j,icat) + &
+                  (- col_mf%cec_cation_flux_vr(c,j,icat) - col_mf%cec_cation_flux2_vr(c,j,icat) &
+                   + col_mf%background_cec_vr(c,j,icat))*dt
         end do
 
         ! CEC H+ with pH dependent changes
         ! the Equilibria subroutine cannot distinguish the effects of CO2 and cation exchange
         ! instead, use charge balance on the mineral surface to get the change in adsorped H+
         ! note the newly exposed surface due to dynamic CEC
+        col_ms%cec_proton_vr(c,j) = col_ms%cect_dyn(c,j)
         do icat = 1,ncations
-          col_ms%cec_proton_vr(c,j) = col_ms%cec_proton_vr(c,j) + &
-            (col_mf%cec_cation_flux_vr(c,j,icat) + col_mf%cec_cation_flux2_vr(c,j,icat) &
-             - col_mf%background_cec_vr(c,j,icat))*dt & 
-            / EWParamsInst%cations_mass(icat) * mass_h * EWParamsInst%cations_valence(icat)
+          col_ms%cec_proton_vr(c,j) = col_ms%cec_proton_vr(c,j) - &
+            mass_to_meq(col_ms%cec_cation_vr(c,j,icat), EWParamsInst%cations_valence(icat), &
+                        EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j))
         end do
-        col_ms%cec_proton_vr(c,j) = col_ms%cec_proton_vr(c,j) + &
-          meq_to_mass(col_mf%cect_delta(c,j), 1._r8, mass_h, soilstate_vars%bd_col(c,j))
-
-        !!DEBUG
-        !!write (iulog, *) j, 'cect_dyn', col_ms%cect_dyn(c,j), col_mf%cect_delta(c,j)
-        !!do icat = 1,ncations
-        !!  write (iulog, *) j, 'cec_cation_vr', &
-        !!    mass_to_meq(col_ms%cec_cation_vr(c,j,icat), &
-        !!    EWParamsInst%cations_valence(icat), EWParamsInst%cations_mass(icat), &
-        !!    soilstate_vars%bd_col(c,j)), mass_to_meq(col_mf%cec_cation_flux2_vr(c,j,icat), &
-        !!    EWParamsInst%cations_valence(icat), EWParamsInst%cations_mass(icat), &
-        !!    soilstate_vars%bd_col(c,j)), icat
-        !!end do
-        !!write (iulog, *) j, 'cec_proton', mass_to_meq(col_ms%cec_proton_vr(c,j), &
-        !!    1._r8, mass_h, soilstate_vars%bd_col(c,j))
-        !!write (iulog, *) j, 'col_mf%cec_delta_limit(c,j)', col_mf%cec_delta_limit(c,j)
+        col_ms%cec_proton_vr(c,j) = meq_to_mass(col_ms%cec_proton_vr(c,j), 1._r8, mass_h, soilstate_vars%bd_col(c,j))
 
         ! primary mineral
         do m = 1,nminerals
@@ -133,21 +116,18 @@ contains
           ! catch tiny negative values
           col_ms%primary_mineral_vr(c,j,m) = max(col_ms%primary_mineral_vr(c,j,m), 0._r8)
 
-          !!if (m == 6) then
-          !!  write (iulog, *) c, j, m, col_ms%primary_mineral_vr(c,j,m), col_mf%primary_added_vr(c,j,m), col_mf%primary_dissolve_vr(c,j,m), dt
-          !!end if
-
           ! non-SiO2 minerals
           col_ms%primary_residue_vr(c,j,m) = col_ms%primary_residue_vr(c,j,m) + &
             col_mf%primary_residue_flux_vr(c,j,m)*dt
         end do
 
         ! silicate
-        col_ms%silica_vr(c,j) = col_ms%silica_vr(c,j) + col_mf%primary_silica_flux_vr(c,j) * dt - col_mf%secondary_silica_flux_vr(c,j) * dt
+        col_ms%silica_vr(c,j) = col_ms%silica_vr(c,j) + col_mf%primary_silica_flux_vr(c,j) * dt + col_mf%secondary_silica_flux_vr(c,j) * dt
 
         ! secondary mineral
         do m = 1,nminsecs
-            col_ms%secondary_mineral_vr(c,j,m) = col_ms%secondary_mineral_vr(c,j,m) + col_mf%secondary_mineral_flux_vr(c,j,m) * dt
+            col_ms%secondary_mineral_vr(c,j,m) = col_ms%secondary_mineral_vr(c,j,m) + & 
+              col_mf%secondary_mineral_flux_vr(c,j,m)*dt + col_mf%background_minsecs_vr(c,j,m)*dt
         end do
 
         ! ignore the effect on soil water content for now
@@ -159,13 +139,59 @@ contains
         end do
 
         ! specific surface area
-        ! XXXXXXXX only for HBR now
+        ! Specific surface area depends on the grain size of the mineral
+        !    Strefler, J., Amann, T., Bauer, N., Kriegler, E., and Hartmann, J.: Potential and 
+        !       costs of carbon dioxide removal by enhanced weathering of rocks, Environ. Res.
+        !       Lett., 13, 034010, https://doi.org/10.1088/1748-9326/aaa9c4, 2018.
         do m = 1,nminerals
-          col_ew%forc_gra(c,m) = col_ew%forc_gra(c,m) - col_mf%passivation_rate(c,1,m)*1e6_r8 * dt
-          ! make sure non-zero
-          col_ew%forc_gra(c,m) = max(col_ew%forc_gra(c,m), 1e-3_r8)
-        end do
+          temp_gra = col_ew%forc_gra(c,m) - col_ms%passivation_thickness(c,j,m)*1e6_r8 ! um
 
+          if (builtin_site == 1) then
+            ! Hubbard Brook applied in the form of pellets
+            col_ms%ssa_dyn(c,j,m) = get_ssa(temp_gra) ! unit: m^2 g-1
+          else
+            ! integrate over grain size distribution to calculate the surface area
+            ! range from 0.01 * grain size to 100 * grain size
+            theta = 4.395_r8 * temp_gra
+            u_min = sqrt(0.01_r8 * temp_gra)
+            u_max = sqrt(100._r8 * temp_gra)
+            du = (u_max - u_min) / n_int
+
+            num = get_ssa(u_min**2) * u_pdf(u_min, theta)
+            prob = u_pdf(u_min, theta)
+
+            do ii = 1, n_int-1
+              u = u_min + du * ii
+              if (mod(ii,2) == 1) then
+                num = num + 4_r8 * get_ssa(u**2) * u_pdf(u, theta)
+                prob = prob + 4_r8 * u_pdf(u, theta)
+              else
+                num = num + 2_r8 * get_ssa(u**2) * u_pdf(u, theta)
+                prob = prob + 2_r8 * u_pdf(u, theta)
+              end if
+            end do
+
+            num = num + get_ssa(u_max**2) * u_pdf(u_max, theta)
+            prob = prob + u_pdf(u_max, theta)
+
+            num = num * du / 3._r8
+            prob = prob * du / 3._r8
+
+            col_ms%ssa_dyn(c,j,m) = num / prob
+
+            !!write (iulog, *) u_min, u_max, du, num, prob, ssa(c,m)
+
+            !! Add a roughness factor: lambda = (10^10 * r [m])**0.33
+            !!    Kanzaki et al. (2022) Soil Cycles of Elements simulator for Predicting TERrestrial
+            !!        regulation of greenhouse gases: SCEPTER v0.9. 
+            !!        https://doi.org/10.5194/gmd-15-4959-2022         Eq. 39
+            !!    Beerling, D. J., Kantzas, E. P., Lomas, M. R., Wade, P., Eufrasio, R. M., Renforth, 
+            !!        P., et al. (2020). Potential for large-scale CO2 removal via enhanced rock 
+            !!        weathering with croplands. Nature, 583(7815), 242–248. 
+            !!        https://doi.org/10.1038/s41586-020-2448-9        SI Eq. 8 
+            !!ssa_dyn(c,m) = (1e4_r8 * temp_gra) ** 0.33_r8 * ssa_dyn(c,j,m)
+          end if
+        end do
       end do
     end do
   end subroutine MineralStateUpdate1
@@ -203,7 +229,7 @@ contains
             ( col_mf%background_flux_vr(c,j,icat) + & 
               col_mf%primary_cation_flux_vr(c,j,icat) + & 
               col_mf%cec_cation_flux_vr(c,j,icat) + &
-              col_mf%cec_cation_flux2_vr(c,j,icat) - &
+              col_mf%cec_cation_flux2_vr(c,j,icat) + &
               col_mf%secondary_cation_flux_vr(c,j,icat) - & 
               col_mf%cation_uptake_vr(c,j,icat) ) * dt + & 
             ( col_mf%cation_infl_vr(c,j,icat) - col_mf%cation_oufl_vr(c,j,icat) ) * dt
@@ -270,13 +296,13 @@ contains
 
         ! calculate the total CO2 sequestration rate in mol m-2 s-1 as the 
         ! bottom drainage of HCO3- + 2*CO3--
-        col_mf%r_sequestration(c) = col_mf%bicarbonate_drainage(c) / mass_hco3 + &
-          col_mf%carbonate_drainage(c) / mass_co3 * 2._r8
+        col_mf%r_sequestration(c) = (col_mf%bicarbonate_drainage(c) / mass_hco3 + &
+          col_mf%carbonate_drainage(c) / mass_co3 * 2._r8) * 0.86_r8
         do j = 1,nlevbed
           ! add the subsurface drainage
-          col_mf%r_sequestration(c) = col_mf%r_sequestration(c) + &
+          col_mf%r_sequestration(c) = (col_mf%r_sequestration(c) + &
             col_mf%bicarbonate_leached_vr(c,j) * col_pp%dz(c,j) / mass_hco3 + &
-            col_mf%carbonate_leached_vr(c,j) * col_pp%dz(c,j) / mass_co3 * 2._r8
+            col_mf%carbonate_leached_vr(c,j) * col_pp%dz(c,j) / mass_co3 * 2._r8) * 0.86_r8
 
           ! add the precipitated by calcite: 1 mol CO2 per mol Ca2+
           col_mf%r_sequestration(c) = col_mf%r_sequestration(c) + & 
@@ -305,8 +331,8 @@ contains
     real(r8)                     , intent(in)    :: dt              ! radiation time step (seconds)
     !
     ! !LOCAL VARIABLES:
-    integer  :: c,j,icat,g    ! indices
-    integer  :: fc            ! lake filter indices
+    integer  :: c,j,icat,g,isec    ! indices
+    integer  :: fc                 ! lake filter indices
     integer  :: nlevbed
     real(r8) :: step_delta
     real(r8) :: fracday
@@ -326,7 +352,9 @@ contains
         do icat = 1,ncations
           ! Update the annual total column cation loss rate accumulator
           ! (when background flux does not exist)
-          step_delta = - col_mf%secondary_cation_flux_vr(c,j,icat) - &
+          step_delta = col_mf%cec_cation_flux_vr(c,j,icat) + &
+                       col_mf%cec_cation_flux2_vr(c,j,icat) + &
+                       col_mf%secondary_cation_flux_vr(c,j,icat) - &
                        col_mf%cation_uptake_vr(c,j,icat) + &
                        col_mf%cation_infl_vr(c,j,icat) - & 
                        col_mf%cation_oufl_vr(c,j,icat) - &
@@ -336,13 +364,20 @@ contains
           col_mf%tempavg_tot_delta(c,j,icat) = col_mf%tempavg_tot_delta(c,j,icat) + &
             step_delta * fracday / dayspyr_mod
 
-          ! also calibrate a replenishment term to the cation exchange phase
+          ! Also calibrate a replenishment term to the cation exchange phase
           ! because it seems to be lost pretty severly
           ! note: cec_cation_flux_vr is defined negative for adsorption into soil
           !       this term is defined positive for adsorption into soil
           col_mf%tempavg_cec_delta(c,j,icat) = col_mf%tempavg_cec_delta(c,j,icat) - &
             (col_mf%cec_cation_flux_vr(c,j,icat) + col_mf%cec_cation_flux2_vr(c,j,icat) &
             ) * fracday / dayspyr_mod
+        end do
+
+        do isec = 1,nminsecs
+          ! Also update the annual total column secondary mineral loss rate accumulator
+          ! (when background flux does not exist)
+          col_mf%tempavg_minsecs_delta(c,j,isec) = col_mf%tempavg_minsecs_delta(c,j,isec) + &
+            col_mf%secondary_mineral_flux_vr(c,j,isec) * fracday / dayspyr_mod
         end do
       end do
     end do
@@ -410,7 +445,7 @@ contains
               col_mf%primary_cation_flux_vr(c,j,icat)*dt, &
               col_mf%cec_cation_flux_vr(c,j,icat)*dt, & 
               col_mf%cec_cation_flux2_vr(c,j,icat)*dt, & 
-              - col_mf%secondary_cation_flux_vr(c,j,icat)*dt, &
+              col_mf%secondary_cation_flux_vr(c,j,icat)*dt, &
               - col_mf%cation_uptake_vr(c,j,icat)*dt, &
               col_mf%cation_infl_vr(c,j,icat)*dt, &
               - col_mf%cation_leached_vr(c,j,icat)*dt, &
@@ -513,7 +548,7 @@ contains
               col_mf%primary_cation_flux_vr(c,j,icat)*dt, &
               col_mf%cec_cation_flux_vr(c,j,icat)*dt, & 
               col_mf%cec_cation_flux2_vr(c,j,icat)*dt, & 
-              - col_mf%secondary_cation_flux_vr(c,j,icat)*dt, &
+              col_mf%secondary_cation_flux_vr(c,j,icat)*dt, &
               - col_mf%cation_uptake_vr(c,j,icat)*dt, &
               col_mf%cation_infl_vr(c,j,icat)*dt, &
               - col_mf%cation_leached_vr(c,j,icat)*dt, &
@@ -574,10 +609,36 @@ contains
 
   !-----------------------------------------------------------------------
   subroutine MineralFluxLimit(num_soilc, filter_soilc, col_ms, col_mf, dt, soilstate_vars)
-    !
+    ! 
     ! !DESCRIPTION:
     ! Scale down reaction flux rates if they cause negative cation balance or
-    ! exceed total cation exchange capacity
+    ! exceed total cation exchange capacity.
+    ! 
+    ! Order of priority: 
+    !  1. Primary mineral must be > 0 after dissolution (done in EnhancedWeatheringMod.F90)
+    !     (fully determines r_dissolve and related terms @(2))
+    !  2. Secondary mineral must be > 0 after dissolution, and solution cation must be > 0
+    !     after secondary mineral precipitation (done in EnhancedWeatheringMod.F90)
+    !     (fully determines r_precip and related terms @(1))
+    !  3. pH-induced change in total CEC must not cause negative CEC
+    !     (individual cation release already restricted in EnhancedWeatheringMod.F90)
+    !     (partly determines cect_delta @(3), fully determines cec_cation_flux2_vr @(3)&(4))
+    !  4. When cec_cation_flux_vr > 0, it must not cause negative CEC
+    !     (fully determines cec_cation_flux_vr @(4) when cec_cation_flux_vr > 0)
+    !  5. When cec_cation_flux_vr < 0, it must not cause negative solution cation
+    !     (fully determines cec_cation_flux_vr @(4) when cec_cation_flux_vr < 0)
+    !  6. The total cations in CEC must not exceed the total CEC minus minimum CEC[H+]
+    !     (fully determines cect_delta @(3))
+    ! 
+    !     ▲ ┌──────┐  (4) ┌─────────┐
+    ! (3) │ │ CEC  │ ◀──▶ │Solution │
+    !     ▼ └──────┘      └─────────┘
+    !                      ▲       ▲
+    !                  (1) │       │ (2)
+    !                      ▼       │
+    !              ┌─────────┐   ┌──────────┐
+    !              │ Minsecs │   │ Primary  │
+    !              └─────────┘   └──────────┘
     !
     !$acc routine seq
     !
@@ -596,199 +657,249 @@ contains
     integer  :: c,j,icat,m,g ! indices
     integer  :: fc        ! lake filter indices
     integer  :: nlevbed
-    real(r8) :: residual_factor
+    character(len=20) :: icat_str, c_str, j_str
+    real(r8) :: residual_quantity, residual_cect
     real(r8) :: temp_avail_cece(1:num_soilc, 1:nlevsoi, 1:ncations)
     real(r8) :: temp_delta1_cece(1:num_soilc, 1:nlevsoi, 1:ncations)
     real(r8) :: temp_delta2_cece(1:num_soilc, 1:nlevsoi, 1:ncations)
-    real(r8) :: temp_delta_ceca(1:num_soilc, 1:nlevsoi)
     real(r8) :: temp_avail_ceca(1:num_soilc, 1:nlevsoi)
     real(r8) :: temp_delta1_cation(1:num_soilc, 1:nlevsoi, 1:ncations)
     real(r8) :: temp_delta2_cation(1:num_soilc, 1:nlevsoi, 1:ncations)
-    real(r8) :: min_flux_limit(1:num_soilc, 1:nlevsoi)
-    real(r8) :: small_fix_cec
-    logical  :: err_found
+    real(r8) :: temp_avail_cation(1:num_soilc, 1:nlevsoi)
     integer  :: err_fc, err_lev, err_icat, err_col
     character(len=256) :: dateTimeString
-    logical  :: print_flux_limit
+    logical  :: print_flux_limit(1:num_soilc, 1:nlevsoi, 1:ncations)
     character(len=32) :: subname = 'elm_erw_mineral_flux_limit'  ! subroutine name
     !-----------------------------------------------------------------------
 
     call get_curr_time_string(dateTimeString)
 
     ! ensure a tiny bit of cation is left due to numerical accuracy reasons
-    residual_factor = 0.99_r8
+    residual_cect = 6e-20_r8 ! minimum amount of total CEC to be left in the soil
+    residual_quantity = 1e-20_r8 ! minimum amount of individual CEC or pore water cations to be left in the soil
 
-    min_flux_limit(1:num_soilc, 1:nlevsoi) = 1._r8
-    err_found = .false.
+    print_flux_limit(1:num_soilc, 1:nlevsoi, 1:ncations) = .false.
 
     do fc = 1,num_soilc
       c = filter_soilc(fc)
       nlevbed = min(col_pp%nlevbed(c), nlevsoi)
       do j = 1,nlevbed
 
+        ! ---------------------------------------------------------------------------
         ! Limit the change in total cation exchange capacity due to the total amount
         ! of sites
-        if (col_mf%cect_delta(c,j) + col_ms%cect_dyn(c,j) < 0._r8) then
-          col_mf%cec_delta_limit(c,j) = - col_ms%cect_dyn(c,j) / &
-                                          col_mf%cect_delta(c,j) * residual_factor
+        ! ---------------------------------------------------------------------------
+        if (col_ms%cect_dyn(c,j) <= residual_cect) then
+          ! If the dynamic CEC is too small, do not allow any changes to the CEC
+          col_mf%cec_delta_limit(c,j) = 0._r8
+
+          col_mf%cect_delta(c,j) = 0._r8
+          col_mf%cece_delta(c,j,1:ncations) = 0._r8
+          col_mf%cec_cation_flux2_vr(c,j,1:ncations) = 0._r8
+
+          print_flux_limit(fc,j) = .true.
+        else if (col_mf%cect_delta(c,j) + col_ms%cect_dyn(c,j) < residual_cect) then
+          col_mf%cec_delta_limit(c,j) = - (col_ms%cect_dyn(c,j) - residual_cect) / col_mf%cect_delta(c,j)
+
           col_mf%cect_delta(c,j) = col_mf%cect_delta(c,j) * col_mf%cec_delta_limit(c,j)
           do icat = 1,ncations
             col_mf%cece_delta(c,j,icat) = col_mf%cece_delta(c,j,icat) * col_mf%cec_delta_limit(c,j)
-            col_mf%cec_cation_flux2_vr(c,j,icat) = col_mf%cec_cation_flux2_vr(c,j,icat) * &
-                                                   col_mf%cec_delta_limit(c,j)
+            col_mf%cec_cation_flux2_vr(c,j,icat) = col_mf%cec_cation_flux2_vr(c,j,icat) * col_mf%cec_delta_limit(c,j)
           end do
+
+          ! ==========================================
+          ! Assert total CEC is above minimum allowed
+          ! ==========================================
+          if (col_mf%cect_delta(c,j) + col_ms%cect_dyn(c,j) < residual_cect) then
+            write(c_str, '(I0)') c
+            write(j_str, '(I0)') j
+            call endrun(msg='Total CEC < minimum allowed (6e-20 g 100g-1) after pH induced change at column '//trim(c_str)//' level '//trim(j_str))
+          end if
+
+          print_flux_limit(fc,j) = .true.
+
         else
           col_mf%cec_delta_limit(c,j) = 1._r8
         end if
 
-        !!write (iam+100, *) '---------------------------------------'
-        !!write (iam+100, *) 'z', col_mf%cec_delta_limit(c,j) 
-        !!write (iam+100, *) '---------------------------------------'
-
-        ! Limit the cec cation flux due to the availability of individual cations in the
-        ! cation exchange phase
         do icat = 1,ncations
 
-          ! cation-occupied sites after total cec change
-          temp_avail_cece(fc,j,icat) = col_ms%cec_cation_vr(c,j,icat) - &
-            col_mf%cec_cation_flux2_vr(c,j,icat) * dt
+          ! ---------------------------------------------------------------------------
+          ! If flow direction is from CEC to solution, limit this flux due to the 
+          ! availability of individual cations in the CEC phase
+          ! ---------------------------------------------------------------------------
+          if (col_mf%cec_cation_flux_vr(c,j,icat) > 0._r8) then
 
-          !!write (iam+100, *) '-------------------------------------------'
-          !!write (iam+100, *) 'a0', c,j,icat, col_ms%cec_cation_vr(c,j,icat),-col_mf%cec_cation_flux2_vr(c,j,icat)*dt, col_mf%cece_delta(c,j,icat)
-          !!write (iam+100, *) '-------------------------------------------'
-          !!write (iam+100, *) 'a', c,j,icat, temp_avail_cece(fc,j,icat), col_mf%background_cec_vr(c,j,icat)*dt, -col_mf%cec_cation_flux_vr(c,j,icat)*dt
-          !!write (iam+100, *) '-------------------------------------------'
+            ! CEC-adsorbed cation content after pH-induced change in CEC and background replenishment
+            temp_avail_cece(fc,j,icat) = mass_to_meq(col_ms%cec_cation_vr(c,j,icat) - &
+              col_mf%cec_cation_flux2_vr(c,j,icat) * dt + col_mf%background_cec_vr(c,j,icat) * dt, &
+              EWParamsInst%cations_valence(icat), EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j))
 
-          ! background flux will always be > 0
-          temp_delta1_cece(fc,j,icat) = col_mf%background_cec_vr(c,j,icat)*dt
-          ! cec_cation_flux_vr > 0 := flow from CEC to solution
-          temp_delta2_cece(fc,j,icat) = - col_mf%cec_cation_flux_vr(c,j,icat)*dt
+            ! flux from CEC to solution in meq 100g-1 soil unit
+            temp_delta1_cation(fc,j,icat) = mass_to_meq(col_mf%cec_cation_flux_vr(c,j,icat) * dt, &
+              EWParamsInst%cations_valence(icat), EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j))
 
-          if ((temp_avail_cece(fc,j,icat) + temp_delta1_cece(fc,j,icat) + &
-               temp_delta2_cece(fc,j,icat)) < 0._r8) then
-
-            if ((temp_avail_cece(fc,j,icat) + temp_delta1_cece(fc,j,icat)) < 1e-50_r8) then
-              ! Do not allow any more flow from CEC to solution to prevent numerical
-              ! errors in the calculated cec_limit factor. 
-              ! Instead, add a small background flux to increase the cec.
+            if (temp_avail_cece(fc,j,icat) <= residual_quantity) then
+              ! if the available cation sites are too small, do not allow flow to solution
               col_mf%cec_limit_vr(c,j,icat) = 0._r8
+              col_mf%cec_cation_flux_vr(c,j,icat) = 0._r8
 
-              col_mf%background_cec_vr(c,j,icat) = col_mf%background_cec_vr(c,j,icat) + &
-                  meq_to_mass(2.0e-4 * col_ms%cect_dyn(c,j), EWParamsInst%cations_valence(icat), &
-                              EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j))
+              print_flux_limit(fc,j) = .true.
             else
-              ! Otherwise, calculate the flux limit normally.
-              col_mf%cec_limit_vr(c,j,icat) = - (temp_delta1_cece(fc,j,icat) + & 
-                                                 temp_avail_cece(fc,j,icat)) / &
-                  temp_delta2_cece(fc,j,icat) * residual_factor
+              ! If the CEC-adsorbed cation content becomes too small after flow to solution, 
+              ! scale down the flux from CEC to solution
+              if (temp_avail_cece(fc,j,icat) - temp_delta1_cation(fc,j,icat) <= residual_quantity) then
+                col_mf%cec_limit_vr(c,j,icat) = (temp_avail_cece(fc,j,icat) - residual_quantity) / temp_delta1_cation(fc,j,icat)
+                col_mf%cec_cation_flux_vr(c,j,icat) = col_mf%cec_cation_flux_vr(c,j,icat) * col_mf%cec_limit_vr(c,j,icat)
+
+                print_flux_limit(fc,j) = .true.
+              else
+                col_mf%cec_limit_vr(c,j,icat) = 1._r8
+              end if
+
+              ! ===========================================================
+              ! Assert the individual cation's CEC is above minimum allowed
+              ! ===========================================================
+              temp_avail_cece(fc,j,icat) = mass_to_meq(col_ms%cec_cation_vr(c,j,icat) - &
+                col_mf%cec_cation_flux2_vr(c,j,icat) * dt + col_mf%background_cec_vr(c,j,icat) * dt - &
+                col_mf%cec_cation_flux_vr(c,j,icat) * dt, EWParamsInst%cations_valence(icat), &
+                EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j))
+              if (temp_avail_cece(fc,j,icat) < residual_quantity) then
+                write(c_str, '(I0)') c
+                write(j_str, '(I0)') j
+                write(icat_str, '(I0)') icat
+                call endrun(msg='CEC '//trim(icat_str)//' < minimum allowed (1e-20 g 100g-1) after flow to solution at column '//trim(c_str)//' level '//trim(j_str))
+              end if
             end if
-            ! Apply the flux limite factor on cec_cation_flux_vr
-            col_mf%cec_cation_flux_vr(c,j,icat) = col_mf%cec_cation_flux_vr(c,j,icat) * & 
-                                                  col_mf%cec_limit_vr(c,j,icat)
-            min_flux_limit(fc,j) = min(min_flux_limit(fc,j), col_mf%cec_limit_vr(c,j,icat))
 
+          ! ---------------------------------------------------------------------------
+          ! If flow direction is from solution to CEC, limit this flux due to the 
+          ! availability of individual cations in the solution (after secondary mineral
+          ! precipitation or replenishment and background flux replenishment)
+          ! ---------------------------------------------------------------------------
           else
-            col_mf%cec_limit_vr(c,j,icat) = 1._r8
+
+            ! Assert the primary mineral cation flux to solution is always >= 0
+            if (col_mf%primary_cation_flux_vr(c,j,icat) < 0._r8) then
+              write(c_str, '(I0)') c
+              write(j_str, '(I0)') j
+              write(icat_str, '(I0)') icat
+              call endrun(msg='Erroneous negative primary dissolution flux for cation '//trim(icat_str)//' at column '//trim(c_str)//' level '//trim(j_str))
+            end if
+
+            ! Assert the background flux to solution is always >= 0
+            if (col_mf%background_flux_vr(c,j,icat) < 0._r8) then
+              write(c_str, '(I0)') c
+              write(j_str, '(I0)') j
+              write(icat_str, '(I0)') icat
+              call endrun(msg='Erroneous negative background flux for cation '//trim(icat_str)//' at column '//trim(c_str)//' level '//trim(j_str))
+            end if
+
+            ! Assert the flow from CEC to solution due to change in total CEC
+            ! is always >= 0, because it only happens when the total CEC declines due to pH change
+            if (col_mf%cec_cation_flux2_vr(c,j,icat) < 0._r8) then
+              write(c_str, '(I0)') c
+              write(j_str, '(I0)') j
+              write(icat_str, '(I0)') icat
+              call endrun(msg='Erroneous pH-induced increase in CEC-phase cation '//trim(icat_str)//' at column '//trim(c_str)//' level '//trim(j_str))
+            end if
+
+            ! Assert the restriction on r_precip worked
+            if (col_ms%cation_vr(c,j,icat) + col_mf%secondary_cation_flux_vr(c,j,icat)*dt < 0._r8) then
+              write(c_str, '(I0)') c
+              write(j_str, '(I0)') j
+              write(icat_str, '(I0)') icat
+              call endrun(msg='Too large secondary mineral precipitation for cation '//trim(icat_str)//' at column '//trim(c_str)//' level '//trim(j_str))
+            end if
+
+            ! delta1 should always be positive when the above assertions are true
+            temp_delta1_cation(fc,j,icat) = col_mf%primary_cation_flux_vr(c,j,icat)*dt + &
+              col_mf%background_flux_vr(c,j,icat)*dt + col_mf%cec_cation_flux2_vr(c,j,icat)*dt + &
+              col_mf%secondary_cation_flux_vr(c,j,icat)*dt
+
+            ! delta2 is the absolute value out of the solution
+            temp_delta2_cation(fc,j,icat) = (col_mf%cation_uptake_vr(c,j,icat) - col_mf%cec_cation_flux_vr(c,j,icat))*dt
+
+            if (temp_delta1_cation(fc,j,icat) <= residual_quantity) then
+              col_mf%flux_limit_vr(c,j,icat) = 0._r8
+              col_mf%cation_uptake_vr(c,j,icat) = 0._r8
+              col_mf%cec_cation_flux_vr(c,j,icat) = 0._r8
+
+              print_flux_limit(fc,j) = .true.
+
+            else if (temp_delta1_cation(fc,j,icat) - temp_delta2_cation(fc,j,icat) < residual_quantity) then
+              col_mf%flux_limit_vr(c,j,icat) = (temp_delta1_cation(fc,j,icat) - residual_quantity) / temp_delta2_cation(fc,j,icat)
+              col_mf%cation_uptake_vr(c,j,icat) = col_mf%cation_uptake_vr(c,j,icat) * col_mf%flux_limit_vr(c,j,icat)
+              col_mf%cec_cation_flux_vr(c,j,icat) = col_mf%cec_cation_flux_vr(c,j,icat) * col_mf%flux_limit_vr(c,j,icat)
+
+              !===========================================================
+              ! Assert the solution cation is above minimum allowed
+              !===========================================================
+              temp_avail_cation(fc,j,icat) = col_ms%cation_vr(c,j,icat) + col_mf%background_flux_vr(c,j,icat)*dt + &
+                col_mf%primary_cation_flux_vr(c,j,icat)*dt + col_mf%cec_cation_flux_vr(c,j,icat)*dt + &
+                col_mf%cec_cation_flux2_vr(c,j,icat)*dt + col_mf%secondary_cation_flux_vr*dt - col_mf%cation_uptake_vr(c,j,icat)*dt
+              if (temp_avail_cation(fc,j,icat) < residual_quantity) then
+                write(c_str, '(I0)') c
+                write(j_str, '(I0)') j
+                write(icat_str, '(I0)') icat
+                call endrun(msg='Solution cation '//trim(icat_str)//' < minimum allowed (1e-20 g m-3 soil) after all reaction fluxes at column '//trim(c_str)//' level '//trim(j_str))
+              end if
+
+              print_flux_limit(fc,j) = .true.
+
+            else
+              col_mf%flux_limit_vr(c,j,icat) = 1._r8
+
+            end if
           end if
 
-          !!write (iam+100, *) '-------------------------------------------'
-          !!write (iam+100, *) 'a', c,j,icat, col_mf%background_cec_vr(c,j,icat)*dt, -col_mf%cec_cation_flux_vr(c,j,icat)*dt, -col_mf%cec_cation_flux2_vr(c,j,icat)*dt, col_mf%cece_delta(c,j,icat)
-          !!write (iam+100, *) '-------------------------------------------'
-
         end do
 
-
-        ! Limit the cec cation flux due to not having enough remaining (H+) sites
-
-        ! - calculate the expected available H+ sites, after total CEC changes
-        temp_avail_ceca(fc,j) = mass_to_meq(col_ms%cec_proton_vr(c,j), 1._r8, mass_h, &
-                                            soilstate_vars%bd_col(c,j))
-        if (col_mf%cect_delta(c,j) > 0._r8) then
-          temp_avail_ceca(fc,j) = temp_avail_ceca(fc,j) + col_mf%cect_delta(c,j)
-        else
-          temp_avail_ceca(fc,j) = temp_avail_ceca(fc,j) + col_mf%cect_delta(c,j) - &
-                            sum(col_mf%cece_delta(c,j,1:ncations))
-        end if
-
-        ! - calculate the expected H+ sites to be displaced by cations
-        !   note col_mf%cec_cation_flux2_vr(c,j,icat) does not displace anything, because
-        !   they come from the lost cation-occupied sites, not H+ occupied sites.
-        temp_delta_ceca(fc,j) = 0._r8
+        ! ---------------------------------------------------------------------------
+        ! If there is not enough H+ sites (the difference between total CEC after 
+        ! pH-induced change, and the cation-occupied sites after applying various changes),
+        ! then increase the pH-induced change of total CEC, i.e. adjust cect_delta,
+        ! so that CEC[H+] > residual_quantity. 
+        ! Note the change in CEC[X+] for the cations do not need to be adjusted;
+        ! DO NOT adjust background_cec_vr to insure control-run v.s. treatment-run. consistency.
+        ! ---------------------------------------------------------------------------
         do icat = 1,ncations
-          temp_delta_ceca(fc,j) = temp_delta_ceca(fc,j) + mass_to_meq( &
-            - col_mf%background_cec_vr(c,j,icat) + col_mf%cec_cation_flux_vr(c,j,icat), &
-            EWParamsInst%cations_valence(icat), &
-            EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j)) * dt
-        end do
 
-        ! - compare
-        if (temp_avail_ceca(fc,j) <= 0._r8) then
-
-          col_mf%proton_limit_vr(c,j) = 0._r8
-          do icat = 1,ncations
-            col_mf%background_cec_vr(c,j,icat) = col_mf%background_cec_vr(c,j,icat) * &
-                                                 col_mf%proton_limit_vr(c,j)
-            col_mf%cec_cation_flux_vr(c,j,icat) = col_mf%cec_cation_flux_vr(c,j,icat) * &
-              col_mf%proton_limit_vr(c,j)
-          end do
-
-        else if ((temp_avail_ceca(fc,j) + temp_delta_ceca(fc,j)) < 0._r8) then
-          col_mf%proton_limit_vr(c,j) = - temp_avail_ceca(fc,j) / temp_delta_ceca(fc,j) &
-                                        * residual_factor
-          do icat = 1,ncations
-            col_mf%background_cec_vr(c,j,icat) = col_mf%background_cec_vr(c,j,icat) * &
-                                                 col_mf%proton_limit_vr(c,j)
-            col_mf%cec_cation_flux_vr(c,j,icat) = col_mf%cec_cation_flux_vr(c,j,icat) * &
-              col_mf%proton_limit_vr(c,j)
-
-            !!write (iam+100, *) '-------------------------------------------'
-            !!write (iam+100, *) 'b', c,j,icat, temp_avail_ceca(fc,j), col_mf%cect_delta(c,j), sum(col_mf%cece_delta(c,j,1:ncations)), col_mf%background_cec_vr(c,j,icat)*dt, col_mf%cec_cation_flux_vr(c,j,icat)*dt, col_mf%cec_cation_flux2_vr(c,j,icat)*dt
-            !!write (iam+100, *) '-------------------------------------------'
-
-          end do
-          min_flux_limit(fc,j) = min(min_flux_limit(fc,j), col_mf%proton_limit_vr(c,j))
-        else
-          col_mf%proton_limit_vr(c,j) = 1._r8
-        end if
-
-
-        ! Limit due to soil solution cation concentration, after the previous two limits
-        ! have been applieds
-        do icat = 1,ncations
-          ! delta1 is always positive
-          temp_delta1_cation(fc,j,icat) = col_mf%primary_cation_flux_vr(c,j,icat)*dt + &
-                                          col_mf%background_flux_vr(c,j,icat)*dt + &
-                                          col_mf%cec_cation_flux2_vr(c,j,icat)*dt
-          ! delta2 may be positive or negative
-          temp_delta2_cation(fc,j,icat) = - col_mf%cation_uptake_vr(c,j,icat)*dt - &
-                                          col_mf%secondary_cation_flux_vr(c,j,icat)*dt + & 
-                                          col_mf%cec_cation_flux_vr(c,j,icat)*dt
-
-          if ((col_ms%cation_vr(c,j,icat) + temp_delta1_cation(fc,j,icat) + & 
-              temp_delta2_cation(fc,j,icat)) < 0._r8) then
-            ! ensure a tiny bit of cation is left due to numerical accuracy reasons
-            col_mf%flux_limit_vr(c,j,icat) = - (temp_delta1_cation(fc,j,icat) + & 
-              col_ms%cation_vr(c,j,icat)) / temp_delta2_cation(fc,j,icat) * residual_factor
-            col_mf%cation_uptake_vr(c,j,icat) = col_mf%cation_uptake_vr(c,j,icat) * & 
-                  col_mf%flux_limit_vr(c,j,icat)
-            col_mf%secondary_cation_flux_vr(c,j,icat) = &
-                  col_mf%secondary_cation_flux_vr(c,j,icat) * col_mf%flux_limit_vr(c,j,icat)
-            col_mf%cec_cation_flux_vr(c,j,icat) = col_mf%cec_cation_flux_vr(c,j,icat) * & 
-                  col_mf%flux_limit_vr(c,j,icat)
-
-            min_flux_limit(fc,j) = min(min_flux_limit(fc,j), col_mf%flux_limit_vr(c,j,icat))
-
-          else
-            col_mf%flux_limit_vr(c,j,icat) = 1._r8
+          ! Assert the background CEC flux is always >= 0
+          if (col_mf%background_cec_vr(c,j,icat) < 0._r8) then
+            write(c_str, '(I0)') c
+            write(j_str, '(I0)') j
+            write(icat_str, '(I0)') icat
+            call endrun(msg='Erroneous negative CEC background flux for cation '//trim(icat_str)//' at column '//trim(c_str)//' level '//trim(j_str))
           end if
 
-          !!write (iam+100, *) '-------------------------------------------'
-          !!write (iam+100, *) 'c1', c,j,icat, col_mf%primary_cation_flux_vr(c,j,icat)*dt, col_mf%background_flux_vr(c,j,icat)*dt, col_mf%cec_cation_flux2_vr(c,j,icat)*dt
-          !!write (iam+100, *) 'c2', c,j,icat,-col_mf%cation_uptake_vr(c,j,icat)*dt, col_mf%secondary_cation_flux_vr(c,j,icat)*dt, col_mf%cec_cation_flux_vr(c,j,icat)*dt
-          !!write (iam+100, *) 'c3', c,j,icat, col_mf%flux_limit_vr(c,j,icat), temp_delta1_cation(fc,j,icat), temp_delta2_cation(fc,j,icat)
-          !!write (iam+100, *) '-------------------------------------------'
-
+          ! cation-occupied sites after various cec change (meq 100g-1 soil unit)
+          temp_avail_cece(fc,j,icat) = mass_to_meq( &
+            col_ms%cec_cation_vr(c,j,icat) + (- col_mf%cec_cation_flux_vr(c,j,icat) &
+            - col_mf%cec_cation_flux2_vr(c,j,icat) + col_mf%background_cec_vr(c,j,icat))*dt, &
+            EWParamsInst%cations_valence(icat), EWParamsInst%cations_mass(icat), &
+            soilstate_vars%bd_col(c,j))
         end do
+
+        ! calculate the expected available H+ sites, after total CEC changes
+        temp_avail_ceca(fc,j) = col_ms%cect_dyn(c,j) + col_mf%cect_delta(c,j) - sum(temp_avail_cec(fc,j,1:ncations))
+        if (temp_avail_ceca(fc,j) < residual_quantity) then
+          col_mf%cect_delta_add(c,j) = residual_quantity - (col_ms%cect_dyn(c,j) + &
+            col_mf%cect_delta(c,j) - sum(temp_avail_cec(fc,j,1:ncations)))
+          col_mf%cect_delta(c,j) = col_mf%cect_delta(c,j) + col_mf%cect_delta_add(c,j)
+
+          print_flux_limit = .true.
+        else
+          col_mf%cect_delta_add(c,j) = 0._r8
+        end if
+        ! re-calculate the available H+ sites, assert it is above minimum allowed
+        temp_avail_ceca(fc,j) = col_ms%cect_dyn(c,j) + col_mf%cect_delta(c,j) - sum(temp_avail_cec(fc,j,1:ncations))
+        if (temp_avail_ceca(fc,j,icat) < residual_quantity) then
+          write(c_str, '(I0)') c
+          write(j_str, '(I0)') j
+          write(icat_str, '(I0)') icat
+          call endrun(msg='CEC H+ '//trim(icat_str)//' < minimum allowed (1e-20 meq 100g-1) after all reaction fluxes at column '//trim(c_str)//' level '//trim(j_str))
+        end if
 
       end do
     end do
@@ -800,23 +911,31 @@ contains
         c = filter_soilc(fc)
         g = col_pp%gridcell(c)
         do j = 1,nlevbed
-          if (min_flux_limit(fc,j) < 1._r8) then
+          if (print_flux_limit(fc,j)) then
+
             write (100+iam, *) 'Flux limit diagnostics: ', ldomain%latc(g), ldomain%lonc(g), j, trim(dateTimeString)
             call shr_sys_flush(100+iam)
+
+            if (col_mf%cec_delta_limit(c,j,icat) < 1._r8) then
+              write (100+iam, *) '   negative total CEC ', c, j, icat, col_mf%cec_delta_limit(c,j,icat), col_mf%cect_delta(c,j), col_mf%cect_dyn(c,j), col_mf%cece_delta(c,j,1:ncations)
+            end if
 
             do icat = 1,ncations
               if (col_mf%cec_limit_vr(c,j,icat) < 1._r8) then
                 write (100+iam, *) '   negative CEC cation ', c, j, icat, col_mf%cec_limit_vr(c,j,icat), col_ms%cec_cation_vr(c,j,icat), col_mf%background_cec_vr(c,j,icat)*dt, - col_mf%cec_cation_flux_vr(c,j,icat)*dt, - col_mf%cec_cation_flux2_vr(c,j,icat)*dt
               end if
             end do
-            if (col_mf%proton_limit_vr(c,j) < 1._r8) then
-              write (100+iam, *) '   negative CEC H+ ', c,j, col_mf%proton_limit_vr(c,j), col_ms%cec_proton_vr(c,j), temp_avail_ceca(fc,j), temp_delta_ceca(fc,j)
-            end if
+
             do icat = 1,ncations
               if (col_mf%flux_limit_vr(c,j,icat) < 1._r8) then
-                write (100+iam, *) '   negative solution cation ', c, j, icat, col_mf%flux_limit_vr(c,j,icat), col_ms%cation_vr(c,j,icat), col_mf%primary_cation_flux_vr(c,j,icat)*dt, col_mf%background_flux_vr(c,j,icat)*dt, col_mf%cation_uptake_vr(c,j,icat)*dt, - col_mf%secondary_cation_flux_vr(c,j,icat)*dt, col_mf%cec_cation_flux_vr(c,j,icat)*dt, col_mf%cec_cation_flux2_vr(c,j,icat)*dt
+                write (100+iam, *) '   negative solution cation ', c, j, icat, col_mf%flux_limit_vr(c,j,icat), col_ms%cation_vr(c,j,icat), col_mf%primary_cation_flux_vr(c,j,icat)*dt, col_mf%background_flux_vr(c,j,icat)*dt, - col_mf%cation_uptake_vr(c,j,icat)*dt, col_mf%secondary_cation_flux_vr(c,j,icat)*dt, col_mf%cec_cation_flux_vr(c,j,icat)*dt, col_mf%cec_cation_flux2_vr(c,j,icat)*dt
               end if
             end do
+
+            if (col_mf%cect_delta_add(c,j) > 0._r8) then
+              write (100+iam, *) '   negative CEC H+ ', c,j, col_mf%cect_delta_add(c,j), temp_avail_ceca(fc,j), col_mf%cect_delta(c,j), col_mf%cect_dyn(c,j), temp_avail_cec(fc,j,1:ncations)
+            end if
+
           end if
         end do
       end do
