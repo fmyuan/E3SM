@@ -1126,11 +1126,15 @@ module ColumnDataType
    type, public :: column_mineral_flux
       real(r8), pointer :: background_flux_vr           (:,:,:)   => null() ! background flux rate in/out of soil solution (1:nlevgrnd, 1:ncations) (g m-3 s-1)
       real(r8), pointer :: background_cec_vr            (:,:,:)   => null() ! background flux rate in/out of adsorbed cations (1:nlevgrnd, 1:ncations) (g m-3 s-1)
+      real(r8), pointer :: background_minsecs_vr        (:,:,:)   => null() ! background flux rate in/out of secondary minerals (1:nlevgrnd, 1:ncations) (g m-3 s-1)
 
       real(r8), pointer :: annavg_tot_delta             (:,:,:)   => null() ! annual average rate of change in total (solute and adsorbed phases) cation concentration before mineral application (g m-3 soil s-1 [not dry soil])
-      real(r8), pointer :: tempavg_tot_delta            (:,:,:)   => null() ! temporal accumulator for annavg_tot_delta  (g m-3 soil s-1 [not dry soil])
       real(r8), pointer :: annavg_cec_delta             (:,:,:)   => null() ! annual average rate of change in adsorbed cation concentration before mineral application (g m-3 soil s-1 [not dry soil])
+      real(r8), pointer :: annavg_minsecs_delta         (:,:,:)   => null() ! annual average rate of change in seoncdary mineral concentration before mineral application (g m-3 soil s-1 [not dry soil])
+
+      real(r8), pointer :: tempavg_tot_delta            (:,:,:)   => null() ! temporal accumulator for annavg_tot_delta  (g m-3 soil s-1 [not dry soil])
       real(r8), pointer :: tempavg_cec_delta            (:,:,:)   => null() ! temporal accumulator for annavg_cec_delta  (g m-3 soil s-1 [not dry soil])
+      real(r8), pointer :: tempavg_minsecs_delta        (:,:,:)   => null() ! temporal accumulator for annavg_minsecs_delta  (g m-3 soil s-1 [not dry soil])
 
       real(r8), pointer :: mixing_fraction              (:,:)     => null() ! fraction of vertical water flow that participated in mineral reactions (-)
 
@@ -1156,8 +1160,7 @@ module ColumnDataType
       real(r8), pointer :: cect_delta                   (:,:)     => null() ! pH-dependent change in cation exchange capacity (1:nlevgrnd)
       real(r8), pointer :: cece_delta                   (:,:,:)   => null() ! pH-dependent change in occupied sites of other cations (1:nlevgrnd, 1:ncations)
       real(r8), pointer :: cec_delta_limit              (:,:)     => null() ! limitation on change in total cation exchange capacity per time step (1:nlevgrnd)
-
-      real(r8), pointer :: proton_limit_vr              (:,:)     => null() ! flux limitation factor due to insufficient H+ exchange capacity
+      real(r8), pointer :: cect_delta_add               (:,:)     => null() ! flux limitation factor due to insufficient H+ exchange capacity
       real(r8), pointer :: cec_limit_vr                 (:,:,:)   => null() ! flux limitation factor due ton insufficient cation exchange rate
       real(r8), pointer :: flux_limit_vr                (:,:,:)   => null() ! flux limitation factor on secondary mineral precipitation and cation exchange rate
 
@@ -1175,6 +1178,7 @@ module ColumnDataType
 
       real(r8), pointer :: background_flux              (:,:)     => null() ! vertically integrated background flux rate in/out of soil solution (1:ncations) (g m-2 s-1)
       real(r8), pointer :: background_cec               (:,:)     => null() ! vertically integrated background flux rate in/out of soil CEC phase (1:ncations) (g m-2 s-1)
+      real(r8), pointer :: background_minsecs           (:,:)     => null() ! vertically integrated background flux rate in/out 
 
       real(r8), pointer :: primary_added                (:,:)     => null() ! vertically integrated rate at which primary mineral is added (1:nminerals) (g m-2 s-1)
       real(r8), pointer :: primary_dissolve             (:,:)     => null() ! vertically integrated rate at which primary mineral is dissolved (1:nminerals) (g m-2 s-1)
@@ -12861,11 +12865,6 @@ contains
          avgflag='A', long_name='increase on total cation exchange capacity change to accomodate H+ per time step', &
          ptr_col=this%cect_delta_add, l2g_scale_type='veg')
 
-      this%proton_limit_vr(begc:endc,:) = spval
-      call hist_addfld2d (fname='proton_limit_vr',  units='', type2d='levgrnd', &
-         avgflag='A', long_name='flux limit factor due to insufficient H+ exchange', &
-         ptr_col=this%proton_limit_vr, l2g_scale_type='veg')
-
       this%cec_limit_vr(begc:endc,:,:) = spval
       do a = 1,ncations
          data2dptr => this%cec_limit_vr(:,:,a)
@@ -13105,7 +13104,6 @@ contains
             this%cec_delta_limit                 (c,1:nlevsoi            ) = 1._r8
             this%cect_delta_add                  (c,1:nlevsoi            ) = 0._r8
             this%cec_limit_vr                    (c,1:nlevsoi,1:ncations ) = 1._r8
-            this%proton_limit_vr                 (c,1:nlevsoi            ) = 1._r8
             this%flux_limit_vr                   (c,1:nlevsoi,1:ncations ) = 1._r8
 
             this%cation_infl_vr                  (c,1:nlevsoi,1:ncations ) = 0._r8

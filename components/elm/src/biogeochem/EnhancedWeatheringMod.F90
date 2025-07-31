@@ -37,7 +37,8 @@ module EnhancedWeatheringMod
   public :: readEnhancedWeatheringParams
   public :: MineralInit
   public :: MineralBackground
-  public :: MineralDynamics
+  public :: MineralPrimary
+  public :: MineralSecondary
   public :: MineralPassivation
   public :: MineralVerticalMovement
   public :: MineralLeaching
@@ -409,7 +410,7 @@ contains
          equilibria_conc                => col_ms%equilibria_conc         , & ! Output:  [real(r8) (:,:,:)] soil pore water cation concentration implied by the input soil CEC status and exchange coefficients (mol kg-1)
          cation_vr                      => col_ms%cation_vr               , & ! Output [real(r8) (:,:,:)] cation mass in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd, 1:ncations)
          cect_dyn                       => col_ms%cect_dyn                , & ! Input:  [real(r8) (:,:)] pH-dependent total cation exchange capacity (1:nlevgrnd)
-         secondary_mineral_vr           => col_ms%secondary_mineral_vr     ! Output: [real(r8) (:,:)] secondary mineral content in each soil layer (1:nlevgrnd, 1:nminsecs)
+         secondary_mineral_vr           => col_ms%secondary_mineral_vr    & ! Output: [real(r8) (:,:)] secondary mineral content in each soil layer (1:nlevgrnd, 1:nminsecs)
     )
 
     do fc = 1,num_soilc
@@ -570,7 +571,7 @@ contains
          forc_gra                       => col_ew%forc_gra                 , & ! Input:  [real(r8) (:,:)] grain size (1:nminerals) (um diameter)
 
          ! initial soil secondary mineral contents
-         secondary_mineral_vr          => col_ms%secondary_mineral_vr     ! Input:  [real(r8) (:,:)] secondary mineral content in each soil layer (1:nlevgrnd, 1:nminsecs) (g m-3 soil [not dry soil])
+         secondary_mineral_vr          => col_ms%secondary_mineral_vr     & ! Input:  [real(r8) (:,:)] secondary mineral content in each soil layer (1:nlevgrnd, 1:nminsecs) (g m-3 soil [not dry soil])
     )
 
     dt      = real( get_step_size(), r8 )
@@ -821,6 +822,7 @@ contains
     ! !LOCAL VARIABLES:
     integer  :: fc,c,j,g,nlevbed
     integer  :: m, isec, icat          ! indices
+    real(r8) :: dt
     real(r8) :: log_k_dissolve_acid, log_k_dissolve_neutral, log_k_dissolve_base
     real(r8) :: k_tot
     real(r8) :: phi                    ! porosity of the passivation layer
@@ -830,6 +832,14 @@ contains
     real(r8) :: dNb_dt                 ! H+ diffusion limited dissolution rate (mol m-3 s-1)
 
     associate( &
+         !
+         ! Forcing variables for built-in validation sites
+         !
+         forc_app                       => col_ew%forc_app                 , & ! Input:  [real(r8) (:)] application rate (kg rock m-2 year-1)
+         forc_min                       => col_ew%forc_min                 , & ! Input:  [real(r8) (:,:) weight percentage of minerals in rock (1:nminerals) (kg mineral kg-1 rock)
+         forc_pho                       => col_ew%forc_pho                 , & ! Input:  [real(r8) (:)] weight percentage of phosphorus content in rock (gP kg-1 rock)
+         forc_gra                       => col_ew%forc_gra                 , & ! Input:  [real(r8) (:,:)] grain size (1:nminerals) (um diameter)
+
          !
          ! soil pH and ionic states 
          !
@@ -1089,7 +1099,8 @@ contains
               primary_dissolve_vr(c,j,m) * forc_pho(c)
         end do
       end do
-    
+    end do
+
     end associate
   end subroutine MineralPrimary
 
@@ -1120,6 +1131,7 @@ contains
     integer  :: m, isec, icat          ! indices
     real(r8) :: saturation_ratio, log_silica, log_carbonate
     real(r8) :: k_tot
+    real(r8) :: dt 
 
     associate( &
          !
@@ -1212,7 +1224,7 @@ contains
                 10**(3 * soil_ph(c,j) - EWParamsInst%log_keq_minsecs(isec))
             end if
 
-            if (saturation > 1._r8) then
+            if (saturation_ratio > 1._r8) then
               if (cation_vr(c,j,icat) > 0._r8) then
                 ! run the precipitation reaction
 
@@ -1248,7 +1260,7 @@ contains
                   k_tot = k_tot + EWParamsInst%k_precip_minsecs(isec,3) * & 
                     10**((soil_ph(c,j) - 14) * EWParamsInst%n_precip_minsecs(3)) * &
                     exp(-1e6_r8 * EWParamsInst%e_precip_minsecs(isec,3) / rgas * (1/tsoi(c,j) - 1/298.15_r8)) * &
-                    (saturation_ratio**EWParamsInst - 1._r8)
+                    (saturation_ratio - 1._r8)
                 end if
 
                 r_precip_vr(c,j,isec) = k_tot * secondary_mineral_vr(c,j,isec) * EWParamsInst%ssa_minsecs(isec)

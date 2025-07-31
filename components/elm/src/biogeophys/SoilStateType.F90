@@ -623,7 +623,7 @@ contains
        allocate(logkm_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
        allocate(calcite_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
        allocate(kaolinite_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
-       allocate(gibbsite_col(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
+       allocate(gibbsite_in(bounds%begg:bounds%endg,max_topounits,nlevsoifl))
 
        do a = 1,ncations
           write (a_str, '(I6)') a

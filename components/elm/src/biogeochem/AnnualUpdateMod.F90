@@ -36,7 +36,7 @@ contains
     ! !USES:
       !$acc routine seq
     use elm_varcon      , only: secspday
-    use elm_varpar      , only: nlevgrnd, ncations
+    use elm_varpar      , only: nlevgrnd, ncations, nminsecs
     use SubgridAveMod   , only: p2c
     !
     ! !ARGUMENTS:
@@ -74,7 +74,7 @@ contains
       annavg_cec_delta            => col_mf%annavg_cec_delta, &
       tempavg_cec_delta           => col_mf%tempavg_cec_delta, &
       annavg_minsecs_delta        => col_mf%annavg_cec_delta, &
-      tempavg_minsecs_delta       => col_mf%tempavg_minsecs_delta, &
+      tempavg_minsecs_delta       => col_mf%tempavg_minsecs_delta &
     )
 
     dt = dtime_mod

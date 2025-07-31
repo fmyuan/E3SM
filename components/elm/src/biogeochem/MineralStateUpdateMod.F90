@@ -49,6 +49,7 @@ contains
     !$acc routine seq
     !
     ! !USES:
+    use elm_varctl       , only : builtin_site
     use ewutils          , only : u_pdf, get_ssa
     !
     ! !ARGUMENTS:
@@ -665,10 +666,10 @@ contains
     real(r8) :: temp_avail_ceca(1:num_soilc, 1:nlevsoi)
     real(r8) :: temp_delta1_cation(1:num_soilc, 1:nlevsoi, 1:ncations)
     real(r8) :: temp_delta2_cation(1:num_soilc, 1:nlevsoi, 1:ncations)
-    real(r8) :: temp_avail_cation(1:num_soilc, 1:nlevsoi)
+    real(r8) :: temp_avail_cation(1:num_soilc, 1:nlevsoi, 1:ncations)
     integer  :: err_fc, err_lev, err_icat, err_col
     character(len=256) :: dateTimeString
-    logical  :: print_flux_limit(1:num_soilc, 1:nlevsoi, 1:ncations)
+    logical  :: print_flux_limit(1:num_soilc, 1:nlevsoi)
     character(len=32) :: subname = 'elm_erw_mineral_flux_limit'  ! subroutine name
     !-----------------------------------------------------------------------
 
@@ -678,7 +679,7 @@ contains
     residual_cect = 6e-20_r8 ! minimum amount of total CEC to be left in the soil
     residual_quantity = 1e-20_r8 ! minimum amount of individual CEC or pore water cations to be left in the soil
 
-    print_flux_limit(1:num_soilc, 1:nlevsoi, 1:ncations) = .false.
+    print_flux_limit(1:num_soilc, 1:nlevsoi) = .false.
 
     do fc = 1,num_soilc
       c = filter_soilc(fc)
@@ -837,7 +838,7 @@ contains
               !===========================================================
               temp_avail_cation(fc,j,icat) = col_ms%cation_vr(c,j,icat) + col_mf%background_flux_vr(c,j,icat)*dt + &
                 col_mf%primary_cation_flux_vr(c,j,icat)*dt + col_mf%cec_cation_flux_vr(c,j,icat)*dt + &
-                col_mf%cec_cation_flux2_vr(c,j,icat)*dt + col_mf%secondary_cation_flux_vr*dt - col_mf%cation_uptake_vr(c,j,icat)*dt
+                col_mf%cec_cation_flux2_vr(c,j,icat)*dt + col_mf%secondary_cation_flux_vr(c,j,icat)*dt - col_mf%cation_uptake_vr(c,j,icat)*dt
               if (temp_avail_cation(fc,j,icat) < residual_quantity) then
                 write(c_str, '(I0)') c
                 write(j_str, '(I0)') j
@@ -882,10 +883,10 @@ contains
         end do
 
         ! calculate the expected available H+ sites, after total CEC changes
-        temp_avail_ceca(fc,j) = col_ms%cect_dyn(c,j) + col_mf%cect_delta(c,j) - sum(temp_avail_cec(fc,j,1:ncations))
+        temp_avail_ceca(fc,j) = col_ms%cect_dyn(c,j) + col_mf%cect_delta(c,j) - sum(temp_avail_cece(fc,j,1:ncations))
         if (temp_avail_ceca(fc,j) < residual_quantity) then
           col_mf%cect_delta_add(c,j) = residual_quantity - (col_ms%cect_dyn(c,j) + &
-            col_mf%cect_delta(c,j) - sum(temp_avail_cec(fc,j,1:ncations)))
+            col_mf%cect_delta(c,j) - sum(temp_avail_cece(fc,j,1:ncations)))
           col_mf%cect_delta(c,j) = col_mf%cect_delta(c,j) + col_mf%cect_delta_add(c,j)
 
           print_flux_limit = .true.
@@ -893,8 +894,8 @@ contains
           col_mf%cect_delta_add(c,j) = 0._r8
         end if
         ! re-calculate the available H+ sites, assert it is above minimum allowed
-        temp_avail_ceca(fc,j) = col_ms%cect_dyn(c,j) + col_mf%cect_delta(c,j) - sum(temp_avail_cec(fc,j,1:ncations))
-        if (temp_avail_ceca(fc,j,icat) < residual_quantity) then
+        temp_avail_ceca(fc,j) = col_ms%cect_dyn(c,j) + col_mf%cect_delta(c,j) - sum(temp_avail_cece(fc,j,1:ncations))
+        if (temp_avail_ceca(fc,j) < residual_quantity) then
           write(c_str, '(I0)') c
           write(j_str, '(I0)') j
           write(icat_str, '(I0)') icat
@@ -916,8 +917,8 @@ contains
             write (100+iam, *) 'Flux limit diagnostics: ', ldomain%latc(g), ldomain%lonc(g), j, trim(dateTimeString)
             call shr_sys_flush(100+iam)
 
-            if (col_mf%cec_delta_limit(c,j,icat) < 1._r8) then
-              write (100+iam, *) '   negative total CEC ', c, j, icat, col_mf%cec_delta_limit(c,j,icat), col_mf%cect_delta(c,j), col_mf%cect_dyn(c,j), col_mf%cece_delta(c,j,1:ncations)
+            if (col_mf%cec_delta_limit(c,j) < 1._r8) then
+              write (100+iam, *) '   negative total CEC ', c, j, icat, col_mf%cec_delta_limit(c,j), col_mf%cect_delta(c,j), col_ms%cect_dyn(c,j), col_mf%cece_delta(c,j,1:ncations)
             end if
 
             do icat = 1,ncations
@@ -933,7 +934,7 @@ contains
             end do
 
             if (col_mf%cect_delta_add(c,j) > 0._r8) then
-              write (100+iam, *) '   negative CEC H+ ', c,j, col_mf%cect_delta_add(c,j), temp_avail_ceca(fc,j), col_mf%cect_delta(c,j), col_mf%cect_dyn(c,j), temp_avail_cec(fc,j,1:ncations)
+              write (100+iam, *) '   negative CEC H+ ', c,j, col_mf%cect_delta_add(c,j), temp_avail_ceca(fc,j), col_mf%cect_delta(c,j), col_ms%cect_dyn(c,j), temp_avail_cece(fc,j,1:ncations)
             end if
 
           end if
