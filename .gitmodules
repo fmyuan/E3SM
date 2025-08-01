@@ -5,9 +5,6 @@
 	path = components/elm/src/external_models/mpp
     url = https://github.com/MPP-LSM/MPP.git
 	branch = alm/develop
-[submodule "sbetr"]
-	path = components/elm/src/external_models/sbetr
-    url = https://github.com/BeTR-biogeochemistry-modeling/sbetr.git
 [submodule "rrtmgp"]
 	path = components/eam/src/physics/rrtmgp/external
     url = https://github.com/E3SM-Project/rte-rrtmgp.git
