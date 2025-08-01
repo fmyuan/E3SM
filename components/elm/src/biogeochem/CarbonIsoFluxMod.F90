@@ -51,7 +51,6 @@ contains
     ! On the radiation time step, set the carbon isotopic flux
     ! variables (except for gap-phase mortality and fire fluxes)
       !$acc routine seq
-    use tracer_varcon, only : is_active_betr_bgc
     !
     ! !ARGUMENTS:
     integer                , intent(in)    :: num_soilc       ! number of soil columns filter
@@ -379,11 +378,10 @@ contains
 
       call CNCIsoLitterToColumn(num_soilc, filter_soilc, cnstate_vars, isocol_cf, isoveg_cf)
 
-      if (.not. is_active_betr_bgc) then
 
          ! column-level non-mortality fluxes
 
-         do fc = 1,num_soilc
+      do fc = 1,num_soilc
             cc = filter_soilc(fc)
             do j = 1, nlevdecomp
                do l = 1, ndecomp_cascade_transitions
@@ -413,8 +411,8 @@ contains
                   end if
                end do
             end do
-         end do
-    endif
+    end do
+
     end associate
 
   end subroutine CarbonIsoFlux1
@@ -427,7 +425,6 @@ contains
     ! On the radiation time step, set the carbon isotopic fluxes for gap mortality
     !
       !$acc routine seq
-    use tracer_varcon, only : is_active_betr_bgc
     ! !ARGUMENTS:
     integer                , intent(in)    :: num_soilc       ! number of soil columns filter
     integer                , intent(in)    :: filter_soilc(:) ! filter for soil columns
@@ -711,7 +708,6 @@ contains
     ! !DESCRIPTION:
     ! On the radiation time step, set the carbon isotopic fluxes for fire mortality
       !$acc routine seq
-    use tracer_varcon, only : is_active_betr_bgc
     !
     ! !ARGUMENTS:
     integer                , intent(in)    :: num_soilc       ! number of soil columns filter
@@ -858,7 +854,6 @@ contains
            num_soilp                                           , filter_soilp, 1._r8, 0, isotope)
 
 
-      if (.not. is_active_betr_bgc) then
 
          ! calculate the column-level flux of deadstem and deadcrootc to cwdc as the result of fire mortality.
 
@@ -900,7 +895,7 @@ contains
                end do
             end do
          end do
-    endif
+
     end associate
   end subroutine CarbonIsoFlux3
 

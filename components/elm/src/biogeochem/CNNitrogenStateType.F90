@@ -117,7 +117,7 @@ module CNNitrogenStateType
      real(r8), pointer :: smin_nh4sorb_vr_col          (:,:)   ! col (gN/m3) vertically-resolved soil mineral NH4 absorbed
      real(r8), pointer :: smin_nh4sorb_col             (:)     ! col (gN/m2) soil mineral NH4 pool absorbed
 
-     real(r8), pointer :: plant_nbuffer_col            (:)     ! col plant nitrogen buffer, (gN/m2), used to exchange info with betr 
+     real(r8), pointer :: plant_nbuffer_col            (:)
 
      real(r8), pointer :: totpftn_beg_col              (:)
      real(r8), pointer :: cwdn_beg_col                 (:)
