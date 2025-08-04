@@ -33,10 +33,7 @@ module ELMFatesInterfaceMod
    use VegetationType    , only : veg_pp
    use shr_kind_mod      , only : r8 => shr_kind_r8
    use decompMod         , only : bounds_type
-   use WaterStateType    , only : waterstate_type
-   use WaterFluxType     , only : waterflux_type
    use CanopyStateType   , only : canopystate_type
-   use TemperatureType   , only : temperature_type
    use EnergyFluxType    , only : energyflux_type
 
    use SoilStateType     , only : soilstate_type

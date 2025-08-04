@@ -13,10 +13,7 @@ module RootDynamicsMod
   use pftvarcon           , only : noveg, iscft, roota_par, rootb_par, root_dmx, evergreen
   use CanopyStateType     , only: canopystate_type
   use CNStateType         , only : cnstate_type
-  use CNCarbonStateType   , only : carbonstate_type
-  use CNCarbonFluxType    , only : carbonflux_type
-  use CNNitrogenStateType , only : nitrogenstate_type
-  use EnergyFluxType      , only: energyflux_type
+  use EnergyFluxType      , only : energyflux_type    ! needed only by fates
   use SoilStateType       , only : soilstate_type
   use CropType            , only : crop_type
   use SimpleMathMod       , only : array_normalization
