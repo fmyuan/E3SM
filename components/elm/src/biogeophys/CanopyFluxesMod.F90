@@ -45,7 +45,6 @@ module CanopyFluxesMod
 
   !!! using elm_instMod messes with the compilation order
   use elm_instMod           , only : alm_fates, soil_water_retention_curve
-  use TemperatureType , only : temperature_vars
   use perf_mod, only: t_startf, t_stopf
   use timeinfoMod
   use spmdmod          , only: masterproc

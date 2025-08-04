@@ -11,10 +11,8 @@ module SoilHydrologyMod
   use elm_varctl        , only : use_lnd_rof_two_way, lnd_rof_coupling_nstep
   use elm_varctl        , only : use_modified_infil, use_ocn_lnd_one_way
   use elm_varcon        , only : e_ice, denh2o, denice, rpi
-  use EnergyFluxType    , only : energyflux_type
   use SoilHydrologyType , only : soilhydrology_type
   use SoilStateType     , only : soilstate_type
-  use WaterfluxType     , only : waterflux_type
   use TopounitType      , only : top_pp
   use TopounitDataType  , only : top_ws
   use LandunitType      , only : lun_pp
@@ -291,7 +289,7 @@ contains
 
    !-----------------------------------------------------------------------
    subroutine Infiltration(bounds, num_hydrologyc, filter_hydrologyc, num_urbanc, filter_urbanc, &
-        atm2lnd_vars, ocn2lnd_vars, lnd2atm_vars, energyflux_vars, soilhydrology_vars, soilstate_vars, dtime)
+        atm2lnd_vars, ocn2lnd_vars, lnd2atm_vars, soilhydrology_vars, soilstate_vars, dtime)
      !
      ! !DESCRIPTION:
      ! Calculate infiltration into surface soil layer (minus the evaporation)
@@ -320,7 +318,6 @@ contains
      type(atm2lnd_type)       , intent(in)    :: atm2lnd_vars         ! land river two way coupling
      type(ocn2lnd_type)       , intent(in)    :: ocn2lnd_vars         ! ocean land one way coupling
      type(lnd2atm_type)       , intent(in)    :: lnd2atm_vars 
-     type(energyflux_type)    , intent(in)    :: energyflux_vars
      type(soilhydrology_type) , intent(inout) :: soilhydrology_vars
      type(soilstate_type)     , intent(inout) :: soilstate_vars
      real(r8), intent(in)  :: dtime

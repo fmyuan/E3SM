@@ -14,9 +14,6 @@ module LakeFluxesMod
   use FrictionVelocityType , only : frictionvel_type
   use LakeStateType        , only : lakestate_type
   use SolarAbsorbedType    , only : solarabs_type
-  use TemperatureType      , only : temperature_type
-  use WaterfluxType        , only : waterflux_type
-  use WaterstateType       , only : waterstate_type
   use GridcellType         , only : grc_pp
   use TopounitDataType     , only : top_as, top_af ! atmospheric state and flux variables
   use ColumnType           , only : col_pp

@@ -24,7 +24,6 @@ module SedYieldMod
   use EnergyFluxType    , only : energyflux_type
   use SoilHydrologyType , only : soilhydrology_type
   use SoilStateType     , only : soilstate_type
-  use TemperatureType   , only : temperature_type
   use GridcellType      , only : grc_pp
   use TopounitType      , only : top_pp
   use ColumnType        , only : col_pp
