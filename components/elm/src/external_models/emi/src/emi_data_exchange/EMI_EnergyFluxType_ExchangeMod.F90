@@ -6,7 +6,6 @@ module EMI_EnergyFluxType_ExchangeMod
   use elm_varctl                            , only : iulog
   use EMI_DataMod                           , only : emi_data_list, emi_data
   use EMI_DataDimensionMod                  , only : emi_data_dimension_list_type
-  use EnergyFluxType                        , only : energyflux_type
   use ColumnDataType                        , only : col_ef
   use EMI_Atm2LndType_Constants
   use EMI_CanopyStateType_Constants
@@ -30,7 +29,7 @@ contains
   
 !-----------------------------------------------------------------------
   subroutine EMI_Pack_EnergyFluxType_at_Column_Level_for_EM(data_list, em_stage, &
-        num_filter, filter, energyflux_vars)
+        num_filter, filter)
     !
     ! !DESCRIPTION:
     ! Pack data from ALM energyflux_vars for EM
@@ -45,7 +44,6 @@ contains
     integer                , intent(in) :: em_stage
     integer                , intent(in) :: num_filter
     integer                , intent(in) :: filter(:)
-    type(energyflux_type)  , intent(in) :: energyflux_vars
     !
     ! !LOCAL_VARIABLES:
     integer                             :: fc,c,j

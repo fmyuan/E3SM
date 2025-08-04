@@ -6,7 +6,6 @@ module EMI_WaterStateType_ExchangeMod
   use elm_varctl                            , only : iulog
   use EMI_DataMod                           , only : emi_data_list, emi_data
   use EMI_DataDimensionMod                  , only : emi_data_dimension_list_type
-  use WaterStateType                        , only : waterstate_type
   use ColumnDataType                        , only : col_ws
   use EMI_Atm2LndType_Constants
   use EMI_CanopyStateType_Constants
@@ -31,7 +30,7 @@ contains
   
 !-----------------------------------------------------------------------
   subroutine EMI_Pack_WaterStateType_at_Column_Level_for_EM(data_list, em_stage, &
-        num_filter, filter, waterstate_vars)
+        num_filter, filter)
     !
     ! !DESCRIPTION:
     ! Pack data from ALM waterstate_vars for EM
@@ -46,7 +45,6 @@ contains
     integer                , intent(in) :: em_stage
     integer                , intent(in) :: num_filter
     integer                , intent(in) :: filter(:)
-    type(waterstate_type)  , intent(in) :: waterstate_vars
     !
     ! !LOCAL_VARIABLES:
     integer                             :: fc,c,j
@@ -65,8 +63,8 @@ contains
          h2osoi_icevol => col_ws%h2osoi_icevol , &
          h2osoi_vol    => col_ws%h2osoi_vol    , &
          air_vol       => col_ws%air_vol       , &
-         rho_vap       => waterstate_vars%rho_vap_col       , &
-         rhvap_soi     => waterstate_vars%rhvap_soi_col     , &
+         !rho_vap       => waterstate_vars%rho_vap_col       , &
+         !rhvap_soi     => waterstate_vars%rhvap_soi_col     , &
          smp_l         => col_ws%smp_l         , &
          h2osno        => col_ws%h2osno        , &
          h2osfc        => col_ws%h2osfc        , &
@@ -167,7 +165,7 @@ contains
                 enddo
              enddo
              cur_data%is_set = .true.
-
+#if 0
           case (L2E_STATE_RHO_VAP_NLEVSOI)
              do fc = 1, num_filter
                 c = filter(fc)
@@ -185,7 +183,7 @@ contains
                 enddo
              enddo
              cur_data%is_set = .true.
-
+#endif
           case (L2E_STATE_SOIL_MATRIC_POTENTIAL_NLEVSOI)
              do fc = 1, num_filter
                 c = filter(fc)
@@ -265,7 +263,7 @@ contains
 
 !-----------------------------------------------------------------------
   subroutine EMI_Unpack_WaterStateType_at_Column_Level_from_EM(data_list, em_stage, &
-        num_filter, filter, waterstate_vars)
+        num_filter, filter)
     !
     ! !DESCRIPTION:
     ! Unpack data for ALM waterstate_vars from EM
@@ -280,7 +278,6 @@ contains
     integer                , intent(in) :: em_stage
     integer                , intent(in) :: num_filter
     integer                , intent(in) :: filter(:)
-    type(waterstate_type)  , intent(in) :: waterstate_vars
     !
     ! !LOCAL_VARIABLES:
     integer                             :: fc,c,j

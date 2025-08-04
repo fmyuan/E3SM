@@ -159,13 +159,9 @@ contains
 #ifndef FATES_VIA_EMI
     use elm_instMod           , only : soilstate_vars
     use elm_instMod           , only : soilhydrology_vars
-    use elm_instMod           , only : waterflux_vars
-    use elm_instMod           , only : waterstate_vars
 #else
     use elm_instMod           , only : soilstate_inst
     use elm_instMod           , only : soilhydrology_inst
-    use elm_instMod           , only : waterflux_inst
-    use elm_instMod           , only : waterstate_inst
 #endif
     use ExternalModelBETRMod  , only : EM_BETR_Populate_L2E_List
     use ExternalModelBETRMod  , only : EM_BETR_Populate_E2L_List
@@ -337,7 +333,7 @@ contains
 
           ! Unpack all data sent from the external model
           call EMI_Unpack_WaterStateType_at_Column_Level_from_EM(e2l_init_list(clump_rank), em_stage, &
-               num_filter_col, filter_col, waterstate_vars)
+               num_filter_col, filter_col)
 
           ! Ensure all data sent by external model is unpacked
           write(iulog,*)'     1.2.4 Value of variables received by ELM'
@@ -467,9 +463,9 @@ contains
        num_nolakec, filter_nolakec,                           &
        num_nolakec_and_nourbanc, filter_nolakec_and_nourbanc, &
        num_filter_lun, filter_lun,                            &
-       soilhydrology_vars, soilstate_vars, waterflux_vars,    &
-       waterstate_vars, temperature_vars,  atm2lnd_vars,      &
-       canopystate_vars, energyflux_vars, carbonstate_vars)
+       soilhydrology_vars, soilstate_vars,                    &
+       atm2lnd_vars,                                          &
+       canopystate_vars)
     !
     ! !DESCRIPTION:
     !
@@ -482,13 +478,8 @@ contains
     use ExternalModelConstants , only : EM_ID_STUB
     use SoilStateType          , only : soilstate_type
     use SoilHydrologyType      , only : soilhydrology_type
-    use TemperatureType        , only : temperature_type
-    use WaterFluxType          , only : waterflux_type
-    use WaterStateType         , only : waterstate_type
     use atm2lndType            , only : atm2lnd_type
     use CanopyStateType        , only : canopystate_type
-    use EnergyFluxType         , only : energyflux_type
-    use CNCarbonStateType      , only : carbonstate_type
     use ExternalModelBETRMod   , only : EM_BETR_Solve
     use decompMod              , only : get_clump_bounds
     !
@@ -509,13 +500,8 @@ contains
     integer                  , optional , intent(in)    :: filter_lun(:)
     type(soilhydrology_type) , optional , intent(inout) :: soilhydrology_vars
     type(soilstate_type)     , optional , intent(inout) :: soilstate_vars
-    type(waterflux_type)     , optional , intent(inout) :: waterflux_vars
-    type(waterstate_type)    , optional , intent(inout) :: waterstate_vars
-    type(temperature_type)   , optional , intent(inout) :: temperature_vars
     type(atm2lnd_type)       , optional , intent(inout) :: atm2lnd_vars
     type(canopystate_type)   , optional , intent(inout) :: canopystate_vars
-    type(energyflux_type)    , optional , intent(inout) :: energyflux_vars
-    type(carbonstate_type)   , optional , intent(inout) :: carbonstate_vars
     !
     integer          :: index_em
     real(r8)         :: dtime
@@ -562,32 +548,31 @@ contains
     call EMID_Reset_Data_for_EM(l2e_driver_list(iem), em_stage)
     call EMID_Reset_Data_for_EM(e2l_driver_list(iem), em_stage)
 
-    if ( present(temperature_vars) .and. &
-         present(num_hydrologyc)   .and. &
+    if ( present(num_hydrologyc)   .and. &
          present(filter_hydrologyc)) then
 
        call EMI_Pack_TemperatureType_at_Column_Level_for_EM(l2e_driver_list(iem), em_stage, &
-            num_hydrologyc, filter_hydrologyc, temperature_vars)
+            num_hydrologyc, filter_hydrologyc)
 
        elseif (present(num_nolakec_and_nourbanc)  .and. &
                present(filter_nolakec_and_nourbanc)) then
 
        call EMI_Pack_TemperatureType_at_Column_Level_for_EM(l2e_driver_list(iem), em_stage, &
-            num_nolakec_and_nourbanc, filter_nolakec_and_nourbanc, temperature_vars)
+            num_nolakec_and_nourbanc, filter_nolakec_and_nourbanc)
     endif
 
-    if ( present(waterstate_vars)) then
+    !if ( present(waterstate_vars)) then
        if (present(num_hydrologyc)  .and. &
            present(filter_hydrologyc)) then
 
           call EMI_Pack_WaterStateType_at_Column_Level_for_EM(l2e_driver_list(iem), em_stage, &
-               num_hydrologyc, filter_hydrologyc, waterstate_vars)
+               num_hydrologyc, filter_hydrologyc)
 
        elseif (present(num_nolakec_and_nourbanc)  .and. &
                present(filter_nolakec_and_nourbanc)) then
 
           call EMI_Pack_WaterStateType_at_Column_Level_for_EM(l2e_driver_list(iem), em_stage, &
-               num_nolakec_and_nourbanc, filter_nolakec_and_nourbanc, waterstate_vars)
+               num_nolakec_and_nourbanc, filter_nolakec_and_nourbanc)
        else
           ! GB_FIX_ME: Create a temporary filter
           if (present(clump_rank)) then
@@ -602,24 +587,23 @@ contains
           enddo
 
           call EMI_Pack_WaterStateType_at_Column_Level_for_EM(l2e_driver_list(iem), em_stage, &
-               num_filter_col, filter_col, waterstate_vars)
+               num_filter_col, filter_col)
           deallocate(filter_col)
        endif
-    endif
+    !endif
 
-    if ( present(waterflux_vars) .and. &
-         present(num_hydrologyc) .and. &
+    if ( present(num_hydrologyc) .and. &
          present(filter_hydrologyc)) then
 
        call EMI_Pack_WaterFluxType_at_Column_Level_for_EM(l2e_driver_list(iem), em_stage, &
-            num_hydrologyc, filter_hydrologyc, waterflux_vars)
+            num_hydrologyc, filter_hydrologyc)
     endif
 
     if ( present(num_nolakec_and_nourbanc) .and. &
          present(filter_nolakec_and_nourbanc)) then
 
        call EMI_Pack_EnergyFluxType_at_Column_Level_for_EM(l2e_driver_list(iem), em_stage, &
-            num_nolakec_and_nourbanc, filter_nolakec_and_nourbanc, energyflux_vars)
+            num_nolakec_and_nourbanc, filter_nolakec_and_nourbanc)
 
     endif
 
@@ -700,11 +684,10 @@ contains
             num_filter_col, filter_col)
     deallocate(filter_col)
 
-    if (present(carbonstate_vars)  .and. &
-         present(num_hydrologyc)   .and. &
+    if ( present(num_hydrologyc)   .and. &
          present(filter_hydrologyc)) then
        call EMI_Pack_CNCarbonStateType_at_Column_Level_for_EM(l2e_driver_list(iem), em_stage, &
-            num_hydrologyc, filter_hydrologyc, carbonstate_vars)
+            num_hydrologyc, filter_hydrologyc)
     endif
 
     call EMID_Verify_All_Data_Is_Set(l2e_driver_list(iem), em_stage)
@@ -746,20 +729,18 @@ contains
     ! ------------------------------------------------------------------------
     ! Unpack the data for EM
     ! ------------------------------------------------------------------------
-    if ( present(waterstate_vars) .and. &
-         present(num_hydrologyc)  .and. &
+    if ( present(num_hydrologyc)  .and. &
          present(filter_hydrologyc)) then
 
        call EMI_Unpack_WaterStateType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
-            num_hydrologyc, filter_hydrologyc, waterstate_vars)
+            num_hydrologyc, filter_hydrologyc)
     endif
 
-    if ( present(waterflux_vars) .and. &
-         present(num_hydrologyc) .and. &
+    if ( present(num_hydrologyc) .and. &
          present(filter_hydrologyc)) then
 
        call EMI_Unpack_WaterFluxType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
-            num_hydrologyc, filter_hydrologyc, waterflux_vars)
+            num_hydrologyc, filter_hydrologyc)
     endif
 
     if ( present(soilstate_vars) .and. &
@@ -795,19 +776,17 @@ contains
           deallocate(filter_patch)
     endif
 
-    if ( present(temperature_vars) .and. &
-         present(num_nolakec_and_nourbanc)     .and. &
+    if ( present(num_nolakec_and_nourbanc)     .and. &
          present(filter_nolakec_and_nourbanc)) then
 
        call EMI_Unpack_TemperatureType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
-            num_nolakec_and_nourbanc, filter_nolakec_and_nourbanc, temperature_vars)
+            num_nolakec_and_nourbanc, filter_nolakec_and_nourbanc)
     endif
 
-    if (present(carbonstate_vars)  .and. &
-         present(num_hydrologyc)   .and. &
+    if ( present(num_hydrologyc)   .and. &
          present(filter_hydrologyc)) then
        call EMI_Unpack_CNCarbonStateType_at_Column_Level_from_EM(e2l_driver_list(iem), em_stage, &
-            num_hydrologyc, filter_hydrologyc, carbonstate_vars)
+            num_hydrologyc, filter_hydrologyc)
     endif
 
     if (em_id == EM_ID_STUB) then

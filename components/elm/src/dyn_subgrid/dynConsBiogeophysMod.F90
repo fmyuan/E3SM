@@ -48,8 +48,7 @@ contains
   subroutine dyn_hwcontent_init(bounds,                                      &
        num_nolakec, filter_nolakec,                                          &
        num_lakec, filter_lakec,                                              &
-       urbanparams_vars, soilstate_vars, soilhydrology_vars, lakestate_vars, &
-       energyflux_vars)
+       urbanparams_vars, soilstate_vars, soilhydrology_vars, lakestate_vars)
     !
     ! !DESCRIPTION:
     ! Initialize variables used for dyn_hwcontent, and compute grid cell-level heat
@@ -68,7 +67,6 @@ contains
     type(soilstate_type)     , intent(in)    :: soilstate_vars
     type(soilhydrology_type) , intent(in)    :: soilhydrology_vars
     type(lakestate_type)     , intent(in)    :: lakestate_vars
-    type(energyflux_type)    , intent(inout) :: energyflux_vars
     !
     ! !LOCAL VARIABLES:
     integer :: g   ! grid cell index
@@ -100,8 +98,8 @@ contains
   subroutine dyn_hwcontent_final(bounds, &
        num_nolakec, filter_nolakec, &
        num_lakec, filter_lakec, &
-       urbanparams_vars, soilstate_vars, soilhydrology_vars, lakestate_vars &
-       , energyflux_vars, dtime)
+       urbanparams_vars, soilstate_vars, soilhydrology_vars, lakestate_vars, &
+       dtime)
     !
     ! Should be called AFTER all subgrid weight updates this time step
     !
@@ -118,7 +116,6 @@ contains
     type(soilstate_type)     , intent(in)    :: soilstate_vars
     type(soilhydrology_type) , intent(in)    :: soilhydrology_vars
     type(lakestate_type)     , intent(in)    :: lakestate_vars
-    type(energyflux_type)    , intent(inout) :: energyflux_vars
     real(r8)                 , intent(in)    :: dtime ! land model time step (sec)
 
     !
@@ -189,10 +186,6 @@ contains
     !call grc_wf%qflx_ice_dynbal_dribbler%get_curr_flux(bounds, &
     !     grc_wf%qflx_ice_dynbal(begg:endg))
 
-    !call energyflux_vars%eflx_dynbal_dribbler%set_curr_delta(bounds, &
-    !     delta_heat(begg:endg))
-    !call energyflux_vars%eflx_dynbal_dribbler%get_curr_flux(bounds, &
-    !     energyflux_vars%eflx_dynbal_grc(begg:endg))
     end associate
   end subroutine dyn_hwcontent_final
 

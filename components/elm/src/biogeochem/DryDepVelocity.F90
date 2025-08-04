@@ -60,7 +60,6 @@ Module DryDepVelocity
   use CanopyStateType      , only : canopystate_type
   use FrictionVelocityType , only : frictionvel_type
   use PhotosynthesisType   , only : photosyns_type
-  use WaterstateType       , only : waterstate_type
   use GridcellType         , only : grc_pp
   use TopounitDataType     , only : top_as, top_af ! atmospheric state and flux variables
   use LandunitType         , only : lun_pp

@@ -35,11 +35,6 @@ module SoilTemperatureMod
   use shr_const_mod            , only : SHR_CONST_PI
   use GridcellType             , only : grc_pp
 
-  !! Needed beacuse EMI is still using them as arguments
-  use WaterstateType    , only : waterstate_type
-  use TemperatureType   , only : temperature_type
-  use WaterfluxType     , only : waterflux_type
-  use elm_instMod , only : waterflux_vars, waterstate_vars, temperature_vars
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -4769,7 +4764,6 @@ contains
     !
     ! !USES:
     use shr_kind_mod    , only : r8 => shr_kind_r8
-    use TemperatureType , only : temperature_type
     use elm_varpar      , only : nlevsno
     !
     implicit none

@@ -14,8 +14,6 @@ module PhosphorusStateUpdate3Mod
   use elm_varctl          , only : use_erosion, ero_ccycle, use_fates
   use CNDecompCascadeConType , only : decomp_cascade_con
   use CNStateType         , only : cnstate_type
-  use PhosphorusStateType , only : phosphorusstate_type
-  use PhosphorusFLuxType  , only : phosphorusflux_type
   use soilorder_varcon    , only : smax,ks_sorption
 
   ! bgc interface & pflotran:
@@ -54,7 +52,7 @@ contains
     integer                  , intent(in)    :: filter_soilc(:) ! filter for soil columps
     integer                  , intent(in)    :: num_soilp       ! number of soil patches in filter
     integer                  , intent(in)    :: filter_soilp(:) ! filter for soil patches
-    type(cnstate_type)         , intent(in)    :: cnstate_vars
+    type(cnstate_type)       , intent(in)    :: cnstate_vars
     real(r8), intent(in) :: dt         ! radiation time step (seconds)
 
     !

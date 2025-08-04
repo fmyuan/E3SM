@@ -14,7 +14,6 @@ module SoilWaterMovementMod
   use ExternalModelConstants     , only : EM_VSFM_SOIL_HYDRO_STAGE
   use ExternalModelConstants     , only : EM_ID_VSFM
   use ExternalModelInterfaceMod  , only : EMI_Driver
-  use elm_instMod , only : waterflux_vars, waterstate_vars, temperature_vars
   use abortutils           , only : endrun
 
   !
@@ -826,8 +825,7 @@ contains
 
   !-----------------------------------------------------------------------
    subroutine Prepare_Data_for_EM_VSFM_Driver(bounds, num_hydrologyc, filter_hydrologyc, &
-        soilhydrology_vars, soilstate_vars, &
-        waterflux_vars, waterstate_vars, temperature_vars)
+        soilhydrology_vars, soilstate_vars)
      !
      ! !DESCRIPTION:
      ! Prepare dataset that will be transfered from ALM to VSFM
@@ -840,9 +838,6 @@ contains
       use elm_time_manager          , only : get_step_size
      use SoilStateType             , only : soilstate_type
      use SoilHydrologyType         , only : soilhydrology_type
-     use TemperatureType           , only : temperature_type
-     use WaterFluxType             , only : waterflux_type
-     use WaterStateType            , only : waterstate_type
      use VegetationType            , only : veg_pp
      use ColumnType                , only : col_pp
      use elm_varcon                , only : watmin
@@ -858,9 +853,6 @@ contains
      integer                 , intent(in)    :: filter_hydrologyc(:) ! column filter for soil points
      type(soilhydrology_type), intent(inout) :: soilhydrology_vars
      type(soilstate_type)    , intent(inout) :: soilstate_vars
-     type(waterflux_type)    , intent(inout) :: waterflux_vars
-     type(waterstate_type)   , intent(inout) :: waterstate_vars
-     type(temperature_type)  , intent(in)    :: temperature_vars
      !
      ! !LOCAL VARIABLES:
      integer              :: p,c,fc,j,g                    ! do loop indices
@@ -1015,7 +1007,7 @@ contains
    ! ====================================================================================
 
    subroutine Compute_EffecRootFrac_And_VertTranSink(bounds, num_hydrologyc, &
-         filter_hydrologyc, soilstate_inst, canopystate_inst, energyflux_inst)
+         filter_hydrologyc, soilstate_inst, canopystate_inst)
 
       ! ---------------------------------------------------------------------------------
       ! This is a wrapper for calculating the effective root fraction and soil
@@ -1053,7 +1045,6 @@ contains
       integer                 , intent(in)    :: filter_hydrologyc(num_hydrologyc) ! column filter for soil points
       type(soilstate_type)    , intent(inout) :: soilstate_inst
       type(canopystate_type)  , intent(in)    :: canopystate_inst
-      type(energyflux_type)   , intent(in)    :: energyflux_inst
 
       ! Local Variables
       integer  :: filterc(bounds%endc-bounds%begc+1)           !column filter
@@ -1092,7 +1083,7 @@ contains
       if(use_hydrstress) then
          call Compute_EffecRootFrac_And_VertTranSink_HydStress(bounds, &
                num_filterc, filterc,  soilstate_inst, &
-               canopystate_inst, energyflux_inst)
+               canopystate_inst)
       else
          call Compute_EffecRootFrac_And_VertTranSink_Default(bounds, &
                num_filterc,filterc, soilstate_inst)
@@ -1233,7 +1224,7 @@ contains
 
    subroutine Compute_EffecRootFrac_And_VertTranSink_HydStress( bounds, &
            num_filterc, filterc,  soilstate_vars, &
-           canopystate_vars, energyflux_vars)
+           canopystate_vars)
         !
         !USES:
       !$acc routine seq
@@ -1248,7 +1239,6 @@ contains
         use PhotosynthesisMod, only : plc, params_inst
         use column_varcon    , only : icol_road_perv
         use shr_infnan_mod   , only : isnan => shr_infnan_isnan
-        use EnergyFluxType   , only : energyflux_type
         use shr_kind_mod     , only : r8 => shr_kind_r8
         !
         ! !ARGUMENTS:
@@ -1257,7 +1247,6 @@ contains
         integer              , intent(in)    :: filterc(:)      ! column filter for soil points
         type(soilstate_type) , intent(inout) :: soilstate_vars
         type(canopystate_type) , intent(in)  :: canopystate_vars
-        type(energyflux_type), intent(in)    :: energyflux_vars
         !
         ! !LOCAL VARIABLES:
         integer  :: p,c,fc,j                                              ! do loop indices
@@ -1270,8 +1259,6 @@ contains
         associate(&
               k_soil_root         => soilstate_vars%k_soil_root_patch   , & ! Input:  [real(r8) (:,:) ]
                                                                             ! soil-root interface conductance (mm/s)
-              !qflx_phs_neg_col    => waterflux_vars%qflx_phs_neg_col    , & ! Input:  [real(r8) (:)   ]  n
-                                                                            ! net neg hydraulic redistribution flux(mm H2O/s)
               qflx_tran_veg_col   => col_wf%qflx_tran_veg   , & ! Input:  [real(r8) (:)   ]
                                                                             ! vegetation transpiration (mm H2O/s) (+ = to atm)
               qflx_tran_veg_patch => veg_wf%qflx_tran_veg , & ! Input:  [real(r8) (:)   ]
