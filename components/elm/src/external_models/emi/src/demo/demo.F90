@@ -9,8 +9,7 @@ program demo
   use clm_varpar                , only : nlevdecomp_full, ndecomp_pools
   use spmdMod                   , only : spmd_init
   use ExternalModelConstants    , only : EM_ID_STUB, EM_STUB_SOIL_HYDRO_STAGE, EM_STUB_SOIL_THERMAL_STAGE
-  use elm_instMod               , only : soilstate_vars, waterstate_vars, waterflux_vars
-  use elm_instMod               , only : energyflux_vars, temperature_vars, carbonstate_vars
+  use elm_instMod               , only : soilstate_vars
   use shr_kind_mod              , only : r8 => shr_kind_r8, SHR_KIND_CL
 
   implicit none
@@ -75,12 +74,7 @@ program demo
           num_hydrologyc    = num_hydrologyc                        , &
           filter_hydrologyc = filter_hydrologyc                     , &
           num_nolakec_and_nourbanc = num_nolakec_and_nourbanc       , &
-          filter_nolakec_and_nourbanc = filter_nolakec_and_nourbanc , &
-          waterstate_vars   = waterstate_vars                       , &
-          waterflux_vars    = waterflux_vars                        , &
-          energyflux_vars   = energyflux_vars                       , &
-          soilstate_vars    = soilstate_vars                        , &
-          temperature_vars  = temperature_vars)
+          filter_nolakec_and_nourbanc = filter_nolakec_and_nourbanc)
 
      write(iulog,*)''
      write(iulog,*)''
@@ -94,12 +88,7 @@ program demo
           filter_hydrologyc = filter_hydrologyc                     , &
           num_nolakec_and_nourbanc = num_nolakec_and_nourbanc       , &
           filter_nolakec_and_nourbanc = filter_nolakec_and_nourbanc , &
-          waterstate_vars   = waterstate_vars                       , &
-          waterflux_vars    = waterflux_vars                        , &
-          energyflux_vars   = energyflux_vars                       , &
-          soilstate_vars    = soilstate_vars                        , &
-          temperature_vars  = temperature_vars                      , &
-          carbonstate_vars  = carbonstate_vars)
+          soilstate_vars    = soilstate_vars)
   enddo
   !$OMP END PARALLEL DO
 

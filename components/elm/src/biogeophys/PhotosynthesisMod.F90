@@ -38,7 +38,6 @@ module  PhotosynthesisMod
   use VegetationDataType  , only : veg_wf, veg_ws
   use ColumnDataType      , only : col_es, col_ws, col_wf
   use SoilStateType       , only : soilstate_type
-  use WaterfluxType       , only : waterflux_type
   !
   implicit none
   save

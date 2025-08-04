@@ -6,7 +6,7 @@ module EMI_TemperatureType_ExchangeMod
   use elm_varctl                            , only : iulog
   use EMI_DataMod                           , only : emi_data_list, emi_data
   use EMI_DataDimensionMod                  , only : emi_data_dimension_list_type
-  use TemperatureType                       , only : temperature_type
+  !use TemperatureType                       , only : temperature_type
   use ColumnDataType                        , only : col_es
   use VegetationDataType                    , only : veg_es
   use EMI_Atm2LndType_Constants
@@ -33,7 +33,7 @@ contains
   
 !-----------------------------------------------------------------------
   subroutine EMI_Pack_TemperatureType_at_Column_Level_for_EM(data_list, em_stage, &
-        num_filter, filter, temperature_vars)
+        num_filter, filter)
     !
     ! !DESCRIPTION:
     ! Pack data from ALM temperature_vars for EM
@@ -48,7 +48,6 @@ contains
     integer                , intent(in) :: em_stage
     integer                , intent(in) :: num_filter
     integer                , intent(in) :: filter(:)
-    type(temperature_type) , intent(in) :: temperature_vars
     !
     ! !LOCAL_VARIABLES:
     integer                             :: fc,c,j
@@ -135,7 +134,7 @@ contains
 
 !-----------------------------------------------------------------------
   subroutine EMI_Pack_TemperatureType_at_Patch_Level_for_EM(data_list, em_stage, &
-        num_filter, filter, temperature_vars)
+        num_filter, filter)
     !
     ! !DESCRIPTION:
     ! Pack data from ALM temperature_vars for EM
@@ -150,7 +149,6 @@ contains
     integer                , intent(in) :: em_stage
     integer                , intent(in) :: num_filter
     integer                , intent(in) :: filter(:)
-    type(temperature_type) , intent(in) :: temperature_vars
     !
     ! !LOCAL_VARIABLES:
     integer                             :: fp,p,j
@@ -201,7 +199,7 @@ contains
 
 !-----------------------------------------------------------------------
   subroutine EMI_Unpack_TemperatureType_at_Column_Level_from_EM(data_list, em_stage, &
-        num_filter, filter, temperature_vars)
+        num_filter, filter)
     !
     ! !DESCRIPTION:
     ! Unpack data for ALM temperature_vars from EM
@@ -216,7 +214,6 @@ contains
     integer                , intent(in) :: em_stage
     integer                , intent(in) :: num_filter
     integer                , intent(in) :: filter(:)
-    type(temperature_type) , intent(in) :: temperature_vars
     !
     ! !LOCAL_VARIABLES:
     integer                             :: fc,c,j

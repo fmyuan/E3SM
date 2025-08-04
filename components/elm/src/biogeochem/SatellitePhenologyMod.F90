@@ -24,7 +24,6 @@ module SatellitePhenologyMod
   use fileutils       , only : getavu, relavu
   use VegetationType       , only : veg_pp
   use CanopyStateType , only : canopystate_type
-  use WaterstateType  , only : waterstate_type
   use ColumnDataType  , only : col_ws
   use perf_mod        , only : t_startf, t_stopf
   use spmdMod         , only : masterproc
@@ -297,7 +296,7 @@ contains
 
   !-----------------------------------------------------------------------
   subroutine SatellitePhenology(bounds, num_filter, filter, &
-       waterstate_vars, canopystate_vars)
+       canopystate_vars)
     !
     ! !DESCRIPTION:
     ! Ecosystem dynamics: phenology, vegetation
@@ -311,7 +310,6 @@ contains
     type(bounds_type)      , intent(in)    :: bounds
     integer                , intent(in)    :: num_filter                        ! number of column points in filter
     integer                , intent(in)    :: filter(bounds%endp-bounds%begp+1) ! patch filter
-    type(waterstate_type)  , intent(in)    :: waterstate_vars
     type(canopystate_type) , intent(inout) :: canopystate_vars
     !
     ! !LOCAL VARIABLES:
