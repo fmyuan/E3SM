@@ -6,7 +6,6 @@ module EMI_WaterFluxType_ExchangeMod
   use elm_varctl                            , only : iulog
   use EMI_DataMod         , only : emi_data_list, emi_data
   use EMI_DataDimensionMod , only : emi_data_dimension_list_type
-  use WaterFluxType                         , only : waterflux_type
   use ColumnDataType                        , only : col_wf
   use VegetationDataType                    , only : veg_wf
   use EMI_Atm2LndType_Constants
@@ -32,7 +31,7 @@ contains
   
 !-----------------------------------------------------------------------
   subroutine EMI_Pack_WaterFluxType_at_Column_Level_for_EM(data_list, em_stage, &
-        num_filter, filter, waterflux_vars)
+        num_filter, filter)
     !
     ! !DESCRIPTION:
     ! Pack data from ALM waterflux_vars for EM
@@ -47,7 +46,6 @@ contains
     integer                , intent(in) :: em_stage
     integer                , intent(in) :: num_filter
     integer                , intent(in) :: filter(:)
-    type(waterflux_type)   , intent(in) :: waterflux_vars
     !
     ! !LOCAL_VARIABLES:
     integer                             :: fc,c,j
@@ -285,7 +283,7 @@ contains
 
 !-----------------------------------------------------------------------
   subroutine EMI_Unpack_WaterFluxType_at_Column_Level_from_EM(data_list, em_stage, &
-        num_filter, filter, waterflux_vars)
+        num_filter, filter)
     !
     ! !DESCRIPTION:
     ! Unpack data for ALM waterflux_vars from EM
@@ -300,7 +298,6 @@ contains
     integer                , intent(in) :: em_stage
     integer                , intent(in) :: num_filter
     integer                , intent(in) :: filter(:)
-    type(waterflux_type)   , intent(in) :: waterflux_vars
     !
     ! !LOCAL_VARIABLES:
     integer                             :: fc,c,j
