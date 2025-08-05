@@ -123,6 +123,11 @@ contains
     ! This could be updated later to divide the inputs between mineral N absorbed
     ! directly into the canopy and mineral N entering the soil pool.
     !
+
+    ! !USES:   
+    use elm_time_manager, only : get_curr_date
+    use ndepStreamMod,    only : startdate_scale_ndep, scale_ndep
+
     ! !ARGUMENTS:
     type(bounds_type)  , intent(in)  :: bounds 
     type(atm2lnd_type) , intent(in)  :: atm2lnd_vars
@@ -130,7 +135,20 @@ contains
     ! !LOCAL VARIABLES:
     integer :: g,c,fc                  ! indices
     integer :: begc, endc
+
+    ! sensitivity testing
+    integer :: sdate_scln, sy_scln, sm_scln, sd_scln ! scale pdep date componets
+    integer :: year, mon, day, sec                   ! return variables for get_curr_date
     !-----------------------------------------------------------------------
+    
+    call get_curr_date(year, mon, day, sec)
+
+    if (startdate_scale_ndep .ne. '') then
+       read(startdate_scale_ndep,*) sdate_scln
+       sy_scln = sdate_scln/10000
+       sm_scln = (sdate_scln-sy_scln*10000)/100
+       sd_scln = sdate_scln-sy_scln*1000-sm_scln*100
+    end if
 
     associate(&
          forc_ndep     =>  atm2lnd_vars%forc_ndep_grc           , & ! Input:  [real(r8) (:)]  nitrogen deposition rate (gN/m2/s)
@@ -146,6 +164,12 @@ contains
       do c = begc, endc 
          g = col_pp%gridcell(c)
          ndep_to_sminn(c) = forc_ndep(g)
+         if (startdate_scale_ndep .ne. '') then
+            if ((year == sy_scln .and. mon == sm_scln .and. day >= sd_scln) .or. &
+                (year == sy_scln .and. mon > sm_scln) .or. (year > sy_scln)) then
+                  ndep_to_sminn(c) = scale_ndep * forc_ndep(g)
+            end if
+         end if
       end do
 
     end associate

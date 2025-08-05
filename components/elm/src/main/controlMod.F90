@@ -58,6 +58,10 @@ module controlMod
   use EcosystemBalanceCheckMod, only: bgc_balance_check_tolerance => balance_check_tolerance
 
   !
+  ! add precipitation scaling options to elm_varctl
+  use elm_varctl              , only: startdate_scale_rain, startdate_scale_snow
+  use elm_varctl              , only: scale_rain, scale_snow
+  
   ! !PUBLIC TYPES:
   implicit none
   save
@@ -203,6 +207,14 @@ contains
          add_temperature
     namelist /elm_inparm/ &
          add_co2
+    namelist /elm_inparm/ &
+         startdate_scale_rain
+    namelist /elm_inparm/ &
+         startdate_scale_snow
+    namelist /elm_inparm/ &
+         scale_rain
+    namelist /elm_inparm/ &
+         scale_snow
 
     namelist /elm_inparm/ &
          use_pheno_flux_limiter
@@ -844,6 +856,10 @@ contains
     call mpi_bcast (startdate_add_co2, 1, MPI_CHARACTER, 0, mpicom, ier)
     call mpi_bcast (add_co2, 1, MPI_REAL8, 0, mpicom, ier)
     call mpi_bcast (add_temperature, 1, MPI_REAL8, 0, mpicom, ier)
+    call mpi_bcast (startdate_scale_rain, 1, MPI_CHARACTER, 0, mpicom, ier)
+    call mpi_bcast (startdate_scale_snow, 1, MPI_CHARACTER, 0, mpicom, ier)
+    call mpi_bcast (scale_rain, 1, MPI_REAL8, 0, mpicom, ier)
+    call mpi_bcast (scale_snow, 1, MPI_REAL8, 0, mpicom, ier)
 
     ! isotopes
     call mpi_bcast (use_c13, 1, MPI_LOGICAL, 0, mpicom, ier)
