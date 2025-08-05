@@ -676,7 +676,7 @@ contains
 
                 ! intitialize SNICAR variables for fresh snow:
                 call aerosol_vars%Reset(column=c)
-                ! call waterstate_vars%Reset(column=c)
+
                 col_ws%snw_rds(c,0) = snw_rds_min
              end if
           else
@@ -693,7 +693,7 @@ contains
 
                 ! intitialize SNICAR variables for fresh snow:
                 call aerosol_vars%Reset(column=c)
-                ! call waterstate_vars%Reset(column=c)
+
                 col_ws%snw_rds(c,0) = snw_rds_min
              end if             
           end if

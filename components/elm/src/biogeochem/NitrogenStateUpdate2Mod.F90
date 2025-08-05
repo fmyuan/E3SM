@@ -9,8 +9,6 @@ module NitrogenStateUpdate2Mod
   use elm_varpar          , only : nlevsoi, nlevdecomp
   use elm_varpar          , only : i_met_lit, i_cel_lit, i_lig_lit, i_cwd
   use elm_varctl          , only : iulog
-  use CNNitrogenStateType , only : nitrogenstate_type
-  use CNNitrogenFLuxType  , only : nitrogenflux_type
   use ColumnDataType      , only : col_ns, col_nf
   use VegetationType      , only : veg_pp
   use VegetationDataType  , only : veg_ns, veg_nf
@@ -39,7 +37,6 @@ contains
     ! no science equations. This increases readability and maintainability
     !
       !$acc routine seq
-    use tracer_varcon, only : is_active_betr_bgc
     ! !ARGUMENTS:
     integer                  , intent(in)    :: num_soilc       ! number of soil columns in filter
     integer                  , intent(in)    :: filter_soilc(:) ! filter for soil columns
@@ -54,8 +51,7 @@ contains
     !-----------------------------------------------------------------------
       
     ! column-level nitrogen fluxes from gap-phase mortality
-      if ( .not. is_active_betr_bgc .and. &
-           .not.(use_pflotran .and. pf_cmode)) then
+      if (.not.(use_pflotran .and. pf_cmode)) then
          do j = 1, nlevdecomp
             do fc = 1,num_soilc
                c = filter_soilc(fc)
@@ -118,7 +114,6 @@ contains
     ! no science equations. This increases readability and maintainability
     !
       !$acc routine seq
-    use tracer_varcon, only : is_active_betr_bgc
     ! !ARGUMENTS:
     integer                  , intent(in)    :: num_soilc       ! number of soil columns in filter
     integer                  , intent(in)    :: filter_soilc(:) ! filter for soil columns
@@ -136,8 +131,7 @@ contains
          ivt => veg_pp%itype        & ! Input:  [integer  (:) ]  pft vegetation type
          )
 
-      if (.not. is_active_betr_bgc .and. &
-           .not.(use_pflotran .and. pf_cmode)) then
+      if (.not.(use_pflotran .and. pf_cmode)) then
          ! column-level nitrogen fluxes from harvest mortality
 
          do j = 1,nlevdecomp

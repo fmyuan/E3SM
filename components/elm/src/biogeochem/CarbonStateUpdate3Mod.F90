@@ -10,8 +10,6 @@ module CarbonStateUpdate3Mod
   use abortutils       , only : endrun
   use elm_varpar       , only : nlevdecomp, ndecomp_pools, i_cwd, i_met_lit, i_cel_lit, i_lig_lit
   use elm_varctl       , only : use_erosion, ero_ccycle
-  use CNCarbonStateType, only : carbonstate_type
-  use CNCarbonFluxType , only : carbonflux_type
   use CNDecompCascadeConType , only : decomp_cascade_con
   use ColumnDataType         , only : column_carbon_state, column_carbon_flux
   use VegetationDataType     , only : vegetation_carbon_state, vegetation_carbon_flux
@@ -37,7 +35,6 @@ contains
     ! variables affected by fire fluxes and also erosion flux
     !
       !$acc routine seq
-    use tracer_varcon       , only : is_active_betr_bgc
     ! !ARGUMENTS:
     integer                , intent(in)    :: num_soilc       ! number of soil columns in filter
     integer                , intent(in)    :: filter_soilc(:) ! filter for soil columns
@@ -55,7 +52,6 @@ contains
     integer :: fp,fc     ! lake filter indices
     !-----------------------------------------------------------------------
 
-      if ( .not.is_active_betr_bgc )then
          ! column level carbon fluxes from fire
          if (.not.(use_pflotran .and. pf_cmode)) then
              do j = 1, nlevdecomp
@@ -85,7 +81,7 @@ contains
                end do
             end do
          end do
-      endif !
+
 
       ! SOM C losses due to erosion
       if ( ero_ccycle ) then

@@ -12,7 +12,7 @@ module elm_driver
   use shr_sys_mod            , only : shr_sys_flush
   use shr_log_mod            , only : errMsg => shr_log_errMsg
   use elm_varpar             , only : nlevtrc_soil, nlevsoi
-  use elm_varctl             , only : wrtdia, iulog, create_glacier_mec_landunit, use_fates, use_betr, use_firn_percolation_and_compaction
+  use elm_varctl             , only : wrtdia, iulog, create_glacier_mec_landunit, use_fates, use_firn_percolation_and_compaction
   use elm_varctl             , only : use_cn, use_lch4, use_voc, use_noio, use_c13, use_c14
   use elm_varctl             , only : use_erosion, use_fates_sp, use_fan
   use elm_varctl             , only : mpi_sync_nstep_freq
@@ -92,13 +92,7 @@ module elm_driver
   use DaylengthMod           , only : UpdateDaylength
   use perf_mod
   !
-  use elm_instMod            , only : ch4_vars, ep_betr
-  use elm_instMod            , only : carbonstate_vars, c13_carbonstate_vars, c14_carbonstate_vars
-  use elm_instMod            , only : carbonflux_vars, c13_carbonflux_vars, c14_carbonflux_vars
-  use elm_instMod            , only : nitrogenstate_vars
-  use elm_instMod            , only : nitrogenflux_vars
-  use elm_instMod            , only : phosphorusstate_vars
-  use elm_instMod            , only : phosphorusflux_vars
+  use elm_instMod            , only : ch4_vars
   use elm_instMod            , only : crop_vars
   use elm_instMod            , only : cnstate_vars
   use elm_instMod            , only : dust_vars
@@ -117,10 +111,7 @@ module elm_driver
   use elm_instMod            , only : soilhydrology_vars
   use elm_instMod            , only : surfalb_vars
   use elm_instMod            , only : surfrad_vars
-  use elm_instMod            , only : temperature_vars
   use elm_instMod            , only : col_es
-  use elm_instMod            , only : waterflux_vars
-  use elm_instMod            , only : waterstate_vars
   use elm_instMod            , only : atm2lnd_vars
   use elm_instMod            , only : lnd2atm_vars
   use elm_instMod            , only : glc2lnd_vars
@@ -130,8 +121,6 @@ module elm_driver
   use elm_instMod            , only : alm_fates
   use elm_instMod            , only : PlantMicKinetics_vars
   use elm_instMod            , only : sedflux_vars
-  use tracer_varcon          , only : is_active_betr_bgc
-  use CNEcosystemDynBetrMod  , only : CNEcosystemDynBetr, CNFluxStateBetrSummary
   use UrbanParamsType        , only : urbanparams_vars
 
   use GridcellType           , only : grc_pp
@@ -326,7 +315,7 @@ contains
 
        call t_startf("decomp_vert")
        call alt_calc(filter(nc)%num_soilc, filter(nc)%soilc, &
-            temperature_vars, canopystate_vars)
+            canopystate_vars)
 
        !  Note (WJS, 6-12-13): Because of this routine's placement in the driver sequence
        !  (it is called very early in each timestep, before weights are adjusted and
@@ -364,12 +353,6 @@ contains
             filter(nc)%num_hydrologyc, filter(nc)%hydrologyc, &
             soilhydrology_vars )
        call t_stopf('beggridwbal')
-
-       if (use_betr) then
-         dtime=get_step_size(); nstep=get_nstep()
-         call ep_betr%SetClock(dtime= dtime, nelapstep=nstep)
-         call ep_betr%BeginMassBalanceCheck(bounds_clump)
-       endif
 
        call t_startf('cnpinit')
 
@@ -455,7 +438,7 @@ contains
     call t_startf('dyn_subgrid')
     call dynSubgrid_driver(bounds_proc,                                      &
        urbanparams_vars, soilstate_vars, soilhydrology_vars, lakestate_vars, &
-       energyflux_vars, canopystate_vars, photosyns_vars, cnstate_vars,                       &
+       canopystate_vars, photosyns_vars, cnstate_vars,                       &
        veg_cs, c13_veg_cs, c14_veg_cs,         &
        col_cs, c13_col_cs, c14_col_cs, col_cf,  &
        grc_cs, grc_cf , glc2lnd_vars,  crop_vars)
@@ -827,7 +810,7 @@ contains
        if (use_voc) then
           call VOCEmission(bounds_clump,                                         &
                filter(nc)%num_soilp, filter(nc)%soilp,                           &
-               atm2lnd_vars, canopystate_vars, photosyns_vars, temperature_vars, &
+               atm2lnd_vars, canopystate_vars, photosyns_vars,                   &
                vocemis_vars)
        end if
 
@@ -836,10 +819,6 @@ contains
        ! ============================================================================
        ! Determine temperatures
        ! ============================================================================
-       if(use_betr)then
-         call ep_betr%BeTRSetBiophysForcing(bounds_clump, col_pp, veg_pp, 1, nlevsoi, waterstate_vars=col_ws)
-         call ep_betr%PreDiagSoilColWaterFlux(filter(nc)%num_nolakec , filter(nc)%nolakec)
-       endif
        ! Set lake temperature
 
        call LakeTemperature(bounds_clump,             &
@@ -860,10 +839,6 @@ contains
        call t_stopf('soiltemperature')
 
 
-       if(use_betr)then
-         call ep_betr%BeTRSetBiophysForcing(bounds_clump, col_pp, veg_pp, 1, nlevsoi, waterstate_vars=col_ws)
-         call ep_betr%DiagnoseDtracerFreezeThaw(bounds_clump, filter(nc)%num_nolakec , filter(nc)%nolakec, col_pp, lun_pp)
-       endif
        ! ============================================================================
        ! update surface fluxes for new ground temperature.
        ! ============================================================================
@@ -901,7 +876,7 @@ contains
             filter(nc)%num_urbanc, filter(nc)%urbanc,                        &
             filter(nc)%num_snowc, filter(nc)%snowc,                          &
             filter(nc)%num_nosnowc, filter(nc)%nosnowc,canopystate_vars,     &
-            atm2lnd_vars, lnd2atm_vars, soilstate_vars, energyflux_vars,     &
+            atm2lnd_vars, lnd2atm_vars, soilstate_vars,                      &
             soilhydrology_vars, aerosol_vars )
 
        !  Calculate column-integrated aerosol masses, and
@@ -999,35 +974,9 @@ contains
           call crop_vars%CropIncrementYear(filter(nc)%num_pcropp, filter(nc)%pcropp)
        endif
 
-       if(use_betr)then
-         !right now betr bgc is intended only for non-ed mode
-
-         if(is_active_betr_bgc)then
-           !this returns the plant nutrient demand to soil bgc
-           call CNEcosystemDynBetr(bounds_clump,                                &
-                 filter(nc)%num_soilc, filter(nc)%soilc,                        &
-                 filter(nc)%num_soilp, filter(nc)%soilp,                        &
-                 filter(nc)%num_pcropp, filter(nc)%pcropp, doalb,               &
-                 cnstate_vars, carbonflux_vars, carbonstate_vars,               &
-                 c13_carbonflux_vars, c13_carbonstate_vars,                     &
-                 c14_carbonflux_vars, c14_carbonstate_vars,                     &
-                 nitrogenflux_vars, nitrogenstate_vars,                         &
-                 atm2lnd_vars, waterstate_vars, waterflux_vars,                 &
-                 canopystate_vars, soilstate_vars, temperature_vars, crop_vars, &
-                 photosyns_vars, soilhydrology_vars, energyflux_vars,&
-                 PlantMicKinetics_vars,                                         &
-                 phosphorusflux_vars, phosphorusstate_vars, frictionvel_vars)
-
-           call AnnualUpdate(bounds_clump,            &
-                  filter(nc)%num_soilc, filter(nc)%soilc, &
-                  filter(nc)%num_soilp, filter(nc)%soilp, &
-                  cnstate_vars)
-         endif
-       endif
-
        ! FIX(SPM,032414)  push these checks into the routines below and/or make this consistent.
 
-       if( .not. is_active_betr_bgc) then
+       !
 
           if (use_cn .or. use_fates) then
 
@@ -1055,11 +1004,7 @@ contains
                            filter(nc)%num_soilc, filter(nc)%soilc,                      &
                            filter(nc)%num_soilp, filter(nc)%soilp,                      &
                            atm2lnd_vars, soilstate_vars,                                &
-                           waterstate_vars, waterflux_vars,                             &
-                           temperature_vars, energyflux_vars,                           &
-                           cnstate_vars, carbonflux_vars, carbonstate_vars,             &
-                           nitrogenflux_vars, nitrogenstate_vars,                       &
-                           phosphorusflux_vars, phosphorusstate_vars,                   &
+                           cnstate_vars,                                                &
                            ch4_vars)
 
 
@@ -1078,9 +1023,7 @@ contains
                     call update_bgc_data_pf2elm(elm_interface_data%bgc,         &
                            bounds_clump,filter(nc)%num_soilc, filter(nc)%soilc, &
                            filter(nc)%num_soilp, filter(nc)%soilp,              &
-                           cnstate_vars, carbonflux_vars, carbonstate_vars,     &
-                           nitrogenflux_vars, nitrogenstate_vars,               &
-                           phosphorusflux_vars, phosphorusstate_vars,           &
+                           cnstate_vars,                                        &
                            ch4_vars)
 
                     call t_stopf('pflotran')
@@ -1097,19 +1040,13 @@ contains
                            filter(nc)%num_soilc, filter(nc)%soilc,              &
                            filter(nc)%num_soilp, filter(nc)%soilp,              &
                            canopystate_vars, soilstate_vars,                    &
-                           temperature_vars, waterstate_vars,                   &
-                           cnstate_vars, ch4_vars,                              &
-                           carbonstate_vars, carbonflux_vars,                   &
-                           nitrogenstate_vars, nitrogenflux_vars,               &
-                           phosphorusstate_vars,phosphorusflux_vars)
+                           cnstate_vars, ch4_vars)
 
                     ! STEP-3: update CLM from elm_interface_data
                     call update_bgc_data_elm2elm(elm_interface_data%bgc,        &
                            bounds_clump, filter(nc)%num_soilc, filter(nc)%soilc,&
                            filter(nc)%num_soilp, filter(nc)%soilp,              &
-                           cnstate_vars, carbonflux_vars, carbonstate_vars,     &
-                           nitrogenflux_vars, nitrogenstate_vars,               &
-                           phosphorusflux_vars, phosphorusstate_vars,           &
+                           cnstate_vars,                                        &
                            ch4_vars)
                     call t_stopf('elm-bgc via interface')
                  end if !if (use_pflotran .and. pf_cmode)
@@ -1139,7 +1076,7 @@ contains
              if (use_fates_sp) then
                call SatellitePhenology(bounds_clump,               &
                filter_inactive_and_active(nc)%num_soilp, filter_inactive_and_active(nc)%soilp,    &
-               waterstate_vars, canopystate_vars)
+               canopystate_vars)
              endif
              
           else ! not ( if-use_cn   or if-use_fates)
@@ -1147,10 +1084,10 @@ contains
                 ! Prescribed biogeography - prescribed canopy structure, some prognostic carbon fluxes
                 call SatellitePhenology(bounds_clump,               &
                      filter(nc)%num_nolakep, filter(nc)%nolakep,    &
-                     waterstate_vars, canopystate_vars)
+                     canopystate_vars)
              end if
           end if  ! end of if-use_cn   or if-use_fates
-       end if ! end of is_active_betr_bgc
+       !
 
        call t_stopf('ecosysdyn')
 
@@ -1163,30 +1100,7 @@ contains
        end if
        call t_stopf('depvel')
 
-       if (use_betr)then
-          call ep_betr%CalcSmpL(bounds_clump, 1, nlevsoi, filter(nc)%num_soilc, filter(nc)%soilc, &
-               col_es%t_soisno(bounds_clump%begc:bounds_clump%endc,1:nlevsoi), &
-               soilstate_vars, col_ws, soil_water_retention_curve)
-
-          call ep_betr%SetBiophysForcing(bounds_clump, col_pp, veg_pp,                         &
-             carbonflux_vars=col_cf,     pf_carbonflux_vars=veg_cf,                          &
-             waterstate_vars=col_ws,         waterflux_vars=col_wf, pf_waterflux_vars=veg_wf,        &
-             temperature_vars=col_es, pf_temperature_vars=veg_es,  soilhydrology_vars=soilhydrology_vars, &
-             atm2lnd_vars=atm2lnd_vars,               canopystate_vars=canopystate_vars,     &
-             chemstate_vars=chemstate_vars,           soilstate_vars=soilstate_vars, &
-             cnstate_vars = cnstate_vars, carbonstate_vars=col_cs)
-
-          if(is_active_betr_bgc)then
-             call ep_betr%PlantSoilBGCSend(bounds_clump, col_pp, veg_pp, &
-                  filter(nc)%num_soilc,  filter(nc)%soilc, cnstate_vars, &
-               col_cs, col_cf, c13_col_cs, c13_col_cf, c14_col_cs, c14_col_cf, &
-               col_ns, col_nf, col_ps, col_pf,&
-               PlantMicKinetics_vars)                  
-          endif
-          call ep_betr%StepWithoutDrainage(bounds_clump, col_pp, veg_pp)
-       endif  !end use_betr
-
-       if (use_lch4 .and. .not. is_active_betr_bgc) then
+       if (use_lch4) then
           !warning: do not call ch4 before AnnualUpdate, which will fail the ch4 model
           call t_startf('ch4')
           call CH4 (bounds_clump,                                                                  &
@@ -1237,44 +1151,14 @@ contains
 
        call t_stopf('hydro2 drainage')
 
-       if (use_betr) then
-          call t_startf('betr drainage')
-          call ep_betr%StepWithDrainage(bounds_clump, col_pp)
-          call t_stopf('betr drainage')
-
-          call t_startf('betr balchk')
-          call ep_betr%MassBalanceCheck(bounds_clump)
-          call t_stopf('betr balchk')
-          call ep_betr%HistRetrieval(filter(nc)%num_nolakec, filter(nc)%nolakec)
-
-          if(is_active_betr_bgc)then
-
-            !extract nitrogen pool and flux from betr
-            call ep_betr%PlantSoilBGCRecv(bounds_clump, col_pp, veg_pp, filter(nc)%num_soilc, filter(nc)%soilc,&
-               col_cs, col_cf, veg_cf, c13_col_cs, c13_col_cf, &
-               c14_col_cs, c14_col_cf, &
-               col_ns, veg_ns, col_nf, veg_nf, col_ps, col_pf, veg_pf)
-            !summarize total column nitrogen and carbon
-            call CNFluxStateBetrSummary(bounds_clump, col_pp, veg_pp, &
-                 filter(nc)%num_soilc, filter(nc)%soilc,                       &
-                 filter(nc)%num_soilp, filter(nc)%soilp,                       &
-                 carbonflux_vars, carbonstate_vars,                            &
-                 c13_carbonflux_vars, c13_carbonstate_vars,                    &
-                 c14_carbonflux_vars, c14_carbonstate_vars,                    &
-                 nitrogenflux_vars, nitrogenstate_vars,                        &
-                 phosphorusflux_vars, phosphorusstate_vars)
-          endif
-       endif  !end use_betr
 
 
        if (use_cn .or. use_fates) then
-          if (.not. is_active_betr_bgc)then
             call EcosystemDynLeaching(bounds_clump,                &
                filter(nc)%num_soilc, filter(nc)%soilc,             &
                filter(nc)%num_soilp, filter(nc)%soilp,             &
                filter(nc)%num_pcropp, filter(nc)%pcropp, doalb,    &
                cnstate_vars,  frictionvel_vars, canopystate_vars )
-         end if
        end if
 
        ! ============================================================================
@@ -1404,10 +1288,6 @@ contains
     ! Determine gridcell averaged properties to send to atm
     ! ============================================================================
 
-    if(use_betr)then
-      call ep_betr%DiagnoseLnd2atm(bounds_proc, col_pp, lnd2atm_vars)
-    endif
-
     call t_startf('lnd2atm')
     call lnd2atm(bounds_proc,                                   &
          atm2lnd_vars, surfalb_vars, frictionvel_vars,          &
@@ -1464,7 +1344,7 @@ contains
        call canopystate_vars%UpdateAccVars(bounds_proc)
 
        if (crop_prog) then
-          call crop_vars%UpdateAccVars(bounds_proc, temperature_vars)
+          call crop_vars%UpdateAccVars(bounds_proc)
        end if
 
        call cnstate_vars%UpdateAccVars(bounds_proc)
@@ -1531,7 +1411,7 @@ contains
                ch4_vars, energyflux_vars, frictionvel_vars, lakestate_vars, &
                photosyns_vars, soilhydrology_vars,     &
                soilstate_vars, solarabs_vars, surfalb_vars,  &
-               sedflux_vars, ep_betr, alm_fates, crop_vars, rdate=rdate )
+               sedflux_vars, alm_fates, crop_vars, rdate=rdate )
 
          !----------------------------------------------
          ! pflotran (off now)
