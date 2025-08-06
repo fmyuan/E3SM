@@ -598,7 +598,7 @@ contains
          bmx(c,j) =  dzmm(c,j)*(sdamp+1._r8/dtime) + dqodw1(c,j)
          cmx(c,j) =  dqodw2(c,j)
 
-         write (iulog, *) c, j, qflx_infl(c), qin(c,j), qout(c,j)
+         !!write (iulog, *) c, j, qflx_infl(c), qin(c,j), qout(c,j)
 
       end do
 
@@ -625,7 +625,7 @@ contains
             bmx(c,j)    =  dzmm(c,j)/dtime - dqidw1(c,j) + dqodw1(c,j)
             cmx(c,j)    =  dqodw2(c,j)
 
-            write (iulog, *) c, j, qin(c,j), qout(c,j)
+            !!write (iulog, *) c, j, qin(c,j), qout(c,j)
 
          end do
       end do
@@ -656,7 +656,7 @@ contains
             bmx(c,j+1) = dzmm(c,j+1)/dtime
             cmx(c,j+1) = 0._r8
 
-            write (iulog, *) c, j, qin(c,j), qout(c,j)
+            !!write (iulog, *) c, j, qin(c,j), qout(c,j)
 
          else ! water table is below soil column
 
@@ -720,7 +720,7 @@ contains
                cmx(c,j+1) =  0._r8
             end if
 
-            write (iulog, *) c, j, qin(c,j), qout(c,j)
+            !!write (iulog, *) c, j, qin(c,j), qout(c,j)
          endif
       end do
 

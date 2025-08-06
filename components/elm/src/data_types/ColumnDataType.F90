@@ -13263,8 +13263,8 @@ contains
          end do
 
          ! vertical integrated flux
-         do j = 1,nlevbed
-            do a = 1,nminerals
+         do a = 1,nminerals
+            do j = 1,nlevbed
                this%primary_added(c,a) = &
                   this%primary_added(c,a) + this%primary_added_vr(c,j,a) * col_pp%dz(c,j)
                this%primary_dissolve(c,a) = &
@@ -13272,19 +13272,21 @@ contains
                this%primary_residue_flux(c,a) = &
                   this%primary_residue_flux(c,a) + this%primary_residue_flux_vr(c,j,a) * col_pp%dz(c,j)
             end do
+         end do
 
-            do a = 1,ncations
+         do a = 1,ncations
+            do j = 1,nlevbed
                this%background_flux(c,a) = this%background_flux(c,a) + &
                   this%background_flux_vr(c,j,a) * col_pp%dz(c,j)
                this%background_cec(c,a) = this%background_cec(c,a) + &
                   this%background_cec_vr(c,j,a) * col_pp%dz(c,j)
                this%primary_cation_flux(c,a) = &
                   this%primary_cation_flux(c,a) + this%primary_cation_flux_vr(c,j,a) * col_pp%dz(c,j)
+               this%secondary_cation_flux(c,a) = &
+                  this%secondary_cation_flux(c,a) + this%secondary_cation_flux_vr(c,j,a) * col_pp%dz(c,j)
                this%cec_cation_flux(c,a) = &
                   this%cec_cation_flux(c,a) + (this%cec_cation_flux_vr(c,j,a) + &
                                                this%cec_cation_flux2_vr(c,j,a)) * col_pp%dz(c,j)
-               this%secondary_cation_flux(c,a) = &
-                  this%secondary_cation_flux(c,a) + this%secondary_cation_flux_vr(c,j,a) * col_pp%dz(c,j)
                this%cation_uptake(c,a) = &
                   this%cation_uptake(c,a) + this%cation_uptake_vr(c,j,a) * col_pp%dz(c,j)
                this%cation_leached(c,a) = &
@@ -13292,12 +13294,18 @@ contains
                this%cation_runoff(c,a) = &
                   this%cation_runoff(c,a) + this%cation_runoff_vr(c,j,a) * col_pp%dz(c,j)
             end do
+         end do
 
-            do a = 1,nminsecs
+         do a = 1,nminsecs
+            do j = 1,nlevbed
                this%background_minsecs(c,a) = this%background_minsecs(c,a) + &
                   this%background_minsecs_vr(c,j,a) * col_pp%dz(c,j)
+               this%secondary_mineral_flux(c,a) = this%secondary_mineral_flux(c,a) + &
+                  this%secondary_mineral_flux_vr(c,j,a) * col_pp%dz(c,j)
             end do
+         end do
 
+         do j = 1,nlevbed
             this%primary_h2o_flux(c) = &
                this%primary_h2o_flux(c) + this%primary_h2o_flux_vr(c,j) * col_pp%dz(c,j)
 
@@ -13306,12 +13314,6 @@ contains
 
             this%secondary_silica_flux(c) = &
                this%secondary_silica_flux(c) + this%secondary_silica_flux_vr(c,j) * col_pp%dz(c,j)
-
-            do a = 1,nminsecs
-               this%secondary_mineral_flux(c,a) = this%secondary_mineral_flux(c,a) + &
-                  this%secondary_mineral_flux_vr(c,j,a) * col_pp%dz(c,j)
-            end do
-
          end do
 
       end do

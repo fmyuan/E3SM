@@ -830,6 +830,7 @@ contains
     real(r8) :: D_h_eff                ! effective diffusivity of H+ in the passivation layer (m2/s)
     real(r8) :: Jflux                  ! H+ sink strength due to previous step's dissolution (mol m-2 s-1)
     real(r8) :: dNb_dt                 ! H+ diffusion limited dissolution rate (mol m-3 s-1)
+    real(r8) :: residual_scale
 
     associate( &
          !
@@ -884,6 +885,7 @@ contains
     )
 
     dt      = real( get_step_size(), r8 )
+    residual_scale = 0.9_r8
 
     do fc = 1,num_soilc
       c = filter_soilc(fc)
@@ -1047,7 +1049,7 @@ contains
 
         ! Limit the dissolution rate to prevent primary mineral from going negative
         do m = 1,nminerals
-          r_dissolve_vr(c,j,m) = min(r_dissolve_vr(c,j,m), primary_mineral_vr(c,j,m) / dt)
+          r_dissolve_vr(c,j,m) = min(r_dissolve_vr(c,j,m), residual_scale * primary_mineral_vr(c,j,m) / dt)
         end do
 
         ! Update the mineral and cation fluxes based on the reaction rates
@@ -1131,7 +1133,8 @@ contains
     integer  :: m, isec, icat          ! indices
     real(r8) :: saturation_ratio, log_silica, log_carbonate
     real(r8) :: k_tot
-    real(r8) :: dt 
+    real(r8) :: dt
+    real(r8) :: residual_scale
 
     associate( &
          !
@@ -1163,6 +1166,7 @@ contains
     )
 
     dt      = real( get_step_size(), r8 )
+    residual_scale = 0.9_r8
 
     do fc = 1,num_soilc
       c = filter_soilc(fc)
@@ -1271,18 +1275,18 @@ contains
                 ! limit the precipitation rate by the reactant's concentration
                 if (isec == 1) then
                   r_precip_vr(c,j,isec) = min( &
-                    mass_to_mol(bicarbonate_vr(c,j), mass_hco3, h2osoi_vol(c,j)) / dt, &
-                    mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j)) / dt, &
+                    residual_scale * mass_to_mol(bicarbonate_vr(c,j), mass_hco3, h2osoi_vol(c,j)) / dt, &
+                    residual_scale * mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j)) / dt, &
                     r_precip_vr(c,j,isec) )
                 else if (isec == 2) then
                   r_precip_vr(c,j,isec) = min( &
-                    10**log_silica / 2._r8 / dt, &
-                    mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j)) / 2._r8 / dt, &
+                    residual_scale * 10**log_silica / 2._r8 / dt, &
+                    residual_scale * mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j)) / 2._r8 / dt, &
                     r_precip_vr(c,j,isec) )
                 else if (isec == 3) then
                   ! limit the precipitation rate by the reactant's concentration
                   r_precip_vr(c,j,isec) = min( &
-                    mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j)) / dt, &
+                    residual_scale * mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j)) / dt, &
                     r_precip_vr(c,j,isec) )
                 else
                   call endrun('MineralSecondary: isec > 3, this is out of range')
@@ -1515,7 +1519,7 @@ contains
         do icat = 1,ncations
           sourcesink_cations(j,icat) = background_flux_vr(c,j,icat) + & 
             primary_cation_flux_vr(c,j,icat) + cec_cation_flux_vr(c,j,icat) + &
-            cec_cation_flux2_vr(c,j,icat) - secondary_cation_flux_vr(c,j,icat) - &
+            cec_cation_flux2_vr(c,j,icat) + secondary_cation_flux_vr(c,j,icat) - &
             cation_uptake_vr(c,j,icat)
         end do
 
@@ -1585,15 +1589,15 @@ contains
       end do
 
       !DEBUG
-      !do icat = 1,ncations
-      !  write (iulog, *), icat, 'cation_vr', cation_vr(c, 1:nlevsoi, icat)
-      !end do
-      !do icat = 1,ncations
-      !  write (iulog, *), icat, 'sourcesink', sourcesink_cations(1:nlevsoi, icat) * dt
-      !end do
-      !do icat = 1,ncations
-      !  write (iulog, *), icat, 'dcation_dt', dcation_dt(1:nlevsoi, icat) * dt
-      !end do
+      !!do icat = 1,ncations
+      !!  write (iulog, *), icat, 'cation_vr', cation_vr(c, 1:nlevsoi, icat)
+      !!end do
+      !!do icat = 1,ncations
+      !!  write (iulog, *), icat, 'sourcesink', sourcesink_cations(1:nlevsoi, icat) * dt
+      !!end do
+      !!do icat = 1,ncations
+      !!  write (iulog, *), icat, 'dcation_dt', dcation_dt(1:nlevsoi, icat) * dt
+      !!end do
 
       !------------------------------------------------------------------------------
       ! Calculate the bottom layer drainage of HCO3- and CO3--

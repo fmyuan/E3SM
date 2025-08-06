@@ -947,15 +947,14 @@ contains
          pm_loss(c) = pm_loss(c) + primary_dissolve(c,a)
       end do
 
-      in_add(c) = 0._r8
+      in_add(c) = 0._r8 ! consider solution + CEC states
       do a = 1, ncations
-         in_add(c) = in_add(c) + background_flux(c,a) + background_cec(c,a) + primary_cation_flux(c,a) + cation_infl(c,a) !  + cec_cation_flux(c,a)
+         in_add(c) = in_add(c) + background_flux(c,a) + background_cec(c,a) + primary_cation_flux(c,a) + cation_infl(c,a) + secondary_cation_flux(c,a)
       end do
 
       in_loss(c) = 0._r8
       do a = 1, ncations
-         in_loss(c) = in_loss(c) + secondary_cation_flux(c,a) + cation_uptake(c,a) + &
-            cation_oufl(c,a) + cation_leached(c,a) + cation_runoff(c,a)
+         in_loss(c) = in_loss(c) + cation_uptake(c,a) + cation_oufl(c,a) + cation_leached(c,a) + cation_runoff(c,a)
       end do
 
       sm_add(c) = 0._r8

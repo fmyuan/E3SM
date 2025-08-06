@@ -8,7 +8,6 @@ module EcosystemDynMod
   use shr_kind_mod        , only : r8 => shr_kind_r8
   use shr_sys_mod         , only : shr_sys_flush
   use elm_varctl          , only : use_c13, use_c14, use_fates, use_dynroot, use_fan
-  use elm_varctl          , only : iulog
   use elm_varctl          , only : spinup_state, use_erw, year_start_erw, nyear_erw_calibrate
   use decompMod           , only : bounds_type
   use perf_mod            , only : t_startf, t_stopf
