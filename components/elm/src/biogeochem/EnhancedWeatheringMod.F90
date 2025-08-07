@@ -1295,9 +1295,6 @@ contains
                 ! convert back from mol kg-1 water s-1 to g m-3 s-1
                 ! (reaction is in liquid part only)
                 r_precip_vr(c,j,isec) = r_precip_vr(c,j,isec) * h2osoi_liqvol(c,j) * 1e3_r8
-
-                ! switch sign to mean negative = out of solution
-                r_precip_vr(c,j,isec) = - r_precip_vr(c,j,isec)
               end if
 
             else
@@ -1331,17 +1328,22 @@ contains
 
               r_precip_vr(c,j,isec) = k_tot * secondary_mineral_vr(c,j,isec) * EWParamsInst%ssa_minsecs(isec)
 
-              ! limit the precipitation rate by the reactant's concentration
+              ! limit the dissolution rate by the reactant's concentration
               r_precip_vr(c,j,isec) = min(secondary_mineral_vr(c,j,isec) / dt / EWParamsInst%minsecs_mass(isec), &
                                           r_precip_vr(c,j,isec))
+
+              ! switch sign to mean dissolution
+              r_precip_vr(c,j,isec) = - r_precip_vr(c,j,isec)
             end if
 
             ! update the fluxes for operative sec. minerals/cations
-            secondary_cation_flux_vr(c,j,icat) = r_precip_vr(c,j,isec) * EWParamsInst%cations_mass(icat)
-            secondary_mineral_flux_vr(c,j,isec) = r_precip_vr(c,j,isec) * EWParamsInst%minsecs_mass(isec)
+            ! for cation & SiO2 flux, switch sign because precipitation = out of solution = negative
+            secondary_cation_flux_vr(c,j,icat) = - r_precip_vr(c,j,isec) * EWParamsInst%cations_mass(icat)
             if (isec == 2) then
-              secondary_silica_flux_vr(c,j) = r_precip_vr(c,j,isec) * mass_sio2
+              secondary_silica_flux_vr(c,j) = - r_precip_vr(c,j,isec) * mass_sio2
             end if
+            ! for secondary mineral, precipitation = addition = positive
+            secondary_mineral_flux_vr(c,j,isec) = r_precip_vr(c,j,isec) * EWParamsInst%minsecs_mass(isec)
 
           end do ! isec
         end if ! h2osoi_liqvol > 1e-6
