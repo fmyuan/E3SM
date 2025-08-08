@@ -6,10 +6,17 @@ module EMI_WaterStateType_ExchangeMod
   use elm_varctl                            , only : iulog
   use EMI_DataMod                           , only : emi_data_list, emi_data
   use EMI_DataDimensionMod                  , only : emi_data_dimension_list_type
-  use ColumnDataType                        , only : col_ws
+  use ColumnDataType                        , only : column_water_state
   use EMI_Atm2LndType_Constants
   use EMI_CanopyStateType_Constants
   use EMI_ChemStateType_Constants
+  use EMI_CNCarbonStateType_Constants
+  use EMI_CNNitrogenStateType_Constants
+  use EMI_CNNitrogenFluxType_Constants
+  use EMI_CNCarbonFluxType_Constants
+  use EMI_ColumnEnergyStateType_Constants
+  use EMI_ColumnWaterStateType_Constants
+  use EMI_ColumnWaterFluxType_Constants
   use EMI_EnergyFluxType_Constants
   use EMI_SoilHydrologyType_Constants
   use EMI_SoilStateType_Constants
@@ -30,13 +37,15 @@ contains
   
 !-----------------------------------------------------------------------
   subroutine EMI_Pack_WaterStateType_at_Column_Level_for_EM(data_list, em_stage, &
-        num_filter, filter)
+        num_filter, filter, col_ws)
     !
     ! !DESCRIPTION:
     ! Pack data from ALM waterstate_vars for EM
     !
     ! !USES:
-    use elm_varpar             , only : nlevsoi, nlevgrnd, nlevsno
+    use elm_varpar             , only : nlevgrnd
+    use elm_varpar             , only : nlevsoi
+    use elm_varpar             , only : nlevsno
     !
     implicit none
     !
@@ -45,9 +54,10 @@ contains
     integer                , intent(in) :: em_stage
     integer                , intent(in) :: num_filter
     integer                , intent(in) :: filter(:)
+    type(column_water_state) , intent(in) :: col_ws
     !
     ! !LOCAL_VARIABLES:
-    integer                             :: fc,c,j
+    integer                             :: fc,c,j,k
     class(emi_data), pointer            :: cur_data
     logical                             :: need_to_pack
     integer                             :: istage
@@ -263,13 +273,13 @@ contains
 
 !-----------------------------------------------------------------------
   subroutine EMI_Unpack_WaterStateType_at_Column_Level_from_EM(data_list, em_stage, &
-        num_filter, filter)
+        num_filter, filter, col_ws)
     !
     ! !DESCRIPTION:
     ! Unpack data for ALM waterstate_vars from EM
     !
     ! !USES:
-    use elm_varpar             , only : nlevsoi, nlevgrnd, nlevsno
+    use elm_varpar             , only : nlevgrnd
     !
     implicit none
     !
@@ -278,9 +288,10 @@ contains
     integer                , intent(in) :: em_stage
     integer                , intent(in) :: num_filter
     integer                , intent(in) :: filter(:)
+    type(column_water_state), intent(in) :: col_ws
     !
     ! !LOCAL_VARIABLES:
-    integer                             :: fc,c,j
+    integer                             :: fc,c,j,k
     class(emi_data), pointer            :: cur_data
     logical                             :: need_to_pack
     integer                             :: istage

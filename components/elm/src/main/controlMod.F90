@@ -140,6 +140,7 @@ contains
 
     character(len=256):: errline
     character(len=15) :: nu_com = 'RD'               ! note this is local only, don't mess up with that in 'elm_varctl'
+    logical           :: nfix_ptase_plant = .false.  ! note this is local only, don't mess up with that in 'elm_varctl'
     logical           :: use_dynroot = .false.       ! note this is local only, don't mess up with that in 'elm_varctl'
     logical           :: use_var_soil_thick= .false. ! note this is local only, don't mess up with that in 'elm_varctl'
     logical           :: use_top_solar_rad = .false. ! note this is local only, don't mess up with that in 'elm_varctl'
@@ -328,6 +329,12 @@ contains
 
     ! bgc & pflotran interface
     namelist /elm_inparm/ use_elm_interface, use_elm_bgc, use_pflotran
+
+    ! onset_gdd_extension in plant phenology
+    namelist /elm_inparm/ onset_gdd_extension
+    namelist /elm_inparm/ use_alquimia, alquimia_inputfile, alquimia_engine_name,&
+        alquimia_IC_name, alquimia_CO2_name, alquimia_NH4_name, &
+        alquimia_NO3_name, alquimia_handsoff
 
     namelist /elm_inparm/ use_dynroot
 
@@ -616,6 +623,7 @@ contains
        ! a temporary solution for namelist reading issues with Mac clang based gfortran compiler
        ! (TODO) need to check elm_varctl:nu_com after control_spmd() calling below
        call elm_ctl_set_nls(nu_com_in            = nu_com,                 &
+                            nfix_ptase_plant_in  = nfix_ptase_plant,       &
                             use_dynroot_in       = use_dynroot,            &
                             use_var_soil_thick_in= use_var_soil_thick,     &
                             use_top_solar_rad_in = use_top_solar_rad)
@@ -736,6 +744,11 @@ contains
        write(iulog,*)'fan_mode = ',trim(fan_mode), ' is not supported'
        call endrun(msg=' ERROR:: choices are none fan_offline, fan_soil, fan_atm, or fan_full ' // &
             errMsg(__FILE__, __LINE__))
+    endif
+
+    if (use_pflotran .and. use_alquimia) then
+        call endrun(msg=" ERROR: Cannot run with both run_alquimia and run_pflotran " // &
+                        errMsg(__FILE__, __LINE__))
     endif
 
     if (masterproc) then
@@ -1013,6 +1026,20 @@ contains
     call mpi_bcast (use_elm_interface, 1, MPI_LOGICAL, 0, mpicom, ier)
     call mpi_bcast (use_elm_bgc, 1, MPI_LOGICAL, 0, mpicom, ier)
     call mpi_bcast (use_pflotran, 1, MPI_LOGICAL, 0, mpicom, ier)
+    
+    ! alquimia interface controls
+    call mpi_bcast (use_alquimia, 1, MPI_LOGICAL, 0, mpicom, ier)
+    call mpi_bcast (alquimia_handsoff, 1, MPI_LOGICAL, 0, mpicom, ier)
+    call mpi_bcast (alquimia_inputfile , len(alquimia_inputfile) , MPI_CHARACTER, 0, mpicom, ier)
+    call mpi_bcast (alquimia_engine_name , len(alquimia_engine_name) , MPI_CHARACTER, 0, mpicom, ier)
+    call mpi_bcast (alquimia_IC_name , len(alquimia_IC_name) , MPI_CHARACTER, 0, mpicom, ier)
+    call mpi_bcast (alquimia_CO2_name , len(alquimia_CO2_name) , MPI_CHARACTER, 0, mpicom, ier)
+    call mpi_bcast (alquimia_NO3_name , len(alquimia_NO3_name) , MPI_CHARACTER, 0, mpicom, ier)
+    call mpi_bcast (alquimia_NH4_name , len(alquimia_NH4_name) , MPI_CHARACTER, 0, mpicom, ier)
+
+
+    ! phenology
+    call mpi_bcast (onset_gdd_extension, 1, MPI_LOGICAL, 0, mpicom, ier)
 
     !cpl_bypass
      call mpi_bcast (metdata_type,   len(metdata_type),   MPI_CHARACTER, 0, mpicom, ier)

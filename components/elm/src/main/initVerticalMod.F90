@@ -652,9 +652,9 @@ contains
                	  nlevbed = 5
                else
                   ! check for near zero DTBs, set minimum value
-                  beddep = max(dtb(g,ti), zisoi(1))
-                  j = 0
-                  zimid = 0._r8
+	              beddep = max(dtb(g,ti), zsoi(1))    ! better to use first-layer thickness
+	              j = 0
+	              zimid = 0._r8
                   do while (zimid < beddep .and. j < nlevgrnd)
 	                zimid = 0.5_r8*(zisoi(j)+zisoi(j+1))
 	                if (beddep > zimid) then

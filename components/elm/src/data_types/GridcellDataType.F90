@@ -156,6 +156,9 @@ module GridcellDataType
     real(r8), pointer :: hrv_xsmrpool_to_atm       (:) => null()  ! (gC/m2/s) grid-level excess MR pool harvest mortality
     real(r8), pointer :: som_c_leached             (:) => null()  ! (gC/m2/s) grid-level total SOM C loss from vertical transport
     real(r8), pointer :: somc_yield                (:) => null()  ! (gC/m2/s) grid-level total SOM C loss by erosion
+    real(r8), pointer :: DOC_runoff                (:) => null()  ! (gC/m2/s) grid-level total DOC C loss by runoff
+    real(r8), pointer :: DIC_runoff                (:) => null()  ! (gC/m2/s) grid-level total DIC C loss by runoff
+    real(r8), pointer :: ch4flux                   (:) => null()  ! (gC/m2/s) grid-level total CH4 flux to atmosphere
 
   contains
     procedure, public :: Init    => grc_cf_init
@@ -702,6 +705,9 @@ contains
     allocate(this%hrv_xsmrpool_to_atm          (begg:endg)) ; this%hrv_xsmrpool_to_atm       (:) = spval
     allocate(this%som_c_leached                (begg:endg)) ; this%som_c_leached             (:) = spval
     allocate(this%somc_yield                   (begg:endg)) ; this%somc_yield                (:) = spval
+    allocate(this%DOC_runoff                   (begg:endg)) ; this%DOC_runoff                (:) = spval
+    allocate(this%DIC_runoff                   (begg:endg)) ; this%DIC_runoff                (:) = spval
+    allocate(this%ch4flux                      (begg:endg)) ; this%ch4flux                   (:) = spval
 
     !-----------------------------------------------------------------------
     ! initialize history fields for select members of grc_cf

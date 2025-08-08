@@ -1179,7 +1179,7 @@ contains
       do fc = 1, num_filterc
          c = filterc(fc)
          nlevbed = nlev2bed(c)
-         do j = 1, nlevbed
+         do j = 1, max(nlevbed, nlevsoi)
             rootr_col(c,j) = 0._r8
          end do
       end do
@@ -1280,6 +1280,7 @@ contains
         !-----------------------------------------------------------------------
 
         associate(&
+              nlev2bed            => col_pp%nlevbed                     , & ! Input:  [integer  (:)   ]  number of layers to bedrock
               k_soil_root         => soilstate_vars%k_soil_root_patch   , & ! Input:  [real(r8) (:,:) ]
                                                                             ! soil-root interface conductance (mm/s)
               qflx_tran_veg_col   => col_wf%qflx_tran_veg   , & ! Input:  [real(r8) (:)   ]
@@ -1327,7 +1328,7 @@ contains
 
              ! Back out the effective root density
              if( sum(qflx_rootsoi_col(c,1:nlevsoi))>0.0_r8 ) then
-                do j = 1, nlevsoi
+                do j = 1, max(nlev2bed(c), nlevsoi)
                    rootr_col(c,j) = qflx_rootsoi_col(c,j)/sum( qflx_rootsoi_col(c,1:nlevsoi))
                 end do
              else

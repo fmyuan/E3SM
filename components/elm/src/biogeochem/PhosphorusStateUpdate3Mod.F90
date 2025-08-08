@@ -17,7 +17,7 @@ module PhosphorusStateUpdate3Mod
   use soilorder_varcon    , only : smax,ks_sorption
 
   ! bgc interface & pflotran:
-  use elm_varctl          , only : use_pflotran, pf_cmode
+  use elm_varctl          , only : use_pflotran, pf_cmode, use_alquimia, alquimia_pf_coupled
   use elm_varctl          , only : nu_com
   use elm_varctl          , only : ECA_Pconst_RGspin
   use VegetationPropertiesType      , only : veg_vp
@@ -87,6 +87,7 @@ contains
          enddo
       enddo
 
+      if (.not. (use_alquimia .and. alquimia_pf_coupled)) then
         do k = 1, ndecomp_cascade_transitions
           if ( cascade_receiver_pool(k) /= 0 ) then  ! skip terminal transitions
             do j = 1, nlevdecomp
@@ -118,6 +119,7 @@ contains
                                        col_pf%biochem_pmin_vr(c,j)*dt
            end do
         end do
+      end if
 
       if (nu_com .eq. 'RD') then
         do j = 1, nlevdecomp
