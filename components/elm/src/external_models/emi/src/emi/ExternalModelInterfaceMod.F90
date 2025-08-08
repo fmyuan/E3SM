@@ -1081,7 +1081,7 @@ contains
 
        num_filter_grid = bounds_clump%endg - bounds_clump%begg + 1
 
-       allocate(filter_col(num_filter_grid))
+       allocate(filter_grid(num_filter_grid))
        do ii = 1, num_filter_grid
           filter_grid(ii) = bounds_clump%begg + ii - 1
        enddo
