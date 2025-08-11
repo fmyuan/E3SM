@@ -9,7 +9,7 @@ module EnhancedWeatheringMod
   !
   ! !USES:
   use shr_kind_mod        , only : r8 => shr_kind_r8
-  use elm_varctl          , only : iulog, year_start_erw, nyear_erw_calibrate, mixing_layer
+  use elm_varctl          , only : iulog, year_start_erw, nyear_erw_calibrate, mixing_layer, builtin_site
   use elm_varcon          , only : log_keq_co3, log_keq_hco3, log_keq_sio2am
   use elm_varcon          , only : mass_co3, mass_hco3, mass_co2, mass_h2o, mass_sio2, mass_h
   use elm_varcon          , only : passivation_phi, passivation_tau
@@ -102,7 +102,7 @@ contains
   !
   ! !USES:
     use elm_varctl    , only : iulog
-    use elm_varctl    , only : year_start_erw, elm_erw_paramfile, use_erw_verbose, builtin_site
+    use elm_varctl    , only : year_start_erw, elm_erw_paramfile, use_erw_verbose
     use spmdMod       , only : masterproc, mpicom, MPI_CHARACTER, MPI_INTEGER
     use shr_log_mod   , only : errMsg => shr_log_errMsg
     use fileutils     , only : getavu, relavu, opnfil
@@ -399,7 +399,8 @@ contains
 
     associate( &
          soil_ph                        => col_ms%soil_ph                 , & ! Input:  [real(r8) (:,:)] calculated soil pH (1:nlevgrnd)
-         h2osoi_vol                     => col_ws%h2osoi_vol              , & ! Input:  [real(r8) (:)] volumetric soil water content, ice + water (m3 m-3)
+         h2osoi_liqvol                  => col_ws%h2osoi_liqvol           , & ! Input:  [real(r8) (:,:)] volumetric soil water content, water (m3 m-3)
+         annavg_h2osoi_col              => col_ws%annavg_h2osoi_col       , & ! Input:  [real(r8) (:,:)] annual average volumetric soil water content, water (m3 m-3)
          nlev2bed                       => col_pp%nlevbed                 , & ! Input:  [integer  (:)   ] number of layers to bedrock
          proton_vr                      => col_ms%proton_vr               , & ! Output: [real(r8)(:)   ] calculated soil H+ concentration in soil water each soil layer (1:nlevgrnd) (g m-3 soil [not water])
          bicarbonate_vr                 => col_ms%bicarbonate_vr          , & ! Output:  [real(r8) (:,:)] calculated HCO3- concentration in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd)
@@ -425,14 +426,17 @@ contains
       co2_atm = top_as%pco2bot(t) / 101325
 
       do j = 1,nlevbed
-        ! soil pH has been initialized at cold-start
-        proton_vr(c,j) = logmol_to_mass(-soil_ph(c,j), mass_h, h2osoi_vol(c,j))
+        ! re-initialize soil pH
+        soil_ph(c,j) = soilstate_vars%sph(c,j)
+ 
+        ! calculate proton concentration
+        proton_vr(c,j) = logmol_to_mass(-soil_ph(c,j), mass_h, annavg_h2osoi_col(c,j))
 
         ! for the sake of initial charge balance, calculate from soil pH
         bicarbonate_vr(c,j) = mol_to_mass( ph_to_hco3(soil_ph(c,j), co2_atm), mass_hco3, &
-                                           h2osoi_vol(c,j) )
+                                           annavg_h2osoi_col(c,j) )
         carbonate_vr(c,j) = mol_to_mass( hco3_to_co3(ph_to_hco3(soil_ph(c,j), co2_atm), &
-                                           soil_ph(c,j)), mass_co3, h2osoi_vol(c,j) )
+                                           soil_ph(c,j)), mass_co3, annavg_h2osoi_col(c,j) )
 
         ! initial CEC H+ and cation status
         cec_proton_vr(c,j) = meq_to_mass(soilstate_vars%ceca_col(c,j), 1._r8, mass_h, &
@@ -445,7 +449,7 @@ contains
         end do
 
         ! calculate initial soil solution concentration using the equilibrium with CEC
-        h = 10**(-soilstate_vars%sph(c,j))
+        h = 10**(-soil_ph(c,j))
         beta_h = soilstate_vars%ceca_col(c,j) / soilstate_vars%cect_col(c,j)
         do icat = 1,ncations
           beta_list(icat) = soilstate_vars%cece_col(c,j,icat) / soilstate_vars%cect_col(c,j)
@@ -455,14 +459,14 @@ contains
             (beta_h * keq_list(icat) / h)**EWParamsInst%cations_valence(icat)
           cation_vr(c,j,icat) = mol_to_mass(equilibria_conc(c,j,icat), &
                                             EWParamsInst%cations_mass(icat), &
-                                            h2osoi_vol(c,j))
+                                            annavg_h2osoi_col(c,j))
         end do
 
         ! calculate the net charge balance during initializaiong
-        ! mol/kg
-        net_charge_vr(c,j) = find_net_charge(soilstate_vars%sph(c,j), co2_atm, beta_list, &
+        ! mol m-3 soil pore space
+        net_charge_vr(c,j) = find_net_charge(annavg_h2osoi_col(c,j), soil_ph(c,j), co2_atm, beta_list, &
                                              keq_list, EWParamsInst%cations_valence)
-        
+
         ! reset the total cation exchange capacity
         cect_dyn(c,j) = soilstate_vars%cect_col(c,j)
 
@@ -484,13 +488,13 @@ contains
         ! Write diagnostics
         write (100+iam, *) '-----------------------------------------------------------------------'
         write (100+iam, *) 'grid and column: ', ldomain%latc(g), ldomain%lonc(g), g, c
-        write (100+iam, *) 'soil pH, proton (g m-3), cation (g m-3):'
+        write (100+iam, *) 'annual average soil moisture 1:nlevsoi (m3 m-3):'
+        write (100+iam, *) annavg_h2osoi_col(c,1:nlevsoi)
+        write (100+iam, *) 'soil pH, net_charge_vr (mol m-3 soil), proton (g m-3), cation (g m-3):'
         do j = 1,nlevbed
           write (j_str, '(I2)') j
           j_lev = 'j='//j_str
-          ! write (100+iam, *) 'j=', j, soil_ph(c,j), h2osoi_vol(c,j), nlevbed, nlevsoi
-          write (100+iam, *) j_lev, soil_ph(c,j), proton_vr(c,j), cation_vr(c,j,1:ncations)
-          ! write (100+iam, *) 'cation_vr',  j, icat, cation_vr(c,j,icat), soil_ph(c,j), soilstate_vars%log_km_col(c,j,icat), soilstate_vars%ceca_col(c,j), soilstate_vars%cect_col(c,j), EWParamsInst%cations_valence(icat), soilstate_vars%cece_col(c,j,icat), h2osoi_vol(c,j)    
+          write (100+iam, *) j_lev, soil_ph(c,j), net_charge_vr(c,j), proton_vr(c,j), cation_vr(c,j,1:ncations)
         end do
         write (100+iam, *) 'cec total (meq 100g-1 dry soil), beta H+, beta cation:'
         do j = 1,nlevbed
@@ -498,7 +502,7 @@ contains
           j_lev = 'j='//j_str
           write (100+iam, *) j_lev, soilstate_vars%cect_col(c,j), soilstate_vars%ceca_col(c,j) / soilstate_vars%cect_col(c,j), soilstate_vars%cece_col(c,j,1:ncations) / soilstate_vars%cect_col(c,j)
         end do
-        write (100+iam, *) 'calcite, kaolinite, gibbsite (g 100g-1 soil):'
+        write (100+iam, *) 'calcite, kaolinite, gibbsite (g m-3 soil):'
         do j = 1,nlevbed
           write (j_str, '(I2)') j
           j_lev = 'j='//j_str
@@ -521,7 +525,6 @@ contains
     ! 
     ! !USES:
     use elm_varcon       , only : spval, secspday
-    use elm_varctl       , only : builtin_site
     use elm_time_manager , only : get_step_size, get_curr_date
     use abortutils       , only : endrun
     use timeinfoMod
@@ -631,28 +634,31 @@ contains
           end do
         end do
 
-        ! re-scale the background weathering rate so that the column total equals
-        ! the column total of (annavg_tot_delta - background_cec), which may 
-        ! contain negative numbers
-        temp_minsecs_sum(1:nminsecs) = 0._r8 ! true sum of abs(minsec loss) over all soil layers
-        temp_flux_minsecs_sum(1:nminsecs) = 0._r8 ! sum of max(abs(minsec loss), 0) over all soil layers
-        do j = 1,nlevbed
-          do isec = 1,nminsecs
-            temp_minsecs_sum(isec) = temp_minsecs_sum(isec) - annavg_minsecs_delta(c,j,isec)*dz(c,j)
-            background_minsecs_vr(c,j,isec) = max(0._r8, - annavg_minsecs_delta(c,j,isec))
-            temp_flux_minsecs_sum(isec) = temp_flux_minsecs_sum(isec) + background_minsecs_vr(c,j,isec)*dz(c,j)
-          end do
-        end do
+        ! Allowing secondary mineral dynamics is too unstable
+        background_minsecs_vr(c,1:nlevbed,1:nminsecs) = 0._r8
 
-        do isec = 1,nminsecs
-          if (temp_minsecs_sum(isec) <= 0._r8 .or. temp_flux_minsecs_sum(isec) <= 0._r8) then
-            background_minsecs_vr(c,1:nlevbed,isec) = 0._r8
-          else
-            do j = 1,nlevbed
-              background_minsecs_vr(c,j,isec) = background_minsecs_vr(c,j,isec) * temp_minsecs_sum(isec) / temp_flux_minsecs_sum(isec)
-            end do
-          end if
-        end do
+        !! re-scale the background weathering rate so that the column total equals
+        !! the column total of (annavg_tot_delta - background_cec), which may 
+        !! contain negative numbers
+        !temp_minsecs_sum(1:nminsecs) = 0._r8 ! true sum of abs(minsec loss) over all soil layers
+        !temp_flux_minsecs_sum(1:nminsecs) = 0._r8 ! sum of max(abs(minsec loss), 0) over all soil layers
+        !do j = 1,nlevbed
+        !  do isec = 1,nminsecs
+        !    temp_minsecs_sum(isec) = temp_minsecs_sum(isec) - annavg_minsecs_delta(c,j,isec)*dz(c,j)
+        !    background_minsecs_vr(c,j,isec) = max(0._r8, - annavg_minsecs_delta(c,j,isec))
+        !    temp_flux_minsecs_sum(isec) = temp_flux_minsecs_sum(isec) + background_minsecs_vr(c,j,isec)*dz(c,j)
+        !  end do
+        !end do
+
+        !do isec = 1,nminsecs
+        !  if (temp_minsecs_sum(isec) <= 0._r8 .or. temp_flux_minsecs_sum(isec) <= 0._r8) then
+        !    background_minsecs_vr(c,1:nlevbed,isec) = 0._r8
+        !  else
+        !    do j = 1,nlevbed
+        !      background_minsecs_vr(c,j,isec) = background_minsecs_vr(c,j,isec) * temp_minsecs_sum(isec) / temp_flux_minsecs_sum(isec)
+        !    end do
+        !  end if
+        !end do
       end if
 
       !------------------------------------------------------------------------------
@@ -879,8 +885,7 @@ contains
          !
          dz                             => col_pp%dz                       , & ! Input:  [real(r8) (:,:) ]  layer thickness (m)
          tsoi                           => col_es%t_soisno                 , & ! Input: [real(r8) (:,:) ] soil temperature [K]
-         h2osoi_vol                     => col_ws%h2osoi_vol               , & ! Input:  [real(r8) (:)] volumetric soil water content, ice + water (m3 m-3)
-         h2osoi_liqvol                  => col_ws%h2osoi_liqvol            , & ! Input:  [real(r8) (:)] volumetric soil water content, liquid only (m3 m-3)
+         h2osoi_liqvol                  => col_ws%h2osoi_liqvol            , & ! Input:  [real(r8) (:)] volumetric soil water content, ice + water (m3 m-3)
          nlev2bed                       => col_pp%nlevbed      & ! Input:  [integer  (:)   ]  number of layers to bedrock
     )
 
@@ -913,7 +918,7 @@ contains
       ! Primary mineral dissolution
       ! ---------------------------------------------------------------
       do j = 1,nlevbed
-        if (j > mixing_layer .or. h2osoi_liqvol(c,j) < 1e-6) then
+        if (j > mixing_layer .or. h2osoi_liqvol(c,j) < 1.e-3_r8) then
           r_dissolve_vr(c,j,1:nminerals) = 0._r8
         else
           ! Primary mineral dissolution
@@ -933,15 +938,15 @@ contains
                 log_omega_vr(c,j,m) = log_omega_vr(c,j,m) + & 
                   EWParamsInst%primary_stoi_cations(m,icat) * &
                   mass_to_logmol(max(1.0e-15, cation_vr(c,j,icat)), &
-                                 EWParamsInst%cations_mass(icat), h2osoi_vol(c,j))
+                                 EWParamsInst%cations_mass(icat), h2osoi_liqvol(c,j))
               end do
               if (EWParamsInst%primary_stoi_hco3(m) > 0._r8) then
                 log_omega_vr(c,j,m) = log_omega_vr(c,j,m) + EWParamsInst%primary_stoi_hco3(m) * &
-                  mass_to_logmol(max(1.0e-15, bicarbonate_vr(c,j)), mass_hco3, h2osoi_vol(c,j))
+                  mass_to_logmol(max(1.0e-15, bicarbonate_vr(c,j)), mass_hco3, h2osoi_liqvol(c,j))
               end if
               if (EWParamsInst%primary_stoi_sio2(m) > 0._r8) then
                 log_omega_vr(c,j,m) = log_omega_vr(c,j,m) + EWParamsInst%primary_stoi_sio2(m) * &
-                  mass_to_logmol(max(1.0e-15, silica_vr(c,j)), mass_sio2, h2osoi_vol(c,j))
+                  mass_to_logmol(max(1.0e-15, silica_vr(c,j)), mass_sio2, h2osoi_liqvol(c,j))
               end if
 
               !!if (m == 6) then
@@ -958,7 +963,7 @@ contains
                   !write (100+iam, *) 'log_omega_vr part 1', soil_ph(c,j) * EWParamsInst%primary_stoi_proton(m) - EWParamsInst%log_keq_primary(m)
                   !do icat = 1,ncations
                   !  write (100+iam, *) 'log_omega_vr cation', icat, EWParamsInst%cations_name(icat), EWParamsInst%primary_stoi_cations(m,icat) * &
-                  !  mass_to_logmol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j))
+                  !  mass_to_logmol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_liqvol(c,j))
                   !end do
                 end if
 
@@ -1013,6 +1018,10 @@ contains
 
                 ! calculate dissolution rate in mol m-3 s-1
                 r_dissolve_vr(c,j,m) = ssa_dyn(c,j,m) * primary_mineral_vr(c,j,m) * k_tot
+
+                if (builtin_site == 1) then
+                  r_dissolve_vr(c,j,m) = r_dissolve_vr(c,j,m) / 100._r8
+                end if
 
                 !!if (m == 6) then
                 !!  write (iulog, *) c, j, m, 'r_dissolve_vr', ssa_dyn(c,j,m), primary_mineral_vr(c,j,m), k_tot, r_dissolve_vr(c,j,m)
@@ -1134,7 +1143,7 @@ contains
     real(r8) :: saturation_ratio, log_silica, log_carbonate
     real(r8) :: k_tot
     real(r8) :: dt
-    real(r8) :: residual_scale
+    real(r8) :: residual_scale, residual_quantity
 
     associate( &
          !
@@ -1160,12 +1169,12 @@ contains
          silica_vr                      => col_ms%silica_vr                , & ! Output [real(r8) (:,:)] silica mass in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd)
          dz                             => col_pp%dz                       , & ! Input:  [real(r8) (:,:) ]  layer thickness (m)
          tsoi                           => col_es%t_soisno                 , & ! Input: [real(r8) (:,:) ] soil temperature [K]
-         h2osoi_vol                     => col_ws%h2osoi_vol               , & ! Input:  [real(r8) (:)] volumetric soil water content, ice + water (m3 m-3)
-         h2osoi_liqvol                  => col_ws%h2osoi_liqvol            , & ! Input:  [real(r8) (:)] volumetric soil water content, liquid only (m3 m-3)
+         h2osoi_liqvol                  => col_ws%h2osoi_liqvol            , & ! Input:  [real(r8) (:)] volumetric soil water content, ice + water (m3 m-3)
          nlev2bed                       => col_pp%nlevbed      & ! Input:  [integer  (:)   ]  number of layers to bedrock
     )
 
     dt      = real( get_step_size(), r8 )
+    residual_quantity = 1e-13_r8
     residual_scale = 0.9_r8
 
     do fc = 1,num_soilc
@@ -1182,7 +1191,7 @@ contains
 
       do j = 1,nlevbed
 
-        if (h2osoi_liqvol(c,j) > 1e-6) then
+        if (h2osoi_liqvol(c,j) > 1.e-3_r8) then
 
           ! General precipitation rate law
           ! 
@@ -1201,8 +1210,8 @@ contains
               ! ---------------------------------------------------------------
               icat = 1
               saturation_ratio = &
-                mass_to_mol(bicarbonate_vr(c,j), mass_hco3, h2osoi_vol(c,j)) * &
-                mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j)) * &
+                mass_to_mol(bicarbonate_vr(c,j), mass_hco3, h2osoi_liqvol(c,j)) * &
+                mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_liqvol(c,j)) * &
                 10**(soil_ph(c,j) - EWParamsInst%log_keq_minsecs(icat))
             else if (isec == 2) then
               ! ---------------------------------------------------------------
@@ -1211,11 +1220,11 @@ contains
               ! ---------------------------------------------------------------
               icat = 5
               ! check silica concentration - if supersaturated, reduce to saturation point
-              log_silica = mass_to_logmol(silica_vr(c,j), mass_sio2, h2osoi_vol(c,j))
+              log_silica = mass_to_logmol(silica_vr(c,j), mass_sio2, h2osoi_liqvol(c,j))
               log_silica = min(log_silica, log_keq_sio2am)
 
               saturation_ratio = 10**(2*log_silica + &
-                2 * mass_to_logmol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j)) + &
+                2 * mass_to_logmol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_liqvol(c,j)) + &
                 6 * soil_ph(c,j) - EWParamsInst%log_keq_minsecs(isec))
             else if (isec == 3) then
               ! ---------------------------------------------------------------
@@ -1224,7 +1233,7 @@ contains
               ! ---------------------------------------------------------------
               icat = 5
               saturation_ratio = &
-                mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j)) * &
+                mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_liqvol(c,j)) * &
                 10**(3 * soil_ph(c,j) - EWParamsInst%log_keq_minsecs(isec))
             end if
 
@@ -1270,24 +1279,25 @@ contains
                 r_precip_vr(c,j,isec) = k_tot * secondary_mineral_vr(c,j,isec) * EWParamsInst%ssa_minsecs(isec)
 
                 ! convert to mol kg-1 water s-1
-                r_precip_vr(c,j,isec) = r_precip_vr(c,j,isec) / h2osoi_liqvol(c,j) * 1e-3_r8
+                r_precip_vr(c,j,isec) = r_precip_vr(c,j,isec) / h2osoi_liqvol(c,j) * 1.e-3_r8
 
                 ! limit the precipitation rate by the reactant's concentration
+                ! scale down AND subtract a minimum quantity to avoid numerical problem
                 if (isec == 1) then
-                  r_precip_vr(c,j,isec) = min( &
-                    residual_scale * mass_to_mol(bicarbonate_vr(c,j), mass_hco3, h2osoi_vol(c,j)) / dt, &
-                    residual_scale * mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j)) / dt, &
-                    r_precip_vr(c,j,isec) )
+                  r_precip_vr(c,j,isec) = max( min( &
+                    residual_scale * mass_to_mol(bicarbonate_vr(c,j), mass_hco3, h2osoi_liqvol(c,j)) / dt - residual_quantity, &
+                    residual_scale * mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_liqvol(c,j)) / dt - residual_quantity, &
+                    r_precip_vr(c,j,isec) ), 0._r8)
                 else if (isec == 2) then
-                  r_precip_vr(c,j,isec) = min( &
-                    residual_scale * 10**log_silica / 2._r8 / dt, &
-                    residual_scale * mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j)) / 2._r8 / dt, &
-                    r_precip_vr(c,j,isec) )
+                  r_precip_vr(c,j,isec) = max( min( &
+                    residual_scale * 10**log_silica / 2._r8 / dt - residual_quantity, &
+                    residual_scale * mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_liqvol(c,j)) / 2._r8 / dt - residual_quantity, &
+                    r_precip_vr(c,j,isec) ), 0._r8)
                 else if (isec == 3) then
                   ! limit the precipitation rate by the reactant's concentration
-                  r_precip_vr(c,j,isec) = min( &
-                    residual_scale * mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_vol(c,j)) / dt, &
-                    r_precip_vr(c,j,isec) )
+                  r_precip_vr(c,j,isec) = max(min( &
+                    residual_scale * mass_to_mol(cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), h2osoi_liqvol(c,j)) / dt  - residual_quantity, &
+                    r_precip_vr(c,j,isec) ), 0._r8)
                 else
                   call endrun('MineralSecondary: isec > 3, this is out of range')
                 end if
@@ -1297,43 +1307,45 @@ contains
                 r_precip_vr(c,j,isec) = r_precip_vr(c,j,isec) * h2osoi_liqvol(c,j) * 1e3_r8
               end if
 
-            else
-              ! run the dissolution reaction
+            ! Dissolution is too unstable
+            !else
+            !  ! run the dissolution reaction
 
-              ! Reaction rate constant is
-              ! k = k_precip[H2O] * exp[ - E/R * (1/T - 1/298.15)] + 
-              !     k_precip[H+] * 10**(-pH) * exp[ - E/R * (1/T - 1/298.15)] + 
-              !     k_precip[OH-] * 10**(pH - 14) * exp[ - E/R * (1/T - 1/298.15)]
-              ! Marty et al. (2015). A database of dissolution and precipitation rates for clay-rocks minerals. Applied Geochemistry, 55, 108–118. https://doi.org/10.1016/j.apgeochem.2014.10.012
-              k_tot = 0._r8
-              if (EWParamsInst%k_dissolv_minsecs(isec,1) > -9000._r8) then
-                k_tot = k_tot + EWParamsInst%k_dissolv_minsecs(isec,1) * & 
-                  10**(-soil_ph(c,j) * EWParamsInst%n_dissolv_minsecs(isec,1)) * &
-                  exp(-1e6_r8 * EWParamsInst%e_dissolv_minsecs(isec,1) / rgas * (1/tsoi(c,j) - 1/298.15_r8)) * &
-                  (1._r8 - saturation_ratio)
-              end if
+            !  ! Reaction rate constant is
+            !  ! k = k_precip[H2O] * exp[ - E/R * (1/T - 1/298.15)] + 
+            !  !     k_precip[H+] * 10**(-pH) * exp[ - E/R * (1/T - 1/298.15)] + 
+            !  !     k_precip[OH-] * 10**(pH - 14) * exp[ - E/R * (1/T - 1/298.15)]
+            !  ! Marty et al. (2015). A database of dissolution and precipitation rates for clay-rocks minerals. Applied Geochemistry, 55, 108–118. https://doi.org/10.1016/j.apgeochem.2014. !10.012
+            !  k_tot = 0._r8
+            !  if (EWParamsInst%k_dissolv_minsecs(isec,1) > -9000._r8) then
+            !    k_tot = k_tot + EWParamsInst%k_dissolv_minsecs(isec,1) * & 
+            !      10**(-soil_ph(c,j) * EWParamsInst%n_dissolv_minsecs(isec,1)) * &
+            !      exp(-1e6_r8 * EWParamsInst%e_dissolv_minsecs(isec,1) / rgas * (1/tsoi(c,j) - 1/298.15_r8)) * &
+            !      (1._r8 - saturation_ratio)
+            !  end if
 
-              if (EWParamsInst%k_dissolv_minsecs(isec,2) > -9000._r8) then
-                k_tot = k_tot + EWParamsInst%k_dissolv_minsecs(isec,2) * &
-                  exp(-1e6_r8 * EWParamsInst%e_dissolv_minsecs(isec,2) / rgas * (1/tsoi(c,j) - 1/298.15_r8)) * &
-                  (1._r8 - saturation_ratio)
-              end if
+            !  if (EWParamsInst%k_dissolv_minsecs(isec,2) > -9000._r8) then
+            !    k_tot = k_tot + EWParamsInst%k_dissolv_minsecs(isec,2) * &
+            !      exp(-1e6_r8 * EWParamsInst%e_dissolv_minsecs(isec,2) / rgas * (1/tsoi(c,j) - 1/298.15_r8)) * &
+            !      (1._r8 - saturation_ratio)
+            !  end if
 
-              if (EWParamsInst%k_dissolv_minsecs(isec,3) > -9000._r8) then
-                k_tot = k_tot + EWParamsInst%k_dissolv_minsecs(isec,3) * & 
-                  10**((soil_ph(c,j) - 14) * EWParamsInst%n_dissolv_minsecs(isec,3)) * &
-                  exp(-1e6_r8 * EWParamsInst%e_dissolv_minsecs(isec,3) / rgas * (1/tsoi(c,j) - 1/298.15_r8)) * &
-                  (1._r8 - saturation_ratio)
-              end if
+            !  if (EWParamsInst%k_dissolv_minsecs(isec,3) > -9000._r8) then
+            !    k_tot = k_tot + EWParamsInst%k_dissolv_minsecs(isec,3) * & 
+            !      10**((soil_ph(c,j) - 14) * EWParamsInst%n_dissolv_minsecs(isec,3)) * &
+            !      exp(-1e6_r8 * EWParamsInst%e_dissolv_minsecs(isec,3) / rgas * (1/tsoi(c,j) - 1/298.15_r8)) * &
+            !      (1._r8 - saturation_ratio)
+            !  end if
 
-              r_precip_vr(c,j,isec) = k_tot * secondary_mineral_vr(c,j,isec) * EWParamsInst%ssa_minsecs(isec)
+            !  r_precip_vr(c,j,isec) = k_tot * secondary_mineral_vr(c,j,isec) * EWParamsInst%ssa_minsecs(isec)
 
-              ! limit the dissolution rate by the reactant's concentration
-              r_precip_vr(c,j,isec) = min(secondary_mineral_vr(c,j,isec) / dt / EWParamsInst%minsecs_mass(isec), &
-                                          r_precip_vr(c,j,isec))
+            !  ! limit the dissolution rate by the reactant's concentration
+            !  ! scale down AND subtract a minimum quantity to avoid numerical problem
+            !  r_precip_vr(c,j,isec) = min(residual_scale * secondary_mineral_vr(c,j,isec) / dt / EWParamsInst%minsecs_mass(isec) - &
+            !                              residual_quantity, r_precip_vr(c,j,isec))
 
-              ! switch sign to mean dissolution
-              r_precip_vr(c,j,isec) = - r_precip_vr(c,j,isec)
+            !  ! switch sign to mean dissolution
+            !  r_precip_vr(c,j,isec) = - r_precip_vr(c,j,isec)
             end if
 
             ! update the fluxes for operative sec. minerals/cations
@@ -1381,6 +1393,7 @@ contains
 
     associate( &
          nlev2bed                       => col_pp%nlevbed                   , & ! Input:  [integer  (:)   ] number of layers to bedrock
+         h2osoi_liqvol                  => col_ws%h2osoi_liqvol             , & ! Input:  [real(r8) (:)] volumetric soil water content, liquid only (m3 m-3)
          primary_mineral_vr             => col_ms%primary_mineral_vr        , & ! Input:  [real(r8) (:,:,:) ] primary mineral content in the soil column (g m-3) (1:ncol, 1:nlevgrnd, 1:nminerals)
          forc_gra                       => col_ew%forc_gra                  , & ! Input:  [real(r8) (:,:)] grain size (1:nminerals) (um diameter)
          ssa_dyn                        => col_ms%ssa_dyn                   , & ! Input:  [real(r8) (:,:,:)] specific surface area of primary minerals (m2 g-1) (1:ncol, 1:nlevgrnd, 1:nminerals)
@@ -1396,18 +1409,23 @@ contains
       nlevbed = min(nlev2bed(c), nlevsoi)
 
       do j = 1,nlevbed
-        do m = 1,nminerals
-          if (primary_mineral_vr(c,j,m) > 0._r8) then
-            passivation_rate(c,j,m) = r_dissolve_vr(c,j,m) * EWParamsInst%primary_mass(m) / (2.9e6_r8) / (primary_mineral_vr(c,j,m) * ssa_dyn(c,j,m))
 
-            !!write (iulog, *) 'passivation', c, j, m, passivation_rate(c,j,m), r_dissolve_vr(c,j,m), EWParamsInst%primary_mass(m), primary_mineral_vr(c,j,m), ssa_dyn(c,m)
+        ! only let reaction happen when sufficient water is available
+        if (h2osoi_liqvol(c,j) > 1.e-3_r8) then
+          do m = 1,nminerals
+            if (primary_mineral_vr(c,j,m) > 0._r8) then
+              passivation_rate(c,j,m) = r_dissolve_vr(c,j,m) * EWParamsInst%primary_mass(m) / (2.9e6_r8) / (primary_mineral_vr(c,j,m) * ssa_dyn(c,j,m))
 
-            passivation_rate(c,j,m) = min(passivation_rate(c,j,m), (forc_gra(c,m)*1e-6_r8 - passivation_thickness(c,j,m)) / dt)
-          else
-            passivation_rate(c,j,m) = 0._r8
-          end if
+              !!write (iulog, *) 'passivation', c, j, m, passivation_rate(c,j,m), r_dissolve_vr(c,j,m), EWParamsInst%primary_mass(m), primary_mineral_vr(c,j,m), ssa_dyn(c,m)
 
-        end do
+              passivation_rate(c,j,m) = min(passivation_rate(c,j,m), (forc_gra(c,m)*1e-6_r8 - passivation_thickness(c,j,m)) / dt)
+            else
+              passivation_rate(c,j,m) = 0._r8
+            end if
+
+          end do
+        end if
+
       end do
     end do
 
@@ -1457,7 +1475,7 @@ contains
     associate( &
          qin                            => col_wf%qin                     , & ! Input: [real(r8) (:,:) ] flux of water into soil layer [mm h2o/s]
          qout                           => col_wf%qout                    , & ! Input: [real(r8) (:,:) ] flux of water out of soil layer [mm h2o/s]
-         h2osoi_vol                     => col_ws%h2osoi_vol              , & ! Input:  [real(r8) (:)] volumetric soil water content, ice + water (m3 m-3)
+         h2osoi_liqvol                  => col_ws%h2osoi_liqvol           , & ! Input:  [real(r8) (:)] volumetric soil water content, ice + water (m3 m-3)
 
          nlev2bed                       => col_pp%nlevbed                 , & ! Input:  [integer  (:)   ]  number of layers to bedrock
          dz                             => col_pp%dz                      , & ! Input:  [real(r8) (:,:) ]  layer thickness (m)
@@ -1465,7 +1483,7 @@ contains
          rain_ph                        => col_ew%rain_ph                 , & ! Output: [real(r8) (:)] pH of rain water
          rain_chem                      => col_ew%rain_chem               , & ! Output: [real(r8) (:,:)] cation concentration in rain water (excluding H+) (g m-3 rain water) (1:ncations)
 
-         annavg_qin_col                 => col_wf%annavg_qin_col          , & ! Input:  [real(r8) (:,:) ]  annual average rate of vertical water movement (mm H2O / s)
+         !annavg_qin_col                 => col_wf%annavg_qin_col          , & ! Input:  [real(r8) (:,:) ]  annual average rate of vertical water movement (mm H2O / s)
          mixing_fraction                => col_mf%mixing_fraction         , & ! Input:  [real(r8) (:,:) ] fraction of vertical water flow that participated in mineral reactions (-)
 
          cation_vr                      => col_ms%cation_vr               , & ! Output [real(r8) (:,:,:)] cation mass in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd, 1:ncations)
@@ -1549,14 +1567,14 @@ contains
         !!write (iulog, *) 'cation_vr', c, icat, cation_vr(c, 1:nlevsoi, icat)
         !!write (iulog, *) 'rain_cations', c, icat, rain_cations(icat)
         !!write (iulog, *) 'adv_water', c, icat, adv_water(1:nlevsoi+1)
-        !!write (iulog, *) 'h2osoi_vol', c, icat, h2osoi_vol(c, 1:nlevsoi)
+        !!write (iulog, *) 'h2osoi_liqvol', c, icat, h2osoi_liqvol(c, 1:nlevsoi)
         !!write (iulog, *) 'watsat_col', c, icat, soilstate_vars%watsat_col(c,1:nlevsoi)
         !!write (iulog, *) 'sourcesink_cations', c, icat, sourcesink_cations(1:nlevsoi, icat)
         !!write (iulog, *) 'cations_diffusivity', c, icat, EWParamsInst%cations_diffusivity(icat)
         !!write (iulog, *) 'dz', c, icat, dt, nlevbed, dz(c,1:nlevsoi)
 
         call advection_diffusion(cation_vr(c, 1:nlevsoi, icat), rain_cations(icat), &
-                                 adv_water(1:nlevsoi+1), h2osoi_vol(c, 1:nlevsoi), &
+                                 adv_water(1:nlevsoi+1), h2osoi_liqvol(c, 1:nlevsoi), &
                                  soilstate_vars%watsat_col(c,1:nlevsoi), &
                                  sourcesink_cations(1:nlevsoi, icat), &
                                  EWParamsInst%cations_diffusivity(icat), &
@@ -1567,14 +1585,14 @@ contains
       end do
 
       call advection_diffusion(bicarbonate_vr(c, 1:nlevsoi), rain_bicarbonate, &
-                               adv_water(1:nlevsoi+1), h2osoi_vol(c, 1:nlevsoi), &
+                               adv_water(1:nlevsoi+1), h2osoi_liqvol(c, 1:nlevsoi), &
                                soilstate_vars%watsat_col(c,1:nlevsoi), &
                                sourcesink_zero(1:nlevsoi), &
                                EWParamsInst%bicarbonate_diffusivity, &
                                dt, dz(c,1:nlevsoi), nlevbed, dhco3_dt(1:nlevsoi))
 
       call advection_diffusion(carbonate_vr(c, 1:nlevsoi), rain_carbonate, &
-                               adv_water(1:nlevsoi+1), h2osoi_vol(c, 1:nlevsoi), &
+                               adv_water(1:nlevsoi+1), h2osoi_liqvol(c, 1:nlevsoi), &
                                soilstate_vars%watsat_col(c,1:nlevsoi), &
                                sourcesink_zero(1:nlevsoi), &
                                EWParamsInst%carbonate_diffusivity, &
@@ -1717,7 +1735,7 @@ contains
       end if
 
       do j = 1,nlevbed
-        if (h2osoi_liq(c,j) > 0._r8) then
+        if (h2osoi_liq(c,j) > 1.e-3_r8) then
           ! use the analytical solution if the flushing rate is too large
           ! need to calculate the total leaching and runoff flux, otherwise
           ! they can be individually small, but still in total too large
@@ -1848,8 +1866,7 @@ contains
         cect_delta                          => col_mf%cect_delta              , & ! Input:  [real(r8) (:,:)] pH-dependent change in cation exchange capacity (1:nlevgrnd)
         cece_delta                          => col_mf%cece_delta              , & ! Input:  [real(r8) (:,:)] pH-dependent change in individual cations occupied exchange capacity (1:nlevgrnd)
 
-        h2osoi_vol                          => col_ws%h2osoi_vol              , & ! Input: [real(r8) (:,:)] soil water volume, liquid + ice (m3 m-3)
-        h2osoi_liqvol                       => col_ws%h2osoi_liqvol           , & ! Input: [real(r8) (:,:)] soil water volume, liquid (m3 m-3)
+        h2osoi_liqvol                       => col_ws%h2osoi_liqvol           , & ! Input: [real(r8) (:,:)] soil water volume, liquid + ice (m3 m-3)
 
         bicarbonate_vr                      => col_ms%bicarbonate_vr          , & ! Output: [real(r8) (:,:)] calculated HCO3- concentration in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd)
         carbonate_vr                        => col_ms%carbonate_vr            , & ! Output: [real(r8) (:,:)] calculated CO3 2- concentration in each layer of the soil (g m-3 soil [not water]) (1:nlevgrnd)
@@ -1868,122 +1885,118 @@ contains
       co2_atm = top_as%pco2bot(t) / 101325
 
       do j = 1,nlevbed
+        if (h2osoi_liqvol(c,j) > 1.e-3_r8) then
 
-        ! before pH change
-        prev_pH = soil_ph(c,j)
+          ! before pH change
+          prev_pH = soil_ph(c,j)
 
-        ! use grid search to find the pH
-        do icat = 1,ncations
-          cece(icat) = mass_to_meq(cec_cation_vr(c,j,icat), EWParamsInst%cations_valence(icat), &
-                                   EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j))
-          beta_list(icat) = cece(icat) / cect_dyn(c,j)
-          ! if too tiny or zero, e.g. due to tiny or zero cec_cation_vr,
-          ! the following 'solve_eq' function for soil pH won't work well.
-          beta_list(icat) = max(2.0e-4_r8, beta_list(icat))
-          keq_list(icat) = 10**soilstate_vars%log_km_col(c,j,icat)
-        end do
-
-        if (sum(beta_list)>=(1.0_r8-2.0e-4_r8)) then
-          ! if sum(beta_list)>=1.0, it will cause mathematic issue in following 'beta_h' calculation;
-          !   and it will also cause 'solve_eq' issue.
-          ! the limit of '1.-2e-4' would likely constrain soil pH of up to ~8.6.
-          beta_list = beta_list * ((1.0_r8-2.0e-4_r8)/sum(beta_list))
-        end if
-        beta_h = 1._r8 - sum(beta_list(1:ncations))
-
-        soil_ph(c,j) = solve_eq(net_charge_vr(c,j), co2_atm, beta_list, keq_list, &
-                                EWParamsInst%cations_valence)
-
-        ! calculate the implications on HCO3- & CO3 --
-        bicarbonate_vr(c,j) = ph_to_hco3(soil_ph(c,j), co2_atm)
-        carbonate_vr(c,j) = hco3_to_co3(bicarbonate_vr(c,j), soil_ph(c,j))
-
-        bicarbonate_vr(c,j) = mol_to_mass(bicarbonate_vr(c,j), mass_hco3, h2osoi_vol(c,j))
-        carbonate_vr(c,j) = mol_to_mass(carbonate_vr(c,j), mass_co3, h2osoi_vol(c,j))
-
-        ! calculate the change in aqueous concentration due to equilibrium reaction
-        do icat = 1,ncations
-          conc(icat) = beta_list(icat) / (beta_h * keq_list(icat) / &
-                       10**(-soil_ph(c,j)))**EWParamsInst%cations_valence(icat)
-
-          !!write (100+iam, *) 'conc', j,icat, conc(icat), beta_list(icat), beta_h, soil_ph(c,j)
-
-          cec_cation_flux_vr(c,j,icat) = & 
-            ( mol_to_mass(conc(icat), EWParamsInst%cations_mass(icat), &
-                          h2osoi_liqvol(c,j)) - & 
-              cation_vr(c,j,icat) * h2osoi_liqvol(c,j) / h2osoi_vol(c,j) ) / dt
-
-          !!write (100+iam, *) 'cec_cation_flux_vr', j,icat, conc(icat), h2osoi_liqvol(c,j), cation_vr(c,j,icat), h2osoi_vol(c,j)
-        end do
-
-        ! calculate the implications on cation exchange capacity
-        ! 
-        ! Figure 13.12: Y_org,C = -59 + 51*pH, unit: meq 100g-1 org C
-        ! Stevenson, F. J. (1982), Chapter 13: Electrochemical and ion-exchange properties, 
-        ! in 'Hummus Chemistry: Genesis, Composition, Reactions’, John Wiley & Sons, Inc., p. 328.
-        ! The cited original study: Wisconsin soil
-        ! https://acsess.onlinelibrary.wiley.com/doi/abs/10.2136/sssaj1964.03615995002800040020x
-        !
-        ! Also, pH-dependent CEC will not decline when pH <= 4, because charge already becomes 
-        ! positive. See p59 of
-        ! Kroll, E. S., Okjemstad, J. O., & Baldock, J. A. (2004). Functions of soil organic matter 
-        ! and the effect on soil properties (pp. iii, 107 p. : ill.; 30 cm.). Canberra, A.C.T.: 
-        ! Cooperative Research Centre for Greenhouse Accounting.
-        oc_frac = 0.58_r8 * soilstate_vars%cellorg_col(c,j) / soilstate_vars%bd_col(c,j)
-        if (prev_pH > 4._r8) then
-          if (soil_pH(c,j) > 4._r8) then
-            cect_delta(c,j) = (soil_pH(c,j) - prev_pH) * oc_frac * 51
-          else
-            cect_delta(c,j) = (4._r8 - prev_pH) * oc_frac * 51
-          end if
-        else
-          if (soil_pH(c,j) > 4._r8) then
-            cect_delta(c,j) = (soil_pH(c,j) - 4._r8) * oc_frac * 51
-          else
-            cect_delta(c,j) = 0._r8
-          end if
-        end if
-
-        if (cect_delta(c,j) > 0._r8) then
-          ! do not release any cation
-          cece_delta(c,j,1:ncations) = 0._r8
-        else
-          ! equally release all the cations (negative)
-          ! (but, similar to the numerical catch on beta_list above, do not release
-          !  a cation if it is already too tiny; adjust the total release accordingly)
-          ! (this calculation is for cece_delta & cect_delta only; no effect on
-          !  cec_cation_flux_vr)
-          beta_for_release(1:ncations) = cece(1:ncations) / cect_dyn(c,j)
-          beta_h_for_release = 1._r8 - sum(beta_for_release)
-          if (beta_h_for_release < 0.01_r8) then
-            beta_h_for_release = 0._r8
-          end if
+          ! use grid search to find the pH
           do icat = 1,ncations
-            if (beta_for_release(icat) < 0.01_r8) then
-              beta_for_release(icat) = 0._r8
-            end if
-            cece_delta(c,j,icat) = cect_delta(c,j) * beta_for_release(icat)
+            cece(icat) = mass_to_meq(cec_cation_vr(c,j,icat), EWParamsInst%cations_valence(icat), &
+                                    EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j))
+            beta_list(icat) = cece(icat) / cect_dyn(c,j)
+            ! if too tiny or zero, e.g. due to tiny or zero cec_cation_vr,
+            ! the following 'solve_eq' function for soil pH won't work well.
+            beta_list(icat) = max(2.0e-4_r8, beta_list(icat))
+            keq_list(icat) = 10**soilstate_vars%log_km_col(c,j,icat)
           end do
-          cect_delta(c,j) = cect_delta(c,j) * (beta_h_for_release + &
-                            sum(beta_for_release(1:ncations)))
 
-          !!write (iam+100, *) 'beta_for_release', c, j, beta_for_release(1:ncations), beta_h_for_release
+          if (sum(beta_list)>=(1.0_r8-2.0e-4_r8)) then
+            ! if sum(beta_list)>=1.0, it will cause mathematic issue in following 'beta_h' calculation;
+            !   and it will also cause 'solve_eq' issue.
+            ! the limit of '1.-2e-4' would likely constrain soil pH of up to ~8.6.
+            beta_list = beta_list * ((1.0_r8-2.0e-4_r8)/sum(beta_list))
+          end if
+          beta_h = 1._r8 - sum(beta_list(1:ncations))
+
+          ! solve the equilibrium assuming the beta change per time step is negligible
+          soil_ph(c,j) = solve_eq(h2osoi_liqvol(c,j), net_charge_vr(c,j), co2_atm, beta_list, keq_list, &
+                                  EWParamsInst%cations_valence)
+
+          ! calculate the implications on HCO3- & CO3 --
+          bicarbonate_vr(c,j) = ph_to_hco3(soil_ph(c,j), co2_atm)
+          carbonate_vr(c,j) = hco3_to_co3(bicarbonate_vr(c,j), soil_ph(c,j))
+
+          bicarbonate_vr(c,j) = mol_to_mass(bicarbonate_vr(c,j), mass_hco3, h2osoi_liqvol(c,j))
+          carbonate_vr(c,j) = mol_to_mass(carbonate_vr(c,j), mass_co3, h2osoi_liqvol(c,j))
+
+          ! calculate the change in aqueous concentration due to equilibrium reaction
+          do icat = 1,ncations
+            conc(icat) = beta_list(icat) / (beta_h * keq_list(icat) / &
+                        10**(-soil_ph(c,j)))**EWParamsInst%cations_valence(icat)
+            cec_cation_flux_vr(c,j,icat) = & 
+              ( mol_to_mass(conc(icat), EWParamsInst%cations_mass(icat), &
+                            h2osoi_liqvol(c,j)) - cation_vr(c,j,icat) ) / dt
+          end do
+
+          ! calculate the implications on cation exchange capacity
+          ! 
+          ! Figure 13.12: Y_org,C = -59 + 51*pH, unit: meq 100g-1 org C
+          ! Stevenson, F. J. (1982), Chapter 13: Electrochemical and ion-exchange properties, 
+          ! in 'Hummus Chemistry: Genesis, Composition, Reactions’, John Wiley & Sons, Inc., p. 328.
+          ! The cited original study: Wisconsin soil
+          ! https://acsess.onlinelibrary.wiley.com/doi/abs/10.2136/sssaj1964.03615995002800040020x
+          !
+          ! Also, pH-dependent CEC will not decline when pH <= 4, because charge already becomes 
+          ! positive. See p59 of
+          ! Kroll, E. S., Okjemstad, J. O., & Baldock, J. A. (2004). Functions of soil organic matter 
+          ! and the effect on soil properties (pp. iii, 107 p. : ill.; 30 cm.). Canberra, A.C.T.: 
+          ! Cooperative Research Centre for Greenhouse Accounting.
+          oc_frac = 0.58_r8 * soilstate_vars%cellorg_col(c,j) / soilstate_vars%bd_col(c,j)
+          if (prev_pH > 4._r8) then
+            if (soil_pH(c,j) > 4._r8) then
+              cect_delta(c,j) = (soil_pH(c,j) - prev_pH) * oc_frac * 51
+            else
+              cect_delta(c,j) = (4._r8 - prev_pH) * oc_frac * 51
+            end if
+          else
+            if (soil_pH(c,j) > 4._r8) then
+              cect_delta(c,j) = (soil_pH(c,j) - 4._r8) * oc_frac * 51
+            else
+              cect_delta(c,j) = 0._r8
+            end if
+          end if
+
+          if (cect_delta(c,j) > 0._r8) then
+            ! do not release any cation
+            cece_delta(c,j,1:ncations) = 0._r8
+          else
+            ! equally release all the cations (negative)
+            ! (but, similar to the numerical catch on beta_list above, do not release
+            !  a cation if it is already too tiny; adjust the total release accordingly)
+            ! (this calculation is for cece_delta & cect_delta only; no effect on
+            !  cec_cation_flux_vr)
+            beta_for_release(1:ncations) = cece(1:ncations) / cect_dyn(c,j)
+            beta_h_for_release = 1._r8 - sum(beta_for_release)
+            if (beta_h_for_release < 0.01_r8) then
+              beta_h_for_release = 0._r8
+            end if
+            do icat = 1,ncations
+              if (beta_for_release(icat) < 0.01_r8) then
+                beta_for_release(icat) = 0._r8
+              end if
+              cece_delta(c,j,icat) = cect_delta(c,j) * beta_for_release(icat)
+            end do
+            cect_delta(c,j) = cect_delta(c,j) * (beta_h_for_release + &
+                              sum(beta_for_release(1:ncations)))
+
+            !!write (iam+100, *) 'beta_for_release', c, j, beta_for_release(1:ncations), beta_h_for_release
+          end if
+
+          !!write (iam+100, *) 'cec_delta', c, j, cece_delta(c,j,1:ncations), sum(cece_delta(c,j,1:ncations)), cect_delta(c,j)
+          !!write (iam+100, *) 'cec_state', c, j, cece(1:ncations), sum(cece(1:ncations)), cect_dyn(c,j)
+
+          do icat = 1,ncations
+            ! calculate the change in aqueuous concentration due to change in total cation 
+            ! exchange capacity
+            ! this flux is guaranteed >= 0
+            !  - is = 0, when cect_delta(c,j) > 0
+            !  - is > 0 (flow into solution), when cect_delta(c,j) < 0
+            cec_cation_flux2_vr(c,j,icat) = &
+              meq_to_mass(-cece_delta(c,j,icat)/dt, EWParamsInst%cations_valence(icat), &
+                          EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j))
+          end do
         end if
-
-        !!write (iam+100, *) 'cec_delta', c, j, cece_delta(c,j,1:ncations), sum(cece_delta(c,j,1:ncations)), cect_delta(c,j)
-        !!write (iam+100, *) 'cec_state', c, j, cece(1:ncations), sum(cece(1:ncations)), cect_dyn(c,j)
-
-        do icat = 1,ncations
-          ! calculate the change in aqueuous concentration due to change in total cation 
-          ! exchange capacity
-          ! this flux is guaranteed >= 0
-          !  - is = 0, when cect_delta(c,j) > 0
-          !  - is > 0 (flow into solution), when cect_delta(c,j) < 0
-          cec_cation_flux2_vr(c,j,icat) = &
-            meq_to_mass(-cece_delta(c,j,icat)/dt, EWParamsInst%cations_valence(icat), &
-                        EWParamsInst%cations_mass(icat), soilstate_vars%bd_col(c,j))
-        end do
-
       end do
     end do
 

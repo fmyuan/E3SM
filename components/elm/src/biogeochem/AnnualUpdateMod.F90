@@ -7,7 +7,7 @@ module AnnualUpdateMod
   use shr_kind_mod     , only : r8 => shr_kind_r8
   use decompMod        , only : bounds_type
   use CNStateType      , only : cnstate_type
-  use ColumnDataType   , only : col_cf, col_wf, col_mf
+  use ColumnDataType   , only : col_cf, col_wf, col_mf, col_ws
   use VegetationDataType, only : veg_cf
   use elm_varctl       , only : use_erw, year_start_erw, spinup_state, nyear_erw_calibrate
   use spmdMod             , only : iam
@@ -67,8 +67,10 @@ contains
       tempsum_npp                 => veg_cf%tempsum_npp  , &
       annsum_npp_col              => col_cf%annsum_npp      , &
       annavg_t2m_col              => cnstate_vars%annavg_t2m_col, &
-      annavg_qin_col              => col_wf%annavg_qin_col, &
-      tempavg_qin_col             => col_wf%tempavg_qin_col, &
+      annavg_h2osoi_col           => col_ws%annavg_h2osoi_col, &
+      tempavg_h2osoi_col          => col_ws%tempavg_h2osoi_col, &
+      !annavg_qin_col              => col_wf%annavg_qin_col, &
+      !tempavg_qin_col             => col_wf%tempavg_qin_col, &
       annavg_tot_delta            => col_mf%annavg_tot_delta, &
       tempavg_tot_delta           => col_mf%tempavg_tot_delta, &
       annavg_cec_delta            => col_mf%annavg_cec_delta, &
@@ -123,6 +125,20 @@ contains
       end if
     end if
 
+    ! Calculate the annual average soil moisture for initialization purpose for ERW
+    ! during normal spinup and transient
+    if (use_erw .and. spinup_state == 0 .and. year_curr < (year_start_erw + nyear_erw_calibrate)) then
+      do fc = 1,num_soilc
+        c = filter_soilc(fc)
+        do j = 1,nlevgrnd
+          if (annsum_counter_col(c) >= dayspyr_mod * secspday) then
+            annavg_h2osoi_col(c,j) = tempavg_h2osoi_col(c,j)
+            tempavg_h2osoi_col(c,j) = 0._r8
+          end if
+        end do
+      end do
+    end if
+
     ! Only during the self-calibration phase
     if (use_erw .and. spinup_state == 0 .and. year_curr >= year_start_erw & 
         .and. year_curr < (year_start_erw + nyear_erw_calibrate)) then
@@ -130,9 +146,9 @@ contains
         c = filter_soilc(fc)
         do j = 1,nlevgrnd
           if (annsum_counter_col(c) >= dayspyr_mod * secspday) then
-            ! calibrate the annual average flow rate for mixing fraction calibration
-            annavg_qin_col(c,j) = annavg_qin_col(c,j) + tempavg_qin_col(c,j) / nyear_erw_calibrate
-            tempavg_qin_col(c,j) = 0._r8
+            !!! calibrate the annual average flow rate for mixing fraction calibration
+            !!annavg_qin_col(c,j) = annavg_qin_col(c,j) + tempavg_qin_col(c,j) / nyear_erw_calibrate
+            !!tempavg_qin_col(c,j) = 0._r8
 
             ! calibrate the annual average cation change rate for background weathering
             annavg_tot_delta(c,j,1:ncations) = annavg_tot_delta(c,j,1:ncations) + &

@@ -80,12 +80,12 @@ contains
       nlevbed = min(col_pp%nlevbed(c), nlevsoi)
 
       do j = 1,nlevbed
-        ! soil H+ concentration
-        ! only determined by CEC equilibrium
-        col_ms%proton_vr(c,j) = mol_to_mass(10**(-col_ms%soil_ph(c,j)), mass_h, col_ws%h2osoi_vol(c,j))
-
         ! soil cation concentration - not updated here
         ! must be preserved before calling the vertical solute movement solver
+
+        ! update soil H+ concentration
+        ! only determined by CEC equilibrium
+        col_ms%proton_vr(c,j) = mol_to_mass(10**(-col_ms%soil_ph(c,j)), mass_h, col_ws%h2osoi_liqvol(c,j))
 
         ! pH-dependent CEC
         col_ms%cect_dyn(c,j) = col_mf%cect_delta(c,j) + col_ms%cect_dyn(c,j)
@@ -199,7 +199,7 @@ contains
 
 
   !-----------------------------------------------------------------------
-  subroutine MineralStateUpdate2(num_soilc, filter_soilc, col_ms, col_mf, dt)
+  subroutine MineralStateUpdate2(num_soilc, filter_soilc, col_ms, col_mf, dt, soilstate_vars)
     !
     ! !DESCRIPTION:
     ! On the radiation time step, update the mineral state variables
@@ -211,20 +211,23 @@ contains
     type(column_mineral_state)   , intent(inout) :: col_ms
     type(column_mineral_flux)    , intent(inout) :: col_mf
     real(r8)                     , intent(in)    :: dt              ! radiation time step (seconds)
+    type(soilstate_type)         , intent(in)    :: soilstate_vars
 
     !
     ! !LOCAL VARIABLES:
     integer  :: c,p,j,k,icat,m,g ! indices
     integer  :: fp,fc         ! lake filter indices
     integer  :: nlevbed
+    real(r8) :: avg_proton, beta_h     ! calculate the average implied pH after flux limit on CEC cation change
+    real(r8) :: conc(1:ncations), cece(1:ncations), beta_list(1:ncations), keq_list(1:ncations)
     !-----------------------------------------------------------------------
 
     ! Update mineral state
     do fc = 1,num_soilc
       c = filter_soilc(fc)
       nlevbed = min(col_pp%nlevbed(c), nlevsoi)
-      do icat = 1,ncations
-        do j = 1,nlevbed
+      do j = 1,nlevbed
+        do icat = 1,ncations
           ! note the source sink terms are called in the advection_diffusion solver
           col_ms%cation_vr(c,j,icat) = col_ms%cation_vr(c,j,icat) + & 
             ( col_mf%background_flux_vr(c,j,icat) + & 
@@ -234,8 +237,8 @@ contains
               col_mf%secondary_cation_flux_vr(c,j,icat) - & 
               col_mf%cation_uptake_vr(c,j,icat) ) * dt + & 
             ( col_mf%cation_infl_vr(c,j,icat) - col_mf%cation_oufl_vr(c,j,icat) ) * dt
-
         end do
+
       end do
     end do
   end subroutine MineralStateUpdate2
@@ -425,7 +428,7 @@ contains
         write (100+iam, *) 'Post-reaction H+: ', ldomain%latc(g), ldomain%lonc(g), trim(dateTimeString)
         do j = 1,nlevbed
           write (100+iam, *) c, j, col_ms%soil_ph(c,j), col_ms%proton_vr(c,j), & 
-             mass_to_mol(col_ms%proton_vr(c,j), mass_h, col_ws%h2osoi_vol(c,j))
+             mass_to_mol(col_ms%proton_vr(c,j), mass_h, col_ws%h2osoi_liqvol(c,j))
         end do
       end do
 
@@ -442,7 +445,7 @@ contains
           do icat = 1,ncations
             write (100+iam, *) c, j, icat, col_ms%cation_vr(c,j,icat), &
               mass_to_mol(col_ms%cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), &
-                          col_ws%h2osoi_vol(c,j)), &
+                          col_ws%h2osoi_liqvol(c,j)), &
               col_mf%background_flux_vr(c,j,icat)*dt, &
               col_mf%primary_cation_flux_vr(c,j,icat)*dt, &
               col_mf%cec_cation_flux_vr(c,j,icat)*dt, & 
@@ -540,12 +543,12 @@ contains
             ! Print out the mass balance diagnostics like above
             write (100+iam, *) 'Post-reaction H+: ', ldomain%latc(g), ldomain%lonc(g), trim(dateTimeString)
             write (100+iam, *) c, j, col_ms%soil_ph(c,j), col_ms%proton_vr(c,j), & 
-              mass_to_mol(col_ms%proton_vr(c,j), mass_h, col_ws%h2osoi_vol(c,j))
+              mass_to_mol(col_ms%proton_vr(c,j), mass_h, col_ws%h2osoi_liqvol(c,j))
 
             write (100+iam, *) 'Post-reaction cation: ', ldomain%latc(g), ldomain%lonc(g), trim(dateTimeString)
             write (100+iam, *) c, j, icat, col_ms%cation_vr(c,j,icat), &
               mass_to_mol(col_ms%cation_vr(c,j,icat), EWParamsInst%cations_mass(icat), &
-                          col_ws%h2osoi_vol(c,j)), &
+                          col_ws%h2osoi_liqvol(c,j)), &
               col_mf%background_flux_vr(c,j,icat)*dt, &
               col_mf%primary_cation_flux_vr(c,j,icat)*dt, &
               col_mf%cec_cation_flux_vr(c,j,icat)*dt, & 
@@ -711,7 +714,8 @@ contains
           print_flux_limit(fc,j) = .true.
         else if (col_mf%cect_delta(c,j) + col_ms%cect_dyn(c,j) < residual_cect) then
           ! The step change in total CEC is too large, scale down
-          col_mf%cec_delta_limit(c,j) = max(min(residual_scale, &
+          col_mf%cec_delta_limit(c,j) = max(min( &
+             col_ms%cect_dyn(c,j) * residual_scale / abs(col_mf%cect_delta(c,j)), &
              (col_ms%cect_dyn(c,j) - residual_cect) / abs(col_mf%cect_delta(c,j))), 0._r8)
 
           col_mf%cect_delta(c,j) = col_mf%cect_delta(c,j) * col_mf%cec_delta_limit(c,j)
@@ -764,7 +768,8 @@ contains
               ! If the CEC-adsorbed cation content becomes too small after flow to solution, 
               ! scale down the flux from CEC to solution
               if (temp_avail_cece(fc,j,icat) - temp_delta1_cation(fc,j,icat) <= residual_quantity) then
-                col_mf%cec_limit_vr(c,j,icat) = max(min(residual_scale, & 
+                col_mf%cec_limit_vr(c,j,icat) = max(min( & 
+                  temp_avail_cece(fc,j,icat) * residual_scale / temp_delta1_cation(fc,j,icat), & 
                   (temp_avail_cece(fc,j,icat) - residual_quantity) / temp_delta1_cation(fc,j,icat)), 0._r8)
                 col_mf%cec_cation_flux_vr(c,j,icat) = col_mf%cec_cation_flux_vr(c,j,icat) * col_mf%cec_limit_vr(c,j,icat)
 
@@ -847,8 +852,10 @@ contains
 
             else if (temp_delta1_cation(fc,j,icat) - temp_delta2_cation(fc,j,icat) < residual_quantity) then
 
-              col_mf%flux_limit_vr(c,j,icat) = max(min(residual_scale, &
-                (temp_delta1_cation(fc,j,icat) - 2._r8 * residual_quantity) / temp_delta2_cation(fc,j,icat)), 0._r8)
+              col_mf%flux_limit_vr(c,j,icat) = max(min( &
+                temp_delta1_cation(fc,j,icat) * residual_scale / temp_delta2_cation(fc,j,icat), &
+                (temp_delta1_cation(fc,j,icat) - residual_quantity) / temp_delta2_cation(fc,j,icat)), 0._r8)
+
               col_mf%cation_uptake_vr(c,j,icat) = col_mf%cation_uptake_vr(c,j,icat) * col_mf%flux_limit_vr(c,j,icat)
               col_mf%cec_cation_flux_vr(c,j,icat) = col_mf%cec_cation_flux_vr(c,j,icat) * col_mf%flux_limit_vr(c,j,icat)
               !===========================================================

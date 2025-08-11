@@ -145,6 +145,8 @@ module ColumnDataType
     real(r8), pointer :: swe_old            (:,:) => null() ! initial snow water content (-nlevsno+1:0) (kg/m2)
     real(r8), pointer :: snw_rds            (:,:) => null() ! col snow grain radius (-nlevsno+1:0) (m^-6, or microns)
     real(r8), pointer :: air_vol            (:,:) => null() ! air filled porosity (m3/m3)
+    real(r8), pointer :: annavg_h2osoi_col  (:,:) => null() ! annual mean volumetric water content (1:nlevgrnd) (m3/m3)
+    real(r8), pointer :: tempavg_h2osoi_col (:,:) => null() ! accumulator for annual mean volumetric water content (1:nlevgrnd) (m3/m3)
     ! Derived water, ice, and snow variables, column aggregate
     real(r8), pointer :: qg_snow            (:)   => null() ! specific humidity over snow (kg H2O/kg moist air)
     real(r8), pointer :: qg_soil            (:)   => null() ! specific humidity over soil (kg H2O/kg moist air)
@@ -611,7 +613,7 @@ module ColumnDataType
     real(r8), pointer :: qout                 (:,:) => null() ! flux of internal column water out of a soil layer [mm h2o/s]
     real(r8), pointer :: qin_external         (:,:) => null() ! flux of external column water, e.g. water recharge/lateral in, excluding infiltration, into soil layer [mm h2o/s] (always non-negative)
     real(r8), pointer :: qout_external        (:,:) => null() ! flux of external column water, e.g. discharge, all sorts of drainage, excluding rootsoil evaptran,  out of soil layer [mm h2o/s] (always non-positive)
-    real(r8), pointer :: annavg_qin_col       (:,:) => null() ! annual average flux of qin (mm h2o/s)
+    !real(r8), pointer :: annavg_qin_col       (:,:) => null() ! annual average flux of qin (mm h2o/s)
     real(r8), pointer :: tempavg_qin_col      (:,:) => null() ! accumulator for the annual average flux of qin (mm h2o/s)
   contains
     procedure, public :: Init    => col_wf_init
@@ -1700,6 +1702,8 @@ contains
     allocate(this%h2osoi_liq         (begc:endc,-nlevsno+1:nlevgrnd)) ; this%h2osoi_liq         (:,:) = spval
     allocate(this%h2osoi_ice         (begc:endc,-nlevsno+1:nlevgrnd)) ; this%h2osoi_ice         (:,:) = spval
     allocate(this%h2osoi_vol         (begc:endc, 1:nlevgrnd))         ; this%h2osoi_vol         (:,:) = spval
+    allocate(this%annavg_h2osoi_col  (begc:endc, 1:nlevgrnd))         ; this%annavg_h2osoi_col  (:,:) = spval
+    allocate(this%tempavg_h2osoi_col (begc:endc, 1:nlevgrnd))         ; this%tempavg_h2osoi_col (:,:) = spval
     allocate(this%h2osfc             (begc:endc))                     ; this%h2osfc             (:)   = spval   
     allocate(this%h2ocan             (begc:endc))                     ; this%h2ocan             (:)   = spval 
     allocate(this%wslake_col         (begc:endc))                     ; this%wslake_col         (:)   = spval
@@ -2172,6 +2176,16 @@ contains
          dim1name='column', dim2name='levtot', switchdim=.true., &
          long_name='ice lens', units='kg/m2', &
          interpinic_flag='interp', readvar=readvar, data=this%h2osoi_ice)
+
+    call restartvar(ncid=ncid, flag=flag, varname='ANNAVG_H2OSOI', xtype=ncd_double,  &
+         dim1name='column', dim2name='levgrnd', switchdim=.true., &
+         long_name='annual average soil water content', units='m3/m3', &
+         interpinic_flag='interp', readvar=readvar, data=this%annavg_h2osoi_col)
+
+    call restartvar(ncid=ncid, flag=flag, varname='TEMPAVG_H2OSOI', xtype=ncd_double,  &
+         dim1name='column', dim2name='levgrnd', switchdim=.true., &
+         long_name='accumulator for annual average soil water content', units='m3/m3', &
+         interpinic_flag='interp', readvar=readvar, data=this%tempavg_h2osoi_col)
 
     call restartvar(ncid=ncid, flag=flag, varname='SOILP', xtype=ncd_double,  &
          dim1name='column', dim2name='levgrnd', switchdim=.true., &
@@ -6672,7 +6686,7 @@ contains
     allocate(this%qout                   (begc:endc,1:nlevgrnd+1)); this%qout                 (:,:) = spval
     allocate(this%qin_external           (begc:endc,1:nlevgrnd))  ; this%qin_external         (:,:) = spval
     allocate(this%qout_external          (begc:endc,1:nlevgrnd))  ; this%qout_external        (:,:) = spval
-    allocate(this%annavg_qin_col         (begc:endc,1:nlevgrnd+1)); this%annavg_qin_col       (:,:) = spval
+    !allocate(this%annavg_qin_col         (begc:endc,1:nlevgrnd+1)); this%annavg_qin_col       (:,:) = spval
     allocate(this%tempavg_qin_col        (begc:endc,1:nlevgrnd+1)); this%tempavg_qin_col      (:,:) = spval
 
     !-----------------------------------------------------------------------

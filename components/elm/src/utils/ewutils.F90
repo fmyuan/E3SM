@@ -185,7 +185,7 @@ contains
   !-----------------------------------------------------------------------
   ! Functions related to the solution of dynamic pH
   !-----------------------------------------------------------------------
-  function find_net_charge(soil_ph, co2_atm, beta_list, kex_list, cation_valence) result (charge)
+  function find_net_charge(h2osoi, soil_ph, co2_atm, beta_list, kex_list, cation_valence) result (charge)
     !
     ! !DESCRIPTION:
     ! Calculate the net charge in the system using the following set of equations
@@ -211,6 +211,7 @@ contains
     ! eq13 = sp.Eq(h - oh - hco3 - 2*co3 + 2*ca + 2*mg + na + k + 3*al, b0)
     !
     ! !ARGUMENTS:
+    real(r8), intent(in) :: h2osoi  ! volumetric soil moisture
     real(r8), intent(in) :: soil_ph ! 
     real(r8), intent(in) :: co2_atm ! atmospheric CO2 partial pressure (unit: atm)
     real(r8), intent(in) :: beta_list(1:ncations) ! fraction of cation exchange locations occupied by Ca2+, Mg2+, Na+, K+, Al3+
@@ -220,7 +221,7 @@ contains
 
     ! 
     ! !LOCAL VARIABLES:
-    real(r8) :: h, beta_h, charge, oh, hco3, co3, ca, mg, na, k, al !!, aloh, aloh2, aloh3, aloh4
+    real(r8) :: h, beta_h, charge, oh, hco3, co3, ca, mg, na, k, al, aloh, aloh2, aloh3, aloh4
 
     !--------------------------------------------------------------
 
@@ -235,29 +236,32 @@ contains
     na = beta_list(3)/(beta_h*kex_list(3)/h)**cation_valence(3)
     k = beta_list(4)/(beta_h*kex_list(4)/h)**cation_valence(4)
     al = beta_list(5)/(beta_h*kex_list(5)/h)**cation_valence(5)
-    !aloh = 10**(soil_ph-5)*al
-    !aloh2 = 10**(2_r8*soil_ph-10.1_r8)*al
-    !aloh3 = 10**(3_r8*soil_ph-16.9_r8)*al
-    !aloh4 = 10**(4_r8*soil_ph-22.7_r8)*al
+    aloh = 10**(soil_ph-5)*al
+    aloh2 = 10**(2_r8*soil_ph-10.1_r8)*al
+    aloh3 = 10**(3_r8*soil_ph-16.9_r8)*al
+    aloh4 = 10**(4_r8*soil_ph-22.7_r8)*al
 
-    charge = h - oh - hco3 - 2*co3 + 2*ca + 2*mg + na + k + 3*al ! + 2*aloh + aloh2 - aloh4
+    charge = h - oh - hco3 - 2*co3 + 2*ca + 2*mg + na + k + 3*al + 2*aloh + aloh2 - aloh4
+
+    charge = mol_to_mass(charge, 1._r8, h2osoi) ! convert from mol/kg to mol/m3 soil
 
   end function find_net_charge
 
 
-  function objective_solveq(soil_ph, b0, co2_atm, beta_list, kex_list, cation_valence) result (pcterr)
+  function objective_solveq(h2osoi, soil_ph, b0, co2_atm, beta_list, kex_list, cation_valence) result (err)
     !
     ! !DESCRIPTION:
     ! Calculate whether a given pH value satisfies the listed set of equations in find_net_charge
     !
     ! !ARGUMENTS:
+    real(r8), intent(in) :: h2osoi  ! volumetric soil moisture
     real(r8), intent(in) :: soil_ph ! 
     real(r8), intent(in) :: b0 ! net charge balance (mol/kg)
     real(r8), intent(in) :: co2_atm ! atmospheric CO2 partial pressure (unit: atm)
     real(r8), intent(in) :: beta_list(1:ncations) ! fraction of cation exchange locations occupied by Ca2+, Mg2+, Na+, K+, Al3+
     real(r8), intent(in) :: kex_list(1:ncations)  ! exchange coefficient between H+ and Ca2+, Mg2+, Na+, K+, Al3+
     real(r8), intent(in) :: cation_valence(1:ncations)  ! valence of Ca2+, Mg2+, Na+, K+, Al3+
-    real(r8) :: pcterr ! percentage error
+    real(r8) :: err ! error term
 
     ! 
     ! !LOCAL VARIABLES:
@@ -265,14 +269,15 @@ contains
 
     !--------------------------------------------------------------
 
-    charge = find_net_charge(soil_ph, co2_atm, beta_list, kex_list, cation_valence)
-    pcterr = abs(charge - b0) / abs(b0)
+    charge = find_net_charge(h2osoi, soil_ph, co2_atm, beta_list, kex_list, cation_valence)
+
+    err = abs(charge - b0) ! / (abs(b0) + abs(charge)) ! ensure pcterr is nonzero
 
   end function objective_solveq
 
 
   !-----------------------------------------------------------------------
-  function solve_eq(b0, co2_atm, beta_list, kex_list, valence) result (best_ph)
+  function solve_eq(h2osoi, b0, co2_atm, beta_list, kex_list, valence) result (best_ph)
     !
     ! !DESCRIPTION:
     ! Calculate whether a given pH value satisfies the set of equations provided in
@@ -281,41 +286,90 @@ contains
     ! !ARGUMENTS:
     real(r8), intent(in) :: b0 ! net charge balance (mol/kg)
     real(r8), intent(in) :: co2_atm ! atmospheric CO2 partial pressure (unit: atm)
+    real(r8), intent(in) :: h2osoi  ! volumetric soil moisture
     real(r8), intent(in) :: beta_list(1:ncations) ! fraction of cation exchange locations occupied by Ca2+, Mg2+, Na+, K+, Al3+
     real(r8), intent(in) :: kex_list(1:ncations)  ! exchange coefficient between H+ and Ca2+, Mg2+, Na+, K+, Al3+
     real(r8), intent(in) :: valence(1:ncations)   ! valence of Ca2+, Mg2+, Na+, K+, Al3+
     real(r8) :: pcterr ! percentage error
     ! 
     ! !LOCAL VARIABLES:
-    real(r8) :: best_ph, curr_ph, curr_err, min_err
-    integer  :: i,j ! index
-    integer  :: best_i
-    integer  :: search_n
-    real(r8) :: search_start, search_end, search_step
+    !real(r8) :: best_ph, curr_ph, curr_err, min_err
+    !integer  :: i,j ! index
+    !integer  :: best_i
+    !integer  :: search_n
+    !real(r8) :: search_start, search_end, search_step
 
-    ! Search the linear space to find where the pH minimizes error
-    ! do four passes; fortran accuracy seems a little too low
-    search_n = 161
-    search_start = 2 ! only acid mines reach this level
-    search_end = 10 ! car wash level
-    min_err = 1e10
-    j = 0
-    do while ((j < 8) .and. (min_err > 0.01))
-      search_step = (search_end - search_start) / (search_n - 1)
-      do i = 1, search_n
-        curr_ph = search_start + search_step * (i-1)
-        curr_err = objective_solveq(curr_ph, b0, co2_atm, beta_list, kex_list, valence)
-        if (curr_err < min_err) then
-          best_i = i
-          best_ph = curr_ph
-          min_err = curr_err
-        end if
-      end do
-      search_start = search_start + search_step * (max(best_i - 5, 1)-1)
-      ! (make sure the upper bound is not beyond previous round)
-      search_end = min(search_end, search_start + search_step * (min(best_i + 5, search_n)-1))
-      j = j + 1
+    !! Search the linear space to find where the pH minimizes error
+    !! do four passes; fortran accuracy seems a little too low
+    !search_n = 161
+    !search_start = 3 ! only acid mines reach 2; 3 seems reasonable for soil
+    !search_end = 10 ! car wash level
+    !min_err = 1e10
+    !j = 0
+    !do while ((j < 8) .and. (min_err > 0.01))
+    !  search_step = (search_end - search_start) / (search_n - 1)
+    !  do i = 1, search_n
+    !    curr_ph = search_start + search_step * (i-1)
+    !    curr_err = objective_solveq(h2osoi, curr_ph, b0, co2_atm, beta_list, kex_list, valence)
+    !    if (curr_err < min_err) then
+    !      best_i = i
+    !      best_ph = curr_ph
+    !      min_err = curr_err
+    !    end if
+    !  end do
+    !  search_start = search_start + search_step * (max(best_i - 5, 1)-1)
+    !  ! (make sure the upper bound is not beyond previous round)
+    !  search_end = min(search_end, search_start + search_step * (min(best_i + 5, search_n)-1))
+    !  j = j + 1
+    !end do
+
+
+    ! Try using the golden-section search for a convex/unimodal function on [search_start, search_end]
+    ! O(log((b−a)/ε))
+
+    ! LOCAL VARIABLES
+    integer :: k ! counter number of evaluation passes
+    real(r8) :: a, b, c, d ! search interval edges
+    real(r8) :: fc, fd ! evaluated values
+    real(r8) :: best_ph ! best pH found
+    integer, parameter :: kmax = 8 ! maximum number of iterations to keep sanity
+    real(r8), parameter :: eps = 1.0e-2_r8 ! tolerance of error in pH
+    real(r8), parameter :: rphi  = 2._r8 / (1._r8 + sqrt(5._r8)) ! ~0.618
+
+    a = 3._r8   !  only acid mines reach 2; 3 seems reasonable for soil
+    b = 10._r8  ! car wash level
+
+    ! Interior points (maintain a < c < d < b)
+    c = b - rphi*(b - a)
+    d = a + rphi*(b - a)
+    fc = objective_solveq(h2osoi, c, b0, co2_atm, beta_list, kex_list, valence)
+    fd = objective_solveq(h2osoi, d, b0, co2_atm, beta_list, kex_list, valence)
+
+    do k = 1, kmax
+       if (abs(a-b) < eps) exit ! stop search
+       if (fd > fc) then
+          ! minimum is in [a, d] → shrink right side
+          b  = d
+          d  = c
+          fd = fc
+          c  = b - rphi*(b - a)
+          fc = objective_solveq(h2osoi, c, b0, co2_atm, beta_list, kex_list, valence)
+       else
+          ! minimum is in [c, b] → shrink left side
+          a  = c
+          c  = d
+          fc = fd
+          d  = a + rphi*(b - a)
+          fd = objective_solveq(h2osoi, d, b0, co2_atm, beta_list, kex_list, valence)
+       end if
     end do
+
+    ! Best known point (pick the lower of fc, fd; both bracket the min)
+    if (fc <= fd) then
+       best_ph = c
+    else
+       best_ph = d
+    end if
 
   end function solve_eq
 
@@ -350,7 +404,7 @@ contains
   end function analytical_dt
 
 
-  subroutine advection_diffusion(conc_in, rain_conc, q_int, theta, watsat, srcsk, &
+  subroutine advection_diffusion(conc_in, rain_conc, q_int, theta_in, watsat, srcsk, &
                                  d0, dt, dz, nlevbed, dcdt)
     !------------------------------------------------------------------
     ! Use the explicit solution at each time step
@@ -425,7 +479,7 @@ contains
     real(r8), intent(in) :: conc_in(1:nlevsoi) ! start concentration (mol/m3-soil)
     real(r8), intent(in) :: rain_conc ! upper boundary condition (rain chemistry) (mol/m3-water)
     real(r8), intent(in) :: q_int(1:nlevsoi+1) ! water flux at grid boundaries, positive downwards (m/s)
-    real(r8), intent(in) :: theta(1:nlevsoi) ! soil moisture (m3/m3)
+    real(r8), intent(in) :: theta_in(1:nlevsoi) ! soil moisture (m3/m3)
     real(r8), intent(in) :: watsat(1:nlevsoi) ! soil porosity (m3/m3)
     real(r8), intent(in) :: srcsk(1:nlevsoi) ! source/sink strength (mol/m3-soil/s)
     real(r8), intent(in) :: d0 ! diffusion coefficient in water (m2/s)
@@ -435,6 +489,7 @@ contains
     real(r8), intent(out) :: dcdt(1:nlevsoi) ! rate of change of concentration (mol/m3-soil/s)
 
     ! Local variables
+    real(r8) :: theta(1:nlevsoi) ! corrected positive soil moisture (m3/m3)
     real(r8) :: c_prev(1:nlevsoi) ! start concentration, converted to (mol/m3-water)
     real(r8) :: c_next(1:nlevsoi) ! end concentration (mol/m3-water)
     real(r8) :: Deff(1:nlevsoi) ! effective diffusion coefficient in porous media (m2/s)
@@ -455,6 +510,11 @@ contains
     ! because my sourcesink is guaranteeded not to directly cause negative
     ! concentrations, the best approach is to update the cation concentrations
     ! first, and then apply vertial movement
+
+    ! ELM mysteriously simulates negative liquid soil moisture occassionaly - flip to the positive value
+    do i = 1,nlevbed
+      theta(i) = abs(theta_in(i))
+    end do
 
     ! convert concentration from per m3-soil to per m3-water
     c_prev = (conc_in + srcsk*dt) / theta

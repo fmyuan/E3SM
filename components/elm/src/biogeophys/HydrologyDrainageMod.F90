@@ -58,6 +58,7 @@ contains
     use elm_varpar       , only : nlevgrnd, nlevurb, nlevsoi
     use SoilHydrologyMod , only : ELMVICMap, Drainage
     use elm_varctl       , only : use_vsfm
+    use elm_varctl       , only : use_erw, year_start_erw, spinup_state, nyear_erw_calibrate
     !
     ! !ARGUMENTS:
     type(bounds_type)        , intent(in)    :: bounds
@@ -78,6 +79,7 @@ contains
     ! !LOCAL VARIABLES:
     real(r8) :: dtime
     integer  :: g,t,l,c,j,fc,tpu_ind               ! indices
+    real(r8) :: fracday
     !-----------------------------------------------------------------------
 
     associate(                                                                  &
@@ -97,6 +99,7 @@ contains
          h2ocan                 => col_ws%h2ocan                 , & ! Input:  [real(r8) (:)   ]  canopy water (mm H2O)
          h2osfc                 => col_ws%h2osfc                 , & ! Input:  [real(r8) (:)   ]  surface water (mm)
          h2osno                 => col_ws%h2osno                 , & ! Input:  [real(r8) (:)   ]  snow water (mm H2O)
+         tempavg_h2osoi_col     => col_ws%tempavg_h2osoi_col     , & ! Output:  [real(r8) (:,:) ]  accumulator of annual average soil moisture (m3/m3)
          begwb                  => col_ws%begwb                  , & ! Input:  [real(r8) (:)   ]  water mass begining of the time step
          endwb                  => col_ws%endwb                  , & ! Output: [real(r8) (:)   ]  water mass end of the time step
          h2osoi_ice             => col_ws%h2osoi_ice             , & ! Output: [real(r8) (:,:) ]  ice lens (kg/m2)
@@ -164,6 +167,23 @@ contains
             end if
          end do
       end do
+
+      ! accumulate the annual average soil moisture level for the ERW submodule
+      if (use_erw) then
+         fracday = dtime / secspday
+         if (spinup_state == 0 .and. year_curr < (year_start_erw + nyear_erw_calibrate)) then
+            do j = 1, nlevgrnd
+               do fc = 1, num_nolakec
+                  c = filter_nolakec(fc)
+                  if ((ctype(c) == icol_sunwall .or. ctype(c) == icol_shadewall &
+                     .or. ctype(c) == icol_roof) .and. j > nlevurb) then
+                  else
+                     tempavg_h2osoi_col(c,j) = tempavg_h2osoi_col(c,j) + h2osoi_liq(c,j)/(dz(c,j)*denh2o) * fracday / dayspyr_mod
+                  end if
+               end do
+            end do
+         end if
+      end if
 
       do fc = 1, num_nolakec
          c = filter_nolakec(fc)

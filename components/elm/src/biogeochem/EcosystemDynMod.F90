@@ -216,7 +216,7 @@ contains
      if (use_erw) then
        if (spinup_state == 0 .and. year >= year_start_erw) then
           call MineralVerticalMovement(bounds, num_soilc, filter_soilc, dt, soilstate_vars)
-          call MineralStateUpdate2(num_soilc, filter_soilc, col_ms, col_mf, dt)
+          call MineralStateUpdate2(num_soilc, filter_soilc, col_ms, col_mf, dt, soilstate_vars)
           call MineralLeaching(bounds, num_soilc, filter_soilc, dt)
        end if
       if (spinup_state == 0 .and. year >= year_start_erw .and. &
@@ -638,8 +638,8 @@ contains
       ! initialize during normal spin-up or transient, not ad-spinup
       ! initialize every year during calibration and first year after calibration done
       if (spinup_state == 0 .and. &
-          (year >= year_start_erw .and. year <= (year_start_erw+nyear_erw_calibrate)) .and. &
-          (mon == 1 .and. day == 1 .and. secs_curr == 0)) then
+          (year >= year_start_erw .and. year < (year_start_erw+nyear_erw_calibrate)) .and. &
+          (secs_curr == 0)) then ! day == 1, .and. 
          call MineralInit(bounds, num_soilc, filter_soilc, soilstate_vars)
       end if
 
