@@ -78,7 +78,8 @@ contains
     real(r8) :: swndf, swndr, swvdf, swvdr, ratio_rvrf, frac, q
     real(r8) :: thiscosz, avgcosz, szenith
     integer  :: swrad_period_len, swrad_period_start, thishr, thismin
-    real(r8) :: timetemp(2)
+    real(r8) :: timetemp(49)
+    integer  :: itemp
     real(r8) :: latixy(500000), longxy(500000)
     integer ::  ierr, varid, dimid, yr, mon, day, tod, nindex(2), caldaym(13)
     integer ::  ncid, met_ncids(14), mask_ncid, thisncid, ng, tm
@@ -316,6 +317,7 @@ contains
             atm2lnd_vars%endyear_met_trans  = 2021
           else if (atm2lnd_vars%metsource == 7) then
             ! ERA5
+            atm2lnd_vars%startyear_met      = 1950
             atm2lnd_vars%endyear_met_trans  = 2023
           end if
 
@@ -446,11 +448,17 @@ contains
             ierr = nf90_Inquire_Dimension(met_ncids(v), dimid, len = atm2lnd_vars%timelen(v))
 
             starti(1) = 1
-            counti(1) = 2
+            counti(1) = 49
             ierr = nf90_inq_varid(met_ncids(v), 'DTIME', varid)
             ierr = nf90_get_var(met_ncids(v), varid, timetemp, starti(1:1), counti(1:1))   
-            atm2lnd_vars%timeres(v)        = (timetemp(2)-timetemp(1))*24._r8
-            atm2lnd_vars%npf(v)            = 86400d0*(timetemp(2)-timetemp(1))/get_step_size()  
+            atm2lnd_vars%timeres(v)        = 0._r8
+            do itemp=2,counti(1)
+               atm2lnd_vars%timeres(v)     = atm2lnd_vars%timeres(v)+ &
+                                             (timetemp(itemp)-timetemp(itemp-1))*24._r8
+            end do
+            atm2lnd_vars%timeres(v)        = atm2lnd_vars%timeres(v)/(counti(1)-1.0_r8)
+            atm2lnd_vars%npf(v)            = 3600d0*atm2lnd_vars%timeres(v)/get_step_size()
+
             atm2lnd_vars%timelen_spinup(v) = nyears_spinup*(365*nint(24./atm2lnd_vars%timeres(v)))
     
             ierr = nf90_inq_varid(met_ncids(v), trim(metvars(v)), varid)
@@ -539,8 +547,8 @@ contains
                   atm2lnd_vars%tindex(g,v,2) = atm2lnd_vars%tindex(g,v,2)+1
                 end if
               else  
-                if (mod(tod/get_step_size()-1,nint(atm2lnd_vars%npf(v))) <= atm2lnd_vars%npf(v)/2._r8 .and. &
-                    mod(tod/get_step_size(),nint(atm2lnd_vars%npf(v))) > atm2lnd_vars%npf(v)/2._r8) then 
+                if ( (mod(tod/get_step_size(),nint(atm2lnd_vars%npf(v)))-atm2lnd_vars%npf(v)/2._r8) .ge. -1.e-3 .and. &
+                     (mod(tod/get_step_size()+1,nint(atm2lnd_vars%npf(v)))-atm2lnd_vars%npf(v)/2._r8) .lt. 0. ) then
                   atm2lnd_vars%tindex(g,v,1) = atm2lnd_vars%tindex(g,v,1)+1
                   atm2lnd_vars%tindex(g,v,2) = atm2lnd_vars%tindex(g,v,2)+1
                 end if
