@@ -316,7 +316,7 @@ contains
           else if (atm2lnd_vars%metsource == 6) then
             atm2lnd_vars%startyear_met      = 1950
             atm2lnd_vars%endyear_met_spinup = 1970
-            atm2lnd_vars%endyear_met_trans  = 2025
+            atm2lnd_vars%endyear_met_trans  = 2024
           end if
 
           if (use_livneh) then 
@@ -416,7 +416,7 @@ contains
                     !metdata_fname = 'WCYCL1850S.ne30_' // trim(metvars(v)) // '_0076-0100_z' // zst(2:3) // '.nc'
                     metdata_fname = 'CBGC1850S.ne30_' // trim(metvars(v)) // '_0566-0590_z' // zst(2:3) // '.nc'
             else if (atm2lnd_vars%metsource == 6) then
-                metdata_fname = 'ERA5_' // trim(metvars(v)) // '_1950-2025_z' // zst(2:3) // '.nc'
+                    metdata_fname = 'ERA5_' // trim(metvars(v)) // '_1950-2024_z' // zst(2:3) // '.nc'
             end if
   
             ierr = nf90_open(trim(metdata_bypass) // '/' // trim(metdata_fname), NF90_NOWRITE, met_ncids(v))
