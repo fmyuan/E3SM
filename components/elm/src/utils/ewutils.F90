@@ -243,7 +243,7 @@ contains
 
     charge = h - oh - hco3 - 2*co3 + 2*ca + 2*mg + na + k + 3*al + 2*aloh + aloh2 - aloh4
 
-    charge = mol_to_mass(charge, 1._r8, h2osoi) ! convert from mol/kg to mol/m3 soil
+    !charge = mol_to_mass(charge, 1._r8, h2osoi) ! convert from mol/kg to mol/m3 soil
 
   end function find_net_charge
 

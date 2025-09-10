@@ -836,7 +836,7 @@ contains
     real(r8) :: D_h_eff                ! effective diffusivity of H+ in the passivation layer (m2/s)
     real(r8) :: Jflux                  ! H+ sink strength due to previous step's dissolution (mol m-2 s-1)
     real(r8) :: dNb_dt                 ! H+ diffusion limited dissolution rate (mol m-3 s-1)
-    real(r8) :: residual_scale
+    real(r8) :: residual_scale, residual_quantity
 
     associate( &
          !
@@ -891,6 +891,7 @@ contains
 
     dt      = real( get_step_size(), r8 )
     residual_scale = 0.9_r8
+    residual_quantity = 1.e-3_r8
 
     do fc = 1,num_soilc
       c = filter_soilc(fc)
@@ -1019,9 +1020,9 @@ contains
                 ! calculate dissolution rate in mol m-3 s-1
                 r_dissolve_vr(c,j,m) = ssa_dyn(c,j,m) * primary_mineral_vr(c,j,m) * k_tot
 
-                if (builtin_site == 1) then
-                  r_dissolve_vr(c,j,m) = r_dissolve_vr(c,j,m) / 100._r8
-                end if
+                !if (builtin_site == 1) then
+                !  r_dissolve_vr(c,j,m) = r_dissolve_vr(c,j,m) / 100._r8
+                !end if
 
                 !!if (m == 6) then
                 !!  write (iulog, *) c, j, m, 'r_dissolve_vr', ssa_dyn(c,j,m), primary_mineral_vr(c,j,m), k_tot, r_dissolve_vr(c,j,m)
@@ -1058,7 +1059,7 @@ contains
 
         ! Limit the dissolution rate to prevent primary mineral from going negative
         do m = 1,nminerals
-          r_dissolve_vr(c,j,m) = min(r_dissolve_vr(c,j,m), residual_scale * primary_mineral_vr(c,j,m) / dt)
+          r_dissolve_vr(c,j,m) = min(r_dissolve_vr(c,j,m), residual_scale * primary_mineral_vr(c,j,m) / dt - residual_quantity)
         end do
 
         ! Update the mineral and cation fluxes based on the reaction rates
