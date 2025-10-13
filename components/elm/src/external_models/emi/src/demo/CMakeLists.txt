@@ -15,9 +15,13 @@ include_directories(${CMAKE_BINARY_DIR}/em/betr)
 include_directories(${CMAKE_BINARY_DIR}/em/fates)
 include_directories(${CMAKE_BINARY_DIR}/em/ptm)
 include_directories(${CMAKE_BINARY_DIR}/em/vsfm)
+include_directories(${CMAKE_BINARY_DIR}/em/alquimia)
 include_directories(${CMAKE_BINARY_DIR}/emi)
 
 link_libraries(${EMI_LIBRARIES})
+link_libraries($ENV{PFLOTRAN_DIR}/libpflotranchem.a)
+
+include_directories(${PETSC_INCLUDES})
 
 include(add_emi_executable)
 add_emi_executable(demo demo.F90)

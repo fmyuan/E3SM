@@ -39,7 +39,7 @@ contains
         num_filter, filter, col_wf)
     !
     ! !DESCRIPTION:
-    ! Pack data from ALM col_wf for EM
+    ! Pack data from ELM col_wf for EM
     !
     ! !USES:
     use elm_varpar             , only : nlevgrnd
@@ -62,6 +62,7 @@ contains
 
     associate(& 
          qflx_adv           => col_wf%qflx_adv           , &
+         qflx_lat_aqu_layer => col_wf%qflx_lat_aqu_layer , &
          qflx_drain         => col_wf%qflx_drain         , &
          qflx_drain_vr      => col_wf%qflx_drain_vr        &
          )
@@ -89,6 +90,15 @@ contains
                 c = filter(fc)
                 do j = 0, nlevgrnd
                    cur_data%data_real_2d(c,j) = qflx_adv(c,j)
+                enddo
+             enddo
+             cur_data%is_set = .true.
+
+          case (L2E_FLUX_SOIL_QFLX_LAT_COL)
+             do fc = 1, num_filter
+                c = filter(fc)
+                do j = 1, nlevgrnd
+                   cur_data%data_real_2d(c,j) = qflx_lat_aqu_layer(c,j)
                 enddo
              enddo
              cur_data%is_set = .true.

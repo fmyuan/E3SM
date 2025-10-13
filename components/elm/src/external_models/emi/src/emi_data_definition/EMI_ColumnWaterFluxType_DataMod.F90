@@ -67,6 +67,19 @@ contains
        dim2_end_name  =  dimname_nlevgrnd
        data_found   =  .true.
 
+    case(L2E_FLUX_SOIL_QFLX_LAT_COL)
+       id_val         =  L2E_FLUX_SOIL_QFLX_LAT_COL
+       name_val       =  'Lateral water flow'
+       long_name_val  =  'Lateral water flow: ELM to EM'
+       units_val      =  'mm H2O/s'
+       is_real_type   =  .true.
+       ndim           =  2
+       dim1_beg_name  =  dimname_begc
+       dim1_end_name  =  dimname_endc
+       dim2_beg_name  =  dimname_zero
+       dim2_end_name  =  dimname_nlevgrnd
+       data_found   =  .true.
+
     case(L2E_FLUX_SOIL_QFLX_DRAIN)
        id_val         =  L2E_FLUX_SOIL_QFLX_DRAIN
        name_val       =  'Subsurface drainage water flow'
