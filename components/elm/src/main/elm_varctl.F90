@@ -436,6 +436,11 @@ module elm_varctl
   logical, public :: use_petsc_thermal_model = .false.
 
   !----------------------------------------------------------
+  ! ATS external model
+  !----------------------------------------------------------
+  logical, public :: use_ats        = .false.
+
+  !----------------------------------------------------------
   ! Stub EM switches
   !----------------------------------------------------------
   logical          , public :: use_em_stub = .false.

@@ -122,6 +122,7 @@ contains
     use shr_string_mod            , only : shr_string_getParentDir
     use elm_interface_pflotranMod , only : elm_pf_readnl
     use ELMBeTRNLMod              , only : betr_readNL
+    use ExternalModelATS_readnlMod, only : elm_ats_readnl
     
     use elm_varctl                , only : elm_ctl_set_nls
 
@@ -632,6 +633,10 @@ contains
 
     if (use_pflotran) then
        call elm_pf_readnl(NLFilename)
+    end if
+
+    if (use_ats) then
+       call elm_ats_readnl(NLFilename)
     end if
 
     if (use_betr) then

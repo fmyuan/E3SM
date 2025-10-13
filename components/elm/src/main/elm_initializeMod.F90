@@ -1153,6 +1153,7 @@ contains
     use elm_varctl               , only : use_petsc_thermal_model
     use elm_varctl               , only : lateral_connectivity
     use elm_varctl               , only : finidat
+    use elm_varctl               , only : use_ats
     use decompMod                , only : get_proc_clumps
     use mpp_varpar               , only : mpp_varpar_init
     use mpp_varcon               , only : mpp_varcon_init_landunit
@@ -1165,6 +1166,10 @@ contains
     use ExternalModelConstants   , only : EM_ID_VSFM
     use ExternalModelConstants   , only : EM_ID_PTM
 
+#ifdef USE_ATS_LIB
+    use ExternalModelATS        , only : EM_ATS_Create, em_ats
+#endif    
+    
     implicit none
 
     type(bounds_type) :: bounds_proc
@@ -1214,6 +1219,14 @@ contains
        call EMI_Init_EM(EM_ID_PTM)
     endif
 
+#ifdef USE_ATS_LIB
+    if (use_ats) then
+       call EM_ATS_Create(em_ats)
+       call em_ats%Init()
+    endif
+#endif
+
+    
     call t_stopf('elm_init3')
 
 
