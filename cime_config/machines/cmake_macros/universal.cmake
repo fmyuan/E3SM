@@ -29,3 +29,13 @@ set(CMAKE_Fortran_FORMAT_FIXED_FLAG "")
 set(CMAKE_Fortran_FORMAT_FREE_FLAG "")
 
 
+# RPF/WIP - much of the hardcoded cmake for linking ATS libraries
+# has been moved to components/cmake/build_model.cmake, but a few things remain.
+set(AMANZI_TPLS_DIR "$ENV{AMANZI_TPLS_DIR}")
+set(ATS_DIR "$ENV{ATS_DIR}")
+if (COMP_NAME STREQUAL elm)
+  if (NOT ${ATS_DIR} STREQUAL "")
+    string(APPEND CPPDEFS " -DUSE_ATS_LIB ")
+    string(APPEND CMAKE_Fortran_FLAGS " -I${ATS_DIR}/include ")
+  endif()
+endif()

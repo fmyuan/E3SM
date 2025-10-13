@@ -433,6 +433,14 @@ module elm_varctl
   logical, public :: use_petsc_thermal_model = .false.
 
   !----------------------------------------------------------
+  ! ATS external model
+  !----------------------------------------------------------
+  ! ATS explicit mesh hydrology
+  logical, public :: use_ats        = .false.
+  ! ATS for initial water condition only
+  logical, public :: use_ats_ic     = .false.
+
+  !----------------------------------------------------------
   ! Stub EM switches
   !----------------------------------------------------------
   logical          , public :: use_em_stub = .false.

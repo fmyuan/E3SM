@@ -74,12 +74,19 @@ contains
     use landunit_varcon           , only: landunit_varcon_init, max_lunit, istice_mec, max_polygon, max_non_poly_lunit
     use column_varcon             , only: col_itype_to_icemec_class
     use elm_varctl                , only: fsurdat, fatmlndfrc, flndtopo, fglcmask, noland, version
+    use elm_varctl               , only : use_ats, use_ats_ic
     use pftvarcon                 , only: pftconrd
     use soilorder_varcon          , only: soilorder_conrd
     use decompInitMod             , only: decompInit_lnd, decompInit_clumps, decompInit_gtlcp
 #ifdef HAVE_MOAB
     use decompInitMod             , only: decompInit_moab
 #endif
+#ifdef USE_ATS_LIB
+    use decompInitMod             , only : decompInit_ats
+    use ExternalModelATS          , only : em_ats, EM_ATS_Create
+#endif    
+
+
     use domainMod                 , only: domain_check, ldomain, domain_init
     use surfrdMod                 , only: surfrd_get_globmask, surfrd_get_grid, surfrd_get_topo, surfrd_get_data, surfrd_get_topo_for_solar_rad, surfrd_finetop_data
     use controlMod                , only: control_init, control_print, NLFilename
@@ -181,6 +188,14 @@ contains
        return
     end if
 
+    ! ------------------------------------------------------------------------
+    ! Create the ATS instance now so it can read mesh and provide proc info
+    ! ------------------------------------------------------------------------
+#ifdef USE_ATS_LIB
+    if (use_ats .or. use_ats_ic) then
+       call EM_ATS_Create(em_ats)
+    endif
+#endif
 
     ! ------------------------------------------------------------------------
     ! If specified, read the grid level connectivity
@@ -213,6 +228,11 @@ contains
 #ifdef HAVE_MOAB
     case ("moab")
       call decompInit_moab(ni, nj, amask)
+      deallocate(amask)
+#endif
+#ifdef USE_ATS_LIB
+    case ("ats")
+      call decompInit_ats(ni, nj, amask)
       deallocate(amask)
 #endif
     case ("round_robin")
@@ -1159,6 +1179,7 @@ contains
     use elm_varctl               , only : use_petsc_thermal_model
     use elm_varctl               , only : lateral_connectivity
     use elm_varctl               , only : finidat
+    use elm_varctl               , only : use_ats, use_ats_ic
     use decompMod                , only : get_proc_clumps
     use mpp_varpar               , only : mpp_varpar_init
     use mpp_varcon               , only : mpp_varcon_init_landunit
@@ -1170,7 +1191,12 @@ contains
     use ExternalModelInterfaceMod, only : EMI_Init_EM
     use ExternalModelConstants   , only : EM_ID_VSFM
     use ExternalModelConstants   , only : EM_ID_PTM
+    use filterMod                , only : filter
 
+#ifdef USE_ATS_LIB
+    use ExternalModelATS        , only : EM_ATS_Create, em_ats
+#endif    
+    
     implicit none
 
     type(bounds_type) :: bounds_proc
@@ -1220,6 +1246,14 @@ contains
        call EMI_Init_EM(EM_ID_PTM)
     endif
 
+#ifdef USE_ATS_LIB
+    if (use_ats .or. use_ats_ic) then
+       call em_ats%Init(0.0_r8, filter, get_proc_clumps(), bounds_proc%endc - bounds_proc%begc, nlevgrnd, &
+            grc_pp, col_pp, soilstate_vars, soilhydrology_vars, col_ws)
+    endif
+#endif
+
+    
     call t_stopf('elm_init3')
 
 

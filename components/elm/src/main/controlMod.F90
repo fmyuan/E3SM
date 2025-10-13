@@ -99,7 +99,8 @@ module controlMod
                         use_vichydro, use_century_decomp, use_cn, use_crop, &
                         use_snicar_frc, use_snicar_ad, use_firn_percolation_and_compaction, &
                         use_extrasnowlayers, use_T_rho_dependent_snowthk, &
-                        use_vancouver, use_mexicocity, use_noio, use_finetop_rad
+                        use_vancouver, use_mexicocity, use_noio, use_finetop_rad, &
+                        use_ats, use_ats_ic                        
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -165,6 +166,7 @@ contains
     use shr_string_mod            , only : shr_string_getParentDir
     use elm_interface_pflotranMod , only : elm_pf_readnl
     use ELMBeTRNLMod              , only : betr_readNL
+    use ExternalModelATS_readnlMod, only : elm_ats_readnl
     
     implicit none
     
@@ -176,6 +178,10 @@ contains
     integer :: dtime                ! Integer time-step
     integer :: override_nsrest      ! If want to override the startup type sent from driver
     character(len=32) :: subname = 'control_init'  ! subroutine name
+    ! DEBUG variables
+    integer :: unitd, iosd
+    character(len=512) :: linebuf
+    character(len=512) :: nl_errmsg
     !------------------------------------------------------------------------
 
     ! ----------------------------------------------------------------------
@@ -355,6 +361,9 @@ contains
     ! bgc & pflotran interface
     namelist /elm_inparm/ use_elm_interface, use_elm_bgc, use_pflotran
 
+    ! ats
+    namelist /elm_inparm/ use_ats, use_ats_ic
+
     namelist /elm_inparm/ use_dynroot
 
     namelist /elm_inparm/ use_var_soil_thick, use_lake_wat_storage
@@ -439,8 +448,25 @@ contains
        open( unitn, file=trim(NLFilename), status='old' )
        call shr_nl_find_group_name(unitn, 'elm_inparm', status=ierr)
        if (ierr == 0) then
-          read(unitn, elm_inparm, iostat=ierr)
+          ! DEBUG: print raw namelist lines before attempting read
+          unitd = getavu()
+          open(unitd, file=trim(NLFilename), status='old')
+          call shr_nl_find_group_name(unitd, 'elm_inparm', status=iosd)
+          if (iosd == 0) then
+             write(iulog,*) 'DEBUG elm_inparm raw lines:'
+             do
+                read(unitd, '(a)', iostat=iosd) linebuf
+                if (iosd /= 0) exit
+                write(iulog,*) 'DBG| ', trim(linebuf)
+                if (index(linebuf, '/') > 0) exit
+             end do
+          end if
+          call relavu(unitd)
+          ! DEBUG: use iomsg to get compiler error string
+          read(unitn, elm_inparm, iostat=ierr, iomsg=nl_errmsg)
           if (ierr /= 0) then
+             write(iulog,*) 'DEBUG elm_inparm read iostat=', ierr
+             write(iulog,*) 'DEBUG elm_inparm iomsg: ', trim(nl_errmsg)
              call endrun(msg='ERROR reading elm_inparm namelist'//errMsg(__FILE__, __LINE__))
           end if
        end if
@@ -622,6 +648,25 @@ contains
                    errMsg(__FILE__, __LINE__))
        end if
 
+       ! checking if conflict when using ATS external model
+       if (use_ats .or. use_ats_ic) then
+          ! currently ATS only provides subsurface hydrology
+          if (use_vsfm) then
+             call endrun(msg=' ERROR: use_vsfm and use_ats cannot both be set to true.'//&
+                   errMsg(__FILE__, __LINE__))
+          end if
+
+          if (use_pflotran .and. pf_hmode) then
+             call endrun(msg=' ERROR: use_pflotran/pf_hmode and use_ats cannot both be set to true.'//&
+                   errMsg(__FILE__, __LINE__))
+          end if
+
+          ! ! force the use of ATS partitioning
+          ! if (use_ats .or. use_ats_ic) then
+          !    domain_decomp_type = 'ats'
+          ! endif
+       end if
+
        if (use_lnd_rof_two_way) then
           if (lnd_rof_coupling_nstep < 1) then
           call endrun(msg=' ERROR: lnd_rof_coupling_nstep cannot be smaller than 1.'//&
@@ -649,6 +694,10 @@ contains
 
     if (use_pflotran) then
        call elm_pf_readnl(NLFilename)
+    end if
+
+    if (use_ats .or. use_ats_ic) then
+       call elm_ats_readnl(NLFilename)
     end if
 
     if (use_betr) then
@@ -1024,6 +1073,10 @@ contains
     call mpi_bcast (use_elm_interface, 1, MPI_LOGICAL, 0, mpicom, ier)
     call mpi_bcast (use_elm_bgc, 1, MPI_LOGICAL, 0, mpicom, ier)
     call mpi_bcast (use_pflotran, 1, MPI_LOGICAL, 0, mpicom, ier)
+
+    ! ats
+    call mpi_bcast (use_ats,    1, MPI_LOGICAL, 0, mpicom, ier)
+    call mpi_bcast (use_ats_ic, 1, MPI_LOGICAL, 0, mpicom, ier)
 
     !cpl_bypass
      call mpi_bcast (metdata_type,   len(metdata_type),   MPI_CHARACTER, 0, mpicom, ier)

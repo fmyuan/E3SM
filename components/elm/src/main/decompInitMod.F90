@@ -31,6 +31,9 @@ module decompInitMod
 #ifdef HAVE_MOAB
   public decompInit_moab         ! initializes lnd grid decomposition using MOAB partitioners
 #endif
+#ifdef USE_ATS_LIB
+  public decompInit_ats          ! initializes lnd grid decomposition using ATS mesh info
+#endif
   public decompInit_lnd          ! initializes lnd grid decomposition into clumps and processors
   public decompInit_clumps       ! initializes atm grid decomposition into clumps
   public decompInit_gtlcp        ! initializes g,l,c,p decomp info
@@ -322,6 +325,235 @@ contains
   end subroutine decompInit_moab
 #endif
 
+
+  
+#ifdef USE_ATS_LIB
+  subroutine decompInit_ats(lni,lnj,amask)
+    !
+    ! !DESCRIPTION:
+    ! This subroutine initializes the land surface decomposition into a clump
+    ! data structure.  This assumes each pe has the same number of clumps
+    ! set by clump_pproc
+    !
+    ! !USES:
+    use ExternalModelATS, only : em_ats, EM_ATS_GetMeshInfo
+    !
+    ! !ARGUMENTS:
+    implicit none
+
+#include "mpif.h"
+    integer , intent(in) :: amask(:)
+    integer , intent(in) :: lni,lnj   ! domain global size
+    !
+    ! ! !LOCAL VARIABLES:
+    integer              :: cid,pid              ! indices
+    integer              :: ier                  ! error code
+    integer, allocatable :: lcount(:), gcount(:)
+    integer, pointer     :: gindex(:)            ! global index for gsmap init
+    integer              :: lns                  ! global domain size
+    integer              :: n_ats_cells          ! ATS view of local # of grid cells
+    integer              :: n                    ! loop index
+    integer              :: begg
+    integer              :: lsize, gsize         ! used for gsmap init
+
+
+    !------------------------------------------------------------------------------
+    !--- call ATS to get number of columns per rank
+    call EM_ATS_GetMeshInfo(em_ats, n_ats_cells)
+    write(iulog,*) 'decompInit_ats(): ATS found n grid cells = ', n_ats_cells
+    
+
+    !--- set and verify nclumps ---
+    if (clump_pproc == 1) then
+       nclumps = npes
+    else
+       write(iulog,*)'ATS only accepts clump_pproc=1, ', clump_pproc, '  provided'
+       call endrun(msg=errMsg(__FILE__, __LINE__))
+    end if
+    
+    ! allocate and initialize procinfo (from decompMod.F90) and clumps
+    ! beg and end indices initialized for simple addition of cells later
+    allocate(procinfo%cid(clump_pproc), stat=ier)
+    if (ier /= 0) then
+       write(iulog,*) 'decompInit_moab(): allocation error for procinfo%cid'
+       call endrun(msg=errMsg(__FILE__, __LINE__))
+    endif
+    procinfo%nclumps   = clump_pproc
+    procinfo%cid(:)    = -1
+    procinfo%ncells    = n_ats_cells
+    procinfo%ntunits   = 0
+    procinfo%nlunits   = 0
+    procinfo%ncols     = 0
+    procinfo%npfts     = 0
+    procinfo%nCohorts  = 0
+    procinfo%begg      = 1
+    procinfo%begt      = 1
+    procinfo%begl      = 1
+    procinfo%begc      = 1
+    procinfo%begp      = 1
+    procinfo%begCohort = 1
+    procinfo%endg      = 0
+    procinfo%endt      = 0
+    procinfo%endl      = 0
+    procinfo%endc      = 0
+    procinfo%endp      = 0
+    procinfo%endCohort = 0
+
+    allocate(clumps(nclumps), stat=ier)
+    if (ier /= 0) then
+       write(iulog,*) 'decompInit_moab(): allocation error for clumps'
+       call endrun(msg=errMsg(__FILE__, __LINE__))
+    end if
+    clumps(:)%owner     = -1
+    clumps(:)%ncells    = 0
+    clumps(:)%ntunits   = 0
+    clumps(:)%nlunits   = 0
+    clumps(:)%ncols     = 0
+    clumps(:)%npfts     = 0
+    clumps(:)%nCohorts  = 0
+    clumps(:)%begg      = 1
+    clumps(:)%begt      = 1
+    clumps(:)%begl      = 1
+    clumps(:)%begc      = 1
+    clumps(:)%begp      = 1
+    clumps(:)%begCohort = 1
+    clumps(:)%endg      = 0
+    clumps(:)%endt      = 0
+    clumps(:)%endl      = 0
+    clumps(:)%endc      = 0
+    clumps(:)%endp      = 0
+    clumps(:)%endCohort = 0
+
+    ! accumulate to find begg and endg
+    allocate(lcount(1))
+    lcount(1) = n_ats_cells
+    allocate(gcount(npes))
+    call MPI_Alltoall(lcount, 1, MPI_INTEGER, &
+         gcount, 1, MPI_INTEGER, mpicom, ier)
+    if (ier /= 0) then
+       write(iulog,*) 'decompInit_ats(): Alltoall failed'
+       call endrun(msg=errMsg(__FILE__, __LINE__))
+    end if
+
+    begg = 0
+    do pid = 0,npes-1
+       write(iulog,*) 'on rank ', pid, ' begg at ', begg
+       cid = pid + 1
+       clumps(cid)%begg = begg + 1
+       clumps(cid)%endg = begg + gcount(cid)
+       clumps(cid)%ncells = gcount(cid)
+       clumps(cid)%owner = pid
+       begg = clumps(cid)%endg
+
+       if (pid == iam) then
+          procinfo%begg = clumps(cid)%begg
+          procinfo%endg = clumps(cid)%endg
+          procinfo%cid(1) = cid
+       end if
+    end do
+
+    lns = lni * lnj
+    if (lns /= begg) then
+       write(iulog,*) 'decompInit_ats(): ELM num grid cells = ', lns, ' but ATS has ', begg
+       call endrun(msg=errMsg(__FILE__, __LINE__))
+    endif
+    
+    deallocate(lcount)
+    deallocate(gcount)
+
+    ! Set lcid: maps each global cell index to its owning clump id
+    lns = lni * lnj
+    allocate(lcid(lns), stat=ier)
+    if (ier /= 0) then
+       write(iulog,*) 'decompInit_ats(): allocation error for lcid'
+       call endrun(msg=errMsg(__FILE__, __LINE__))
+    end if
+    lcid(:) = 0
+    do cid = 1,nclumps
+       do n = clumps(cid)%begg, clumps(cid)%endg
+          lcid(n) = cid
+       end do
+    end do
+
+    ! Set ldecomp%gdc2glo: in ATS, cells are already globally ordered,
+    ! so gdc index maps directly to global index (identity mapping)
+    allocate(ldecomp%gdc2glo(lns), stat=ier)
+    if (ier /= 0) then
+       write(iulog,*) 'decompInit_ats(): allocation error for ldecomp%gdc2glo'
+       call endrun(msg=errMsg(__FILE__, __LINE__))
+    end if
+    ldecomp%gdc2glo(:) = 0
+    do n = 1,lns
+       ldecomp%gdc2glo(n) = n
+    end do
+
+    ! Build gsMap_lnd_gdc2glo
+    lsize = procinfo%endg - procinfo%begg + 1
+    gsize = lns
+    allocate(gindex(procinfo%begg:procinfo%endg), stat=ier)
+    if (ier /= 0) then
+       write(iulog,*) 'decompInit_ats(): allocation error for gindex'
+       call endrun(msg=errMsg(__FILE__, __LINE__))
+    end if
+    do n = procinfo%begg, procinfo%endg
+       gindex(n) = ldecomp%gdc2glo(n)
+    end do
+    call mct_gsMap_init(gsMap_lnd_gdc2glo, gindex, mpicom, comp_id, lsize, gsize)
+    deallocate(gindex)
+
+    if (masterproc) then
+       write(iulog,*)'WTF ATS'
+       write(iulog,*)' Surface Grid Characteristics'
+       write(iulog,*)'   longitude points               = ',lni
+       write(iulog,*)'   latitude points                = ',lnj
+       write(iulog,*)'   total number of land gridcells = ',lns
+       write(iulog,*)
+       write(iulog,*) '--'
+       write(iulog,*) 'clump owner = ', clumps(1)%owner
+       write(iulog,*) 'clump ncells = ', clumps(1)%ncells
+       write(iulog,*) 'clump ntunits = ', clumps(1)%ntunits
+       write(iulog,*) 'clump nlunits = ', clumps(1)%nlunits
+       write(iulog,*) 'clump ncols = ', clumps(1)%ncols
+       write(iulog,*) 'clump npfts = ', clumps(1)%npfts
+       write(iulog,*) 'clump nCohorts = ', clumps(1)%nCohorts
+       write(iulog,*) 'clump begg = ', clumps(1)%begg
+       write(iulog,*) 'clump begl = ', clumps(1)%begl
+       write(iulog,*) 'clump begc = ', clumps(1)%begc
+       write(iulog,*) 'clump begp = ', clumps(1)%begp
+       write(iulog,*) 'clump begCohort = ', clumps(1)%begCohort
+       write(iulog,*) 'clump endg = ', clumps(1)%endg
+       write(iulog,*) 'clump endt = ', clumps(1)%endt
+       write(iulog,*) 'clump endl = ', clumps(1)%endl
+       write(iulog,*) 'clump endc = ', clumps(1)%endc
+       write(iulog,*) 'clump endp = ', clumps(1)%endp
+       write(iulog,*) 'clump endCohort = ', clumps(1)%endCohort
+       write(iulog,*) '--'
+       write(iulog,*) 'procinfo nclumps = ', procinfo%nclumps
+       write(iulog,*) 'procinfo cid = ', procinfo%cid(:)
+       write(iulog,*) 'procinfo ncells = ', procinfo%ncells
+       write(iulog,*) 'procinfo ntunits = ', procinfo%ntunits
+       write(iulog,*) 'procinfo nlunits = ', procinfo%nlunits
+       write(iulog,*) 'procinfo ncols = ', procinfo%ncols
+       write(iulog,*) 'procinfo npfts = ', procinfo%npfts
+       write(iulog,*) 'procinfo nCohorts = ', procinfo%nCohorts
+       write(iulog,*) 'procinfo begg = ', procinfo%begg
+       write(iulog,*) 'procinfo begl = ', procinfo%begl
+       write(iulog,*) 'procinfo begc = ', procinfo%begc
+       write(iulog,*) 'procinfo begp = ', procinfo%begp
+       write(iulog,*) 'procinfo begCohort = ', procinfo%begCohort
+       write(iulog,*) 'procinfo endg = ', procinfo%endg
+       write(iulog,*) 'procinfo endt = ', procinfo%endt
+       write(iulog,*) 'procinfo endl = ', procinfo%endl
+       write(iulog,*) 'procinfo endc = ', procinfo%endc
+       write(iulog,*) 'procinfo endp = ', procinfo%endp
+       write(iulog,*) 'procinfo endCohort = ', procinfo%endCohort
+       write(iulog,*) '--'
+    end if
+    
+  end subroutine decompInit_ats
+#endif
+
+
   !------------------------------------------------------------------------------
   subroutine decompInit_lnd(lni,lnj,amask)
     !
@@ -607,6 +839,7 @@ contains
     ! Diagnostic output
 
     if (masterproc) then
+       write(iulog,*)'WTF lnd:'
        write(iulog,*)' Surface Grid Characteristics'
        write(iulog,*)'   longitude points               = ',lni
        write(iulog,*)'   latitude points                = ',lnj
@@ -616,6 +849,50 @@ contains
        write(iulog,*)' gsMap Characteristics'
        write(iulog,*) '  lnd gsmap glo num of segs      = ',mct_gsMap_ngseg(gsMap_lnd_gdc2glo)
        write(iulog,*)
+
+       write(iulog,*)
+       write(iulog,*) '--'
+       write(iulog,*) 'clump owner = ', clumps(1)%owner
+       write(iulog,*) 'clump ncells = ', clumps(1)%ncells
+       write(iulog,*) 'clump ntunits = ', clumps(1)%ntunits
+       write(iulog,*) 'clump nlunits = ', clumps(1)%nlunits
+       write(iulog,*) 'clump ncols = ', clumps(1)%ncols
+       write(iulog,*) 'clump npfts = ', clumps(1)%npfts
+       write(iulog,*) 'clump nCohorts = ', clumps(1)%nCohorts
+       write(iulog,*) 'clump begg = ', clumps(1)%begg
+       write(iulog,*) 'clump begl = ', clumps(1)%begl
+       write(iulog,*) 'clump begc = ', clumps(1)%begc
+       write(iulog,*) 'clump begp = ', clumps(1)%begp
+       write(iulog,*) 'clump begCohort = ', clumps(1)%begCohort
+       write(iulog,*) 'clump endg = ', clumps(1)%endg
+       write(iulog,*) 'clump endt = ', clumps(1)%endt
+       write(iulog,*) 'clump endl = ', clumps(1)%endl
+       write(iulog,*) 'clump endc = ', clumps(1)%endc
+       write(iulog,*) 'clump endp = ', clumps(1)%endp
+       write(iulog,*) 'clump endCohort = ', clumps(1)%endCohort
+       write(iulog,*) '--'
+       write(iulog,*) 'procinfo nclumps = ', procinfo%nclumps
+       write(iulog,*) 'procinfo cid = ', procinfo%cid(:)
+       write(iulog,*) 'procinfo ncells = ', procinfo%ncells
+       write(iulog,*) 'procinfo ntunits = ', procinfo%ntunits
+       write(iulog,*) 'procinfo nlunits = ', procinfo%nlunits
+       write(iulog,*) 'procinfo ncols = ', procinfo%ncols
+       write(iulog,*) 'procinfo npfts = ', procinfo%npfts
+       write(iulog,*) 'procinfo nCohorts = ', procinfo%nCohorts
+       write(iulog,*) 'procinfo begg = ', procinfo%begg
+       write(iulog,*) 'procinfo begl = ', procinfo%begl
+       write(iulog,*) 'procinfo begc = ', procinfo%begc
+       write(iulog,*) 'procinfo begp = ', procinfo%begp
+       write(iulog,*) 'procinfo begCohort = ', procinfo%begCohort
+       write(iulog,*) 'procinfo endg = ', procinfo%endg
+       write(iulog,*) 'procinfo endt = ', procinfo%endt
+       write(iulog,*) 'procinfo endl = ', procinfo%endl
+       write(iulog,*) 'procinfo endc = ', procinfo%endc
+       write(iulog,*) 'procinfo endp = ', procinfo%endp
+       write(iulog,*) 'procinfo endCohort = ', procinfo%endCohort
+       write(iulog,*) '--'
+
+
     end if
 
     call shr_sys_flush(iulog)
@@ -917,6 +1194,7 @@ contains
     ! Diagnostic output
 
     if (masterproc) then
+       write(iulog,*)'WTF simple:'
        write(iulog,*)' Surface Grid Characteristics'
        write(iulog,*)'   longitude points               = ',lni
        write(iulog,*)'   latitude points                = ',lnj
@@ -926,6 +1204,46 @@ contains
        write(iulog,*)' gsMap Characteristics'
        write(iulog,*) '  lnd gsmap glo num of segs      = ',mct_gsMap_ngseg(gsMap_lnd_gdc2glo)
        write(iulog,*)
+       write(iulog,*) '--'
+       write(iulog,*) 'clump owner = ', clumps(1)%owner
+       write(iulog,*) 'clump ncells = ', clumps(1)%ncells
+       write(iulog,*) 'clump ntunits = ', clumps(1)%ntunits
+       write(iulog,*) 'clump nlunits = ', clumps(1)%nlunits
+       write(iulog,*) 'clump ncols = ', clumps(1)%ncols
+       write(iulog,*) 'clump npfts = ', clumps(1)%npfts
+       write(iulog,*) 'clump nCohorts = ', clumps(1)%nCohorts
+       write(iulog,*) 'clump begg = ', clumps(1)%begg
+       write(iulog,*) 'clump begl = ', clumps(1)%begl
+       write(iulog,*) 'clump begc = ', clumps(1)%begc
+       write(iulog,*) 'clump begp = ', clumps(1)%begp
+       write(iulog,*) 'clump begCohort = ', clumps(1)%begCohort
+       write(iulog,*) 'clump endg = ', clumps(1)%endg
+       write(iulog,*) 'clump endt = ', clumps(1)%endt
+       write(iulog,*) 'clump endl = ', clumps(1)%endl
+       write(iulog,*) 'clump endc = ', clumps(1)%endc
+       write(iulog,*) 'clump endp = ', clumps(1)%endp
+       write(iulog,*) 'clump endCohort = ', clumps(1)%endCohort
+       write(iulog,*) '--'
+       write(iulog,*) 'procinfo nclumps = ', procinfo%nclumps
+       write(iulog,*) 'procinfo cid = ', procinfo%cid(:)
+       write(iulog,*) 'procinfo ncells = ', procinfo%ncells
+       write(iulog,*) 'procinfo ntunits = ', procinfo%ntunits
+       write(iulog,*) 'procinfo nlunits = ', procinfo%nlunits
+       write(iulog,*) 'procinfo ncols = ', procinfo%ncols
+       write(iulog,*) 'procinfo npfts = ', procinfo%npfts
+       write(iulog,*) 'procinfo nCohorts = ', procinfo%nCohorts
+       write(iulog,*) 'procinfo begg = ', procinfo%begg
+       write(iulog,*) 'procinfo begl = ', procinfo%begl
+       write(iulog,*) 'procinfo begc = ', procinfo%begc
+       write(iulog,*) 'procinfo begp = ', procinfo%begp
+       write(iulog,*) 'procinfo begCohort = ', procinfo%begCohort
+       write(iulog,*) 'procinfo endg = ', procinfo%endg
+       write(iulog,*) 'procinfo endt = ', procinfo%endt
+       write(iulog,*) 'procinfo endl = ', procinfo%endl
+       write(iulog,*) 'procinfo endc = ', procinfo%endc
+       write(iulog,*) 'procinfo endp = ', procinfo%endp
+       write(iulog,*) 'procinfo endCohort = ', procinfo%endCohort
+       write(iulog,*) '--'
     end if
 
     call shr_sys_flush(iulog)
@@ -1260,7 +1578,6 @@ contains
     use spmdMod
     use spmdGathScatMod
     use subgridMod,       only : subgrid_get_gcellinfo
-    use mct_mod
     !
     ! !ARGUMENTS:
     implicit none

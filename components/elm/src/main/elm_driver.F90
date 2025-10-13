@@ -177,7 +177,7 @@ module elm_driver
   use elm_interface_funcsMod      , only : update_bgc_data_pf2elm, update_th_data_pf2elm
   use elm_interface_pflotranMod   , only : elm_pf_run, elm_pf_write_restart
   use elm_interface_pflotranMod   , only : elm_pf_finalize
-  !----------------------------------------------------------------------------
+  
   use WaterBudgetMod              , only : WaterBudget_Reset, WaterBudget_Run, WaterBudget_Accum, WaterBudget_Print
   use WaterBudgetMod              , only : WaterBudget_SetBeginningMonthlyStates
   use WaterBudgetMod              , only : WaterBudget_SetEndingMonthlyStates
@@ -918,7 +918,7 @@ contains
             filter(nc)%num_snowc, filter(nc)%snowc,                          &
             filter(nc)%num_nosnowc, filter(nc)%nosnowc,canopystate_vars,     &
             atm2lnd_vars, ocn2lnd_vars, lnd2atm_vars, soilstate_vars,        &
-            energyflux_vars, soilhydrology_vars, aerosol_vars )
+            energyflux_vars, soilhydrology_vars, aerosol_vars, photosyns_vars )
 
        !  Calculate column-integrated aerosol masses, and
        !  mass concentrations for radiative calculations and output
@@ -1225,6 +1225,7 @@ contains
               photosyns_vars, drydepvel_vars)
        end if
        call t_stopf('depvel')
+
        ! ============================================================================
        ! Calculate soil/snow hydrology with drainage (subsurface runoff)
        ! ============================================================================
@@ -1333,7 +1334,7 @@ contains
        call ColWaterBalanceCheck(bounds_clump, &
             filter(nc)%num_do_smb_c, filter(nc)%do_smb_c, &
             atm2lnd_vars, glc2lnd_vars, solarabs_vars,  &
-            energyflux_vars, canopystate_vars)
+            energyflux_vars, canopystate_vars, soilhydrology_vars)
        call t_stopf('balchk')
 
        call t_startf('gridbalchk')

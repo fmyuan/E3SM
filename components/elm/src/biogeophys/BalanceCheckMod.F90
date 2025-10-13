@@ -26,6 +26,7 @@ module BalanceCheckMod
   use ColumnDataType     , only : col_ef, col_ws, col_wf
   use VegetationType     , only : veg_pp
   use VegetationDataType , only : veg_ef, veg_ws
+  use elm_varctl         , only : use_ats, use_ats_ic
 
   use timeinfoMod
   !
@@ -95,10 +96,10 @@ contains
             h2ocan_col(bounds%begc:bounds%endc))
 
       if (use_var_soil_thick) then
-	       do f = 1, num_hydrologyc
+         do f = 1, num_hydrologyc
             c = filter_hydrologyc(f)
       	    wa(c) = 0._r8                ! Made 0 for variable soil thickness
-	       end do
+        end do
       end if
 
       do f = 1, num_nolakec
@@ -147,7 +148,7 @@ contains
    !-----------------------------------------------------------------------
    subroutine ColWaterBalanceCheck( bounds, num_do_smb_c, filter_do_smb_c, &
         atm2lnd_vars, glc2lnd_vars, solarabs_vars, &
-        energyflux_vars, canopystate_vars)
+        energyflux_vars, canopystate_vars, soilhydrology_vars)
      !
      ! !DESCRIPTION:
      ! This subroutine accumulates the numerical truncation errors of the water
@@ -182,6 +183,7 @@ contains
      type(solarabs_type)   , intent(in)    :: solarabs_vars
      type(energyflux_type) , intent(inout) :: energyflux_vars
      type(canopystate_type), intent(inout) :: canopystate_vars
+     type(soilhydrology_type), intent(in)  :: soilhydrology_vars
      !
      ! !LOCAL VARIABLES:
      integer  :: p,c,l,t,g,fc                           ! indices
@@ -373,10 +375,51 @@ contains
        
        found = .false.
        do c = bounds%begc, bounds%endc
-          
           if (abs(errh2o(c)) > 1.e-7_r8) then
              found = .true.
-             indexc = c             
+             indexc = c
+          endif
+          !if ((use_ats .or. use_ats_ic) .and. col_pp%itype(c) .eq. istsoil) then
+          if (col_pp%itype(c) .eq. istsoil) then
+             indexc = c
+             write(iulog,*)''
+             write(iulog,*)'ELM+ATS Water Balance Summary (column', c, ')'
+             write(iulog,*)'use_ats = ', use_ats, '; use_ats_ic = ', use_ats_ic
+             write(iulog,*)'============================================================'
+             write(iulog,*)'colum number               = ',col_pp%gridcell(indexc)
+             write(iulog,*)'nstep                      = ',nstep
+             write(iulog,*)'errh2o                     = ',errh2o(indexc)
+             write(iulog,*)'forc_rain                  = ',forc_rain_col(indexc)
+             write(iulog,*)'forc_snow                  = ',forc_snow_col(indexc)
+             write(iulog,*)'endwb                      = ',endwb(indexc)
+             write(iulog,*)'   h2ocan                  = ',col_ws%h2ocan(indexc)
+             write(iulog,*)'   h2osfc                  = ',col_ws%h2osfc(indexc)
+             write(iulog,*)'   h2osno                  = ',col_ws%h2osno(indexc)
+             write(iulog,*)'      snl                  = ',col_pp%snl(indexc)
+             write(iulog,*)'      frac_sno_eff         = ',col_ws%frac_sno_eff(indexc)
+             write(iulog,*)'   h2osoi_liq              = ',col_ws%h2osoi_liq_depth_intg(indexc)
+             write(iulog,*)'   h2osoi_ice              = ',col_ws%h2osoi_ice_depth_intg(indexc)
+             write(iulog,*)'   wa                      = ',soilhydrology_vars%wa_col(indexc)
+             write(iulog,*)'begwb                      = ',begwb(indexc)
+             write(iulog,*)'qflx_evap_tot              = ',qflx_evap_tot(indexc)
+             write(iulog,*)'qflx_irrig                 = ',qflx_irrig(indexc)
+             write(iulog,*)'qflx_surf_irrig_col        = ',qflx_surf_irrig_col(indexc)
+             write(iulog,*)'qflx_over_supply_col       = ',qflx_over_supply_col(indexc)
+             write(iulog,*)'qflx_supply                = ',atm2lnd_vars%supply_grc(g)
+             write(iulog,*)'qflx_surf                  = ',qflx_surf(indexc)
+             write(iulog,*)'qflx_h2osfc_surf           = ',qflx_h2osfc_surf(indexc)
+             write(iulog,*)'qflx_qrgwl                 = ',qflx_qrgwl(indexc)
+             write(iulog,*)'qflx_drain                 = ',qflx_drain(indexc)
+             write(iulog,*)'qflx_drain_perched         = ',qflx_drain_perched(indexc)
+             write(iulog,*)'qflx_flood                 = ',qflx_floodc(indexc)
+             write(iulog,*)'qflx_snwcp_ice             = ',qflx_snwcp_ice(indexc)
+             write(iulog,*)'qflx_glcice_melt           = ',qflx_glcice_melt(indexc)
+             write(iulog,*)'qflx_glcice_frz            = ',qflx_glcice_frz(indexc)
+             write(iulog,*)'qflx_lateral               = ',qflx_lateral(indexc)
+             write(iulog,*)'total_plant_stored_h2o_col = ',total_plant_stored_h2o_col(indexc)
+             write(iulog,*)'qflx_h2orof_drain          = ',qflx_h2orof_drain(indexc)
+             write(iulog,*)'qflx_ice_runoff_xs          = ',qflx_ice_runoff_xs(indexc)
+             write(iulog,*)'============================================================'
           end if
        end do
 
@@ -417,8 +460,9 @@ contains
              call endrun(decomp_index=indexc, elmlevel=namec, msg=errmsg(__FILE__, __LINE__))
 
           else if (abs(errh2o(indexc)) > 1.e-4_r8 .and. (nstep > 2) ) then
-
-             write(iulog,*)'elm model is stopping - error is greater than 1e-4 (mm)'
+             write(iulog,*)''
+             write(iulog,*)'ELM Water Balance Summary (column', indexc
+             write(iulog,*)'============================================================'
              write(iulog,*)'colum number               = ',col_pp%gridcell(indexc)
              write(iulog,*)'nstep                      = ',nstep
              write(iulog,*)'errh2o                     = ',errh2o(indexc)

@@ -18,7 +18,7 @@ module SnowHydrologyMod
   use decompMod       , only : bounds_type
   use abortutils      , only : endrun
   use elm_varpar      , only : nlevsno
-  use elm_varctl      , only : iulog, use_extrasnowlayers, use_firn_percolation_and_compaction
+  use elm_varctl      , only : iulog, use_extrasnowlayers, use_firn_percolation_and_compaction, use_ats
   use elm_varcon      , only : namec, h2osno_max
   use atm2lndType     , only : atm2lnd_type
   use AerosolType     , only : aerosol_type
@@ -241,7 +241,7 @@ contains
                h2osoi_liq(c,snl(c)+1) = h2osoi_liq(c,snl(c)+1) + wgdif
             end if
             h2osoi_liq(c,snl(c)+1) = h2osoi_liq(c,snl(c)+1) &
-                 - frac_sno_eff(c)*qflx_evap_grnd(c) * dtime
+               - frac_sno_eff(c)*qflx_evap_grnd(c) * dtime
          else
             wgdif = h2osoi_ice(c,snl(c)+1) &
                  + frac_sno_eff(c) * (qflx_dew_snow(c) - qflx_sub_snow(c)) * dtime
@@ -255,6 +255,8 @@ contains
                  - qflx_evap_grnd(c)) * dtime
          end if
          ! if negative, reduce deeper layer's liquid water content sequentially
+         ! RPF/ETC - may need to revisit this, since snow model can potentially 
+         ! steal water from top 2 soil levels
          if(h2osoi_liq(c,snl(c)+1) < 0._r8) then
             do j = snl(c)+1, 1
                wgdif=h2osoi_liq(c,j)
@@ -1006,6 +1008,8 @@ contains
                 if (h2osno(c) <= 0._r8) snow_depth(c) = 0._r8
                 ! this is where water is transfered from layer 0 (snow) to layer 1 (soil)
                 if (col_pp%is_soil(c) .or. urbpoi(l) .or. col_pp%is_crop(c)) then
+                   ! ETC/RPF - may need to revisit this if zwliq causes top soil layer 
+                   ! to be over saturation
                    h2osoi_liq(c,0) = 0.0_r8
                    h2osoi_liq(c,1) = h2osoi_liq(c,1) + zwliq(c)
                    qflx_snow2topsoi(c) = zwliq(c)/dtime
