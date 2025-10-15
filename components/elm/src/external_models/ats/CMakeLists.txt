@@ -6,8 +6,11 @@ set(EM_ATS_SOURCES
   ExternalModelATS.F90
 )
 
+# work toward replacing with compset and
+# configure scripts for ELM. Possible
+# that much of this can be deleted in the end.
 include(add_emi_library)
-add_emi_library(em_ats ${EMI_EM_ATS_SOURCES})
+add_emi_library(em_ats ${EM_ATS_SOURCES})
 
 set(EMI_LIBRARIES em_ats;${EMI_LIBRARIES} PARENT_SCOPE)
 set(EMI_LIBRARIES em_ats;${EMI_LIBRARIES})

@@ -287,6 +287,9 @@ macro(build_model COMP_CLASS COMP_NAME)
     set(ATS_DIR "$ENV{ATS_DIR}")
     if (NOT ATS_DIR STREQUAL "")
       set(Amanzi_DIR "${ATS_DIR}/lib")
+      # not clear why HDF5 and NETCDF calls are needed,
+      # ultimately find_package(Amanzi REQUIRED) should return
+      # what is needed
       find_package(HDF5 REQUIRED)
       find_package(NETCDF REQUIRED)
       find_package(Amanzi REQUIRED)
