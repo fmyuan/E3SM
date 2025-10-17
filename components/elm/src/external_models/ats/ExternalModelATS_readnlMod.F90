@@ -51,9 +51,7 @@ contains
     ! ----------------------------------------------------------------------
     ! Read namelist from standard namelist file.
     ! ----------------------------------------------------------------------
-
-    if ( masterproc )then
-
+    if (masterproc) then
        unitn = getavu()
        write(iulog,*) 'Read in elm-ats namelist'
        open (unitn, file=trim(NLFilename), status='old', iostat=ierr)
