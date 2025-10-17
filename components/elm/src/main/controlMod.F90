@@ -322,6 +322,9 @@ contains
     ! bgc & pflotran interface
     namelist /elm_inparm/ use_elm_interface, use_elm_bgc, use_pflotran
 
+    ! ats
+    namelist /elm_inparm/ use_ats
+    
     namelist /elm_inparm/ use_dynroot
 
     namelist /elm_inparm/ use_var_soil_thick, use_lake_wat_storage
@@ -613,6 +616,20 @@ contains
                             use_var_soil_thick_in= use_var_soil_thick,     &
                             use_top_solar_rad_in = use_top_solar_rad)
 
+       ! checking if conflict when using ATS external model
+       if (use_ats) then
+          ! currently ATS only provides subsurface hydrology
+          if (use_vsfm) then
+             call endrun(msg=' ERROR: use_vsfm and use_ats cannot both be set to true.'//&
+                   errMsg(__FILE__, __LINE__))
+          end if
+
+          if (use_pflotran .and. pf_hmode) then
+             call endrun(msg=' ERROR: use_pflotran/pf_hmode and use_ats cannot both be set to true.'//&
+                   errMsg(__FILE__, __LINE__))
+          end if
+       end if
+       
     endif   ! end of if-masterproc if-block
 
     ! ----------------------------------------------------------------------
@@ -1011,6 +1028,9 @@ contains
     call mpi_bcast (use_elm_interface, 1, MPI_LOGICAL, 0, mpicom, ier)
     call mpi_bcast (use_elm_bgc, 1, MPI_LOGICAL, 0, mpicom, ier)
     call mpi_bcast (use_pflotran, 1, MPI_LOGICAL, 0, mpicom, ier)
+
+    ! ats
+    call mpi_bcast (use_ats, 1, MPI_LOGICAL, 0, mpicom, ier)
 
     !cpl_bypass
      call mpi_bcast (metdata_type,   len(metdata_type),   MPI_CHARACTER, 0, mpicom, ier)
