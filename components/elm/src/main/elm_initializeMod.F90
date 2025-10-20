@@ -1165,6 +1165,7 @@ contains
     use ExternalModelInterfaceMod, only : EMI_Init_EM
     use ExternalModelConstants   , only : EM_ID_VSFM
     use ExternalModelConstants   , only : EM_ID_PTM
+    use filterMod                , only : filter
 
 #ifdef USE_ATS_LIB
     use ExternalModelATS        , only : EM_ATS_Create, em_ats
@@ -1221,8 +1222,11 @@ contains
 
 #ifdef USE_ATS_LIB
     if (use_ats) then
+       if (get_proc_clumps() /= 1) then
+          call endrun("Cannot use_ats with more than 1 clump.")
+       end if
        call EM_ATS_Create(em_ats)
-       call em_ats%Init()
+       call em_ats%Init(filter(1)%hydrologyc, filter(1)%num_hydrologyc, nlevgrnd)
     endif
 #endif
 

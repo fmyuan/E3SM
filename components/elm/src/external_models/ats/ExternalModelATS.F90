@@ -7,19 +7,17 @@ module ExternalModelATS
   !
 
   ! ELM modules
+  use iso_c_binding
   use shr_kind_mod                 , only : r8 => shr_kind_r8
-
+  use spmdMod                      , only : mpicom
+  use abortutils                   , only : endrun
   use histFileMod                  , only : hist_nhtfrq
   use elm_varpar                   , only : nlevgrnd
-
-
-  use ExternalModelATS_readnlMod   , only : ats_inputdir, ats_inputfile
-  use spmdMod                      , only : mpicom
-  use ExternalModelATS_interface   , only : ats_create, ats_setup, ats_initialize, &
-                                            ats_advance, ats_delete, &
-                                            ats_set_field, ats_get_field
-
-  use iso_c_binding
+  
+  use ExternalModelATS_interface   , only : ats_create, ats_setup, ats_parse_parameter_list, &
+                                            ats_initialize, ats_advance, ats_delete, &
+                                            ats_get_field, ats_get_field_ptr_w, &
+                                            ats_get_mesh_info
 
   ! fortran API for C++ ATS code
   use ExternalModelATS_variables                , only : ats_var_id
@@ -33,13 +31,16 @@ module ExternalModelATS
      ! ----------------------------------------------------------------------
      ! pointer to ATS instance
      ! ----------------------------------------------------------------------
-     type(C_PTR) :: ats
-
+     type(c_ptr) :: ats
+     integer, pointer :: col_filter(:)
+     integer :: ncolumns
+     integer :: nlevgrnd
+     
    contains
-     procedure, public :: Init                    => EM_ATS_Init
-     procedure, public :: Advance                 => EM_ATS_Advance
-     procedure, public :: Finalize                => EM_ATS_Finalize
-
+     procedure, public :: Init                          => EM_ATS_Init
+     procedure, public :: Advance                       => EM_ATS_Advance
+     procedure, public :: Finalize                      => EM_ATS_Finalize
+     
   end type em_ats_type
 
   type(em_ats_type), public :: em_ats
@@ -47,6 +48,8 @@ module ExternalModelATS
 contains
   !------------------------------------------------------------------------
   subroutine EM_ATS_Create(this)
+    use ExternalModelATS_readnlMod   , only : ats_inputdir, ats_inputfile
+
     implicit none
     type(em_ats_type) :: this
 
@@ -92,19 +95,28 @@ contains
   end function EM_ATS_Create2
     
   !------------------------------------------------------------------------
-  subroutine EM_ATS_Init(this)
+  subroutine EM_ATS_Init(this, col_filter, ncolumns, nlevgrnd)
     implicit none
 
-    class(em_ats_type)                   :: this
+    class(em_ats_type)  :: this
+    integer, pointer :: col_filter(:)
+    integer, intent(in) :: ncolumns
+    integer, intent(in) :: nlevgrnd
 
+    this%col_filter => col_filter
+    this%ncolumns = ncolumns
+    this%nlevgrnd = nlevgrnd
+
+    call ats_parse_parameter_list(this%ats)
+    
     !! begin setup portion of this call
     ! check PFT assumption -- 1 PFT per column, 1 column per grid cell
     ! TODO: ETC -- Step 0
-    ! call EM_ATS_check_heirarchy(this)
+    call EM_ATS_CheckHeirarchy(this)
 
     ! check ATS -- ELM mesh consistency
     ! TODO: ETC -- Step 0
-    ! call EM_ATS_check_mesh(this)
+    call EM_ATS_CheckMesh(this)
 
     ! ATS setup
     call ats_setup(this%ats)
@@ -133,7 +145,8 @@ contains
 
 
   !------------------------------------------------------------------------
-  subroutine EM_ATS_Advance(this, dt, nstep, soilstate_vars, col_wf, col_ws)
+  subroutine EM_ATS_Advance(this, dt, nstep, col_pp, soilstate_vars, col_wf, col_ws)
+    use ColumnType                 , only : column_physical_properties
     use SoilStateType              , only : soilstate_type
     use ColumnDataType             , only : column_water_flux, column_water_state
 
@@ -142,6 +155,7 @@ contains
     class(em_ats_type)                       :: this
     real(r8)                 , intent(in)    :: dt
     integer                  , intent(in)    :: nstep
+    type(column_physical_properties)     , intent(in)    :: col_pp
     type(soilstate_type)     , intent(in)    :: soilstate_vars
     type(column_water_flux)  , intent(in)    :: col_wf
     type(column_water_state) , intent(in)    :: col_ws
@@ -154,7 +168,7 @@ contains
     print *, 'EM_ATS_Advance: advancing for time', dt
 
     ! pass dynamic parameters to ATS
-    call ats_set_field(this%ats, ats_var_id%EFFECTIVE_POROSITY, soilstate_vars%eff_porosity_col)
+    ! call ats_set_field(this%ats, ats_var_id%EFFECTIVE_POROSITY, soilstate_vars%eff_porosity_col)
 
     ! is this correct?  Is ELM allocated with:
     !      num_patches = 17 * num_columns, or
@@ -176,9 +190,9 @@ contains
     ! call ats_set_field(this%ats, ats_var_id%WATER_CONTENT, col_ws%h2osoi_liq)
     ! call ats_set_field(this%ats, ats_var_id%SURFACE_WATER_CONTENT, col_ws%h2osfc)
 
-    ! pass fluxes to ATS
-    call ats_set_field(this%ats, ats_var_id%GROSS_SURFACE_WATER_SOURCE, col_wf%qflx_top_soil)
-    call ats_set_field(this%ats, ats_var_id%POTENTIAL_TRANSPIRATION, col_wf%qflx_tran_veg)
+    ! pass fluxes to ATS -- unit change from [mm H2O / s] to [m H2O / s]
+    call EM_ATS_SetField_ScalarMultiply(this, ats_var_id%GROSS_SURFACE_WATER_SOURCE, col_wf%qflx_top_soil, 1.e-3_r8)
+    call EM_ATS_SetField_ScalarMultiply(this, ats_var_id%POTENTIAL_TRANSPIRATION, col_wf%qflx_tran_veg, 1.e-3_r8)
 
     ! This one needs to be computed, and how it is computed is really an ELM thing.
     ! Therefore, we should really use ats_get_field_ptr_w() and fill.
@@ -234,6 +248,47 @@ contains
     call ats_delete(this%ats)
   end subroutine EM_ATS_Finalize
 
+  !------------------------------------------------------------------------
+  ! straight copy
+  !
+  subroutine EM_ATS_SetField_Copy(this, var_id, field)
+    implicit none
+    class(em_ats_type)         :: this
+    integer(c_int), intent(in) :: var_id
+    real(r8), intent(in)       :: field(:)
+
+    ! local variables
+    integer :: i, ii
+    real(c_double), pointer    :: ats_field(:)
+
+    call EM_ATS_GetFieldPtrW(this, var_id, this%ncolumns, ats_field)
+    do i=1,this%ncolumns
+       ii = this%col_filter(i)
+       ats_field(i) = field(ii)
+    end do
+  end subroutine EM_ATS_SetField_Copy
+  
+  !------------------------------------------------------------------------
+  ! unit change
+  !
+  subroutine EM_ATS_SetField_ScalarMultiply(this, var_id, field, factor)
+    implicit none
+    class(em_ats_type)         :: this
+    integer(c_int), intent(in) :: var_id
+    real(r8), intent(in)       :: field(:)
+    real(r8), intent(in)       :: factor
+
+    ! local variables
+    real(c_double), pointer    :: ats_field(:)
+    integer :: i, ii
+
+    call EM_ATS_GetFieldPtrW(this, var_id, this%ncolumns, ats_field)
+    do i=1,this%ncolumns
+       ii = this%col_filter(i)
+       ats_field(i) = factor * field(ii)
+    end do
+  end subroutine EM_ATS_SetField_ScalarMultiply
+
 
   !========================================================================
   ! private functions
@@ -243,8 +298,7 @@ contains
   ! Checks that assumptions about the ELM scale heirarchy required for
   ! use of ATS are satsified
   !
-  subroutine EM_ATS_check_heirarchy(this)
-
+  subroutine EM_ATS_CheckHeirarchy(this)
     implicit none
 
     class(em_ats_type)                   :: this
@@ -252,13 +306,12 @@ contains
     ! checks ELM-only things, e.g. num active PFTs on each water
     ! column is 1, num water columns on each grid cell is 1, no
     ! filters are active, etc
-  end subroutine EM_ATS_check_heirarchy
+  end subroutine EM_ATS_CheckHeirarchy
   
   ! -----------------------------------------------------------------------
   ! Checks that the ATS and ELM mesh representations are consistent
   !
-  subroutine EM_ATS_check_mesh(this)
-
+  subroutine EM_ATS_CheckMesh(this)
     implicit none
 
     class(em_ats_type)                   :: this
@@ -273,13 +326,20 @@ contains
     real(c_double), pointer :: ats_elevations(:)
 
     ! compare to mesh info
-    ! call ats_get_mesh_info(this%ats, ats_ncols_local, ats_ncols_global, ats_nlevgrnd, ats_dzs)
+    call ats_get_mesh_info(this%ats, ats_ncols_local, ats_ncols_global, ats_nlevgrnd, ats_dzs)
 
     ! assertions on shapes
-    ! TODO: ETC -- Step 1
-    ! assert(ats_ncols_local .eq. ...)
-    ! assert(ats_ncols_global .eq. ...)
-    ! assert(ats_nlevgrnd .eq. nlevgrnd)
+    if (ats_ncols_local /= this%ncolumns) then
+       call endrun("ATS local ncolumns does not match requested ncolumns")
+    end if
+
+    if (ats_nlevgrnd /= this%nlevgrnd) then
+       print*, "ATS: NLEVGRND = ", ats_nlevgrnd
+       print*, "ELM: NLEVGRND = ", this%nlevgrnd
+       call endrun("ATS local cells in the vertical does not match ELM nlevgrnd")
+    end if
+
+    ! check dzs?  Note this will need more from ELM
     
     ! calls ats_get_mesh_info, compares nlevgrnd, compares ncolumns,
     ! compares areas, elevations? lat-lon?
@@ -291,39 +351,28 @@ contains
     ! ats_areas = ats_get_field_ptr(this%ats, ats_var_id%AREA)
     ! for (...) compare area
     
-  end subroutine EM_ATS_check_mesh
+  end subroutine EM_ATS_CheckMesh
 
 
-  ! ! -----------------------------------------------------------------------
-  ! ! Helper function to hide how we do copies in.  Only fortran knows
-  ! ! both real types -- how much has to be done here?
-  ! !
-  ! subroutine EM_ATS_copy_field_to_ats(this, var_id, field)
-  !   implicit none
-  !   class(em_ats_type)         :: this
-  !   integer(c_int), intent(in) :: var_id
-  !   real(r8), intent(in)       :: field(:)
+  ! -----------------------------------------------------------------------
+  ! Assign a field to the c_ptr
+  !
+  subroutine EM_ATS_GetFieldPtrW(this, var_id, size, field)
+    implicit none
 
-  !   ! local variables
-  !   real(c_double)        :: ats_field(:)
+    class(em_ats_type)                   :: this
+    integer(c_int), intent(in) :: var_id
+    integer, intent(in) :: size
+    real(c_double), intent(inout), pointer :: field(:)
 
-  !   ats_field = ats_get_field_ptr_w(this%ats, var_id)
-  !   ats_field(:) = field(:)    
-  ! end subroutine EM_ATS_copy_field_to_ats
-
-  ! subroutine EM_ATS_copy_field_from_ats(this, var_id, field)
-  !   implicit none
-  !   class(em_ats_type)         :: this
-  !   integer(c_int), intent(in) :: var_id
-  !   real(r8), intent(out)      :: field(:)
-
-  !   ! local variables
-  !   real(c_double)        :: ats_field(:)
-
-  !   ats_field = ats_get_field_ptr_w(this%ats, var_id)
-  !   field(:) = ats_field(:)    
-  ! end subroutine EM_ATS_copy_field_to_ats
-
+    ! local variables
+    type(c_ptr) :: field_ptr
+    
+    
+    field_ptr = ats_get_field_ptr_w(this%ats, var_id)
+    call c_f_pointer(field_ptr, field, [size])
+  end subroutine EM_ATS_GetFieldPtrW
+  
 #endif
   
 end module ExternalModelATS
