@@ -24,6 +24,10 @@ module ExternalModelATS_interface
     ! -------------------------------------------------------------------------
     ! Control routines
     ! -------------------------------------------------------------------------
+    subroutine ats_parse_parameter_list(ats) bind(C, name="ats_parse_parameter_list")
+      import :: c_ptr
+      type(c_ptr), value :: ats
+    end subroutine ats_parse_parameter_list
 
     subroutine ats_get_mesh_info(ats, ncols_local, ncols_global, nlevgrnd, dzs) bind(C, name="ats_get_mesh_info")
       import :: c_ptr, c_int, c_double
