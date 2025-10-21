@@ -1222,11 +1222,8 @@ contains
 
 #ifdef USE_ATS_LIB
     if (use_ats) then
-       if (get_proc_clumps() /= 1) then
-          call endrun("Cannot use_ats with more than 1 clump.")
-       end if
        call EM_ATS_Create(em_ats)
-       call em_ats%Init(filter(1)%hydrologyc, filter(1)%num_hydrologyc, nlevgrnd)
+       call em_ats%Init(0.0_r8, filter, get_proc_clumps(), bounds_proc%endc - bounds_proc%begc, nlevgrnd)
     endif
 #endif
 

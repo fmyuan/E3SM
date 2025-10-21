@@ -13,11 +13,12 @@ module ExternalModelATS
   use abortutils                   , only : endrun
   use histFileMod                  , only : hist_nhtfrq
   use elm_varpar                   , only : nlevgrnd
+  use elm_varctl                   , only : iulog
   
   use ExternalModelATS_interface   , only : ats_create, ats_setup, ats_parse_parameter_list, &
                                             ats_initialize, ats_advance, ats_delete, &
                                             ats_get_field, ats_get_field_ptr_w, &
-                                            ats_get_mesh_info
+                                            ats_get_mesh_info, ats_set_scalar
 
   ! fortran API for C++ ATS code
   use ExternalModelATS_variables                , only : ats_var_id
@@ -70,13 +71,13 @@ contains
     integer :: i, n1, n2
     integer :: ierr
 
-    print *, ''
-    print *, '============================================================='
+    write(iulog,*) ''
+    write(iulog,*) '============================================================='
     print *,''
-    print *, ' -------- ELM-ATS Coupled Mode ------------------------------'
-    print *, ''
-    print *, 'EM_ATS_Init: ats inputs - ', trim(input_dir), ' ', trim(input_file)
-    print *, 'communicator id: ', mpi_comm
+    write(iulog,*) ' -------- ELM-ATS Coupled Mode ------------------------------'
+    write(iulog,*) ''
+    write(iulog,*) 'EM_ATS_Init: ats inputs - ', trim(input_dir), ' ', trim(input_file)
+    write(iulog,*) 'communicator id: ', mpi_comm
     
     ! ----------------------------------------------------------
     ! Converting Fortran-type input filename, incl. dir, to C-type
@@ -95,24 +96,29 @@ contains
   end function EM_ATS_Create2
     
   !------------------------------------------------------------------------
-  subroutine EM_ATS_Init(this, col_filter, ncolumns, nlevgrnd)
+  subroutine EM_ATS_Init(this, time0, filter, nclumps, ncolumns, nlevgrnd)
+    use filterMod, only : clumpfilter
+
     implicit none
 
     class(em_ats_type)  :: this
-    integer, pointer :: col_filter(:)
+    real(r8), intent(in):: time0
+    type(clumpfilter), intent(in) :: filter(:)
+    integer, intent(in) :: nclumps
     integer, intent(in) :: ncolumns
     integer, intent(in) :: nlevgrnd
 
-    this%col_filter => col_filter
-    this%ncolumns = ncolumns
-    this%nlevgrnd = nlevgrnd
-
-    call ats_parse_parameter_list(this%ats)
-    
     !! begin setup portion of this call
     ! check PFT assumption -- 1 PFT per column, 1 column per grid cell
     ! TODO: ETC -- Step 0
-    call EM_ATS_CheckHeirarchy(this)
+    call EM_ATS_CheckHeirarchy(this, filter, nclumps, ncolumns)
+
+    ! keep the filter?  probably should be 1:1 now and not needed...
+    this%ncolumns = filter(1)%num_hydrologyc
+    this%col_filter => filter(1)%hydrologyc
+    this%nlevgrnd = nlevgrnd
+
+    call ats_parse_parameter_list(this%ats)
 
     ! check ATS -- ELM mesh consistency
     ! TODO: ETC -- Step 0
@@ -120,6 +126,7 @@ contains
 
     ! ATS setup
     call ats_setup(this%ats)
+    call ats_set_scalar(this%ats, ats_var_id%TIME, time0)
 
     !! begin init portion of this call
     !
@@ -165,10 +172,11 @@ contains
     logical(C_BOOL) :: do_vis
     logical(C_BOOL) :: do_checkpoint
 
-    print *, 'EM_ATS_Advance: advancing for time', dt
+    write(iulog,*) 'EM_ATS_Advance: advancing for time', dt
 
     ! pass dynamic parameters to ATS
-    ! call ats_set_field(this%ats, ats_var_id%EFFECTIVE_POROSITY, soilstate_vars%eff_porosity_col)
+    ! call EM_ATS_SetField_CopySubsurface(this, "effective porosity", ats_var_id%EFFECTIVE_POROSITY, &
+    !      soilstate_vars%eff_porosity_col)
 
     ! is this correct?  Is ELM allocated with:
     !      num_patches = 17 * num_columns, or
@@ -191,8 +199,10 @@ contains
     ! call ats_set_field(this%ats, ats_var_id%SURFACE_WATER_CONTENT, col_ws%h2osfc)
 
     ! pass fluxes to ATS -- unit change from [mm H2O / s] to [m H2O / s]
-    call EM_ATS_SetField_ScalarMultiply(this, ats_var_id%GROSS_SURFACE_WATER_SOURCE, col_wf%qflx_top_soil, 1.e-3_r8)
-    call EM_ATS_SetField_ScalarMultiply(this, ats_var_id%POTENTIAL_TRANSPIRATION, col_wf%qflx_tran_veg, 1.e-3_r8)
+    call EM_ATS_SetField_ScalarMultiply(this, "gross surface water source", ats_var_id%GROSS_SURFACE_WATER_SOURCE, &
+         col_wf%qflx_top_soil, 1.e-3_r8)
+    call EM_ATS_SetField_ScalarMultiply(this, "potential transpiration", ats_var_id%POTENTIAL_TRANSPIRATION, &
+         col_wf%qflx_tran_veg, 1.e-3_r8)
 
     ! This one needs to be computed, and how it is computed is really an ELM thing.
     ! Therefore, we should really use ats_get_field_ptr_w() and fill.
@@ -217,10 +227,10 @@ contains
     call ats_advance(this%ats, dt, do_checkpoint, do_vis)
 
     ! pass state back to ELM
-    call ats_get_field(this%ats, ats_var_id%WATER_CONTENT, col_ws%h2osoi_liq)
+    ! call ats_get_field(this%ats, ats_var_id%WATER_CONTENT, col_ws%h2osoi_liq)
     ! TODO: ETC -- Step 4
     !call ats_get_field(this%ats, PRESSURE, ...)
-    call ats_get_field(this%ats, ats_var_id%SURFACE_WATER_CONTENT, col_ws%h2osfc)
+    ! call ats_get_field(this%ats, ats_var_id%SURFACE_WATER_CONTENT, col_ws%h2osfc)
 
     ! get actual fluxes back
 
@@ -244,7 +254,7 @@ contains
     implicit none
     class(em_ats_type) :: this
 
-    print *, 'EM_ATS_Finalize: cleaning up'
+    write(iulog,*) 'EM_ATS_Finalize: cleaning up'
     call ats_delete(this%ats)
   end subroutine EM_ATS_Finalize
 
@@ -267,13 +277,39 @@ contains
        ats_field(i) = field(ii)
     end do
   end subroutine EM_ATS_SetField_Copy
+
+  !------------------------------------------------------------------------
+  ! straight copy, subsurface
+  !
+  subroutine EM_ATS_SetField_CopySubsurface(this, var_name, var_id, field)
+    implicit none
+    class(em_ats_type)         :: this
+    character(len=*), intent(in) :: var_name
+    integer(c_int), intent(in) :: var_id
+    real(r8), intent(in)       :: field(:,:)
+
+    ! local variables
+    integer :: i, ii, j
+    real(c_double), pointer    :: ats_field(:)
+
+    call EM_ATS_GetFieldPtrW(this, var_id, this%ncolumns, ats_field)
+    do i=1,this%ncolumns
+       ii = this%col_filter(i)
+       do j=1,this%nlevgrnd
+          ats_field((i-1) * this%nlevgrnd + j) = field(ii,j)
+          write(iulog,*) var_name, " : column ", i, " cell ", j, " = ", field(ii,j)
+       end do
+    end do
+  end subroutine EM_ATS_SetField_CopySubsurface
+
   
   !------------------------------------------------------------------------
   ! unit change
   !
-  subroutine EM_ATS_SetField_ScalarMultiply(this, var_id, field, factor)
+  subroutine EM_ATS_SetField_ScalarMultiply(this, var_name, var_id, field, factor)
     implicit none
     class(em_ats_type)         :: this
+    character(len=*), intent(in) :: var_name
     integer(c_int), intent(in) :: var_id
     real(r8), intent(in)       :: field(:)
     real(r8), intent(in)       :: factor
@@ -286,6 +322,7 @@ contains
     do i=1,this%ncolumns
        ii = this%col_filter(i)
        ats_field(i) = factor * field(ii)
+       write(iulog,*) var_name, " : column ", i, " = ", ats_field(i)
     end do
   end subroutine EM_ATS_SetField_ScalarMultiply
 
@@ -298,10 +335,44 @@ contains
   ! Checks that assumptions about the ELM scale heirarchy required for
   ! use of ATS are satsified
   !
-  subroutine EM_ATS_CheckHeirarchy(this)
+  subroutine EM_ATS_CheckHeirarchy(this, filter, nclumps, ncolumns_all)
+    use filterMod, only : clumpfilter
     implicit none
 
     class(em_ats_type)                   :: this
+    type(clumpfilter), intent(in) :: filter(:)
+    integer, intent(in) :: nclumps
+    integer, intent(in) :: ncolumns_all
+
+    integer :: ncolumns
+    
+    ! only 1 clump or memory is not contiguous
+    if (nclumps /= 1) then
+       call endrun("ATS only works with 1 clump.")
+    end if
+
+    if (ncolumns /= filter(1)%num_hydrologyc) then
+       write(iulog,*) "WARNING: ATS does not support non-hydrology columns in spatially explicit mode.  Presuming implicit-mode or URBAN_REGION_ID /= 0."
+    end if
+
+    ncolumns = filter(1)%num_hydrologyc
+
+    ! number of soil columns == number of hydrology columns == number
+    ! of soil PFTs
+    if (ncolumns /= filter(1)%num_soilc) then
+       call endrun("ATS expects all soil columns to be hydrology columns.")
+    end if
+
+    if (ncolumns /= filter(1)%num_soilp) then
+       call endrun("ATS expects one PFT per column.")
+    end if
+
+    if (filter(1)%num_lakec /= 0) then
+       call endrun("ATS does not support lakes.")
+    end if
+    if (filter(1)%num_urbanc /= 0) then
+       call endrun("ATS does not support urban.")
+    end if
 
     ! checks ELM-only things, e.g. num active PFTs on each water
     ! column is 1, num water columns on each grid cell is 1, no
@@ -340,6 +411,8 @@ contains
     end if
 
     ! check dzs?  Note this will need more from ELM
+
+    ! check areas of each column? Also needs more from ELM
     
     ! calls ats_get_mesh_info, compares nlevgrnd, compares ncolumns,
     ! compares areas, elevations? lat-lon?

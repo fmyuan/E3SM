@@ -64,6 +64,12 @@ module ExternalModelATS_interface
     ! -------------------------------------------------------------------------
     ! Memory movement / data passing
     ! -------------------------------------------------------------------------
+    subroutine ats_set_scalar(ats, var_id, in) bind(C, name="ats_set_scalar")
+      import :: c_ptr, c_int, c_double
+      type(c_ptr), value :: ats
+      integer(c_int), value :: var_id
+      real(c_double), intent(in) :: in
+    end subroutine ats_set_scalar
 
     subroutine ats_get_field(ats, var_id, out) bind(C, name="ats_get_field")
       import :: c_ptr, c_int, c_double
