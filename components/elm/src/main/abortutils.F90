@@ -40,7 +40,7 @@ CONTAINS
        write(iulog,*)'ENDRUN: called without a message string'
     end if
 
-    call shr_sys_abort()
+    call shr_sys_abort(msg)
 
   end subroutine endrun_vanilla
 

@@ -174,6 +174,12 @@ module elm_driver
   use elm_interface_pflotranMod   , only : elm_pf_run, elm_pf_write_restart
   use elm_interface_pflotranMod   , only : elm_pf_finalize
   !----------------------------------------------------------------------------
+  ! ats
+#ifdef USE_ATS_LIB
+  use elm_varctl                  , only : use_ats
+  use ExternalModelATS            , only : em_ats
+#endif
+  
   use WaterBudgetMod              , only : WaterBudget_Reset, WaterBudget_Run, WaterBudget_Accum, WaterBudget_Print
   use WaterBudgetMod              , only : WaterBudget_SetBeginningMonthlyStates
   use WaterBudgetMod              , only : WaterBudget_SetEndingMonthlyStates
@@ -1214,6 +1220,14 @@ contains
               photosyns_vars, drydepvel_vars)
        end if
        call t_stopf('depvel')
+
+       ! ATS calculation of hydrology, both surface (runoff) and subsurface (baseflow)
+#ifdef USE_ATS_LIB
+       if (use_ats) then
+          call em_ats%Advance(dtime_mod, nstep_mod, col_pp, soilstate_vars, col_wf, col_ws)
+       end if
+#endif
+
        ! ============================================================================
        ! Calculate soil/snow hydrology with drainage (subsurface runoff)
        ! ============================================================================
