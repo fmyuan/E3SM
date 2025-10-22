@@ -8,10 +8,11 @@ module ExternalModelATS_interface
 
   interface
     ! allocate, call constructor, and cast ptr to opaque ELM_ATSDriver_ptr
-    function ats_create(f_comm, input_filename) bind(C, name="ats_create")
+    function ats_create(f_comm, input_filename, logfile_filename) bind(C, name="ats_create")
       import :: c_ptr, c_char, c_int
       integer(c_int) :: f_comm         ! MPI_Fint is equivalent to int in C
       character(kind=c_char), intent(in) :: input_filename(*)  ! null-terminated string
+      character(kind=c_char), intent(in) :: logfile_filename(*)  ! null-terminated string
       type(c_ptr) :: ats_create
     end function ats_create
 
@@ -29,13 +30,14 @@ module ExternalModelATS_interface
       type(c_ptr), value :: ats
     end subroutine ats_parse_parameter_list
 
-    subroutine ats_get_mesh_info(ats, ncols_local, ncols_global, nlevgrnd, dzs) bind(C, name="ats_get_mesh_info")
+    subroutine ats_get_mesh_info(ats, ncols_local, ncols_global, nlevgrnd, dzs, areas) bind(C, name="ats_get_mesh_info")
       import :: c_ptr, c_int, c_double
       type(c_ptr), value :: ats
       integer(c_int), intent(out) :: ncols_local
       integer(c_int), intent(out) :: ncols_global
       integer(c_int), intent(out) :: nlevgrnd
-      real(c_double), intent(out) :: dzs(*)   ! array of size nlevgrnd
+      real(c_double), intent(inout) :: dzs(*)   ! array of size nlevgrnd
+      real(c_double), intent(inout) :: areas(*) ! array of size ncols_local
     end subroutine ats_get_mesh_info
 
     subroutine ats_setup(ats) bind(C, name="ats_setup")

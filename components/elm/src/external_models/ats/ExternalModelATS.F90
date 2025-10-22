@@ -14,11 +14,13 @@ module ExternalModelATS
   use histFileMod                  , only : hist_nhtfrq
   use elm_varpar                   , only : nlevgrnd
   use elm_varctl                   , only : iulog
+
+  use ColumnType                 , only : column_physical_properties
+  use GridcellType               , only : gridcell_physical_properties_type
+  use SoilStateType              , only : soilstate_type
+  use ColumnDataType             , only : column_water_state, column_water_flux
   
-  use ExternalModelATS_interface   , only : ats_create, ats_setup, ats_parse_parameter_list, &
-                                            ats_initialize, ats_advance, ats_delete, &
-                                            ats_get_field, ats_get_field_ptr_w, &
-                                            ats_get_mesh_info, ats_set_scalar
+  use ExternalModelATS_interface
 
   ! fortran API for C++ ATS code
   use ExternalModelATS_variables                , only : ats_var_id
@@ -36,6 +38,7 @@ module ExternalModelATS
      integer, pointer :: col_filter(:)
      integer :: ncolumns
      integer :: nlevgrnd
+     real(r8) :: p_atm
      
    contains
      procedure, public :: Init                          => EM_ATS_Init
@@ -68,6 +71,7 @@ contains
 
     ! local variables
     character(kind=C_CHAR) :: c_input_file(len_trim(input_dir)+len_trim(input_file)+2)
+    character(kind=C_CHAR) :: c_log_file(1)
     integer :: i, n1, n2
     integer :: ierr
 
@@ -79,6 +83,8 @@ contains
     write(iulog,*) 'EM_ATS_Init: ats inputs - ', trim(input_dir), ' ', trim(input_file)
     write(iulog,*) 'communicator id: ', mpi_comm
     
+    EM_ATS_Create2%p_atm = 101325._r8
+
     ! ----------------------------------------------------------
     ! Converting Fortran-type input filename, incl. dir, to C-type
     n1 = len_trim(input_dir)
@@ -92,11 +98,14 @@ contains
     end do
     c_input_file(n1+n2+2) = C_NULL_CHAR
 
-    EM_ATS_Create2%ats = ats_create(mpi_comm, c_input_file)
+    c_log_file(1) = C_NULL_CHAR
+
+    EM_ATS_Create2%ats = ats_create(mpi_comm, c_input_file, c_log_file)
   end function EM_ATS_Create2
     
   !------------------------------------------------------------------------
-  subroutine EM_ATS_Init(this, time0, filter, nclumps, ncolumns, nlevgrnd)
+  subroutine EM_ATS_Init(this, time0, filter, nclumps, ncolumns, nlevgrnd, &
+       grc_pp, col_pp, soilstate_vars, col_ws)
     use filterMod, only : clumpfilter
 
     implicit none
@@ -107,6 +116,13 @@ contains
     integer, intent(in) :: nclumps
     integer, intent(in) :: ncolumns
     integer, intent(in) :: nlevgrnd
+    type(gridcell_physical_properties_type) , intent(in) :: grc_pp
+    type(column_physical_properties)     , intent(in)    :: col_pp
+    type(soilstate_type)     , intent(in)    :: soilstate_vars
+    type(column_water_state) , intent(in)    :: col_ws
+
+    ! locals
+    integer :: i, ii
 
     !! begin setup portion of this call
     ! check PFT assumption -- 1 PFT per column, 1 column per grid cell
@@ -122,7 +138,7 @@ contains
 
     ! check ATS -- ELM mesh consistency
     ! TODO: ETC -- Step 0
-    call EM_ATS_CheckMesh(this)
+    call EM_ATS_CheckMesh(this, grc_pp, col_pp)
 
     ! ATS setup
     call ats_setup(this%ats)
@@ -133,7 +149,11 @@ contains
     ! TODO: ETC -- Step 4
     !
     ! initial parameters
-    ! call ats_set_field(this%ats, ats_var_id%BASE_POROSITY, ...)
+    !
+    ! note we initially copy over total porosity, not effective
+    ! porosity, because it is uninitialized at the first step.
+    call EM_ATS_SetField_CopySubsurface(this, "effective porosity", ats_var_id%EFFECTIVE_POROSITY, &
+         soilstate_vars%watsat_col)
     ! call ats_set_field(this%ats, ats_var_id%HYDRAULIC_CONDUCTIVITY, ...)
     ! call ats_set_field(this%ats, ats_var_id%CLAPP_HORN_B, ...)
     ! call ats_set_field(this%ats, ats_var_id%CLAPP_HORN_PSISAT, ...)
@@ -146,26 +166,30 @@ contains
 
     ! ats init
     call ats_initialize(this%ats)
-    
+
+    ! copy back initial water contents, using full porosity (not effective)
+    call EM_ATS_GetField_WaterContent(this, col_pp, soilstate_vars, col_ws, soilstate_vars%watsat_col)
+
+    ! additionally re-save old water
+    do i = 1, this%ncolumns
+       ii = this%col_filter(i)
+       col_ws%h2osoi_liq_old(ii,:) = col_ws%h2osoi_liq(ii,:)
+    end do
   end subroutine EM_ATS_Init
 
 
 
   !------------------------------------------------------------------------
-  subroutine EM_ATS_Advance(this, dt, nstep, col_pp, soilstate_vars, col_wf, col_ws)
-    use ColumnType                 , only : column_physical_properties
-    use SoilStateType              , only : soilstate_type
-    use ColumnDataType             , only : column_water_flux, column_water_state
-
+  subroutine EM_ATS_Advance(this, dt, nstep, col_pp, soilstate_vars, col_ws, col_wf)
     implicit none
 
     class(em_ats_type)                       :: this
     real(r8)                 , intent(in)    :: dt
     integer                  , intent(in)    :: nstep
-    type(column_physical_properties)     , intent(in)    :: col_pp
+    type(column_physical_properties)  , intent(in)    :: col_pp
     type(soilstate_type)     , intent(in)    :: soilstate_vars
-    type(column_water_flux)  , intent(in)    :: col_wf
     type(column_water_state) , intent(in)    :: col_ws
+    type(column_water_flux)  , intent(in)    :: col_wf
 
     
     ! local variables
@@ -175,8 +199,8 @@ contains
     write(iulog,*) 'EM_ATS_Advance: advancing for time', dt
 
     ! pass dynamic parameters to ATS
-    ! call EM_ATS_SetField_CopySubsurface(this, "effective porosity", ats_var_id%EFFECTIVE_POROSITY, &
-    !      soilstate_vars%eff_porosity_col)
+    call EM_ATS_SetField_CopySubsurface(this, "effective porosity", ats_var_id%EFFECTIVE_POROSITY, &
+         soilstate_vars%eff_porosity_col)
 
     ! is this correct?  Is ELM allocated with:
     !      num_patches = 17 * num_columns, or
@@ -205,15 +229,7 @@ contains
          col_wf%qflx_tran_veg, 1.e-3_r8)
 
     ! This one needs to be computed, and how it is computed is really an ELM thing.
-    ! Therefore, we should really use ats_get_field_ptr_w() and fill.
-    ! = (1 - fsno - frac_h2osfc) * qflx_evap +
-    !                          frac_h2osfc * qflx_ev_h2osfc
-    !
-    ! note, fsno and qflx_evap are locally computed things themselves,
-    ! see SoilHydrologyMod.F90:403.  This awaits input from Peter Thornton.
-    ! TODO: ETC -- Step 1
-    ! evap = ats_get_field_ptr_w(this%ats, ats_var_id%POTENTIAL_EVAPORATION)
-    ! call EM_ATS_compute_evaporation()
+    call EM_ATS_SetField_Evaporation(this, col_pp, col_ws, col_wf)
     
     ! call advance
     ! -- get whether to vis and checkpoint
@@ -261,9 +277,29 @@ contains
   !------------------------------------------------------------------------
   ! straight copy
   !
-  subroutine EM_ATS_SetField_Copy(this, var_id, field)
+  subroutine EM_ATS_GetField_Copy(this, var_name, var_id, field)
     implicit none
     class(em_ats_type)         :: this
+    character(len=*), intent(in) :: var_name
+    integer(c_int), intent(in) :: var_id
+    real(r8), intent(inout)       :: field(:)
+
+    ! local variables
+    integer :: i, ii
+    real(c_double), pointer    :: ats_field(:)
+
+    call EM_ATS_GetFieldPtr(this, var_id, this%ncolumns, ats_field)
+    do i=1,this%ncolumns
+       ii = this%col_filter(i)
+       field(ii) = ats_field(i)
+       write(iulog,*) "GET: ", var_name, " : column ", i, " = ", field(ii)
+    end do
+  end subroutine EM_ATS_GetField_Copy
+
+  subroutine EM_ATS_SetField_Copy(this, var_name, var_id, field)
+    implicit none
+    class(em_ats_type)         :: this
+    character(len=*), intent(in) :: var_name
     integer(c_int), intent(in) :: var_id
     real(r8), intent(in)       :: field(:)
 
@@ -275,12 +311,34 @@ contains
     do i=1,this%ncolumns
        ii = this%col_filter(i)
        ats_field(i) = field(ii)
+       write(iulog,*) "SET: ", var_name, " : column ", i, " = ", field(ii)
     end do
   end subroutine EM_ATS_SetField_Copy
 
   !------------------------------------------------------------------------
   ! straight copy, subsurface
   !
+  subroutine EM_ATS_GetField_CopySubsurface(this, var_name, var_id, field)
+    implicit none
+    class(em_ats_type)         :: this
+    character(len=*), intent(in) :: var_name
+    integer(c_int), intent(in) :: var_id
+    real(r8), intent(inout)       :: field(:,:)
+
+    ! local variables
+    integer :: i, ii, j
+    real(c_double), pointer    :: ats_field(:)
+
+    call EM_ATS_GetFieldPtr(this, var_id, this%ncolumns * this%nlevgrnd, ats_field)
+    do i=1,this%ncolumns
+       ii = this%col_filter(i)
+       do j=1,this%nlevgrnd
+          field(ii, j) = ats_field((i-1) * this%nlevgrnd + j)
+          write(iulog,*) "GET: ", var_name, " : column ", i, " cell ", j, " = ", field(ii,j)
+       end do
+    end do
+  end subroutine EM_ATS_GetField_CopySubsurface
+
   subroutine EM_ATS_SetField_CopySubsurface(this, var_name, var_id, field)
     implicit none
     class(em_ats_type)         :: this
@@ -292,12 +350,12 @@ contains
     integer :: i, ii, j
     real(c_double), pointer    :: ats_field(:)
 
-    call EM_ATS_GetFieldPtrW(this, var_id, this%ncolumns, ats_field)
+    call EM_ATS_GetFieldPtrW(this, var_id, this%ncolumns * this%nlevgrnd, ats_field)
     do i=1,this%ncolumns
        ii = this%col_filter(i)
        do j=1,this%nlevgrnd
           ats_field((i-1) * this%nlevgrnd + j) = field(ii,j)
-          write(iulog,*) var_name, " : column ", i, " cell ", j, " = ", field(ii,j)
+          write(iulog,*) "SET:", var_name, " : column ", i, " cell ", j, " = ", field(ii,j)
        end do
     end do
   end subroutine EM_ATS_SetField_CopySubsurface
@@ -352,7 +410,8 @@ contains
     end if
 
     if (ncolumns /= filter(1)%num_hydrologyc) then
-       write(iulog,*) "WARNING: ATS does not support non-hydrology columns in spatially explicit mode.  Presuming implicit-mode or URBAN_REGION_ID /= 0."
+       write(iulog,*) "WARNING: ATS does not support non-hydrology columns in spatially explicit mode.  Likely URBAN_REGION_ID /= 0."
+       ! call endrun("ATS does not support non-hydrology columns in spatially explicit mode.  Likely URBAN_REGION_ID /= 0.")
     end if
 
     ncolumns = filter(1)%num_hydrologyc
@@ -382,22 +441,24 @@ contains
   ! -----------------------------------------------------------------------
   ! Checks that the ATS and ELM mesh representations are consistent
   !
-  subroutine EM_ATS_CheckMesh(this)
+  subroutine EM_ATS_CheckMesh(this, grc_pp, col_pp)
     implicit none
 
     class(em_ats_type)                   :: this
+    type(column_physical_properties)     , intent(in)    :: col_pp
+    type(gridcell_physical_properties_type) , intent(in) :: grc_pp
 
     ! local variables
     integer :: ats_ncols_local
     integer :: ats_ncols_global
     integer :: ats_nlevgrnd
+    integer :: i, j
 
-    real(c_double), pointer :: ats_dzs(:)
-    real(c_double), pointer :: ats_areas(:)
-    real(c_double), pointer :: ats_elevations(:)
+    real(c_double) :: ats_dzs(this%nlevgrnd)
+    real(c_double) :: ats_areas(this%ncolumns)
 
     ! compare to mesh info
-    call ats_get_mesh_info(this%ats, ats_ncols_local, ats_ncols_global, ats_nlevgrnd, ats_dzs)
+    call ats_get_mesh_info(this%ats, ats_ncols_local, ats_ncols_global, ats_nlevgrnd, ats_dzs, ats_areas)
 
     ! assertions on shapes
     if (ats_ncols_local /= this%ncolumns) then
@@ -410,9 +471,20 @@ contains
        call endrun("ATS local cells in the vertical does not match ELM nlevgrnd")
     end if
 
-    ! check dzs?  Note this will need more from ELM
+    ! check dzs
+    do j=1,this%nlevgrnd
+       if (abs(ats_dzs(j) - col_pp%dz(1,j)) > 1.e-10_r8) then
+          call endrun("ATS dzs do not match ELM dzs.")
+       end if
+    end do
 
-    ! check areas of each column? Also needs more from ELM
+    ! check column areas
+    do i=1,this%ncolumns
+       if (abs(ats_areas(i) - grc_pp%area(i)) > 1.e-10_r8) then
+          write(iulog,*) "WARNING: ATS column areas do not match ELM grid cell areas -- perhaps incorrect ordering."
+          ! call endrun("ATS column areas do not match ELM grid cell areas -- perhaps incorrect ordering.")
+       end if
+    end do
     
     ! calls ats_get_mesh_info, compares nlevgrnd, compares ncolumns,
     ! compares areas, elevations? lat-lon?
@@ -430,6 +502,22 @@ contains
   ! -----------------------------------------------------------------------
   ! Assign a field to the c_ptr
   !
+  subroutine EM_ATS_GetFieldPtr(this, var_id, size, field)
+    implicit none
+
+    class(em_ats_type)                   :: this
+    integer(c_int), intent(in) :: var_id
+    integer, intent(in) :: size
+    real(c_double), intent(inout), pointer :: field(:)
+
+    ! local variables
+    type(c_ptr) :: field_ptr
+    
+    
+    field_ptr = ats_get_field_ptr(this%ats, var_id)
+    call c_f_pointer(field_ptr, field, [size])
+  end subroutine EM_ATS_GetFieldPtr
+
   subroutine EM_ATS_GetFieldPtrW(this, var_id, size, field)
     implicit none
 
@@ -445,6 +533,109 @@ contains
     field_ptr = ats_get_field_ptr_w(this%ats, var_id)
     call c_f_pointer(field_ptr, field, [size])
   end subroutine EM_ATS_GetFieldPtrW
+
+  ! -----------------------------------------------------------------------
+  ! Special purpose -- get the water content fields
+  !
+  subroutine EM_ATS_GetField_WaterContent(this, col_pp, soilstate_vars, col_ws, porosity)
+    use elm_varcon                 , only : denh2o
+
+    implicit none
+    class(em_ats_type)                   :: this
+    type(column_physical_properties)     , intent(in)    :: col_pp
+    type(soilstate_type)     , intent(in)    :: soilstate_vars
+    type(column_water_state) , intent(in)    :: col_ws
+    real(r8), intent(in)                     :: porosity(:,:)
+
+    ! locals
+    integer :: i, ii, j
+    
+    ! Pressure -- note, we don't set soilp here, just soilpsi.  Is
+    ! soilp used?  GDB suggests not...
+    call EM_ATS_GetField_CopySubsurface(this, "pressure", ats_var_id%PRESSURE, &
+         soilstate_vars%soilpsi_col)
+    ! convert from Pa to MPa suction
+    do j=1,this%nlevgrnd
+       do i=1,this%ncolumns
+          ii = this%col_filter(i)
+          ! subtract ATS atmospheric pressure, convert to MPa, suction is always negative?
+          soilstate_vars%soilpsi_col(ii,j) = max(0._r8, (soilstate_vars%soilpsi_col(ii,j) - this%p_atm) * 1.e-6_r8)
+       end do
+    end do
+
+    ! Water content
+    call EM_ATS_GetField_CopySubsurface(this, "saturation", ats_var_id%SATURATION_LIQUID, &
+         col_ws%h2osoi_liq(:,1:this%nlevgrnd))
+    ! convert from saturation to kg / m^2
+    do j=1,this%nlevgrnd
+       do i=1,this%ncolumns
+          ii = this%col_filter(i)
+          write(iulog,*) "GET: saturation : column ", i, " cell ", j, " = ", col_ws%h2osoi_liq(ii,j)
+          write(iulog,*) "GET: porosity : column ", i, " cell ", j, " = ", porosity(ii,j)
+          write(iulog,*) "GET: dz : column ", i, " cell ", j, " = ", col_pp%dz(ii,j)
+          write(iulog,*) "GET: density = ", denh2o
+
+          col_ws%h2osoi_liq(ii,j) = col_ws%h2osoi_liq(ii,j) * porosity(ii,j) * col_pp%dz(ii,j) * denh2o
+          write(iulog,*) "GET: h2osoi_liq : column ", i, " cell ", j, " = ", col_ws%h2osoi_liq(ii,j)
+       end do
+    end do
+
+    ! ponded water
+    call EM_ATS_GetField_Copy(this, "ponded depth", ats_var_id%PONDED_DEPTH, col_ws%h2osfc)
+    ! convert from m to kg / m^2
+    do i=1,this%ncolumns
+       ii = this%col_filter(i)
+       col_ws%h2osfc(ii) = col_ws%h2osfc(ii) * denh2o
+    end do
+  end subroutine EM_ATS_GetField_WaterContent
+
+
+  ! -----------------------------------------------------------------------
+  ! Special purpose -- compute and set the bare ground + inundated
+  ! evaporation
+  !
+  ! = (1 - fsno - frac_h2osfc) * qflx_evap +
+  !                          frac_h2osfc * qflx_ev_h2osfc
+  !
+  subroutine EM_ATS_SetField_Evaporation(this, col_pp, col_ws, col_wf)
+    implicit none
+
+    class(em_ats_type)                                  :: this
+    type(column_physical_properties)    , intent(in)    :: col_pp
+    type(column_water_state)            , intent(in)    :: col_ws
+    type(column_water_flux)             , intent(in)    :: col_wf
+
+    ! locals
+    integer :: i,ii
+    real(r8) :: fsno, fh2o, qflx_evap
+    real(c_double), pointer :: ats_evap(:)
+
+    ! get the field to populate from ATS
+    call EM_ATS_GetFieldPtrW(this, ats_var_id%POTENTIAL_EVAPORATION, this%ncolumns, ats_evap)
+
+    do i=1,this%ncolumns
+       ii = this%col_filter(i)
+
+       ! see SoilHydrologyMod.F90:403
+       ! explicitly use frac_sno=0 if snl=0
+       if (col_pp%snl(ii) >= 0) then
+          fsno = 0._r8
+          qflx_evap = col_wf%qflx_evap_grnd(ii)
+       else
+          fsno = col_ws%frac_sno_eff(ii)
+          qflx_evap = col_wf%qflx_ev_soil(ii)
+       endif
+
+       ! see SoilHydrologyMod.F90:426
+       fh2o = col_ws%frac_h2osfc(ii)
+       ats_evap(i) = (1 - fsno - fh2o) * qflx_evap + fh2o * col_wf%qflx_ev_h2osfc(ii)
+
+       ! units: mm/ s --> m/s
+       ats_evap(i) = ats_evap(i) * 1.e-3_r8
+    end do
+  end subroutine EM_ATS_SetField_Evaporation
+  
+
   
 #endif
   

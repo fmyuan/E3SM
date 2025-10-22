@@ -23,6 +23,9 @@ module ExternalModelATS_variables
      integer(c_int) :: BASEFLOW = 17
      integer(c_int) :: ELEVATION = 18
      integer(c_int) :: TIME = 19
+     integer(c_int) :: INITIAL_WATER_CONTENT = 20
+     integer(c_int) :: SATURATION_LIQUID = 21
+     integer(c_int) :: PONDED_DEPTH = 22
   end type ats_var_id_type
 
   type(ats_var_id_type) :: ats_var_id = ats_var_id_type()
