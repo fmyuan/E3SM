@@ -7,7 +7,7 @@ module SoilHydrologyMod
   use shr_kind_mod      , only : r8 => shr_kind_r8
   use shr_log_mod       , only : errMsg => shr_log_errMsg
   use decompMod         , only : bounds_type
-  use elm_varctl        , only : iulog, use_vichydro
+  use elm_varctl        , only : iulog, use_vichydro, use_ats
   use elm_varctl        , only : use_lnd_rof_two_way, lnd_rof_coupling_nstep
   use elm_varctl        , only : use_modified_infil
   use elm_varcon        , only : e_ice, denh2o, denice, rpi
@@ -436,7 +436,8 @@ contains
              icefrac(c,j) = min(1._r8,vol_ice(c,j)/watsat(c,j))
           end do
        end do
-
+      
+      if (.not. use_ats) then 
        do fc = 1, num_hydrologyc
           c  = filter_hydrologyc(fc)
           g  = cgridcell(c)
@@ -607,6 +608,7 @@ contains
 
              !6. update h2osfc prior to calculating bottom drainage from h2osfc
              h2osfc(c) = h2osfc(c) + qflx_in_h2osfc(c) * dtime
+             
 
              !--  if all water evaporates, there will be no bottom drainage
              if (h2osfc(c) < 0.0) then
@@ -666,6 +668,8 @@ contains
              endif
 
           else
+            ! RPF - note this code may need to be excluded from the if(.not. use_ats)
+            ! if we try to run on other landunit types apart from istsoil and istcrop.
              ! non-vegetated landunits (i.e. urban) use original CLM4 code
              if (snl(c) >= 0) then
                 ! when no snow present, sublimation is removed in Drainage
@@ -682,6 +686,7 @@ contains
           endif
 
        enddo
+      endif ! .not. use_ats
 
        ! No infiltration for impervious urban surfaces
 
@@ -1002,7 +1007,9 @@ contains
 
              ! make consistent with how evap_grnd removed in infiltration
              if (.not.use_vsfm) then
+               if (.not.use_ats) then
                 h2osoi_liq(c,1) = h2osoi_liq(c,1) + (1._r8 - frac_h2osfc(c))*qflx_dew_grnd(c) * dtime
+               endif 
                 h2osoi_ice(c,1) = h2osoi_ice(c,1) + (1._r8 - frac_h2osfc(c))*qflx_dew_snow(c) * dtime
                 if (qflx_sub_snow(c)*dtime > h2osoi_ice(c,1)) then
                    qflx_sub_snow(c) = h2osoi_ice(c,1)/dtime
@@ -1044,6 +1051,7 @@ contains
      !
      ! !DESCRIPTION:
      ! Calculate subsurface drainage
+     ! RPF/ETC - will have to come back for h2osfc mass kludge fix in this subroutine
      !
      ! !USES:
       !$acc routine seq
@@ -1588,7 +1596,7 @@ contains
              else
                 ! use original code to send water to drainage (non-h2osfc case)
                 qflx_rsub_sat(c)     = xs1(c) / dtime
-             endif
+             endif 
           endif
 
           if (use_vsfm) qflx_rsub_sat(c) = 0._r8
