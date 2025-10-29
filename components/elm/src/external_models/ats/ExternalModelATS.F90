@@ -17,6 +17,7 @@ module ExternalModelATS
 
   use ColumnType                 , only : column_physical_properties
   use GridcellType               , only : gridcell_physical_properties_type
+  use PhotosynthesisType         , only : photosyns_type
   use SoilStateType              , only : soilstate_type
   use ColumnDataType             , only : column_water_state, column_water_flux
   
@@ -36,6 +37,7 @@ module ExternalModelATS
      ! ----------------------------------------------------------------------
      type(c_ptr) :: ats
      integer, pointer :: col_filter(:)
+     integer, pointer :: pft_filter(:)
      integer :: ncolumns
      integer :: nlevgrnd
      real(r8) :: p_atm
@@ -132,6 +134,7 @@ contains
     ! keep the filter?  probably should be 1:1 now and not needed...
     this%ncolumns = filter(1)%num_hydrologyc
     this%col_filter => filter(1)%hydrologyc
+    this%pft_filter => filter(1)%soilp
     this%nlevgrnd = nlevgrnd
 
     call ats_parse_parameter_list(this%ats)
@@ -180,7 +183,7 @@ contains
 
 
   !------------------------------------------------------------------------
-  subroutine EM_ATS_Advance(this, dt, nstep, col_pp, soilstate_vars, col_ws, col_wf)
+  subroutine EM_ATS_Advance(this, dt, nstep, col_pp, soilstate_vars, col_ws, col_wf, photosyns_vars)
     implicit none
 
     class(em_ats_type)                       :: this
@@ -189,7 +192,8 @@ contains
     type(column_physical_properties)  , intent(in)    :: col_pp
     type(soilstate_type)     , intent(in)    :: soilstate_vars
     type(column_water_state) , intent(in)    :: col_ws
-    type(column_water_flux)  , intent(in)    :: col_wf
+    type(column_water_flux)  , intent(inout)    :: col_wf
+    type(photosyns_type), intent(inout) :: photosyns_vars
 
     
     ! local variables
@@ -217,7 +221,7 @@ contains
     ! TODO: ETC -- Step 4
     ! call ats_set_field(this%ats, ats_var_id%ROOT_FRACTION, soilstate_vars%rootfr_patch)
 
-    ! pass state to ATS
+    ! pass state to ATS -- this should not be necessary, but maybe we want to CHECK that they are the same?
     ! TODO: ETC -- Step 2
     ! call ats_set_field(this%ats, ats_var_id%WATER_CONTENT, col_ws%h2osoi_liq)
     ! call ats_set_field(this%ats, ats_var_id%SURFACE_WATER_CONTENT, col_ws%h2osfc)
@@ -227,8 +231,6 @@ contains
          col_wf%qflx_top_soil, 1.e-3_r8)
     call EM_ATS_SetField_ScalarMultiply(this, "potential transpiration", ats_var_id%POTENTIAL_TRANSPIRATION, &
          col_wf%qflx_tran_veg, 1.e-3_r8)
-
-    ! This one needs to be computed, and how it is computed is really an ELM thing.
     call EM_ATS_SetField_Evaporation(this, col_pp, col_ws, col_wf)
     
     ! call advance
@@ -243,23 +245,19 @@ contains
     call ats_advance(this%ats, dt, do_checkpoint, do_vis)
 
     ! pass state back to ELM
-    ! call ats_get_field(this%ats, ats_var_id%WATER_CONTENT, col_ws%h2osoi_liq)
     ! TODO: ETC -- Step 4
-    !call ats_get_field(this%ats, PRESSURE, ...)
-    ! call ats_get_field(this%ats, ats_var_id%SURFACE_WATER_CONTENT, col_ws%h2osfc)
+    call EM_ATS_GetField_WaterContent(this, col_pp, soilstate_vars, col_ws, soilstate_vars%watsat_col)
 
     ! get actual fluxes back
 
-    ! -- evaporation downregulated by soil water availability... what
-    !    happens if this is less than requested?
     ! TODO: ETC -- Step 3
-    !call ats_get_field(this%ats, ats_var_id%EVAPORATION, ...)
+    call EM_ATS_GetField_ActualEvaporation(this, col_wf)
+    call EM_ATS_GetField_ActualTranspiration(this, col_wf, photosyns_vars)
 
-    ! -- transpiration downregulated by soil water availability... what
-    !    happens if this is less than requested?
-    ! TODO: ETC -- Step 3
-    ! call ats_get_field(this%ats, ats_var_id%COLUMN_TRANSPIRATION, col_wf%qflx_tran_veg)
-
+    ! get runoff and baseflow back
+    call EM_ATS_GetField_ScalarMultiply(this, "baseflow", ats_var_id%BASEFLOW, col_wf%qflx_drain, 1.e3_r8)
+    call EM_ATS_GetField_ScalarMultiply(this, "runoff", ats_var_id%RUNOFF, col_wf%qflx_surf, 1.e3_r8)
+    
     ! diagnostics?
     ! ...
   end subroutine EM_ATS_Advance
@@ -384,6 +382,26 @@ contains
     end do
   end subroutine EM_ATS_SetField_ScalarMultiply
 
+  subroutine EM_ATS_GetField_ScalarMultiply(this, var_name, var_id, field, factor)
+    implicit none
+    class(em_ats_type)         :: this
+    character(len=*), intent(in) :: var_name
+    integer(c_int), intent(in) :: var_id
+    real(r8), intent(inout)       :: field(:)
+    real(r8), intent(in)       :: factor
+
+    ! local variables
+    real(c_double), pointer    :: ats_field(:)
+    integer :: i, ii
+
+    call EM_ATS_GetFieldPtr(this, var_id, this%ncolumns, ats_field)
+    do i=1,this%ncolumns
+       ii = this%col_filter(i)
+       field(ii) = factor * ats_field(i)
+       write(iulog,*) var_name, " : column ", i, " = ", field(ii)
+    end do
+  end subroutine EM_ATS_GetField_ScalarMultiply
+  
 
   !========================================================================
   ! private functions
@@ -620,7 +638,12 @@ contains
        ! explicitly use frac_sno=0 if snl=0
        if (col_pp%snl(ii) >= 0) then
           fsno = 0._r8
-          qflx_evap = col_wf%qflx_evap_grnd(ii)
+          qflx_evap = col_wf%qflx_evap_grnd(ii) - col_wf%qflx_dew_grnd(ii)
+
+          ! NOTE: test this! I suspect the above is identical to the
+          ! below in all cases -- ELM splits them out and applies them
+          ! differently, but I'm not sure why we should.
+          ! qflx_evap = col_wf%qflx_ev_soil(ii)
        else
           fsno = col_ws%frac_sno_eff(ii)
           qflx_evap = col_wf%qflx_ev_soil(ii)
@@ -635,7 +658,101 @@ contains
     end do
   end subroutine EM_ATS_SetField_Evaporation
   
+  ! -----------------------------------------------------------------------
+  ! Special purpose -- downregulate transpiration
+  !
+  subroutine EM_ATS_GetField_ActualTranspiration(this, col_wf, photosyns_vars)
+    implicit none
 
+    class(em_ats_type)                                  :: this
+    type(column_water_flux)             , intent(inout) :: col_wf
+    type(photosyns_type), intent(inout) :: photosyns_vars
+
+    ! locals
+    integer :: i,ii, pp
+    real(r8) :: downreg, tot_trans
+    real(c_double), pointer :: ats_tot_trans(:)
+    
+    ! get the total transpiration from ATS
+    call EM_ATS_GetFieldPtr(this, ats_var_id%COLUMN_TRANSPIRATION, this%ncolumns, ats_tot_trans)
+
+    do i=1,this%ncolumns
+       ii = this%col_filter(i)
+       pp = this%pft_filter(i)
+
+       downreg = 1._r8
+       if (col_wf%qflx_tran_veg(ii) > 0.) then
+          tot_trans = ats_tot_trans(i) * 1.e3_r8 ! m/s -> mm/s
+          downreg = tot_trans / col_wf%qflx_tran_veg(ii)
+
+          if (downreg > 1.0 .OR. downreg < 0.1) then
+             write(iulog,*) "WARNING: ATS transpiration downregulation is out of expected bounds."
+             call endrun("ATS transpiration downregulation is out of expected bounds.")
+          end if
+          
+          ! CO2 scales linearly with water? CHECK THIS! --ETC
+          if (downreg < 1.0_r8) then
+             photosyns_vars%fpsn_patch(pp) = photosyns_vars%fpsn_patch(pp) * downreg
+             photosyns_vars%fpsn_wc_patch(pp) = photosyns_vars%fpsn_wc_patch(pp) * downreg
+             photosyns_vars%fpsn_wj_patch(pp) = photosyns_vars%fpsn_wj_patch(pp) * downreg
+             photosyns_vars%fpsn_wp_patch(pp) = photosyns_vars%fpsn_wp_patch(pp) * downreg
+          end if
+
+          ! reduce latent heat, increase sensible
+          ! ... TODO: ETC
+
+          ! correct pft_tran_veg
+          col_wf%qflx_tran_veg(ii) = tot_trans
+       end if
+    end do
+  end subroutine EM_ATS_GetField_ActualTranspiration
+
+
+  ! -----------------------------------------------------------------------
+  ! Special purpose -- downregulate evaporation
+  !
+  subroutine EM_ATS_GetField_ActualEvaporation(this, col_wf)
+    implicit none
+
+    class(em_ats_type)                                  :: this
+    type(column_water_flux)             , intent(in)    :: col_wf
+
+    ! locals
+    integer :: i,ii
+    real(r8) :: downreg, evap, pot_evap, diff
+    real(c_double), pointer :: ats_pot_evap(:), ats_evap(:)
+    
+    ! get the total transpiration from ATS
+    call EM_ATS_GetFieldPtr(this, ats_var_id%EVAPORATION, this%ncolumns, ats_evap)
+    call EM_ATS_GetFieldPtr(this, ats_var_id%EVAPORATION, this%ncolumns, ats_pot_evap)
+
+    do i=1,this%ncolumns
+       ii = this%col_filter(i)
+
+       ! units: m/s --> mm/s
+       evap = ats_evap(i) * 1.e3_r8
+       pot_evap = ats_pot_evap(i) * 1.e3_r8
+       diff = pot_evap - evap
+       
+       if (pot_evap > 0. .and. diff > 0.) then
+          downreg = evap / pot_evap
+
+          if (downreg > 1.0 .OR. downreg < 0.1) then
+             write(iulog,*) "WARNING: ATS evaporation downregulation is out of expected bounds."
+             call endrun("ATS evaporation downregulation is out of expected bounds.")
+          end if
+
+
+          ! no distinction between h2osfc and h2osoi evap
+          !
+          ! take it all from soil evap
+          ! note these are all per unit column area
+          col_wf%qflx_evap_soi = col_wf%qflx_evap_soi - diff
+          col_wf%qflx_evap_tot = col_wf%qflx_evap_tot - diff
+       end if
+    end do
+  end subroutine EM_ATS_GetField_ActualEvaporation
+  
   
 #endif
   
