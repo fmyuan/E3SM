@@ -42,6 +42,7 @@ module ExternalModelATS
      integer :: ncolumns
      integer :: nlevgrnd
      real(r8) :: p_atm
+     integer :: verbosity
      
    contains
      procedure, public :: Init                          => EM_ATS_Init
@@ -61,6 +62,7 @@ contains
     type(em_ats_type) :: this
 
     this = EM_ATS_Create2(ats_inputdir, ats_inputfile, mpicom)
+    this%verbosity = 1
   end subroutine EM_ATS_Create
 
   !------------------------------------------------------------------------
@@ -208,9 +210,28 @@ contains
     ! local variables
     logical(C_BOOL) :: do_vis
     logical(C_BOOL) :: do_checkpoint
+    real(r8) :: h2osoi_liq_total
+    integer :: i, ii, j
 
-    write(iulog,*) 'EM_ATS_Advance: advancing for time', dt
+    if (this%verbosity >= 1) then
+       write(iulog,*) 'EM_ATS_Advance: advancing for time', dt
+    end if
 
+    ! how much has ELM drifted from ATS?  Any changes to h2osoi_liq at
+    ! this point will be overwritten, and if they are compensating
+    ! changes elsewhere, they will result in mass imbalance.
+    do i=1,this%ncolumns
+       ii = this%col_filter(i)
+       h2osoi_liq_total = 0._r8
+       do j=1,this%nlevgrnd
+          h2osoi_liq_total = h2osoi_liq_total + col_ws%h2osoi_liq(ii,j)
+       end do
+       if (this%verbosity >= 1) then
+          write(iulog,*) "ELM: h2osoi_liq total : column ", i, " total = ", h2osoi_liq_total
+          write(iulog,*) "ELM: h2osfc : column ", i, " total = ", col_ws%h2osfc(ii)
+       end if
+    end do
+    
     ! pass dynamic parameters to ATS
     call EM_ATS_SetField_CopySubsurface(this, "effective porosity", ats_var_id%EFFECTIVE_POROSITY, &
          soilstate_vars%eff_porosity_col)
@@ -237,9 +258,9 @@ contains
 
     ! pass fluxes to ATS -- unit change from [mm H2O / s] to [m H2O / s]
     call EM_ATS_SetField_ScalarMultiply(this, "gross surface water source", ats_var_id%GROSS_SURFACE_WATER_SOURCE, &
-         col_wf%qflx_top_soil, 1.e-3_r8)
+         col_wf%qflx_top_soil, 1.e-3_r8, 1)
     call EM_ATS_SetField_ScalarMultiply(this, "potential transpiration", ats_var_id%POTENTIAL_TRANSPIRATION, &
-         col_wf%qflx_tran_veg, 1.e-3_r8)
+         col_wf%qflx_tran_veg, 1.e-3_r8, 1)
     call EM_ATS_SetField_Evaporation(this, col_pp, col_ws, col_wf)
     
     ! call advance
@@ -255,8 +276,9 @@ contains
 
     ! pass state back to ELM
     ! TODO: ETC -- Step 4
-    call EM_ATS_GetField_WaterContent(this, col_pp, soilstate_vars, col_ws, soilhydrology_vars, soilstate_vars%watsat_col)
-
+    ! note we use the same porosity as set above
+    call EM_ATS_GetField_WaterContent(this, col_pp, soilstate_vars, col_ws, soilhydrology_vars, soilstate_vars%eff_porosity_col)
+    
     ! get actual fluxes back
 
     ! TODO: ETC -- Step 3
@@ -264,8 +286,8 @@ contains
     call EM_ATS_GetField_ActualTranspiration(this, col_wf, photosyns_vars)
 
     ! get runoff and baseflow back
-    call EM_ATS_GetField_ScalarMultiply(this, "baseflow", ats_var_id%BASEFLOW, col_wf%qflx_drain, 1.e3_r8)
-    call EM_ATS_GetField_ScalarMultiply(this, "runoff", ats_var_id%RUNOFF, col_wf%qflx_surf, 1.e3_r8)
+    call EM_ATS_GetField_ScalarMultiply(this, "baseflow", ats_var_id%BASEFLOW, col_wf%qflx_drain, 1.e3_r8, 1)
+    call EM_ATS_GetField_ScalarMultiply(this, "runoff", ats_var_id%RUNOFF, col_wf%qflx_surf, 1.e3_r8, 1)
     
     ! diagnostics?
     ! ...
@@ -284,85 +306,125 @@ contains
   !------------------------------------------------------------------------
   ! straight copy
   !
-  subroutine EM_ATS_GetField_Copy(this, var_name, var_id, field)
+  subroutine EM_ATS_GetField_Copy(this, var_name, var_id, field, verbosity)
     implicit none
     class(em_ats_type)         :: this
     character(len=*), intent(in) :: var_name
     integer(c_int), intent(in) :: var_id
     real(r8), intent(inout)       :: field(:)
+    integer, intent(in), optional :: verbosity
 
     ! local variables
     integer :: i, ii
     real(c_double), pointer    :: ats_field(:)
+    integer :: lverbosity
+
+    if (present(verbosity)) then
+       lverbosity = verbosity
+    else
+       lverbosity = 2
+    end if
 
     call EM_ATS_GetFieldPtr(this, var_id, this%ncolumns, ats_field)
     do i=1,this%ncolumns
        ii = this%col_filter(i)
        field(ii) = ats_field(i)
-       write(iulog,*) "GET: ", var_name, " : column ", i, " = ", field(ii)
+       if (this%verbosity >= lverbosity) then
+          write(iulog,*) "GET: ", var_name, " : column ", i, " = ", field(ii)
+       end if
     end do
   end subroutine EM_ATS_GetField_Copy
 
-  subroutine EM_ATS_SetField_Copy(this, var_name, var_id, field)
+  subroutine EM_ATS_SetField_Copy(this, var_name, var_id, field, verbosity)
     implicit none
     class(em_ats_type)         :: this
     character(len=*), intent(in) :: var_name
     integer(c_int), intent(in) :: var_id
     real(r8), intent(in)       :: field(:)
+    integer, intent(in), optional :: verbosity
 
     ! local variables
     integer :: i, ii
     real(c_double), pointer    :: ats_field(:)
+    integer :: lverbosity
 
+    if (present(verbosity)) then
+       lverbosity = verbosity
+    else
+       lverbosity = 2
+    end if
+    
     call EM_ATS_GetFieldPtrW(this, var_id, this%ncolumns, ats_field)
     do i=1,this%ncolumns
        ii = this%col_filter(i)
        ats_field(i) = field(ii)
-       write(iulog,*) "SET: ", var_name, " : column ", i, " = ", field(ii)
+       if (this%verbosity >= lverbosity) then
+          write(iulog,*) "SET: ", var_name, " : column ", i, " = ", field(ii)
+       end if
     end do
   end subroutine EM_ATS_SetField_Copy
 
   !------------------------------------------------------------------------
   ! straight copy, subsurface
   !
-  subroutine EM_ATS_GetField_CopySubsurface(this, var_name, var_id, field)
+  subroutine EM_ATS_GetField_CopySubsurface(this, var_name, var_id, field, verbosity)
     implicit none
     class(em_ats_type)         :: this
     character(len=*), intent(in) :: var_name
     integer(c_int), intent(in) :: var_id
     real(r8), intent(inout)       :: field(:,:)
+    integer, intent(in), optional :: verbosity
 
     ! local variables
     integer :: i, ii, j
     real(c_double), pointer    :: ats_field(:)
+    integer :: lverbosity
+
+    if (present(verbosity)) then
+       lverbosity = verbosity
+    else
+       lverbosity = 2
+    end if
 
     call EM_ATS_GetFieldPtr(this, var_id, this%ncolumns * this%nlevgrnd, ats_field)
     do i=1,this%ncolumns
        ii = this%col_filter(i)
        do j=1,this%nlevgrnd
           field(ii, j) = ats_field((i-1) * this%nlevgrnd + j)
-          write(iulog,*) "GET: ", var_name, " : column ", i, " cell ", j, " = ", field(ii,j)
+          if (this%verbosity >= lverbosity) then
+             write(iulog,*) "GET: ", var_name, " : column ", i, " cell ", j, " = ", field(ii,j)
+          end if
        end do
     end do
   end subroutine EM_ATS_GetField_CopySubsurface
 
-  subroutine EM_ATS_SetField_CopySubsurface(this, var_name, var_id, field)
+  subroutine EM_ATS_SetField_CopySubsurface(this, var_name, var_id, field, verbosity)
     implicit none
     class(em_ats_type)         :: this
     character(len=*), intent(in) :: var_name
     integer(c_int), intent(in) :: var_id
     real(r8), intent(in)       :: field(:,:)
+    integer, intent(in), optional :: verbosity
 
     ! local variables
     integer :: i, ii, j
     real(c_double), pointer    :: ats_field(:)
+    integer :: lverbosity
+
+    if (present(verbosity)) then
+       lverbosity = verbosity
+    else
+       lverbosity = 2
+    end if
 
     call EM_ATS_GetFieldPtrW(this, var_id, this%ncolumns * this%nlevgrnd, ats_field)
     do i=1,this%ncolumns
        ii = this%col_filter(i)
        do j=1,this%nlevgrnd
           ats_field((i-1) * this%nlevgrnd + j) = field(ii,j)
-          write(iulog,*) "SET:", var_name, " : column ", i, " cell ", j, " = ", field(ii,j)
+          if (this%verbosity >= lverbosity) then
+             write(iulog,*) "SET:", var_name, " : column ", i, " cell ", j, " = ", field(ii,j)
+          end if
        end do
     end do
   end subroutine EM_ATS_SetField_CopySubsurface
@@ -371,43 +433,63 @@ contains
   !------------------------------------------------------------------------
   ! unit change
   !
-  subroutine EM_ATS_SetField_ScalarMultiply(this, var_name, var_id, field, factor)
+  subroutine EM_ATS_SetField_ScalarMultiply(this, var_name, var_id, field, factor, verbosity)
     implicit none
     class(em_ats_type)         :: this
     character(len=*), intent(in) :: var_name
     integer(c_int), intent(in) :: var_id
     real(r8), intent(in)       :: field(:)
     real(r8), intent(in)       :: factor
+    integer, intent(in), optional :: verbosity
 
     ! local variables
     real(c_double), pointer    :: ats_field(:)
     integer :: i, ii
+    integer :: lverbosity
+
+    if (present(verbosity)) then
+       lverbosity = verbosity
+    else
+       lverbosity = 2
+    end if
 
     call EM_ATS_GetFieldPtrW(this, var_id, this%ncolumns, ats_field)
     do i=1,this%ncolumns
        ii = this%col_filter(i)
        ats_field(i) = factor * field(ii)
-       write(iulog,*) var_name, " : column ", i, " = ", ats_field(i)
+       if (this%verbosity >= lverbosity) then
+          write(iulog,*) "SET: ", var_name, " : column ", i, " = ", ats_field(i)
+       end if
     end do
   end subroutine EM_ATS_SetField_ScalarMultiply
 
-  subroutine EM_ATS_GetField_ScalarMultiply(this, var_name, var_id, field, factor)
+  subroutine EM_ATS_GetField_ScalarMultiply(this, var_name, var_id, field, factor, verbosity)
     implicit none
     class(em_ats_type)         :: this
     character(len=*), intent(in) :: var_name
     integer(c_int), intent(in) :: var_id
     real(r8), intent(inout)       :: field(:)
     real(r8), intent(in)       :: factor
+    integer, intent(in), optional :: verbosity
 
     ! local variables
     real(c_double), pointer    :: ats_field(:)
     integer :: i, ii
+    integer :: lverbosity
+
+    if (present(verbosity)) then
+       lverbosity = verbosity
+    else
+       lverbosity = 2
+    end if
 
     call EM_ATS_GetFieldPtr(this, var_id, this%ncolumns, ats_field)
     do i=1,this%ncolumns
        ii = this%col_filter(i)
        field(ii) = factor * ats_field(i)
-       write(iulog,*) var_name, " : column ", i, " = ", field(ii)
+       if (this%verbosity >= lverbosity) then
+          write(iulog,*) "GET: ", var_name, " : column ", i, " = ", field(ii)
+       end if
     end do
   end subroutine EM_ATS_GetField_ScalarMultiply
   
@@ -578,6 +660,7 @@ contains
 
     ! locals
     integer :: i, ii, j
+    real(r8) :: h2osoi_liq_total
     
     ! Pressure -- note, we don't set soilp here, just soilpsi.  Is
     ! soilp used?  GDB suggests not...
@@ -596,17 +679,23 @@ contains
     call EM_ATS_GetField_CopySubsurface(this, "saturation", ats_var_id%SATURATION_LIQUID, &
          col_ws%h2osoi_liq(:,1:this%nlevgrnd))
     ! convert from saturation to kg / m^2
-    do j=1,this%nlevgrnd
-       do i=1,this%ncolumns
-          ii = this%col_filter(i)
-          write(iulog,*) "GET: saturation : column ", i, " cell ", j, " = ", col_ws%h2osoi_liq(ii,j)
-          write(iulog,*) "GET: porosity : column ", i, " cell ", j, " = ", porosity(ii,j)
-          write(iulog,*) "GET: dz : column ", i, " cell ", j, " = ", col_pp%dz(ii,j)
-          write(iulog,*) "GET: density = ", denh2o
-
+    do i=1,this%ncolumns
+       ii = this%col_filter(i)
+       h2osoi_liq_total = 0._r8
+       do j=1,this%nlevgrnd
           col_ws%h2osoi_liq(ii,j) = col_ws%h2osoi_liq(ii,j) * porosity(ii,j) * col_pp%dz(ii,j) * denh2o
-          write(iulog,*) "GET: h2osoi_liq : column ", i, " cell ", j, " = ", col_ws%h2osoi_liq(ii,j)
+          h2osoi_liq_total = h2osoi_liq_total + col_ws%h2osoi_liq(ii,j)
+          if (this%verbosity >= 2) then
+             write(iulog,*) "GET: saturation : column ", i, " cell ", j, " = ", col_ws%h2osoi_liq(ii,j)
+             write(iulog,*) "ELM: porosity : column ", i, " cell ", j, " = ", porosity(ii,j)
+             write(iulog,*) "ELM: dz : column ", i, " cell ", j, " = ", col_pp%dz(ii,j)
+             write(iulog,*) "ELM: density = ", denh2o
+             write(iulog,*) "GET: h2osoi_liq : column ", i, " cell ", j, " = ", col_ws%h2osoi_liq(ii,j)
+          end if
        end do
+       if (this%verbosity >= 1) then
+          write(iulog,*) "GET: h2osoi_liq total : column ", i, " total = ", h2osoi_liq_total
+       end if
     end do
 
     ! depth to water table
@@ -618,6 +707,9 @@ contains
     do i=1,this%ncolumns
        ii = this%col_filter(i)
        col_ws%h2osfc(ii) = col_ws%h2osfc(ii) * denh2o
+       if (this%verbosity >= 1) then
+          write(iulog,*) "GET: h2osfc total : column ", i, " total = ", col_ws%h2osfc(ii)
+       end if
     end do
   end subroutine EM_ATS_GetField_WaterContent
 
@@ -669,7 +761,9 @@ contains
 
        ! units: mm/ s --> m/s
        ats_evap(i) = ats_evap(i) * 1.e-3_r8
-       write(iulog,*) "SET: potental evap : column ", i, " = ", ats_evap(i)
+       if (this%verbosity >= 1) then
+          write(iulog,*) "SET: potental evap : column ", i, " = ", ats_evap(i)
+       end if
     end do
   end subroutine EM_ATS_SetField_Evaporation
   
@@ -685,7 +779,7 @@ contains
 
     ! locals
     integer :: i,ii, pp
-    real(r8) :: downreg, tot_trans
+    real(r8) :: downreg, downreg_eps, tot_trans
     real(c_double), pointer :: ats_tot_trans(:)
     
     ! get the total transpiration from ATS
@@ -698,9 +792,21 @@ contains
        downreg = 1._r8
        if (col_wf%qflx_tran_veg(ii) > 0.) then
           tot_trans = ats_tot_trans(i) * 1.e3_r8 ! m/s -> mm/s
-          downreg = tot_trans / col_wf%qflx_tran_veg(ii)
 
-          if (downreg > 1.0 .OR. downreg < 0.1) then
+          ! note, these are distinct -- ATS transpiration distribution
+          ! has a nonlinear solve, which has its own tolerance.  When
+          ! potential T is very small, the distribution solution may
+          ! have error comparable to the potential T, and then the
+          ! actual total_trans may have significant error in it.  This
+          ! doesn't affect water balance because the absolute error is
+          ! small even if the relative error is large.  So we compute
+          ! two downregulation factors -- one to throw an error for
+          ! debugging that adds an absolution portion, and one for
+          ! downregulating carbon that is bounded below 1.
+          downreg = min(tot_trans / col_wf%qflx_tran_veg(ii), 1.0_r8)
+          downreg_eps = tot_trans / max(col_wf%qflx_tran_veg(ii), 1.e-12)
+
+          if (downreg_eps > 1.0001_r8 .OR. downreg < 0._r8) then
              write(iulog,*) "WARNING: ATS transpiration downregulation is out of expected bounds."
              call endrun("ATS transpiration downregulation is out of expected bounds.")
           end if
@@ -718,6 +824,10 @@ contains
 
           ! correct pft_tran_veg
           col_wf%qflx_tran_veg(ii) = tot_trans
+       end if
+
+       if (this%verbosity >= 1) then
+          write(iulog,*) "GET: actual transpiration : column ", i, " total = ", col_wf%qflx_tran_veg(ii)
        end if
     end do
   end subroutine EM_ATS_GetField_ActualTranspiration
