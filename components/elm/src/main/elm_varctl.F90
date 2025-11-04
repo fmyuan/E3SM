@@ -438,7 +438,10 @@ module elm_varctl
   !----------------------------------------------------------
   ! ATS external model
   !----------------------------------------------------------
+  ! ATS explicit mesh hydrology
   logical, public :: use_ats        = .false.
+  ! ATS for initial water condition only
+  logical, public :: use_ats_ic     = .false.
 
   !----------------------------------------------------------
   ! Stub EM switches

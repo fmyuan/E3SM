@@ -323,7 +323,7 @@ contains
     namelist /elm_inparm/ use_elm_interface, use_elm_bgc, use_pflotran
 
     ! ats
-    namelist /elm_inparm/ use_ats
+    namelist /elm_inparm/ use_ats, use_ats_ic
     
     namelist /elm_inparm/ use_dynroot
 
@@ -617,7 +617,7 @@ contains
                             use_top_solar_rad_in = use_top_solar_rad)
 
        ! checking if conflict when using ATS external model
-       if (use_ats) then
+       if (use_ats .or. use_ats_ic) then
           ! currently ATS only provides subsurface hydrology
           if (use_vsfm) then
              call endrun(msg=' ERROR: use_vsfm and use_ats cannot both be set to true.'//&
@@ -652,7 +652,7 @@ contains
        call elm_pf_readnl(NLFilename)
     end if
 
-    if (use_ats) then
+    if (use_ats .or. use_ats_ic) then
        call elm_ats_readnl(NLFilename)
     end if
 
@@ -1031,6 +1031,7 @@ contains
 
     ! ats
     call mpi_bcast (use_ats, 1, MPI_LOGICAL, 0, mpicom, ier)
+    call mpi_bcast (use_ats_ic, 1, MPI_LOGICAL, 0, mpicom, ier)
 
     !cpl_bypass
      call mpi_bcast (metdata_type,   len(metdata_type),   MPI_CHARACTER, 0, mpicom, ier)

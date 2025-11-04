@@ -144,7 +144,7 @@ contains
       endif
 #endif
 
-      if (.not. (use_vsfm.or.use_ats)) then
+      if (.not. (use_vsfm)) then
          call Drainage(bounds, num_hydrologyc, filter_hydrologyc, &
               num_urbanc, filter_urbanc,&
               soilhydrology_vars, soilstate_vars, dtime)

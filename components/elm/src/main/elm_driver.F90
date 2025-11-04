@@ -1224,7 +1224,7 @@ contains
        ! ATS calculation of hydrology, both surface (runoff) and subsurface (baseflow)
 #ifdef USE_ATS_LIB
        if (use_ats) then
-          call em_ats%Advance(dtime_mod, nstep_mod, col_pp, soilstate_vars, col_ws, col_wf, photosyns_vars)
+          call em_ats%Advance(dtime_mod, nstep_mod, col_pp, soilstate_vars, col_ws, col_wf, soilhydrology_vars, photosyns_vars)
        end if
 #endif
 

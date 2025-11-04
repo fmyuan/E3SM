@@ -10,7 +10,6 @@ module ExternalModelATS_readnlMod
   use shr_log_mod                  , only : errMsg => shr_log_errMsg
   use spmdMod                      , only : masterproc, mpicom
   use elm_varctl                   , only : iulog
-  use elm_varctl                   , only : use_ats
 
   !
   implicit none
@@ -74,7 +73,6 @@ contains
     call shr_mpi_bcast(ats_inputdir, mpicom)
     call shr_mpi_bcast(ats_inputfile, mpicom)
 
-    ! by default, ats subsurface hydrology is on, if use_ats = .true.
   end subroutine elm_ats_readnl
 
 end module ExternalModelATS_readnlMod

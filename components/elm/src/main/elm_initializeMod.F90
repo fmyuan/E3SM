@@ -1153,7 +1153,7 @@ contains
     use elm_varctl               , only : use_petsc_thermal_model
     use elm_varctl               , only : lateral_connectivity
     use elm_varctl               , only : finidat
-    use elm_varctl               , only : use_ats
+    use elm_varctl               , only : use_ats, use_ats_ic
     use decompMod                , only : get_proc_clumps
     use mpp_varpar               , only : mpp_varpar_init
     use mpp_varcon               , only : mpp_varcon_init_landunit
@@ -1221,10 +1221,10 @@ contains
     endif
 
 #ifdef USE_ATS_LIB
-    if (use_ats) then
+    if (use_ats .or. use_ats_ic) then
        call EM_ATS_Create(em_ats)
        call em_ats%Init(0.0_r8, filter, get_proc_clumps(), bounds_proc%endc - bounds_proc%begc, nlevgrnd, &
-            grc_pp, col_pp, soilstate_vars, col_ws)
+            grc_pp, col_pp, soilstate_vars, soilhydrology_vars, col_ws)
     endif
 #endif
 
