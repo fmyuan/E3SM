@@ -148,7 +148,7 @@ contains
    !-----------------------------------------------------------------------
    subroutine ColWaterBalanceCheck( bounds, num_do_smb_c, filter_do_smb_c, &
         atm2lnd_vars, glc2lnd_vars, solarabs_vars, &
-        energyflux_vars, canopystate_vars)
+        energyflux_vars, canopystate_vars, soilhydrology_vars)
      !
      ! !DESCRIPTION:
      ! This subroutine accumulates the numerical truncation errors of the water
@@ -183,6 +183,7 @@ contains
      type(solarabs_type)   , intent(in)    :: solarabs_vars
      type(energyflux_type) , intent(inout) :: energyflux_vars
      type(canopystate_type), intent(inout) :: canopystate_vars
+     type(soilhydrology_type), intent(in)  :: soilhydrology_vars
      !
      ! !LOCAL VARIABLES:
      integer  :: p,c,l,t,g,fc                           ! indices
@@ -393,6 +394,7 @@ contains
              write(iulog,*)'   h2osno                  = ',col_ws%h2osno(indexc)
              write(iulog,*)'   h2osoi_liq              = ',col_ws%h2osoi_liq_depth_intg(indexc)
              write(iulog,*)'   h2osoi_ice              = ',col_ws%h2osoi_ice_depth_intg(indexc)
+             write(iulog,*)'   wa                      = ',soilhydrology_vars%wa_col(indexc)
              write(iulog,*)'begwb                      = ',begwb(indexc)
              write(iulog,*)'qflx_evap_tot              = ',qflx_evap_tot(indexc)
              write(iulog,*)'qflx_irrig                 = ',qflx_irrig(indexc)

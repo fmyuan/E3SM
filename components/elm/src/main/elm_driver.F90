@@ -1336,7 +1336,7 @@ contains
        call ColWaterBalanceCheck(bounds_clump, &
             filter(nc)%num_do_smb_c, filter(nc)%do_smb_c, &
             atm2lnd_vars, glc2lnd_vars, solarabs_vars,  &
-            energyflux_vars, canopystate_vars)
+            energyflux_vars, canopystate_vars, soilhydrology_vars)
        call t_stopf('balchk')
 
        call t_startf('gridbalchk')
