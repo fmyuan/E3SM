@@ -2548,6 +2548,7 @@ sub setup_logic_demand {
   $settings{'use_crop'}            = $nl_flags->{'use_crop'};
   $settings{'use_modified_infil'}  = $nl_flags->{'use_modified_infil'};
   $settings{'use_ats'}             = $nl_flags->{'use_ats'};
+  $settings{'use_ats_ic'}          = $nl_flags->{'use_ats_ic'};
   
   my $demand = $nl->get_value('clm_demand');
   if (defined($demand)) {
@@ -3430,10 +3431,9 @@ sub setup_logic_ats {
     #
     my ($test_files, $nl_flags, $definition, $defaults, $nl) = @_;
 
-    if ( $nl_flags->{'use_ats'}  eq '.true.' ) {
+    if ( $nl_flags->{'use_ats'}  eq '.true.' || $nl_flags->{'use_ats_ic'}  eq '.true.' ) {
        add_default($test_files, $nl_flags->{'inputdata_rootdir'}, $definition, $defaults, $nl, 'ats_inputdir' );
        add_default($test_files, $nl_flags->{'inputdata_rootdir'}, $definition, $defaults, $nl, 'ats_inputfile' );
-       add_default($test_files, $nl_flags->{'inputdata_rootdir'}, $definition, $defaults, $nl, 'use_ats_mesh' );
        #
        # Check if $ats_inputfile is set in $inputdata_rootdir/$ats#
        my $ats_inputdir = $nl->get_value('ats_inputdir');

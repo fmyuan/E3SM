@@ -32,7 +32,7 @@ contains
 #include <petsc/finclude/petsc.h>
 #endif
     ! !USES:
-    use elm_varctl             , only : use_vsfm, use_cn, use_ats
+    use elm_varctl             , only : use_vsfm, use_cn, use_ats, use_ats_ic
 #ifdef USE_PETSC_LIB
     use petscsys
 #endif
@@ -62,7 +62,7 @@ contains
     endif
 
 #ifdef USE_ATS_LIB
-    if (use_ats) then
+    if (use_ats .or. use_ats_ic) then
        call em_ats%Finalize()
     endif
 #endif

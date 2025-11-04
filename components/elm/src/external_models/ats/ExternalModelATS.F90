@@ -14,13 +14,14 @@ module ExternalModelATS
   use histFileMod                  , only : hist_nhtfrq
   use elm_varpar                   , only : nlevgrnd
   use elm_varctl                   , only : iulog
+  use elm_varctl                   , only : use_ats, use_ats_ic
 
   use ColumnType                 , only : column_physical_properties
   use GridcellType               , only : gridcell_physical_properties_type
   use PhotosynthesisType         , only : photosyns_type
+  use SoilHydrologyType          , only : soilhydrology_type
   use SoilStateType              , only : soilstate_type
   use ColumnDataType             , only : column_water_state, column_water_flux
-  
   use ExternalModelATS_interface
 
   ! fortran API for C++ ATS code
@@ -107,7 +108,7 @@ contains
     
   !------------------------------------------------------------------------
   subroutine EM_ATS_Init(this, time0, filter, nclumps, ncolumns, nlevgrnd, &
-       grc_pp, col_pp, soilstate_vars, col_ws)
+       grc_pp, col_pp, soilstate_vars, soilhydrology_vars, col_ws)
     use filterMod, only : clumpfilter
 
     implicit none
@@ -120,8 +121,9 @@ contains
     integer, intent(in) :: nlevgrnd
     type(gridcell_physical_properties_type) , intent(in) :: grc_pp
     type(column_physical_properties)     , intent(in)    :: col_pp
-    type(soilstate_type)     , intent(in)    :: soilstate_vars
-    type(column_water_state) , intent(in)    :: col_ws
+    type(soilhydrology_type) , intent(inout) :: soilhydrology_vars
+    type(soilstate_type)     , intent(inout)    :: soilstate_vars
+    type(column_water_state) , intent(inout)    :: col_ws
 
     ! locals
     integer :: i, ii
@@ -147,6 +149,12 @@ contains
     call ats_setup(this%ats)
     call ats_set_scalar(this%ats, ats_var_id%TIME, time0)
 
+    ! zero out things that are currently nan, do not get set (because
+    ! they are set in blocks of code turned off via use_ats), but do
+    ! get included in various water balance calls.
+    ! soilhydrology_vars%wa_col(:) = 0._r8
+    
+    
     !! begin init portion of this call
     !
     ! TODO: ETC -- Step 4
@@ -171,7 +179,7 @@ contains
     call ats_initialize(this%ats)
 
     ! copy back initial water contents, using full porosity (not effective)
-    call EM_ATS_GetField_WaterContent(this, col_pp, soilstate_vars, col_ws, soilstate_vars%watsat_col)
+    call EM_ATS_GetField_WaterContent(this, col_pp, soilstate_vars, col_ws, soilhydrology_vars, soilstate_vars%watsat_col)
 
     ! additionally re-save old water
     do i = 1, this%ncolumns
@@ -183,18 +191,19 @@ contains
 
 
   !------------------------------------------------------------------------
-  subroutine EM_ATS_Advance(this, dt, nstep, col_pp, soilstate_vars, col_ws, col_wf, photosyns_vars)
+  subroutine EM_ATS_Advance(this, dt, nstep, col_pp, soilstate_vars, col_ws, col_wf, soilhydrology_vars, photosyns_vars)
     implicit none
 
     class(em_ats_type)                       :: this
     real(r8)                 , intent(in)    :: dt
     integer                  , intent(in)    :: nstep
     type(column_physical_properties)  , intent(in)    :: col_pp
-    type(soilstate_type)     , intent(in)    :: soilstate_vars
-    type(column_water_state) , intent(in)    :: col_ws
+    type(soilstate_type)     , intent(inout)    :: soilstate_vars
+    type(column_water_state) , intent(inout)    :: col_ws
     type(column_water_flux)  , intent(inout)    :: col_wf
-    type(photosyns_type), intent(inout) :: photosyns_vars
-
+    type(photosyns_type)     , intent(inout) :: photosyns_vars
+    type(soilhydrology_type) , intent(inout) :: soilhydrology_vars
+  
     
     ! local variables
     logical(C_BOOL) :: do_vis
@@ -246,7 +255,7 @@ contains
 
     ! pass state back to ELM
     ! TODO: ETC -- Step 4
-    call EM_ATS_GetField_WaterContent(this, col_pp, soilstate_vars, col_ws, soilstate_vars%watsat_col)
+    call EM_ATS_GetField_WaterContent(this, col_pp, soilstate_vars, col_ws, soilhydrology_vars, soilstate_vars%watsat_col)
 
     ! get actual fluxes back
 
@@ -555,15 +564,17 @@ contains
   ! -----------------------------------------------------------------------
   ! Special purpose -- get the water content fields
   !
-  subroutine EM_ATS_GetField_WaterContent(this, col_pp, soilstate_vars, col_ws, porosity)
+  subroutine EM_ATS_GetField_WaterContent(this, col_pp, soilstate_vars, col_ws, soilhydrology_vars, porosity)
     use elm_varcon                 , only : denh2o
 
     implicit none
     class(em_ats_type)                   :: this
     type(column_physical_properties)     , intent(in)    :: col_pp
-    type(soilstate_type)     , intent(in)    :: soilstate_vars
-    type(column_water_state) , intent(in)    :: col_ws
     real(r8), intent(in)                     :: porosity(:,:)
+    type(soilstate_type)     , intent(inout)    :: soilstate_vars
+    type(column_water_state) , intent(inout)    :: col_ws
+    type(soilhydrology_type) , intent(inout) :: soilhydrology_vars
+  
 
     ! locals
     integer :: i, ii, j
@@ -597,6 +608,9 @@ contains
           write(iulog,*) "GET: h2osoi_liq : column ", i, " cell ", j, " = ", col_ws%h2osoi_liq(ii,j)
        end do
     end do
+
+    ! depth to water table
+    call EM_ATS_GetField_Copy(this, "depth_to_water_table", ats_var_id%DEPTH_TO_WATER_TABLE, soilhydrology_vars%zwt_col)
 
     ! ponded water
     call EM_ATS_GetField_Copy(this, "ponded depth", ats_var_id%PONDED_DEPTH, col_ws%h2osfc)
@@ -655,6 +669,7 @@ contains
 
        ! units: mm/ s --> m/s
        ats_evap(i) = ats_evap(i) * 1.e-3_r8
+       write(iulog,*) "SET: potental evap : column ", i, " = ", ats_evap(i)
     end do
   end subroutine EM_ATS_SetField_Evaporation
   

@@ -26,6 +26,7 @@ module ExternalModelATS_variables
      integer(c_int) :: INITIAL_WATER_CONTENT = 20
      integer(c_int) :: SATURATION_LIQUID = 21
      integer(c_int) :: PONDED_DEPTH = 22
+     integer(c_int) :: DEPTH_TO_WATER_TABLE = 23
   end type ats_var_id_type
 
   type(ats_var_id_type) :: ats_var_id = ats_var_id_type()
