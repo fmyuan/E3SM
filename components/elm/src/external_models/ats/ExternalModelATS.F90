@@ -217,6 +217,7 @@ contains
        write(iulog,*) 'EM_ATS_Advance: advancing for time', dt
     end if
 
+    ! == DEBUG CODE ====
     ! how much has ELM drifted from ATS?  Any changes to h2osoi_liq at
     ! this point will be overwritten, and if they are compensating
     ! changes elsewhere, they will result in mass imbalance.
@@ -231,11 +232,8 @@ contains
           write(iulog,*) "ELM: h2osfc : column ", i, " total = ", col_ws%h2osfc(ii)
        end if
     end do
+    ! == END DEBUG CODE ====
     
-    ! pass dynamic parameters to ATS
-    call EM_ATS_SetField_CopySubsurface(this, "effective porosity", ats_var_id%EFFECTIVE_POROSITY, &
-         soilstate_vars%eff_porosity_col)
-
     ! is this correct?  Is ELM allocated with:
     !      num_patches = 17 * num_columns, or
     !      sum_columns(n_active_patches_in_column)
@@ -251,17 +249,17 @@ contains
     ! TODO: ETC -- Step 4
     ! call ats_set_field(this%ats, ats_var_id%ROOT_FRACTION, soilstate_vars%rootfr_patch)
 
-    ! pass state to ATS -- this should not be necessary, but maybe we want to CHECK that they are the same?
-    ! TODO: ETC -- Step 2
-    ! call ats_set_field(this%ats, ats_var_id%WATER_CONTENT, col_ws%h2osoi_liq)
-    ! call ats_set_field(this%ats, ats_var_id%SURFACE_WATER_CONTENT, col_ws%h2osfc)
+    ! pass state to ATS -- this is required in hydro-only mode because
+    ! freeze-thaw may change water to ice
+    call EM_ATS_SetField_WaterContent(this, col_pp, col_ws, soilstate_vars)
 
     ! pass fluxes to ATS -- unit change from [mm H2O / s] to [m H2O / s]
     call EM_ATS_SetField_ScalarMultiply(this, "gross surface water source", ats_var_id%GROSS_SURFACE_WATER_SOURCE, &
-         col_wf%qflx_top_soil, 1.e-3_r8, 1)
+         col_wf%qflx_gross_infl_soil, 1.e-3_r8, 1)
     call EM_ATS_SetField_ScalarMultiply(this, "potential transpiration", ats_var_id%POTENTIAL_TRANSPIRATION, &
          col_wf%qflx_tran_veg, 1.e-3_r8, 1)
-    call EM_ATS_SetField_Evaporation(this, col_pp, col_ws, col_wf)
+    call EM_ATS_SetField_ScalarMultiply(this, "potential evaporation", ats_var_id%POTENTIAL_EVAPORATION, &
+         col_wf%qflx_gross_evap_soil, 1.e-3_r8, 1)
     
     ! call advance
     ! -- get whether to vis and checkpoint
@@ -279,9 +277,7 @@ contains
     ! note we use the same porosity as set above
     call EM_ATS_GetField_WaterContent(this, col_pp, soilstate_vars, col_ws, soilhydrology_vars, soilstate_vars%eff_porosity_col)
     
-    ! get actual fluxes back
-
-    ! TODO: ETC -- Step 3
+    ! get actual fluxes back and apply the downregulation where needed
     call EM_ATS_GetField_ActualEvaporation(this, col_wf)
     call EM_ATS_GetField_ActualTranspiration(this, col_wf, photosyns_vars)
 
@@ -670,8 +666,18 @@ contains
     do j=1,this%nlevgrnd
        do i=1,this%ncolumns
           ii = this%col_filter(i)
-          ! subtract ATS atmospheric pressure, convert to MPa, suction is always negative?
-          soilstate_vars%soilpsi_col(ii,j) = max(0._r8, (soilstate_vars%soilpsi_col(ii,j) - this%p_atm) * 1.e-6_r8)
+          ! subtract ATS atmospheric pressure, convert to MPa, suction is always negative
+          !
+          ! note the ELM calculation of soilpsi relies on a sucsat to
+          ! bound this away from 0 (see HydrologyNoDrainageMod.F90:509):
+          ! ! use the same contants used in the supercool so that psi for frozen soils is consistent
+          ! fsattmp = max(vwc/watsat(c,j), 0.001_r8)
+          ! psi = sucsat(c,j) * (-9.8e-6_r8) * (fsattmp)**(-bsw(c,j))  ! Mpa
+          ! soilpsi(c,j) = min(max(psi,-15.0_r8),0._r8)
+          !
+          ! Here we set an arbitrary min value of 100Pa, van Genuchten in general has no specific min val
+          soilstate_vars%soilpsi_col(ii,j) = max(min(-1.e-4, (soilstate_vars%soilpsi_col(ii,j) - this%p_atm) * 1.e-6_r8), -15.0_r8)
+          
        end do
     end do
 
@@ -715,57 +721,57 @@ contains
 
 
   ! -----------------------------------------------------------------------
-  ! Special purpose -- compute and set the bare ground + inundated
-  ! evaporation
+  ! Special purpose -- set water content to the OLD timestep
   !
-  ! = (1 - fsno - frac_h2osfc) * qflx_evap +
-  !                          frac_h2osfc * qflx_ev_h2osfc
-  !
-  subroutine EM_ATS_SetField_Evaporation(this, col_pp, col_ws, col_wf)
+  subroutine EM_ATS_SetField_WaterContent(this, col_pp, col_ws, soilstate_vars)
+    use elm_varcon                 , only : denh2o
     implicit none
 
     class(em_ats_type)                                  :: this
     type(column_physical_properties)    , intent(in)    :: col_pp
     type(column_water_state)            , intent(in)    :: col_ws
-    type(column_water_flux)             , intent(in)    :: col_wf
+    type(soilstate_type)                , intent(in)    :: soilstate_vars
 
-    ! locals
-    integer :: i,ii
-    real(r8) :: fsno, fh2o, qflx_evap
-    real(c_double), pointer :: ats_evap(:)
+    ! local variables
+    integer :: i, ii, j
+    real(r8) :: h2osoi_liq_tot
+    real(c_double), pointer :: ats_surf_wc(:)
+    real(c_double), pointer :: ats_wc(:)
+    
 
-    ! get the field to populate from ATS
-    call EM_ATS_GetFieldPtrW(this, ats_var_id%POTENTIAL_EVAPORATION, this%ncolumns, ats_evap)
+    ! set porosity to be the liquid porosity (e.g. ice = soil)
+    call EM_ATS_SetField_CopySubsurface(this, "effective porosity", ats_var_id%EFFECTIVE_POROSITY, &
+         soilstate_vars%eff_porosity_col)
 
+    ! set surface water content
+    call EM_ATS_GetFieldPtrW(this, ats_var_id%SURFACE_WATER_CONTENT_OLD, this%ncolumns, ats_surf_wc)
     do i=1,this%ncolumns
        ii = this%col_filter(i)
-
-       ! see SoilHydrologyMod.F90:403
-       ! explicitly use frac_sno=0 if snl=0
-       if (col_pp%snl(ii) >= 0) then
-          fsno = 0._r8
-          qflx_evap = col_wf%qflx_evap_grnd(ii) - col_wf%qflx_dew_grnd(ii)
-
-          ! NOTE: test this! I suspect the above is identical to the
-          ! below in all cases -- ELM splits them out and applies them
-          ! differently, but I'm not sure why we should.
-          ! qflx_evap = col_wf%qflx_ev_soil(ii)
-       else
-          fsno = col_ws%frac_sno_eff(ii)
-          qflx_evap = col_wf%qflx_ev_soil(ii)
-       endif
-
-       ! see SoilHydrologyMod.F90:426
-       fh2o = col_ws%frac_h2osfc(ii)
-       ats_evap(i) = (1 - fsno - fh2o) * qflx_evap + fh2o * col_wf%qflx_ev_h2osfc(ii)
-
-       ! units: mm/ s --> m/s
-       ats_evap(i) = ats_evap(i) * 1.e-3_r8
+       ! h2osfc in mm --> m
+       ats_surf_wc(i) = col_ws%h2osfc(ii) / denh2o
        if (this%verbosity >= 1) then
-          write(iulog,*) "SET: potental evap : column ", i, " = ", ats_evap(i)
+          write(iulog,*) "SET: h2osfc total : column ", i, " total = ", col_ws%h2osfc(ii)
        end if
     end do
-  end subroutine EM_ATS_SetField_Evaporation
+
+    ! set subsurface water content
+    call EM_ATS_GetFieldPtrW(this, ats_var_id%WATER_CONTENT_OLD, this%ncolumns*this%nlevgrnd, ats_wc)
+    do i=1,this%ncolumns
+       ii = this%col_filter(i)
+       h2osoi_liq_tot = 0._r8
+
+       do j=1,this%nlevgrnd
+          ! convert to volumetric water content [-]
+          ats_wc((i-1) * this%nlevgrnd + j) = col_ws%h2osoi_liq(ii,j) / denh2o / col_pp%dz(ii,j)
+          h2osoi_liq_tot = h2osoi_liq_tot + col_ws%h2osoi_liq(ii,j)
+       end do
+
+       if (this%verbosity >= 1) then
+          write(iulog,*) "SET: h2osoi_liq total : column ", i, " total = ", h2osoi_liq_tot
+       end if
+    end do
+
+  end subroutine EM_ATS_SetField_WaterContent
   
   ! -----------------------------------------------------------------------
   ! Special purpose -- downregulate transpiration
@@ -804,9 +810,9 @@ contains
           ! debugging that adds an absolution portion, and one for
           ! downregulating carbon that is bounded below 1.
           downreg = min(tot_trans / col_wf%qflx_tran_veg(ii), 1.0_r8)
-          downreg_eps = tot_trans / max(col_wf%qflx_tran_veg(ii), 1.e-12)
+          downreg_eps = tot_trans / max(col_wf%qflx_tran_veg(ii), 1.e-10)
 
-          if (downreg_eps > 1.0001_r8 .OR. downreg < 0._r8) then
+          if (downreg_eps > 1.01_r8 .OR. downreg < 0._r8) then
              write(iulog,*) "WARNING: ATS transpiration downregulation is out of expected bounds."
              call endrun("ATS transpiration downregulation is out of expected bounds.")
           end if

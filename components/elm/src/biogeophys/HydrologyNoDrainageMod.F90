@@ -16,6 +16,7 @@ Module HydrologyNoDrainageMod
   use CanopyStateType  , only  : canopystate_type
   use SoilHydrologyType , only : soilhydrology_type
   use SoilStateType     , only : soilstate_type
+  use PhotosynthesisType, only : photosyns_type
   use LandunitType      , only : lun_pp
   use ColumnType        , only : col_pp
   use ColumnDataType    , only : col_es, col_ws, col_wf
@@ -45,7 +46,7 @@ contains
        num_snowc, filter_snowc, &
        num_nosnowc, filter_nosnowc, canopystate_vars, &
        atm2lnd_vars, lnd2atm_vars, soilstate_vars,    &
-       energyflux_vars, soilhydrology_vars, aerosol_vars)
+       energyflux_vars, soilhydrology_vars, aerosol_vars, photosyns_vars)
     ! !DESCRIPTION:
     ! This is the main subroutine to execute the calculation of soil/snow
     ! hydrology
@@ -68,6 +69,11 @@ contains
     use column_varcon        , only : icol_roof, icol_road_imperv, icol_road_perv, icol_sunwall
     use column_varcon        , only : icol_shadewall
     use elm_varctl           , only : use_cn, use_betr, use_fates, use_pflotran, pf_hmode, use_fan, use_ats
+
+#ifdef USE_ATS_LIB    
+    use ExternalModelATS            , only : em_ats
+#endif   
+    
     use elm_varpar           , only : nlevgrnd, nlevsno, nlevsoi, nlevurb
     use SnowHydrologyMod     , only : SnowCompaction, CombineSnowLayers, DivideSnowLayers, DivideExtraSnowLayers, SnowCapping
     use SnowHydrologyMod     , only : SnowWater, BuildSnowFilter 
@@ -99,6 +105,7 @@ contains
     type(canopystate_type)   , intent(in)  :: canopystate_vars
     type(aerosol_type)       , intent(inout) :: aerosol_vars
     type(soilhydrology_type) , intent(inout) :: soilhydrology_vars
+    type(photosyns_type)     , intent(inout) :: photosyns_vars
     real(r8) :: dtime                         ! land model time step (sec)
 
     !
@@ -291,7 +298,6 @@ contains
       end if
       !------------------------------------------------------------------------------------
 
-
 #ifndef _OPENACC
       if (use_betr) then
          !apply dew and sublimation fluxes, this is a temporary work aroud for tracking water isotope
@@ -391,7 +397,7 @@ contains
       end do
       do fc = 1, num_nolakec
          c = filter_nolakec(fc)
-	       nlevbed = nlev2bed(c)
+         nlevbed = nlev2bed(c)
          do j = 1, nlevbed
             l = col_pp%landunit(c)
             if (.not. lun_pp%urbpoi(l)) then
@@ -470,8 +476,19 @@ contains
          end do
       end do
 
+#ifdef USE_ATS_LIB
+      ! NOTE: ETC -- this is the EARLIEST ATS can advance -- needs eff_porosity computed above
+      ! ATS calculation of hydrology, both surface (runoff) and subsurface (baseflow)
+      if (use_ats) then
+         call em_ats%Advance(dtime_mod, nstep_mod, col_pp, soilstate_vars, col_ws, col_wf, soilhydrology_vars, photosyns_vars)
+      end if
+#endif
+      
+
+      
       if ( (use_cn .or. use_fates) .and. &
-         .not.(use_pflotran .and. pf_hmode) ) then
+           .not.(use_pflotran .and. pf_hmode) .and. &
+           .not. use_ats) then
          ! Update soilpsi.
          ! ZMS: Note this could be merged with the following loop updating smp_l in the future.
          do j = 1, nlevgrnd

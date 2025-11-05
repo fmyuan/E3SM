@@ -392,6 +392,8 @@ contains
              write(iulog,*)'   h2ocan                  = ',col_ws%h2ocan(indexc)
              write(iulog,*)'   h2osfc                  = ',col_ws%h2osfc(indexc)
              write(iulog,*)'   h2osno                  = ',col_ws%h2osno(indexc)
+             write(iulog,*)'      snl                  = ',col_pp%snl(indexc)
+             write(iulog,*)'      frac_sno_eff         = ',col_ws%frac_sno_eff(indexc)
              write(iulog,*)'   h2osoi_liq              = ',col_ws%h2osoi_liq_depth_intg(indexc)
              write(iulog,*)'   h2osoi_ice              = ',col_ws%h2osoi_ice_depth_intg(indexc)
              write(iulog,*)'   wa                      = ',soilhydrology_vars%wa_col(indexc)
