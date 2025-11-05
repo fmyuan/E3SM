@@ -913,7 +913,8 @@ contains
             filter(nc)%num_snowc, filter(nc)%snowc,                          &
             filter(nc)%num_nosnowc, filter(nc)%nosnowc,canopystate_vars,     &
             atm2lnd_vars, lnd2atm_vars, soilstate_vars, energyflux_vars,     &
-            soilhydrology_vars, aerosol_vars )
+            soilhydrology_vars, aerosol_vars, photosyns_vars )
+
 
        !  Calculate column-integrated aerosol masses, and
        !  mass concentrations for radiative calculations and output
@@ -1220,13 +1221,6 @@ contains
               photosyns_vars, drydepvel_vars)
        end if
        call t_stopf('depvel')
-
-       ! ATS calculation of hydrology, both surface (runoff) and subsurface (baseflow)
-#ifdef USE_ATS_LIB
-       if (use_ats) then
-          call em_ats%Advance(dtime_mod, nstep_mod, col_pp, soilstate_vars, col_ws, col_wf, soilhydrology_vars, photosyns_vars)
-       end if
-#endif
 
        ! ============================================================================
        ! Calculate soil/snow hydrology with drainage (subsurface runoff)
