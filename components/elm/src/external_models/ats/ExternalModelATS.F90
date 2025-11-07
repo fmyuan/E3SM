@@ -785,7 +785,7 @@ contains
 
     ! locals
     integer :: i,ii, pp
-    real(r8) :: downreg, downreg_eps, tot_trans
+    real(r8) :: downreg, downreg_eps, tot_trans, diff
     real(c_double), pointer :: ats_tot_trans(:)
     
     ! get the total transpiration from ATS
@@ -811,11 +811,16 @@ contains
           ! downregulating carbon that is bounded below 1.
           downreg = min(tot_trans / col_wf%qflx_tran_veg(ii), 1.0_r8)
           downreg_eps = tot_trans / max(col_wf%qflx_tran_veg(ii), 1.e-10)
+          diff = max(col_wf%qflx_tran_veg(ii) - tot_trans, 0._r8)
 
           if (downreg_eps > 1.01_r8 .OR. downreg < 0._r8) then
              write(iulog,*) "WARNING: ATS transpiration downregulation is out of expected bounds."
              call endrun("ATS transpiration downregulation is out of expected bounds.")
           end if
+
+          ! evap_veg, evap_tot
+          col_wf%qflx_evap_veg(ii) = col_wf%qflx_evap_veg(ii) - diff
+          col_wf%qflx_evap_tot(ii) = col_wf%qflx_evap_tot(ii) - diff
           
           ! CO2 scales linearly with water? CHECK THIS! --ETC
           if (downreg < 1.0_r8) then
@@ -833,6 +838,7 @@ contains
        end if
 
        if (this%verbosity >= 1) then
+          write(iulog,*) "     T downreg : column ", i, " total = ", downreg
           write(iulog,*) "GET: actual transpiration : column ", i, " total = ", col_wf%qflx_tran_veg(ii)
        end if
     end do
@@ -853,9 +859,9 @@ contains
     real(r8) :: downreg, evap, pot_evap, diff
     real(c_double), pointer :: ats_pot_evap(:), ats_evap(:)
     
-    ! get the total transpiration from ATS
+    ! get the total evaporation from ATS
     call EM_ATS_GetFieldPtr(this, ats_var_id%EVAPORATION, this%ncolumns, ats_evap)
-    call EM_ATS_GetFieldPtr(this, ats_var_id%EVAPORATION, this%ncolumns, ats_pot_evap)
+    call EM_ATS_GetFieldPtr(this, ats_var_id%POTENTIAL_EVAPORATION, this%ncolumns, ats_pot_evap)
 
     do i=1,this%ncolumns
        ii = this%col_filter(i)
@@ -868,7 +874,7 @@ contains
        if (pot_evap > 0. .and. diff > 0.) then
           downreg = evap / pot_evap
 
-          if (downreg > 1.0 .OR. downreg < 0.1) then
+          if (downreg > 1.0 .OR. downreg < 0.0) then
              write(iulog,*) "WARNING: ATS evaporation downregulation is out of expected bounds."
              call endrun("ATS evaporation downregulation is out of expected bounds.")
           end if
