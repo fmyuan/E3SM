@@ -95,7 +95,7 @@ _TESTS = {
         "time"  : "0:45:00",
         "tests" : (
             "SMS_Ly2_P1x1.1x1_smallvilleIA.IELMCNCROP.elm-per_crop",
-            "SMS_Ly2_P1x1_D.1x1_smallvilleIA.IELMCNCROP.elm-lulcc_sville",
+            "SMS_Ly2_P1x1.1x1_smallvilleIA.IELMCNCROP.elm-lulcc_sville",
             "ERS_Ly10.ELM_USRDAT.I1850CNPRDCTCBC.elm-alquimia_emitest_I1850CNPRDCTCBC",
             "ERS_Ly10.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrdat_I1850CNPRDCTCBC42sites",
            # "ERS_Ly10.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrdat_ICB1850CNPRDCTCBCxcol2", # ICB compset is hard to use in test suites
