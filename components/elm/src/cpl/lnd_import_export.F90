@@ -248,6 +248,8 @@ contains
             atm2lnd_vars%metsource = 5
           else if (index(metdata_type,'era5') .gt. 0) then
             atm2lnd_vars%metsource = 7
+          else if (index(metdata_type,'atssubdaily') .gt. 0) then
+            atm2lnd_vars%metsource = 8
           else
             call endrun( sub//' ERROR: Invalid met data source for cpl_bypass' )
           end if
@@ -326,7 +328,16 @@ contains
             ! ERA5
             atm2lnd_vars%startyear_met      = 1950
             atm2lnd_vars%endyear_met_spinup = 1970
-            atm2lnd_vars%endyear_met_trans  = 2024
+            atm2lnd_vars%endyear_met_trans  = 2025
+          else if (atm2lnd_vars%metsource == 8) then
+            !get year information from file
+            ierr = nf90_open(trim(metdata_bypass) // '/ATS-subdaily_TBOT_z01.nc', nf90_nowrite, ncid)
+            ierr = nf90_inq_varid(ncid, 'start_year', varid)
+            ierr = nf90_get_var(ncid, varid, atm2lnd_vars%startyear_met)
+            ierr = nf90_inq_varid(ncid, 'end_year', varid)
+            ierr = nf90_get_var(ncid, varid, atm2lnd_vars%endyear_met_spinup)
+            ierr = nf90_close(ncid)
+            atm2lnd_vars%endyear_met_trans = atm2lnd_vars%endyear_met_spinup
           end if
 
           if (use_livneh) then 
@@ -446,8 +457,10 @@ contains
                    !daymet v4 with ERA5 v2023 for NA with user-defined zone-mappings.txt
                     metdata_fname = 'Daymet_ERA5.1km_' // trim(metvars(v)) // '_1980-2023_z' // zst(2:3) // '.nc'
                 else
-                    metdata_fname = 'ERA5_' // trim(metvars(v)) // '_1950-2024_z' // zst(2:3) // '.nc'
+                    metdata_fname = 'ERA5_' // trim(metvars(v)) // '_1950-2025_z' // zst(2:3) // '.nc'
                 end if
+            else if (atm2lnd_vars%metsource == 8) then
+                metdata_fname = 'ATS-subdaily_' // trim(metvars(v)) // '_z' // zst(2:3) // '.nc'
             end if
   
             ierr = nf90_open(trim(metdata_bypass) // '/' // trim(metdata_fname), NF90_NOWRITE, met_ncids(v))
