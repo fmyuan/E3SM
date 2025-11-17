@@ -377,7 +377,7 @@ contains
              indexc = c
           endif
           !if ((use_ats .or. use_ats_ic) .and. col_pp%itype(c) .eq. istsoil) then
-          if (col_pp%itype(c) .eq. istsoil) then
+          if (col_pp%itype(c) .eq. istsoil .and. found) then
              indexc = c
              write(iulog,*)''
              write(iulog,*)'ELM+ATS Water Balance Summary (column', c, ')'
