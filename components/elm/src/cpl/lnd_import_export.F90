@@ -324,7 +324,8 @@ contains
           else if (atm2lnd_vars%metsource == 7) then
             ! ERA5
             atm2lnd_vars%startyear_met      = 1950
-            atm2lnd_vars%endyear_met_trans  = 2023
+            atm2lnd_vars%endyear_met_trans  = 2024
+            if (use_daymet) atm2lnd_vars%endyear_met_trans  = 2023
           end if
 
           if (use_livneh) then 
@@ -442,7 +443,7 @@ contains
                    !daymet v4 with ERA5 v2023 for NA with user-defined zone-mappings.txt
                     metdata_fname = 'Daymet_ERA5.1km_' // trim(metvars(v)) // '_1980-2023_z' // zst(2:3) // '.nc'
                 else
-                    metdata_fname = 'era5.25d_' // trim(metvars(v)) // '_1949-2023_z' // zst(2:3) // '.nc'
+                    metdata_fname = 'ERA5_' // trim(metvars(v)) // '_1950-2024_z' // zst(2:3) // '.nc'
                 end if
             end if
   
