@@ -425,7 +425,10 @@ contains
           i_0                  =>    soilhydrology_vars%i_0_col              , & ! Input:  [real(r8) (:)   ]  column average soil moisture in top VIC layers (mm)
           h2osfcflag           =>    soilhydrology_vars%h2osfcflag           , & ! Input:  logical
           pc_grid              =>    soilhydrology_vars%pc                   , & ! Input:  [real(r8) (:)   ]  threshold for outflow from surface water storage
-          icefrac              =>    soilhydrology_vars%icefrac_col            & ! Output: [real(r8) (:,:) ]  fraction of ice
+          icefrac              =>    soilhydrology_vars%icefrac_col          , & ! Output: [real(r8) (:,:) ]  fraction of ice
+
+          ! RPF debug, would be helpful to also keep the h2osfc from the previous time step
+          h2osfc_p             =>   col_ws%h2osfc_p                           & ! Input? Really for debugging to see if time aliasing causes spread in IM1 issues
               )
 
 
@@ -447,6 +450,9 @@ contains
           l = col_pp%landunit(c)
           pc = pc_grid(g)
           
+         ! before doing anything, preserve h2osfc:
+          h2osfc_p(c) = h2osfc(c)
+
           ! partition moisture fluxes between soil and h2osfc
           if (col_pp%is_soil(c) .or. col_pp%is_crop(c)) then
 

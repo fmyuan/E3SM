@@ -178,6 +178,7 @@ module ColumnDataType
     real(r8), pointer :: iwp_subsidence   (:) => null() ! ice wedge polygon ground subsidence (m)
     real(r8), pointer :: excess_ice     (:,:) => null() ! excess ground ice in column (1:nlevgrnd) (0 to 1)
     real(r8), pointer :: frac_melted    (:,:) => null() ! fraction of layer that has ever thawed (for tracking excess ice removal) (0 to 1)
+    real(r8), pointer :: h2osfc_p         (:) => null() !!! DEBUG
 
   contains
     procedure, public :: Init    => col_ws_init
@@ -1409,6 +1410,8 @@ contains
     allocate(this%h2osoi_ice         (begc:endc,-nlevsno+1:nlevgrnd)) ; this%h2osoi_ice         (:,:) = spval
     allocate(this%h2osoi_vol         (begc:endc, 1:nlevgrnd))         ; this%h2osoi_vol         (:,:) = spval
     allocate(this%h2osfc             (begc:endc))                     ; this%h2osfc             (:)   = spval
+    ! DEBUG
+    allocate(this%h2osfc_p           (begc:endc))                     ; this%h2osfc_p           (:)   = spval
     allocate(this%h2ocan             (begc:endc))                     ; this%h2ocan             (:)   = spval
     allocate(this%wslake_col         (begc:endc))                     ; this%wslake_col         (:)   = spval
     allocate(this%total_plant_stored_h2o(begc:endc))                  ; this%total_plant_stored_h2o(:)= spval  
@@ -1540,6 +1543,11 @@ contains
      call hist_addfld1d (fname='H2OSFC',  units='mm',  &
           avgflag='A', long_name='surface water depth', &
            ptr_col=this%h2osfc)
+
+    this%h2osfc(begc:endc) = spval
+     call hist_addfld1d (fname='H2OSFC_P', units = 'mm',  &
+          avgflag='A', long_name='surface water depth previous time step', &
+           ptr_col=this%h2osfc_p)
 
     this%h2osoi_vol(begc:endc,:) = spval
      call hist_addfld2d (fname='H2OSOI',  units='mm3/mm3', type2d='levgrnd', &
@@ -1690,6 +1698,7 @@ contains
        this%wf2(c)                    = spval
        this%total_plant_stored_h2o(c) = 0._r8
        this%h2osfc(c)                 = 0._r8
+       this%h2osfc_p(c)               = 0._r8 ! DEBUG
        this%h2ocan(c)                 = 0._r8
        this%frac_h2osfc(c)            = 0._r8
        this%frac_h2osfc_act(c)        = 0._r8
@@ -1901,6 +1910,15 @@ contains
          interpinic_flag='interp', readvar=readvar, data=this%h2osfc)
     if (flag=='read' .and. .not. readvar) then
        this%h2osfc(bounds%begc:bounds%endc) = 0.0_r8
+    end if
+
+    ! DEBUG
+    call restartvar(ncid=ncid, flag=flag, varname='H2OSFC_P', xtype=ncd_double,  &
+         dim1name='column', &
+         long_name='surface water', units='kg/m2', &
+         interpinic_flag='interp', readvar=readvar, data=this%h2osfc_p)
+    if (flag=='read' .and. .not. readvar) then
+       this%h2osfc_p(bounds%begc:bounds%endc) = 0.0_r8
     end if
 
     if(do_budgets) then 
