@@ -7,7 +7,7 @@ module ActiveLayerMod
   ! !USES:
   use shr_kind_mod    , only : r8 => shr_kind_r8
   use shr_const_mod   , only : SHR_CONST_TKFRZ
-  use elm_varctl      , only : iulog, spinup_state, use_polygonal_tundra, allow_subsidence
+  use elm_varctl      , only : iulog, spinup_state, use_polygonal_tundra, prohibit_subsidence
   use TemperatureType , only : temperature_type
   use CanopyStateType , only : canopystate_type
   use GridcellType    , only : grc_pp       

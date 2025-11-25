@@ -36,7 +36,8 @@ module ColumnDataType
   use soilorder_varcon, only : smax, ks_sorption
   use elm_time_manager, only : is_restart, get_nstep
   use elm_time_manager, only : is_first_step, get_step_size, is_first_restart_step
-  use landunit_varcon , only : istice, istwet, istsoil, istdlak, istcrop, istice_mec, istlowcenpoly, isthighcenpoly
+  use landunit_varcon , only : istice, istwet, istsoil, istdlak, istcrop, istice_mec
+  use landunit_varcon , only : ilowcenpoly, iflatcenpoly, ihighcenpoly
   use column_varcon   , only : icol_road_perv, icol_road_imperv, icol_roof, icol_sunwall, icol_shadewall
   use histFileMod     , only : hist_addfld1d, hist_addfld2d, no_snow_normal
   use histFileMod     , only : hist_addfld_decomp
@@ -1871,10 +1872,24 @@ contains
 
        this%h2osoi_liq_old(c,:) = this%h2osoi_liq(c,:)
        this%h2osoi_ice_old(c,:) = this%h2osoi_ice(c,:)
-       if (use_polygonal_tundra) then
+       if (use_polygonal_tundra .and. lun_pp%ispolygon(l)) then
          this%excess_ice(c,:) = 0.36_r8
          this%iwp_subsidence(c) = 0._r8
          this%frac_melted(c,:)  = 0._r8
+         ! set initial microtopographic parameters
+         if (lun_pp%polygontype(l) .eq. ilowcenpoly) then
+            this%iwp_microrel(c) = 0.4_r8
+            this%iwp_exclvol(c) = 0.2_r8
+            this%iwp_ddep(c) = 0.15_r8
+         else if (lun_pp%polygontype(l) .eq. iflatcenpoly) then
+            this%iwp_microrel(c) = 0.1_r8
+            this%iwp_exclvol(c) = 0.05_r8
+            this%iwp_ddep(c) = 0.01_r8
+         else if (lun_pp%polygontype(l) .eq. ihighcenpoly) then
+            this%iwp_microrel(c) = 0.4_r8
+            this%iwp_exclvol(c) = 0.2_r8
+            this%iwp_ddep(c) = 0.05_r8
+         endif
        end if
     end do
 
