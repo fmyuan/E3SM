@@ -453,14 +453,14 @@ contains
                 ! if no snow layers, sublimation is removed from h2osoi_ice in drainage
                 qflx_evap(c)=qflx_evap_grnd(c)
 
-                if (frac_sno(c) > 0.) then
-                   write(iulog,*) '==========ETC: DEBUGGING ======================='
-                   write(iulog,*) 'snl = ', snl(c)
-                   write(iulog,*) 'frac_sno_eff = ', frac_sno(c)
-                   write(iulog,*) 'qflx_ev_soil = ', qflx_ev_soil(c)
-                   write(iulog,*) 'qflx_evap_grnd = ', qflx_evap_grnd(c)
-                   write(iulog,*) '==========ETC: DEBUGGING ======================='
-                end if
+                !if (frac_sno(c) > 0.) then
+                !   write(iulog,*) '==========ETC: DEBUGGING ======================='
+                !   write(iulog,*) 'snl = ', snl(c)
+                !   write(iulog,*) 'frac_sno_eff = ', frac_sno(c)
+                !   write(iulog,*) 'qflx_ev_soil = ', qflx_ev_soil(c)
+                !   write(iulog,*) 'qflx_evap_grnd = ', qflx_evap_grnd(c)
+                !   write(iulog,*) '==========ETC: DEBUGGING ======================='
+                !end if
                 
              else
                 fsno=frac_sno(c)
