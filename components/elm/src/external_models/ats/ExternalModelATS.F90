@@ -133,7 +133,7 @@ contains
     !! begin setup portion of this call
     ! check PFT assumption -- 1 PFT per column, 1 column per grid cell
     ! TODO: ETC -- Step 0
-    call EM_ATS_CheckHeirarchy(this, filter, nclumps, ncolumns)
+    call EM_ATS_CheckHierarchy(this, filter, nclumps, ncolumns)
 
     ! keep the filter?  probably should be 1:1 now and not needed...
     this%ncolumns = filter(1)%num_hydrologyc
@@ -495,10 +495,10 @@ contains
   !
 
   ! -----------------------------------------------------------------------
-  ! Checks that assumptions about the ELM scale heirarchy required for
+  ! Checks that assumptions about the ELM scale Hierarchy required for
   ! use of ATS are satsified
   !
-  subroutine EM_ATS_CheckHeirarchy(this, filter, nclumps, ncolumns_all)
+  subroutine EM_ATS_CheckHierarchy(this, filter, nclumps, ncolumns_all)
     use filterMod, only : clumpfilter
     implicit none
 
@@ -541,7 +541,7 @@ contains
     ! checks ELM-only things, e.g. num active PFTs on each water
     ! column is 1, num water columns on each grid cell is 1, no
     ! filters are active, etc
-  end subroutine EM_ATS_CheckHeirarchy
+  end subroutine EM_ATS_CheckHierarchy
   
   ! -----------------------------------------------------------------------
   ! Checks that the ATS and ELM mesh representations are consistent
