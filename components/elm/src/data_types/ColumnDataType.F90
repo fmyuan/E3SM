@@ -152,7 +152,7 @@ module ColumnDataType
     real(r8), pointer :: frac_sno_eff       (:)   => null() ! fraction of ground covered by snow (0 to 1)
     real(r8), pointer :: frac_iceold        (:,:) => null() ! fraction of ice relative to the tot water (-nlevsno+1:nlevgrnd)
     real(r8), pointer :: frac_h2osfc        (:)   => null() ! fractional area with surface water greater than zero
-    real(r8), pointer :: frac_h2osfc_act    (:)   => null() ! actural fractional area with surface water greater than zero
+    real(r8), pointer :: frac_h2osfc_act    (:)   => null() ! actual fractional area with surface water greater than zero
     real(r8), pointer :: wf                 (:)   => null() ! soil water as frac. of whc for top 0.05 m (0-1)
     real(r8), pointer :: wf2                (:)   => null() ! soil water as frac. of whc for top 0.17 m (0-1)
     real(r8), pointer :: finundated         (:)   => null() ! fraction of column inundated, for bgc caclulation (0-1)
@@ -1656,6 +1656,9 @@ contains
          ptr_col=this%frac_h2osfc)
     
     this%frac_h2osfc_act(begc:endc) = spval
+    call hist_addfld1d (fname='FH2OSFC_ACT', units='1', &
+         avgflag='A', long_name='fraction of ground covered by surface water, ignoring snow cover', &
+         ptr_col=this%frac_h2osfc_act)
          
     if (use_cn) then
        this%wf(begc:endc) = spval
@@ -2062,6 +2065,14 @@ contains
          interpinic_flag='interp', readvar=readvar, data=this%frac_h2osfc)
     if (flag == 'read' .and. .not. readvar) then
        this%frac_h2osfc(bounds%begc:bounds%endc) = 0.0_r8
+    end if
+
+    call restartvar(ncid=ncid, flag=flag, varname='FH2OSFC_ACT', xtype=ncd_double,  &
+         dim1name='column',&
+         long_name='fraction of ground covered by h2osfc (0 to 1), ignoring snow cover', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%frac_h2osfc_act)
+    if (flag == 'read' .and. .not. readvar) then
+       this%frac_h2osfc_act(bounds%begc:bounds%endc) = 0.0_r8
     end if
 
     if (use_cn) then
