@@ -184,6 +184,7 @@ contains
      type(canopystate_type), intent(inout) :: canopystate_vars
      !
      ! !LOCAL VARIABLES:
+     integer  :: grid_idx                               ! index for debugging water balance fail: Nick Bruns, 2025-11-20
      integer  :: p,c,l,t,g,fc                           ! indices
      real(r8) :: dtime                                  ! land model time step (sec)
      integer  :: nstep                                  ! time step number
@@ -414,6 +415,16 @@ contains
           else if (abs(errh2o(indexc)) > 1.e-4_r8 .and. (nstep > 2) ) then
 
              write(iulog,*)'elm model is stopping - error is greater than 1e-4 (mm)'
+             ! new print lines for identifying problem cell-  Nick Bruns, 2025-11-20 
+             grid_idx = col_pp%gridcell(indexc)   ! local gridcell index for this column
+
+             write(iulog,*)'elm model is stopping - error is greater than 1e-4 (mm)' 
+             write(iulog,*)'local column index        = ', indexc 
+             write(iulog,*)'local gridcell index      = ', grid_idx 
+             write(iulog,*)'gridcell global gindex    = ', grc_pp%gindex(grid_idx) 
+             write(iulog,*)'gridcell lat, lon (deg)   = ', grc_pp%latdeg(grid_idx), grc_pp%londeg(grid_idx)
+             !end new print lines
+
              write(iulog,*)'colum number               = ',col_pp%gridcell(indexc)
              write(iulog,*)'nstep                      = ',nstep
              write(iulog,*)'errh2o                     = ',errh2o(indexc)
