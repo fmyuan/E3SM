@@ -179,8 +179,9 @@ module ColumnDataType
     real(r8), pointer :: iwp_subsidence   (:) => null() ! ice wedge polygon ground subsidence (m)
     real(r8), pointer :: excess_ice     (:,:) => null() ! excess ground ice in column (1:nlevgrnd) (0 to 1)
     real(r8), pointer :: frac_melted    (:,:) => null() ! fraction of layer that has ever thawed (for tracking excess ice removal) (0 to 1)
-    real(r8), pointer :: h2osfc_p         (:) => null() !!! DEBUG
-
+    real(r8), pointer :: h2osfc_p         (:) => null() ! h2osfc from previous timestep (inundataion fraction is calculated based on this var)
+    real(r8), pointer :: supercool      (:,:) => null() ! supercooled liquid water in soil (kg/m2)
+    real(r8), pointer :: smp            (:,:) => null() ! frozen water potential - RPF maybe should use a differenct variable name?
   contains
     procedure, public :: Init    => col_ws_init
     procedure, public :: Restart => col_ws_restart
@@ -1411,8 +1412,9 @@ contains
     allocate(this%h2osoi_ice         (begc:endc,-nlevsno+1:nlevgrnd)) ; this%h2osoi_ice         (:,:) = spval
     allocate(this%h2osoi_vol         (begc:endc, 1:nlevgrnd))         ; this%h2osoi_vol         (:,:) = spval
     allocate(this%h2osfc             (begc:endc))                     ; this%h2osfc             (:)   = spval
-    ! DEBUG
     allocate(this%h2osfc_p           (begc:endc))                     ; this%h2osfc_p           (:)   = spval
+    allocate(this%supercool          (begc:endc, 1:nlevgrnd))         ; this%supercool          (:,:) = spval
+    allocate(this%smp                (begc:endc, 1:nlevgrnd))         ; this%smp                (:,:) = spval ! RPF - var name?
     allocate(this%h2ocan             (begc:endc))                     ; this%h2ocan             (:)   = spval
     allocate(this%wslake_col         (begc:endc))                     ; this%wslake_col         (:)   = spval
     allocate(this%total_plant_stored_h2o(begc:endc))                  ; this%total_plant_stored_h2o(:)= spval  
@@ -1545,10 +1547,20 @@ contains
           avgflag='A', long_name='surface water depth', &
            ptr_col=this%h2osfc)
 
-    this%h2osfc(begc:endc) = spval
+    this%h2osfc_p(begc:endc) = spval
      call hist_addfld1d (fname='H2OSFC_P', units = 'mm',  &
           avgflag='A', long_name='surface water depth previous time step', &
            ptr_col=this%h2osfc_p)
+
+    this%supercool(begc:endc, 1:nlevgrnd) = spval
+      call hist_addfld2d (fname='SUPERCOOL', units='mm', &
+          avgflag='A', long_name='supercooled soil water', &
+          ptr_col=this%supercool, default='inactive')
+   
+    this%smp(begc:endc, 1:nlevgrnd) = spval
+      call hist_addfld2d (fname='SMP', units='mm?', &
+          avgflag='A', long_name='frozen water potential', &
+          ptr_col=this%smp, default='inactive')
 
     this%h2osoi_vol(begc:endc,:) = spval
      call hist_addfld2d (fname='H2OSOI',  units='mm3/mm3', type2d='levgrnd', &
@@ -1702,7 +1714,7 @@ contains
        this%wf2(c)                    = spval
        this%total_plant_stored_h2o(c) = 0._r8
        this%h2osfc(c)                 = 0._r8
-       this%h2osfc_p(c)               = 0._r8 ! DEBUG
+       this%h2osfc_p(c)               = 0._r8
        this%h2ocan(c)                 = 0._r8
        this%frac_h2osfc(c)            = 0._r8
        this%frac_h2osfc_act(c)        = 0._r8
@@ -1871,6 +1883,9 @@ contains
              this%h2osoi_ice(c,j) = 0._r8
              this%h2osoi_liq(c,j) = col_pp%dz(c,j)*denh2o*this%h2osoi_vol(c,j)
           endif
+          this%supercool(c,j) = 0._r8 ! could be move to logic above, but seems okay to calculat eon first time step
+          this%smp(c,j) = -9999._r8 ! placeholder default. probably there are better values to use?
+         
        end do
 
        this%h2osoi_liq_old(c,:) = this%h2osoi_liq(c,:)
@@ -2074,6 +2089,19 @@ contains
     if (flag == 'read' .and. .not. readvar) then
        this%frac_h2osfc_act(bounds%begc:bounds%endc) = 0.0_r8
     end if
+
+    call restartvar(ncid=ncid, flag=flag, varname='SUPERCOOL', xtype=ncd_double, &
+         dim1name='column', dim2name='levtot', switchdim=.true., &
+         long_name='supercooled soil water', units='mm', &
+         interpinic_flag='interp', readvar=readvar, data=this%supercool)
+    if (flag == 'read' .and. .not. readvar) then
+      this%supercool(bounds%begc:bounds%endc,:) = 0.0_r8
+    end if
+
+    call restartvar(ncid=ncid, flag=flag, varname='SMP', xtype=ncd_double,&
+         dim1name='column', dim2name='levtot', switchdim=.true., &
+         long_name='frozen water potential', units='mm', &
+         interpinic_flag='interp', readvar=readvar, data=this%smp)
 
     if (use_cn) then
        call restartvar(ncid=ncid, flag=flag, varname='wf', xtype=ncd_double,  &
