@@ -1,4 +1,4 @@
-module ColumnDataType
+   module ColumnDataType
 
   !-----------------------------------------------------------------------
   ! !DESCRIPTION:
@@ -181,7 +181,7 @@ module ColumnDataType
     real(r8), pointer :: frac_melted    (:,:) => null() ! fraction of layer that has ever thawed (for tracking excess ice removal) (0 to 1)
     real(r8), pointer :: h2osfc_p         (:) => null() ! h2osfc from previous timestep (inundataion fraction is calculated based on this var)
     real(r8), pointer :: supercool      (:,:) => null() ! supercooled liquid water in soil (kg/m2)
-    real(r8), pointer :: smp            (:,:) => null() ! frozen water potential - RPF maybe should use a differenct variable name?
+    real(r8), pointer :: smp_i          (:,:) => null() ! frozen water potential - RPF maybe should use a differenct variable name?
   contains
     procedure, public :: Init    => col_ws_init
     procedure, public :: Restart => col_ws_restart
@@ -1414,7 +1414,8 @@ contains
     allocate(this%h2osfc             (begc:endc))                     ; this%h2osfc             (:)   = spval
     allocate(this%h2osfc_p           (begc:endc))                     ; this%h2osfc_p           (:)   = spval
     allocate(this%supercool          (begc:endc, 1:nlevgrnd))         ; this%supercool          (:,:) = spval
-    allocate(this%smp                (begc:endc, 1:nlevgrnd))         ; this%smp                (:,:) = spval ! RPF - var name?
+    ! RPF NOTE: i think this means that supercooling is only tracked in soil layers, not snow layers
+    allocate(this%smp_i              (begc:endc, 1:nlevgrnd))         ; this%smp_i              (:,:) = spval 
     allocate(this%h2ocan             (begc:endc))                     ; this%h2ocan             (:)   = spval
     allocate(this%wslake_col         (begc:endc))                     ; this%wslake_col         (:)   = spval
     allocate(this%total_plant_stored_h2o(begc:endc))                  ; this%total_plant_stored_h2o(:)= spval  
@@ -1557,10 +1558,10 @@ contains
           avgflag='A', long_name='supercooled soil water', &
           ptr_col=this%supercool, default='inactive')
    
-    this%smp(begc:endc, 1:nlevgrnd) = spval
-      call hist_addfld2d (fname='SMP', units='mm?', &
+    this%smp_i(begc:endc, 1:nlevgrnd) = spval
+      call hist_addfld2d (fname='SMP_I', units='mm?', &
           avgflag='A', long_name='frozen water potential', &
-          ptr_col=this%smp, default='inactive')
+          ptr_col=this%smp_i, default='inactive')
 
     this%h2osoi_vol(begc:endc,:) = spval
      call hist_addfld2d (fname='H2OSOI',  units='mm3/mm3', type2d='levgrnd', &
@@ -1883,8 +1884,8 @@ contains
              this%h2osoi_ice(c,j) = 0._r8
              this%h2osoi_liq(c,j) = col_pp%dz(c,j)*denh2o*this%h2osoi_vol(c,j)
           endif
-          this%supercool(c,j) = 0._r8 ! could be move to logic above, but seems okay to calculat eon first time step
-          this%smp(c,j) = -9999._r8 ! placeholder default. probably there are better values to use?
+          this%supercool(c,j) = 0._r8
+          this%smp_i(c,j) = 0._r8
          
        end do
 
@@ -1945,7 +1946,6 @@ contains
        this%h2osfc(bounds%begc:bounds%endc) = 0.0_r8
     end if
 
-    ! DEBUG
     call restartvar(ncid=ncid, flag=flag, varname='H2OSFC_P', xtype=ncd_double,  &
          dim1name='column', &
          long_name='surface water', units='kg/m2', &
@@ -2098,10 +2098,13 @@ contains
       this%supercool(bounds%begc:bounds%endc,:) = 0.0_r8
     end if
 
-    call restartvar(ncid=ncid, flag=flag, varname='SMP', xtype=ncd_double,&
+    call restartvar(ncid=ncid, flag=flag, varname='SMP_I', xtype=ncd_double,&
          dim1name='column', dim2name='levtot', switchdim=.true., &
          long_name='frozen water potential', units='mm', &
-         interpinic_flag='interp', readvar=readvar, data=this%smp)
+         interpinic_flag='interp', readvar=readvar, data=this%smp_i)
+     if (flag == 'read' .and. .not. readvar) then
+       this%smp_i(bounds%begc:bounds%endc,:) = 0.0_r8
+     end if
 
     if (use_cn) then
        call restartvar(ncid=ncid, flag=flag, varname='wf', xtype=ncd_double,  &

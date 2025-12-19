@@ -1340,10 +1340,10 @@ contains
     real(r8) :: wmass0(bounds%begc:bounds%endc,-nlevsno+1:nlevgrnd)!initial mass of ice and liquid (kg/m2)
     real(r8) :: wice0 (bounds%begc:bounds%endc,-nlevsno+1:nlevgrnd)!initial mass of ice (kg/m2)
     real(r8) :: wliq0 (bounds%begc:bounds%endc,-nlevsno+1:nlevgrnd)!initial mass of liquid (kg/m2)
-    real(r8) :: supercool(bounds%begc:bounds%endc,nlevgrnd)        !supercooled water in soil (kg/m2)
+    !real(r8) :: supercool(bounds%begc:bounds%endc,nlevgrnd)        !supercooled water in soil (kg/m2)
     real(r8) :: propor                             !proportionality constant (-)
     real(r8) :: tinc(bounds%begc:bounds%endc,-nlevsno+1:nlevgrnd)  !t(n+1)-t(n) (K)
-    real(r8) :: smp                                !frozen water potential (mm)
+    !real(r8) :: smp                                !frozen water potential (mm)
     
     character(len=64) :: event 
     !-----------------------------------------------------------------------
@@ -1365,6 +1365,8 @@ contains
          h2osno           =>    col_ws%h2osno          , & ! Output: [real(r8) (:)   ] snow water (mm H2O)
          h2osoi_liq       =>    col_ws%h2osoi_liq      , & ! Output: [real(r8) (:,:) ] liquid water (kg/m2) (new)
          h2osoi_ice       =>    col_ws%h2osoi_ice      , & ! Output: [real(r8) (:,:) ] ice lens (kg/m2) (new)
+         smp_i            =>    col_ws%smp_i           , & ! Output: [real(r8) (:,:) ] frozen water potential (mm)
+         supercool        =>    col_ws%supercool       , & ! Output: [real(r8) (:,:) ] supercooled water (kg/m2)
 
          qflx_snow_melt   =>    col_wf%qflx_snow_melt   , & ! Output: [real(r8) (:)   ] net snow melt
          qflx_snofrz_lyr  =>    col_wf%qflx_snofrz_lyr  , & ! Output: [real(r8) (:,:) ] snow freezing rate (positive definite) (col,lyr) [kg m-2 s-1]
@@ -1469,8 +1471,8 @@ contains
                supercool(c,j) = 0.0_r8
                if (col_pp%is_soil(c) .or. col_pp%is_crop(c) .or. col_pp%itype(c) == icol_road_perv) then
                   if(t_soisno(c,j) < tfrz) then
-                     smp = hfus*(tfrz-t_soisno(c,j))/(grav*t_soisno(c,j)) * 1000._r8  !(mm)
-                     supercool(c,j) = watsat(c,j)*(smp/sucsat(c,j))**(-1._r8/bsw(c,j))
+                     smp_i = hfus*(tfrz-t_soisno(c,j))/(grav*t_soisno(c,j)) * 1000._r8  !(mm)
+                     supercool(c,j) = watsat(c,j)*(smp_i/sucsat(c,j))**(-1._r8/bsw(c,j))
                      supercool(c,j) = supercool(c,j)*dz(c,j)*1000._r8       ! (mm)
                   endif
                endif
