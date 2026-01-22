@@ -662,7 +662,7 @@ contains
     ! soilp used?  GDB suggests not...
     call EM_ATS_GetField_CopySubsurface(this, "pressure", ats_var_id%PRESSURE, &
          soilstate_vars%soilpsi_col)
-    ! convert from Pa to MPa suction
+    ! convert from Pa to MPa suction and mmH2O column (both are needed to drive some processes in ELM)
     do j=1,this%nlevgrnd
        do i=1,this%ncolumns
           ii = this%col_filter(i)
@@ -678,6 +678,10 @@ contains
           ! Here we set an arbitrary min value of 100Pa, van Genuchten in general has no specific min val
           soilstate_vars%soilpsi_col(ii,j) = max(min(-1.e-4, (soilstate_vars%soilpsi_col(ii,j) - this%p_atm) * 1.e-6_r8), -15.0_r8)
           
+          ! liquid phase soil matric potential (-nlevsno+1:nlevgrnd) (mm h2o)
+          ! smp(c,j) = -sucsat(c,j)*s_node**(-bsw(c,j))
+          soilstate_vars%smp_l_col(ii,j) = soilstate_vars%soilpsi_col(ii,j)/(9.8e-6_r8)
+
        end do
     end do
 
