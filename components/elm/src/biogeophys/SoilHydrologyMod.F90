@@ -1243,6 +1243,7 @@ contains
 
        do fc = 1, num_hydrologyc
           c = filter_hydrologyc(fc)
+          if (.not. use_ats) &
           qflx_drain(c)    = 0._r8
           rsub_bot(c)      = 0._r8
           qflx_rsub_sat(c) = 0._r8
@@ -1728,6 +1729,8 @@ contains
 
        end do
 
+       end if ! .not. use_ats
+
        ! No drainage for urban columns (except for pervious road as computed above)
 
        do fc = 1, num_urbanc
@@ -1739,7 +1742,6 @@ contains
           end if
        end do
 
-       end if
        
      end associate
 
