@@ -236,13 +236,14 @@ contains
                                                       soilstate_vars)
 #endif
       !------------------------------------------------------------------------------------
-      if (use_pflotran .and. pf_hmode) then
-
+      if ((use_pflotran .and. pf_hmode) .or. use_ats_hydro ) then
+        ! unlike other hydrological processes, 'use_ats' doesn't included in SoilWaterMovementMod.F90:SoilWater
         call SoilWater(bounds, num_hydrononsoic, filter_hydrononsoic, &
             num_urbanc, filter_urbanc, &
             soilhydrology_vars, soilstate_vars, dtime)
 
-      elseif (.not. use_ats_hydro) then
+      !elseif (.not. use_ats_hydro) then
+      else
       !------------------------------------------------------------------------------------
 
         call SoilWater(bounds, num_hydrologyc, filter_hydrologyc, num_urbanc, filter_urbanc, &

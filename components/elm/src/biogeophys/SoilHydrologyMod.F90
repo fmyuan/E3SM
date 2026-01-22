@@ -1788,6 +1788,8 @@ contains
 
        end do
 
+      end if ! .not. use_ats_hydro @L1306-1307
+
        ! No drainage for urban columns (except for pervious road as computed above)
 
        do fc = 1, num_urbanc
@@ -1804,7 +1806,7 @@ contains
        ! assigning qflx_drain, which we definitely want to be zero for
        ! ATS)?  If qflx_snwcp_liq is nonzero, it is never assigned to
        ! qflx_qrgwl which may go into mass balance?
-       end if ! use_ats_hydro
+       !end if ! use_ats_hydro
        
      end associate
 
