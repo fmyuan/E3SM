@@ -2262,6 +2262,7 @@ this mask will have smb calculated over the entire global land surface
 <use_vertsoilc                  bgc_mode="fates"  >.true.</use_vertsoilc>
 <use_century_decomp             bgc_mode="fates"  >.true.</use_century_decomp>
 <use_lch4                       bgc_mode="fates"  >.false.</use_lch4>
+<use_fates_planthydro_salinity  use_fates=".true." use_fates_planthydro=".true.">.false.</use_fates_planthydro_salinity>
 
 <!-- flow of agricultural nitrogen (fan) model -->
 <use_fan use_cn=".true.">.false.</use_fan>

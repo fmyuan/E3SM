@@ -243,6 +243,7 @@ module elm_varctl
   character(len=256), public :: fates_electron_transport_model = ''     ! FvCB or JB electron transport model
   logical, public            :: use_fates_fixed_biogeog = .false.       ! true => use fixed biogeography mode
   logical, public            :: use_fates_planthydro = .false.          ! true => turn on fates hydro
+  logical, public            :: use_fates_planthydro_salinity = .false. ! true => turn on fates hydro salinity option
   logical, public            :: use_fates_cohort_age_tracking = .false. ! true => turn on cohort age tracking
   logical, public            :: use_fates_tree_damage = .false.         ! true => turn on tree damage module
   logical, public            :: use_fates_ed_st3   = .false.            ! true => static stand structure
