@@ -825,6 +825,7 @@ sub setup_cmdl_fates_mode {
                      "use_fates_lupft",
                      "use_fates_nocomp",
                      "use_fates_planthydro",
+                     "use_fates_planthydro_salinity",
                      "use_fates_potentialveg",
                      "use_fates_sp",
                      "use_fates_tree_damage",
@@ -888,6 +889,10 @@ sub setup_cmdl_fates_mode {
 	   fatal_error("$var is being set, but can ONLY be set when -bgc fates option is used.\n");
        }
        $var = "use_fates_planthydro";
+       if ( defined($nl->get_value($var)) ) {
+	   fatal_error("$var is being set, but can ONLY be set when -bgc fates option is used.\n");
+       }
+       $var = "use_fates_planthydro_salinity";
        if ( defined($nl->get_value($var)) ) {
 	   fatal_error("$var is being set, but can ONLY be set when -bgc fates option is used.\n");
        }
@@ -3441,6 +3446,7 @@ sub setup_logic_fates {
                    "use_fates_inventory_init",
                    "use_fates_lupft",
                    "use_fates_planthydro",
+                   "use_fates_planthydro_salinity",
                    "use_fates_potentialveg",
                    "use_fates_sp",
                    "use_fates_tree_damage",
@@ -3495,6 +3501,9 @@ sub setup_logic_fates {
           }
           # hydro isn't currently supported to work when FATES SP mode is active
           if (&value_is_true( $nl->get_value('use_fates_planthydro') )) {
+                fatal_error('fates sp mode is currently not supported to work with fates hydro');
+          }
+          if (&value_is_true( $nl->get_value('use_fates_planthydro_salinity') )) {
                 fatal_error('fates sp mode is currently not supported to work with fates hydro');
           }
           # FATES landuse can not be active with fates sp mode is active
