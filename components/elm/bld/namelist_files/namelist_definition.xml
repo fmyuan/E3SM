@@ -365,6 +365,11 @@ Toggle to turn on FATES satellite phenology mode (only relevant if FATES is bein
 Toggle to turn on plant hydraulics (only relevant if FATES is on).
 </entry>
 
+<entry id="use_fates_planthydro_salinity" type="logical" category="physics"
+        group="elm_inparm" valid_values="" value=".false.">
+Toggle to turn on plant hydraulics salinity option (only relevant if FATES and planthydro is on).
+</entry>
+
 <entry id="use_fates_tree_damage" type="logical" category="physics"
         group="elm_inparm" valid_values="" value=".false.">
 Toggle to turn on the tree damage module in FATES
