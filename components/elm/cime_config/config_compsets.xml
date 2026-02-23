@@ -877,9 +877,20 @@
   </compset>
   
   <compset>
+    <alias>I20TRELMFATES</alias>
+    <lname>20TR_DATM%QIA_ELM%BGC-FATES_SICE_SOCN_MOSART_SGLC_SWAV</lname>
+  </compset>
+
+  <compset>
     <alias>ICB1850ELMFATES</alias>
     <lname>1850_SATM_ELM%BGC-FATES_SICE_SOCN_MOSART_SGLC_SWAV</lname>
   </compset>
+
+  <compset>
+    <alias>ICB20TRELMFATES</alias>
+    <lname>20TR_SATM_ELM%BGC-FATES_SICE_SOCN_MOSART_SGLC_SWAV</lname>
+  </compset>
+
 
   <compset>
     <alias>I1850ELMBGC</alias>
@@ -887,7 +898,7 @@
   </compset>
 
   <compset>
-    <alias>I1850ELMCBBGC</alias>
+    <alias>IELMCBBGC</alias>
     <lname>1850_SATM_ELM%BGC_SICE_SOCN_MOSART_SGLC_SWAV</lname>
   </compset>
 
