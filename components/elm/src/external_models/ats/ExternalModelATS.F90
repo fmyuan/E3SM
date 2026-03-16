@@ -187,6 +187,7 @@ contains
     do i = 1, this%ncolumns
        ii = this%col_filter(i)
        col_ws%h2osoi_liq_old(ii,:) = col_ws%h2osoi_liq(ii,:)
+       col_ws%h2osfc_old(ii) = col_ws%h2osfc(ii)
     end do
   end subroutine EM_ATS_Init
 
@@ -231,6 +232,11 @@ contains
           write(iulog,*) "ELM: h2osoi_liq total : column ", i, " total = ", h2osoi_liq_total
           write(iulog,*) "ELM: h2osfc : column ", i, " total = ", col_ws%h2osfc(ii)
        end if
+
+       ! additionally re-save old water
+       col_ws%h2osoi_liq_old(ii,:) = col_ws%h2osoi_liq(ii,:)
+       col_ws%h2osfc_old(ii)       = col_ws%h2osfc(ii)
+
     end do
     ! == END DEBUG CODE ====
     
@@ -287,6 +293,14 @@ contains
     
     ! diagnostics?
     ! ...
+    do i=1,this%ncolumns
+       ii = this%col_filter(i)
+       h2osoi_liq_total = 0._r8
+       do j=1,this%nlevgrnd
+          h2osoi_liq_total = h2osoi_liq_total + col_ws%h2osoi_liq(ii,j) - col_ws%h2osoi_liq_old(ii,j)
+       end do
+    end do
+
   end subroutine EM_ATS_Advance
   
   
@@ -657,6 +671,7 @@ contains
     ! locals
     integer :: i, ii, j
     real(r8) :: h2osoi_liq_total
+    real(r8), pointer :: ats_porosity(:,:)
     
     ! Pressure -- note, we don't set soilp here, just soilpsi.  Is
     ! soilp used?  GDB suggests not...
@@ -688,6 +703,11 @@ contains
     ! Water content
     call EM_ATS_GetField_CopySubsurface(this, "saturation", ats_var_id%SATURATION_LIQUID, &
          col_ws%h2osoi_liq(:,1:this%nlevgrnd))
+
+    allocate(ats_porosity(this%ncolumns, this%nlevgrnd))
+    call EM_ATS_GetField_CopySubsurface(this, "porosity", ats_var_id%EFFECTIVE_POROSITY, &
+         ats_porosity(:,1:this%nlevgrnd))
+
     ! convert from saturation to kg / m^2
     do i=1,this%ncolumns
        ii = this%col_filter(i)
