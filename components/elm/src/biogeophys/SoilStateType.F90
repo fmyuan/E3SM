@@ -678,7 +678,7 @@ contains
                    sand = sand3d(g,ti,1)
                    gravel = grvl3d(g,ti,1)
                    om_frac = organic3d(g,ti,1)/organic_max 
-                else if (lev <= nlevsoi) then
+                else if (lev <= min(nlevsoi,nlevbed)) then
                    do j = 1,nlevsoifl-1
                       if (zisoi(lev) >= zisoifl(j) .AND. zisoi(lev) < zisoifl(j+1)) then
                          clay = clay3d(g,ti,j+1)
@@ -694,7 +694,7 @@ contains
                    om_frac = 0._r8
                 endif
              else
-                if (lev <= nlevsoi) then ! duplicate clay and sand values from 10th soil layer
+                if (lev <= min(nlevsoi,nlevbed)) then ! duplicate clay and sand values from 10th soil layer
                    clay = clay3d(g,ti,lev)
                    sand = sand3d(g,ti,lev)
                    gravel = grvl3d(g,ti,lev)
@@ -784,6 +784,10 @@ contains
 
                 if (lev > nlevbed) then
                    this%csol_col(c,lev) = csol_bedrock
+                   ! bedrock porosity/hk/bd assumed
+                   this%watsat_col(c,lev) = 0.01_r8
+                   this%hksat_col(c,lev)  = 0.0_r8
+                   this%bd_col(c,lev)     = 2.7e3_r8
                 endif
 
                 this%watdry_col(c,lev) = this%watsat_col(c,lev) * &
