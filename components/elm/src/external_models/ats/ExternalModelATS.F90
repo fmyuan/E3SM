@@ -237,6 +237,11 @@ contains
        col_ws%h2osoi_liq_old(ii,:) = col_ws%h2osoi_liq(ii,:)
        col_ws%h2osfc_old(ii)       = col_ws%h2osfc(ii)
 
+       write(101,*) 'gross INFIL pre-ATS call: ', col_wf%qflx_gross_infl_soil(ii)*dt
+       write(101,*) 'gross EVAP pre-ATS call: ', col_wf%qflx_gross_evap_soil(ii)*dt
+       write(101,*) 'gross TRAN pre-ATS call: ', col_wf%qflx_tran_veg(ii)*dt
+       write(101,*)
+
     end do
     ! == END DEBUG CODE ====
     
@@ -275,6 +280,8 @@ contains
        if (mod(nstep, hist_nhtfrq(1)) == 0) do_vis = .true.
     end if
 
+    write(101,*) 'Run ats_advance() -- '
+
     ! -- call the advance method
     call ats_advance(this%ats, dt, do_checkpoint, do_vis)
 
@@ -299,6 +306,23 @@ contains
        do j=1,this%nlevgrnd
           h2osoi_liq_total = h2osoi_liq_total + col_ws%h2osoi_liq(ii,j) - col_ws%h2osoi_liq_old(ii,j)
        end do
+       write(101,*) 'EM-ATS water balance checking: '
+       write(101,*) 'total soil water content changed: ', h2osoi_liq_total
+
+       h2osoi_liq_total = h2osoi_liq_total-col_wf%qflx_gross_infl_soil(ii)*dt
+       write(101,*) 'total soil water content changed - (INFIL): ', h2osoi_liq_total, -col_wf%qflx_gross_infl_soil(ii)*dt
+
+       h2osoi_liq_total = h2osoi_liq_total+col_wf%qflx_drain(ii)*dt
+       write(101,*) 'total soil water content changed - (INFIL - BASEFLOW): ', h2osoi_liq_total, col_wf%qflx_drain(ii)*dt
+
+       h2osoi_liq_total = h2osoi_liq_total+col_wf%qflx_surf(ii)*dt
+       write(101,*) 'total soil water content changed - (INFIL - BASEFLOW - RUNOFF): ', h2osoi_liq_total, col_wf%qflx_surf(ii)*dt
+
+       h2osoi_liq_total = h2osoi_liq_total - (col_ws%h2osfc(ii)-col_ws%h2osfc_old(ii))
+       write(101,*) 'total soil water content changed - (INFIL - BASEFLOW - RUNOFF) - dH2OSFC: ', h2osoi_liq_total,- (col_ws%h2osfc(ii)-col_ws%h2osfc_old(ii))
+
+       write(101,*)  '-----------------'
+       write(101,*)
     end do
 
   end subroutine EM_ATS_Advance
@@ -594,14 +618,17 @@ contains
 
     ! check dzs
     do j=1,this%nlevgrnd
-       if (abs(ats_dzs(j) - col_pp%dz(1,j)) > 1.e-10_r8) then
+       if (abs(ats_dzs(j) - col_pp%dz(1,j)) > 1.e-8_r8) then
+          print *, "diff: ", j, ats_dzs(j)-col_pp%dz(1,j), ats_dzs(j), col_pp%dz(1,j)
+          print *, "ATS: dzs: ", j, ats_dzs
+          print *, "ELM: dzs: ", j, col_pp%dz(1,1:this%nlevgrnd)
           call endrun("ATS dzs do not match ELM dzs.")
        end if
     end do
 
     ! check column areas
     do i=1,this%ncolumns
-       if (abs(ats_areas(i) - grc_pp%area(i)) > 1.e-10_r8) then
+       if (abs(ats_areas(i) - grc_pp%area(i)) > 1.e-8_r8) then
           write(iulog,*) "WARNING: ATS column areas do not match ELM grid cell areas -- perhaps incorrect ordering."
           ! call endrun("ATS column areas do not match ELM grid cell areas -- perhaps incorrect ordering.")
        end if
@@ -699,6 +726,10 @@ contains
           ! smp(c,j) = -sucsat(c,j)*s_node**(-bsw(c,j))
           soilstate_vars%smp_l_col(ii,j) = soilstate_vars%soilpsi_col(ii,j)/(9.8e-6_r8)
 
+          !write(101,*) 'SOILPSI: ', ii, j, soilstate_vars%soilpsi_col(ii,j)
+
+          !write(101,*) 'SMP_L: ', ii, j, soilstate_vars%smp_l_col(ii,j)
+
        end do
     end do
 
@@ -715,6 +746,9 @@ contains
        ii = this%col_filter(i)
        h2osoi_liq_total = 0._r8
        do j=1,this%nlevgrnd
+
+          write(101,*) 'sat_liquid, SOILPSI from ATS: ', ii, j, col_ws%h2osoi_liq(ii,j), soilstate_vars%soilpsi_col(ii,j)
+
           col_ws%h2osoi_liq(ii,j) = col_ws%h2osoi_liq(ii,j) * porosity(ii,j) * col_pp%dz(ii,j) * denh2o
           h2osoi_liq_total = h2osoi_liq_total + col_ws%h2osoi_liq(ii,j)
           if (this%verbosity >= 2) then

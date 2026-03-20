@@ -546,7 +546,7 @@ contains
     use SatellitePhenologyMod , only : SatellitePhenologyInit, readAnnualVegetation
     use SatellitePhenologyMod , only : interpMonthlyVeg, SatellitePhenology
     use SnowSnicarMod         , only : SnowAge_init, SnowOptics_init
-    use initVerticalMod       , only : initVertical
+    !use initVerticalMod       , only : initVertical
     use lnd2atmMod            , only : lnd2atm_minimal
     use glc2lndMod            , only : glc2lnd_type
     use lnd2glcMod            , only : lnd2glc_type
