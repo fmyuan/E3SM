@@ -30,7 +30,13 @@ module ExternalModelATS_interface
       type(c_ptr), value :: ats
     end subroutine ats_parse_parameter_list
 
-    subroutine ats_get_mesh_info(ats, ncols_local, ncols_global, nlevgrnd, dzs, areas) bind(C, name="ats_get_mesh_info")
+    subroutine ats_get_mesh_info(ats, ncols_local) bind(C, name="ats_get_mesh_info")
+      import :: c_ptr, c_int
+      type(c_ptr), value :: ats
+      integer(c_int), intent(out) :: ncols_local
+    end subroutine ats_get_mesh_info
+
+    subroutine ats_get_mesh_info2(ats, ncols_local, ncols_global, nlevgrnd, dzs, areas, lat, lon) bind(C, name="ats_get_mesh_info2")
       import :: c_ptr, c_int, c_double
       type(c_ptr), value :: ats
       integer(c_int), intent(out) :: ncols_local
@@ -38,7 +44,9 @@ module ExternalModelATS_interface
       integer(c_int), intent(out) :: nlevgrnd
       real(c_double), intent(inout) :: dzs(*)   ! array of size nlevgrnd
       real(c_double), intent(inout) :: areas(*) ! array of size ncols_local
-    end subroutine ats_get_mesh_info
+      real(c_double), intent(inout) :: lat(*)   ! array of size ncols_local
+      real(c_double), intent(inout) :: lon(*)   ! array of size ncols_local
+    end subroutine ats_get_mesh_info2
 
     subroutine ats_setup(ats) bind(C, name="ats_setup")
       import :: c_ptr

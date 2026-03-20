@@ -575,9 +575,11 @@ contains
 
     real(c_double) :: ats_dzs(this%nlevgrnd)
     real(c_double) :: ats_areas(this%ncolumns)
+    real(c_double) :: ats_lat(this%ncolumns)
+    real(c_double) :: ats_lon(this%ncolumns)
 
     ! compare to mesh info
-    call ats_get_mesh_info(this%ats, ats_ncols_local, ats_ncols_global, ats_nlevgrnd, ats_dzs, ats_areas)
+    call ats_get_mesh_info2(this%ats, ats_ncols_local, ats_ncols_global, ats_nlevgrnd, ats_dzs, ats_areas, ats_lat, ats_lon)
 
     ! assertions on shapes
     if (ats_ncols_local /= this%ncolumns) then
