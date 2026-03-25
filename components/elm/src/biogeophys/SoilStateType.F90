@@ -676,7 +676,7 @@ contains
 
           do lev = 1,nlevgrnd
              ! Number of soil layers in hydrologically active columns = NLEV2BED
-	     nlevbed = col_pp%nlevbed(c)
+	         nlevbed = col_pp%nlevbed(c)
              if ( more_vertlayers )then ! duplicate clay and sand values from last soil layer
 
                 if (lev .eq. 1) then

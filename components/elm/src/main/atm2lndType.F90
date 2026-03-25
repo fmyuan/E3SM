@@ -53,6 +53,7 @@ module atm2lndType
       integer,  pointer :: tindex                      (:,:,:) => null()  !current index for meteorolgoical data
       integer,  pointer :: metsource                           => null()  !Meteorogical source (0=Qian, 1=cruncep)
       real(r8), pointer :: npf                            (:)  => null()  !number of model timesteps per forcing timestep
+      character(len=20), pointer :: metvars                (:) => null()  !meteorological variable name
       real(r8), pointer :: co2_input                   (:,:,:) => null()  !annual CO2 input data
       real(r8), pointer :: c13o2_input                 (:,:,:) => null()  !annual C13O2 input data
       integer, pointer :: ndepind                        (:,:) => null()  !annual nitrogen deposition data
@@ -222,6 +223,7 @@ contains
     allocate(this%tindex               (begg:endg,1:14,1:2))        ; this%tindex                    (:,:,:)   = ival_int
     allocate(this%metsource                                )        ; this%metsource                           = ival_int   
     allocate(this%npf                                (1:14))        ; this%npf                           (:)   = ival
+    allocate(this%metvars                            (1:14))        ; this%metvars                       (:)   = ''  
     !allocate(this%atm_input       (14,begg:endg,1,1:600000))        ; this%atm_input               (:,:,:,:)   = ival_short
     allocate(this%loaded_bypassdata                        )        ; this%loaded_bypassdata                   = 0
     allocate(this%add_offsets                        (1:14))        ; this%add_offsets                   (:)   = ival_float 

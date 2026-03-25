@@ -4537,8 +4537,10 @@ contains
 
   subroutine cime_run_lnd_recv_post()
 
+#ifndef CPL_BYPASS
     use seq_flds_mod , only : seq_flds_l2x_fields
     use seq_comm_mct , only : mlnid, mblxid !
+
     !----------------------------------------------------------
     !| lnd -> cpl
     !----------------------------------------------------------
@@ -4550,6 +4552,7 @@ contains
             timer_barrier='CPL:L2C_BARRIER', timer_comp_exch='CPL:L2C', &
             timer_map_exch='CPL:l2c_lndl2lndx', timer_infodata_exch='lnd2cpl_run')
     endif
+#endif
 
     !----------------------------------------------------------
     !| lnd post
