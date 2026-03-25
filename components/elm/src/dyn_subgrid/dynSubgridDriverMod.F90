@@ -471,7 +471,7 @@ contains
     !    and before checks, if the iac is active
     !
     ! !USES:
-    !
+    use pftvarcon       , only : noveg
     ! !ARGUMENTS:
     implicit none
     type(bounds_type), intent(in) :: bounds  ! clump bounds
@@ -503,7 +503,7 @@ contains
        t = veg_pp%topounit(p)
        g = veg_pp%gridcell(p)
        if (col_pp%wtgcell(c) .eq. 0._r8) then
-          if (veg_pp%itype(p) .eq. 0) then
+          if (veg_pp%itype(p) .eq. noveg) then
              veg_pp%wtcol(p) = 1._r8
           else
              veg_pp%wtcol(p) = 0._r8

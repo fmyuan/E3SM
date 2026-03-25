@@ -316,7 +316,8 @@ contains
       dn_index = -1  ! value of -1 indicates no downhill neighbor
       do t1 = begt, endt
          t1_elev = top_pp%elevation(t1)
-         dn_elev = min_elev
+         dn_index = -1  ! value of -1 indicates no downhill neighbor
+         dn_elev = -huge(1._r8)
          do t2 = begt, endt
             t2_elev = top_pp%elevation(t2)
             if ((t2_elev < t1_elev) .and. (t2_elev >= dn_elev)) then

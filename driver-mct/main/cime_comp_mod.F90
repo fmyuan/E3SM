@@ -4403,6 +4403,7 @@ contains
 
   subroutine cime_run_lnd_recv_post()
 
+#ifndef CPL_BYPASS
     !----------------------------------------------------------
     !| lnd -> cpl
     !----------------------------------------------------------
@@ -4412,6 +4413,7 @@ contains
             timer_barrier='CPL:L2C_BARRIER', timer_comp_exch='CPL:L2C', &
             timer_map_exch='CPL:l2c_lndl2lndx', timer_infodata_exch='lnd2cpl_run')
     endif
+#endif
 
     !----------------------------------------------------------
     !| lnd post
@@ -5720,4 +5722,3 @@ contains
   end function copy_and_trim_rpointer_file
 
 end module cime_comp_mod
-

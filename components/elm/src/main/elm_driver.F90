@@ -795,7 +795,7 @@ contains
             filter(nc)%num_nolakeurbanp, filter(nc)%nolakeurbanp,                        &
             atm2lnd_vars, canopystate_vars, cnstate_vars, energyflux_vars,               &
             frictionvel_vars, soilstate_vars, solarabs_vars, surfalb_vars,               &
-            ch4_vars, photosyns_vars )
+            ch4_vars, photosyns_vars, soilhydrology_vars )
        call t_stopf('canflux')
 
        ! Fluxes for all urban landunits
@@ -1119,7 +1119,7 @@ contains
           if (use_fates_sp) then
             call SatellitePhenology(bounds_clump,               &
             filter_inactive_and_active(nc)%num_soilp, filter_inactive_and_active(nc)%soilp,    &
-            waterstate_vars, canopystate_vars)
+            canopystate_vars, soilstate_vars)
           endif
              
        else ! not ( if-use_cn   or if-use_fates)
@@ -1127,7 +1127,7 @@ contains
              ! Prescribed biogeography - prescribed canopy structure, some prognostic carbon fluxes
              call SatellitePhenology(bounds_clump,               &
                   filter(nc)%num_nolakep, filter(nc)%nolakep,    &
-                  waterstate_vars, canopystate_vars)
+                  canopystate_vars, soilstate_vars)
           end if
        end if  ! end of if-use_cn   or if-use_fates
 
@@ -1201,6 +1201,7 @@ contains
              filter(nc)%num_soilc, filter(nc)%soilc,             &
              filter(nc)%num_soilp, filter(nc)%soilp,             &
              filter(nc)%num_pcropp, filter(nc)%pcropp, doalb,    &
+             soilhydrology_vars,                                 &
              cnstate_vars,  frictionvel_vars, canopystate_vars )
        end if
 
@@ -1266,7 +1267,7 @@ contains
 
           call ColCBalanceCheck(bounds_clump, &
                filter(nc)%num_soilc, filter(nc)%soilc, &
-               col_cs, col_cf)
+               col_cs, col_cf, soilstate_vars)
 
           call ColNBalanceCheck(bounds_clump, &
                filter(nc)%num_soilc, filter(nc)%soilc, &

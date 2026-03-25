@@ -81,6 +81,7 @@ contains
     use DecompCascadeBGCMod    , only : readDecompBGCParams
     use DecompCascadeCNMod     , only : readDecompCNParams
     use PhenologyMod             , only : readPhenolParams
+    use SatellitePhenologyMod    , only : readSatPhenolParams
     use MaintenanceRespMod               , only : readMaintenanceRespParams
     use NitrogenDynamicsMod           , only : readNitrogenDynamicsParams
     use GapMortalityMod          , only : readGapMortParams 
@@ -152,6 +153,9 @@ contains
     if(use_hydrstress)then
       call params_inst%readParams( ncid )
     endif
+    if (.not. use_cn) then
+       call readSatPhenolParams( ncid )
+    end if  
 
     !
     ! close CN params file

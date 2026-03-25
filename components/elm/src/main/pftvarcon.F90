@@ -336,6 +336,9 @@ module pftvarcon
   real(r8), allocatable :: temp_iscft(:)       ! for file read, translated to logical afterwards
   real(r8), allocatable :: nfixer(:)           ! nitrogen fixer flag  (0 = inable, 1 = able to nitrogen fixation from atm. N2)
 
+  !
+  real(r8)              :: blower_u0           ! reference blower wind magnitude at surface [m/s]
+  real(r8)              :: blower_lambda       ! vertical decay e-folding length [m]
 
   !
   ! !PUBLIC MEMBER FUNCTIONS:
@@ -1058,6 +1061,12 @@ contains
     call ncd_io('rsub_top_globalmax', rsub_top_globalmax, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if (.not. readv) rsub_top_globalmax = 10._r8
     !if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+
+   call ncd_io('blower_u0', blower_u0, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+   if ( .not. readv) blower_u0 = 0.0_r8
+   call ncd_io('blower_lambda', blower_lambda, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+   if ( .not. readv) blower_lambda = 2.0_r8
+
     call ncd_io('fnr', fnr, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
     call ncd_io('act25', act25, 'read', ncid, readvar=readv, posNOTonfile=.true.)

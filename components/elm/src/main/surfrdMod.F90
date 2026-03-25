@@ -1363,24 +1363,32 @@ contains
     if (readvar) then
        call ncd_io(ncid=ncid, varname='MaxTopounitElv', flag='read', data=maxTopoElv, &
          dim1name=grlnd, readvar=readvar)
+    else
+       call endrun( msg=' ERROR: MaxTopounitElv NOT on topounit surfdata file'//errMsg(__FILE__, __LINE__))
     endif
 
     call check_var(ncid=ncid, varname='topoPerGrid', vardesc=vardesc, readvar=readvar)
     if (readvar) then
        call ncd_io(ncid=ncid, varname='topoPerGrid', flag='read', data=numTopoPerGrid, &
          dim1name=grlnd, readvar=readvar)
+    else
+       call endrun( msg=' ERROR: topoPerGrid NOT on topounit surfdata file'//errMsg(__FILE__, __LINE__))
     endif
 
     call check_var(ncid=ncid, varname='TopounitFracArea', vardesc=vardesc, readvar=readvar)
     if (readvar) then
        call ncd_io(ncid=ncid, varname='TopounitFracArea', flag='read', data=TopounitFracArea, &
          dim1name=grlnd, readvar=readvar)
+    else
+       call endrun( msg=' ERROR: TopounitFracArea NOT on topounit surfdata file'//errMsg(__FILE__, __LINE__))
     endif
 
     call check_var(ncid=ncid, varname='TopounitAveElv', vardesc=vardesc, readvar=readvar)
     if (readvar) then
        call ncd_io(ncid=ncid, varname='TopounitAveElv', flag='read', data=TopounitElv, &
          dim1name=grlnd, readvar=readvar)
+    else
+       call endrun( msg=' ERROR: TopounitAveElv NOT on topounit surfdata file'//errMsg(__FILE__, __LINE__))
     endif
 
     call check_var(ncid=ncid, varname='TopounitSlope', vardesc=vardesc, readvar=readvar)
@@ -1399,12 +1407,16 @@ contains
     if (readvar) then
        call ncd_io(ncid=ncid, varname='topoPerGrid', flag='read', data=num_topo_per_grid, &
          dim1name=grlnd, readvar=readvar)
+    else
+       num_topo_per_grid(:) = numTopoPerGrid(:)
     endif
     
     call check_var(ncid=ncid, varname='TOPO2', vardesc=vardesc, readvar=readvar)
     if (readvar) then
        call ncd_io(ncid=ncid, varname='TOPO2', flag='read', data=GridElevation, &
          dim1name=grlnd, readvar=readvar)
+    else
+       GridElevation(:) = maxTopoElv(:)
     endif
     if (readvar) then
         do n = begg,endg          

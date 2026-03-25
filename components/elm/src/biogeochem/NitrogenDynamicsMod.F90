@@ -27,6 +27,7 @@ module NitrogenDynamicsMod
   use ELMFatesInterfaceMod  , only : hlm_fates_interface_type
   use FrictionVelocityType, only : frictionvel_type
   use SoilStateType       , only : soilstate_type
+  use SoilHydrologyType   , only : soilhydrology_type
   use FanUpdateMod        , only : fan_eval
 
   !
@@ -296,38 +297,43 @@ contains
   end subroutine NitrogenFixation
 
   !-----------------------------------------------------------------------
-  subroutine NitrogenLeaching(num_soilc, filter_soilc, dt )
+  subroutine NitrogenLeaching(num_soilc, filter_soilc, soilhydrology_vars, dt )
     !
     ! !DESCRIPTION:
     ! On the radiation time step, update the nitrogen leaching rate
     ! as a function of soluble mineral N and total soil water outflow.
     !
     ! !USES:
+      !$acc routine seq
     use elm_varpar       , only : nlevdecomp, nlevsoi, nlevgrnd
     !
     ! !ARGUMENTS:
     integer                  , intent(in)    :: num_soilc       ! number of soil columns in filter
+    type(soilhydrology_type) , intent(in)    :: soilhydrology_vars
     integer                  , intent(in)    :: filter_soilc(:) ! filter for soil columns
     real(r8)                 , intent(in)    :: dt          ! radiation time step (seconds)
 
     !
     ! !LOCAL VARIABLES:
     integer  :: j,c,fc                                 ! indices
-    integer  :: nlevbed				       ! number of layers to bedrock
+    integer  :: nlevbed                                ! number of layers to bedrock
     real(r8) :: disn_conc                              ! dissolved mineral N concentration (gN/kg water)
-    real(r8) :: surface_water(num_soilc) ! liquid water to shallow surface depth (kg water/m2)
+    real(r8) :: surface_water(num_soilc)               ! liquid water to shallow surface depth (kg water/m2)
     real(r8), parameter :: depth_runoff_Nloss = 0.05   ! (m) depth over which runoff mixes with soil water for N loss to runoff
     real(r8) :: sum_var
-    real(r8) :: tot_water(num_soilc)
+    real(r8) :: tot_water(num_soilc)                   ! total column liquid water (kg water/m2)
+    real(r8) :: drain_tot(num_soilc)                   ! total drainage flux (mm H2O /s)
+    integer  :: jwt(num_soilc)                         ! index of the soil layer right above the water table (-)
     !-----------------------------------------------------------------------
 
     associate(&
         nlev2bed            => col_pp%nlevbed                            , & ! Input:  [integer (:)    ]  number of layers to bedrock
-         h2osoi_liq          => col_ws%h2osoi_liq            , & ! Input:  [real(r8) (:,:) ]  liquid water (kg/m2) (new) (-nlevsno+1:nlevgrnd)
+         h2osoi_liq          => col_ws%h2osoi_liq             , & ! Input:  [real(r8) (:,:) ]  liquid water (kg/m2) (new) (-nlevsno+1:nlevgrnd)
+         zwt                 => soilhydrology_vars%zwt_col    , & ! Input:  [real(r8) (:)   ]  water table depth (m)
          qflx_drain          => col_wf%qflx_drain             , & ! Input:  [real(r8) (:)   ]  sub-surface runoff (mm H2O /s)
          qflx_surf           => col_wf%qflx_surf              , & ! Input:  [real(r8) (:)   ]  surface runoff (mm H2O /s)
-         smin_no3_vr         => col_ns%smin_no3_vr        , & ! Input:  [real(r8) (:,:) ]
-         sf_no3              =>  CNNDynamicsParamsInst%sf_no3  ,  &  ! Assume that 100% of the soil NO3 is in a soluble form
+         smin_no3_vr         => col_ns%smin_no3_vr            , & ! Input:  [real(r8) (:,:) ]
+         sf_no3              => CNNDynamicsParamsInst%sf_no3  , & ! Assume that 100% of the soil NO3 is in a soluble form
          smin_no3_leached_vr => col_nf%smin_no3_leached_vr , & ! Output: [real(r8) (:,:) ]  rate of mineral NO3 leaching (gN/m3/s)
          smin_no3_runoff_vr  => col_nf%smin_no3_runoff_vr    & ! Output: [real(r8) (:,:) ]  rate of mineral NO3 loss with runoff (gN/m3/s)
          )
@@ -352,6 +358,7 @@ contains
 
       ! calculate the total soil water
       !$acc parallel loop independent gang worker default(present) private(sum_var,c,nlevbed) present(tot_water(:num_soilc)) 
+      tot_water(:) = 0._r8
       do fc = 1,num_soilc
          c = filter_soilc(fc)
          nlevbed = col_pp%nlevbed(c)
@@ -361,6 +368,25 @@ contains
             sum_var = sum_var + col_ws%h2osoi_liq(c,j)
          end do
          tot_water(fc) = sum_var
+      end do
+
+      ! Loop through columns
+      do fc = 1,num_soilc
+         c = filter_soilc(fc)
+         drain_tot(c) = qflx_drain(c)
+      end do
+
+      !Get the wtaer table layer
+      do fc = 1, num_soilc
+        c = filter_soilc(fc)
+        jwt(fc) = nlevbed
+        ! allow jwt to equal zero when zwt is in top layer
+        do j = 1, nlevbed
+          if(zwt(c) <= zisoi(j)) then
+            jwt(fc) = j-1
+            exit
+          end if
+        enddo
       end do
 
 
