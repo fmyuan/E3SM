@@ -9,6 +9,8 @@ module AnnualUpdateMod
   use CNStateType      , only : cnstate_type
   use ColumnDataType   , only : col_cf
   use VegetationDataType, only : veg_cf
+  use MaintenanceRespMod, only : mr_acclim_spinup_years_Inst
+  use elm_varctl        , only : spinup_state, use_humhol
 
   use timeinfoMod
   !
@@ -60,6 +62,8 @@ contains
       tempmax_retransp_patch      => cnstate_vars%tempmax_retransp_patch  , &
       annavg_t2m_patch            => cnstate_vars%annavg_t2m_patch    , &
       tempavg_t2m_patch           => cnstate_vars%tempavg_t2m_patch    , &
+      spinup_t_patch              => cnstate_vars%spinup_t_patch , &
+      spinup_t_nyears_patch       => cnstate_vars%spinup_t_nyears_patch , &
       annsum_npp                  => veg_cf%annsum_npp   , &
       tempsum_npp                 => veg_cf%tempsum_npp  , &
       annsum_npp_col              => col_cf%annsum_npp      , &
@@ -93,6 +97,14 @@ contains
              ! update annual average 2m air temperature accumulator
              annavg_t2m_patch(p)  = tempavg_t2m_patch(p)
              tempavg_t2m_patch(p) = 0._r8
+
+             if (use_humhol .and. spinup_state == 1 .and. mr_acclim_spinup_years_Inst > 0) then
+                if (spinup_t_nyears_patch(p) < mr_acclim_spinup_years_Inst) then
+                   spinup_t_patch(p) = (spinup_t_patch(p) * spinup_t_nyears_patch(p) + &
+                        annavg_t2m_patch(p)) / (spinup_t_nyears_patch(p) + 1)
+                   spinup_t_nyears_patch(p) = spinup_t_nyears_patch(p) + 1
+                end if
+             end if
 
              ! update annual NPP accumulator, convert to annual total
              annsum_npp(p) = tempsum_npp(p) * dt

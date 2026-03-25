@@ -52,8 +52,13 @@ module elm_varsur
   real(r8), pointer :: num_tunit_per_grd(:)   ! Topounit area fraction
   real(r8), pointer :: wt_tunit(:,:)   ! Topounit area fraction
   real(r8), pointer :: elv_tunit(:,:)  ! Topounit elevation 
+  real(r8), pointer :: dist_tunit(:,:) ! Topounit lateral distance to the next lower topounit
+  integer, pointer :: regional_target_tunit(:,:) ! Local target topounit for regional lateral flow
   real(r8), pointer :: slp_tunit(:,:)  ! Topounit slope 
   integer, pointer :: asp_tunit(:,:)  ! Topounit aspect
+  integer, pointer :: bog_tunit(:,:)  ! Topounit bog flag: 1=bog, 0=non-bog
+  real(r8), pointer :: peat_depth_tunit(:,:) ! Topounit peat depth (m)
+  real(r8), pointer :: till_ksat_tunit(:,:)  ! Restrictive till saturated conductivity (mm/s)
   
   real(r8),pointer :: firrig(:,:) 
   real(r8),pointer :: f_surf(:,:)  ! fraction of water withdraws from surfacewater

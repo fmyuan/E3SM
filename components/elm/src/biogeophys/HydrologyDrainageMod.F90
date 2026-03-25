@@ -52,6 +52,7 @@ contains
     use elm_varctl       , only : glc_snow_persistence_max_days, use_vichydro
     !use domainMod        , only : ldomain
     use elm_varsur         , only : f_surf
+    use GridcellType       , only : grc_pp
     use TopounitType       , only : top_pp
     use TopounitDataType   , only : top_ws
     use atm2lndType      , only : atm2lnd_type
@@ -59,6 +60,7 @@ contains
     use elm_varpar       , only : nlevgrnd, nlevurb, nlevsoi
     use SoilHydrologyMod , only : ELMVICMap, Drainage
     use elm_varctl       , only : use_IM2_hillslope_hydrology
+    use elm_varctl       , only : use_humhol
     !
     ! !ARGUMENTS:
     type(bounds_type)        , intent(in)    :: bounds
@@ -81,6 +83,15 @@ contains
     real(r8) :: dtime
     real(r8) :: temp_to_downhill, temp_mass
     integer  :: g,t,l,c,j,fc,tpu_ind, downhill_t              ! indices
+    integer  :: t2, topi, topf
+    real(r8) :: qflx_surf_before_downhill, qflx_drain_before_downhill
+    real(r8) :: qflx_drain_perched_before_downhill, qflx_h2osfc_surf_before_downhill
+    real(r8) :: qflx_surf_to_downhill, qflx_drain_to_downhill
+    real(r8) :: qflx_drain_perched_to_downhill, qflx_h2osfc_surf_to_downhill
+    real(r8) :: downhill_routing_scale
+    real(r8), parameter :: min_full_downhill_receiver_frac = 0.10_r8
+    logical  :: fen_active_on_grid
+    logical  :: route_surface_to_downhill
     !-----------------------------------------------------------------------
 
     associate(                                                                  &
@@ -112,6 +123,7 @@ contains
          qflx_irr_demand        => col_wf%qflx_irr_demand         , & ! Input:  [real(r8) (:)   ]  irrigation demand sent to MOSART/WM (mm H2O /s)
          qflx_glcice_melt       => col_wf%qflx_glcice_melt        , & ! Input:  [real(r8) (:)]  ice melt (positive definite) (mm H2O/s)
          qflx_h2osfc_surf       => col_wf%qflx_h2osfc_surf        , & ! Output: [real(r8) (:)   ]  surface water runoff (mm/s)
+         qflx_h2osfc_to_downhill=> col_wf%qflx_h2osfc_to_downhill , & ! Output: surface water runoff routed downhill (mm/s)
          qflx_drain_perched     => col_wf%qflx_drain_perched      , & ! Output: [real(r8) (:)   ]  sub-surface runoff from perched zwt (mm H2O /s)
          qflx_rsub_sat          => col_wf%qflx_rsub_sat           , & ! Output: [real(r8) (:)   ]  soil saturation excess [mm h2o/s]
          qflx_drain             => col_wf%qflx_drain              , & ! Output: [real(r8) (:)   ]  sub-surface runoff (mm H2O /s)
@@ -248,6 +260,7 @@ contains
          t = col_pp%topounit(c)
          tpu_ind = top_pp%topo_grc_ind(t)  !Get topounit index on the grid
          g = col_pp%gridcell(c)
+         qflx_h2osfc_to_downhill(c) = 0._r8
 
          if (lun_pp%itype(l) == istwet .or. lun_pp%itype(l) == istice      &
                                   .or. lun_pp%itype(l) == istice_mec) then
@@ -293,23 +306,71 @@ contains
          ! if using topounit hillslope hydrology, fractions of qflx_surf, qflx_drain_perched, and qflx_h2osfc
          ! are passed to the from_uphill water state on the downhill topounit, via qflx_to_downhill
          ! only shift positive fluxes, and only set fluxes if there is a downhill topounit
-         if (use_IM2_hillslope_hydrology) then
+         if (use_IM2_hillslope_hydrology .or. use_humhol) then
             downhill_t = top_pp%downhill_ti(t)
+            if (use_humhol .and. top_pp%is_bog(t) .and. top_pp%topo_grc_ind(t) == 3) then
+               topi = grc_pp%topi(g)
+               topf = grc_pp%topf(g)
+               do t2 = topi, topf
+                  if (top_pp%active(t2) .and. top_pp%topo_grc_ind(t2) == 2) then
+                     downhill_t = t2
+                     exit
+                  endif
+               enddo
+            endif
             if (downhill_t /= -1) then
+               qflx_surf_before_downhill          = qflx_surf(c)
+               qflx_drain_before_downhill         = qflx_drain(c)
+               qflx_drain_perched_before_downhill = qflx_drain_perched(c)
+               qflx_h2osfc_surf_before_downhill   = qflx_h2osfc_surf(c)
+
+               fen_active_on_grid = .false.
+               topi = grc_pp%topi(g)
+               topf = grc_pp%topf(g)
+               do t2 = topi, topf
+                  if (top_pp%active(t2) .and. top_pp%topo_grc_ind(t2) == 1) then
+                     fen_active_on_grid = .true.
+                     exit
+                  endif
+               end do
+               route_surface_to_downhill = .not. (top_pp%topo_grc_ind(t) == 4 .and. &
+                    top_pp%is_bog(downhill_t) .and. .not. fen_active_on_grid)
+
+               downhill_routing_scale = 1._r8
+               if (use_humhol .and. top_pp%wtgcell(downhill_t) < min_full_downhill_receiver_frac) then
+                  downhill_routing_scale = max(0._r8, min(1._r8, &
+                       top_pp%wtgcell(downhill_t) / min_full_downhill_receiver_frac))
+               endif
+
                ! shift a fixed fraction of qflx_surf
-               temp_to_downhill = max(0._r8, frac_to_downhill * qflx_surf(c))
-               qflx_to_downhill(c) = temp_to_downhill
-               qflx_surf(c) = qflx_surf(c) - temp_to_downhill
+               if (route_surface_to_downhill) then
+                  qflx_surf_to_downhill = max(0._r8, downhill_routing_scale * frac_to_downhill * qflx_surf(c))
+               else
+                  qflx_surf_to_downhill = 0._r8
+               endif
+               qflx_to_downhill(c) = qflx_surf_to_downhill
+               qflx_surf(c) = qflx_surf(c) - qflx_surf_to_downhill
+
+               ! shift a fixed fraction of regular subsurface drainage
+               qflx_drain_to_downhill = max(0._r8, downhill_routing_scale * frac_to_downhill * qflx_drain(c))
+               qflx_to_downhill(c) = qflx_to_downhill(c) + qflx_drain_to_downhill
+               qflx_drain(c) = qflx_drain(c) - qflx_drain_to_downhill
                
                ! shift a fixed fraction of qflx_drain_perched
-               temp_to_downhill = max(0._r8, frac_to_downhill * qflx_drain_perched(c))
-               qflx_to_downhill(c) = qflx_to_downhill(c) + temp_to_downhill
-               qflx_drain_perched(c) = qflx_drain_perched(c) - temp_to_downhill
+               qflx_drain_perched_to_downhill = max(0._r8, downhill_routing_scale * frac_to_downhill * qflx_drain_perched(c))
+               qflx_to_downhill(c) = qflx_to_downhill(c) + qflx_drain_perched_to_downhill
+               qflx_drain_perched(c) = qflx_drain_perched(c) - qflx_drain_perched_to_downhill
                
                ! shift a fixed fraction of qflx_h2osfc_surf
-               temp_to_downhill = max(0._r8, frac_to_downhill * qflx_h2osfc_surf(c))
-               qflx_to_downhill(c) = qflx_to_downhill(c) + temp_to_downhill
-               qflx_h2osfc_surf(c) = qflx_h2osfc_surf(c) - temp_to_downhill
+               if (route_surface_to_downhill) then
+                  qflx_h2osfc_surf_to_downhill = max(0._r8, &
+                       downhill_routing_scale * frac_to_downhill * qflx_h2osfc_surf(c))
+               else
+                  qflx_h2osfc_surf_to_downhill = 0._r8
+               endif
+               qflx_h2osfc_to_downhill(c) = qflx_h2osfc_surf_to_downhill
+               qflx_to_downhill(c) = qflx_to_downhill(c) + qflx_h2osfc_surf_to_downhill
+               qflx_h2osfc_surf(c) = qflx_h2osfc_surf(c) - qflx_h2osfc_surf_to_downhill
 
                ! update the downhill topounit water state
                ! relative weight of this column to downhill topounit on the gridcell is used to 
