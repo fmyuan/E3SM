@@ -15,7 +15,7 @@ module pdepStreamMod
   use shr_mct_mod
   use mct_mod
   use spmdMod     , only: mpicom, masterproc, comp_id, iam
-  use elm_varctl  , only: iulog
+  use elm_varctl  , only: iulog, use_humhol
   use controlMod  , only: NLFilename
   use abortutils  , only: endrun
   use fileutils   , only: getavu, relavu
@@ -178,7 +178,11 @@ contains
    dayspyr = get_days_per_year( )
    do g = bounds%begg,bounds%endg
       ig = ig+1
-      atm2lnd_vars%forc_pdep_grc(g) = sdat%avs(1)%rAttr(1,ig) / (secspday * dayspyr)
+      if (use_humhol) then
+         atm2lnd_vars%forc_pdep_grc(g) = 0.03 / (secspday * dayspyr)
+      else
+         atm2lnd_vars%forc_pdep_grc(g) = sdat%avs(1)%rAttr(1,ig) / (secspday * dayspyr)
+      end if
    end do
    
  end subroutine pdep_interp

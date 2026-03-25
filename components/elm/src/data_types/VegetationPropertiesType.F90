@@ -4,7 +4,7 @@ module VegetationPropertiesType
   use shr_kind_mod   , only : r8 => shr_kind_r8
   use elm_varpar     , only : nlevdecomp
   use elm_varpar     , only : nsoilorder
-  use elm_varctl     , only : nu_com
+  use elm_varctl     , only : nu_com, use_humhol
   use elm_varcon     , only : spval, ispval
   !
   implicit none
@@ -465,6 +465,10 @@ contains
        this%needleleaf(m)   = needleleaf(m)
        this%nfixer(m)       = nfixer(m)
 
+       if (use_humhol) then
+          this%br_mr_pft(m)    = br_mr_pft(m)
+          this%q10_mr_pft(m)   = q10_mr_pft(m)
+       end if
        this%crit_gdd1(m)    = crit_gdd1(m)
        this%crit_gdd2(m)    = crit_gdd2(m)
 

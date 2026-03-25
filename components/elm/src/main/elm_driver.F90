@@ -299,8 +299,7 @@ contains
           call t_startf('interpMonthlyVeg')
           call interpMonthlyVeg(bounds_proc, canopystate_vars)
           call t_stopf('interpMonthlyVeg')
-       endif
-
+       end if
     elseif(use_fates) then
        if(use_fates_sp) then
        

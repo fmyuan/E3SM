@@ -7,7 +7,8 @@ module SurfaceRadiationMod
   ! !USES:
   use shr_kind_mod      , only : r8 => shr_kind_r8
   use shr_log_mod       , only : errMsg => shr_log_errMsg
-   use elm_varctl        , only : use_snicar_frc, use_fates, iulog
+   use elm_varctl        , only : use_snicar_frc, use_fates, iulog, use_shrub_moss_shading, &
+                                  boardwalk_shade_frac, boardwalk_light_trans
    use VegetationPropertiesType, only: veg_vp
    use pftvarcon         , only : noveg
   use abortutils        , only : endrun
@@ -380,7 +381,7 @@ contains
      real(r8) :: sabg_oc(bounds%begp:bounds%endp)    ! solar radiation absorbed by ground without OC [W/m2]
      real(r8) :: sabg_dst(bounds%begp:bounds%endp)   ! solar radiation absorbed by ground without dust [W/m2]
      real(r8) :: parveg(bounds%begp:bounds%endp)     ! absorbed par by vegetation (W/m**2)
-     real(r8) :: ground_sw_scale                     ! effective boardwalk reduction factor for ground SW absorption [-]
+     real(r8) :: ground_sw_scale                      ! effective boardwalk reduction factor for ground SW absorption [-]
      !
      integer, parameter :: noonsec   = isecspday / 2 ! seconds at local noon
      !
@@ -522,8 +523,11 @@ contains
              l = veg_pp%landunit(p)
              t = veg_pp%topounit(p)
              g = veg_pp%gridcell(p)
-
-             ground_sw_scale = 1._r8
+             if (veg_pp%itype(p) == noveg) then
+                ground_sw_scale = 1._r8 - boardwalk_shade_frac * (1._r8 - boardwalk_light_trans)
+             else
+                ground_sw_scale = 1._r8
+             end if
 
              ! Absorbed by canopy
 
@@ -740,7 +744,11 @@ contains
           c = veg_pp%column(p)
           t = veg_pp%topounit(p)
           g = veg_pp%gridcell(p)
-          ground_sw_scale = 1._r8
+          if (veg_pp%itype(p) == noveg) then
+             ground_sw_scale = 1._r8 - boardwalk_shade_frac * (1._r8 - boardwalk_light_trans)
+          else
+             ground_sw_scale = 1._r8
+          end if
 
           ! NDVI and reflected solar radiation
 
@@ -937,12 +945,30 @@ contains
 
            p = filter_nourbanp(fp)
            t = veg_pp%topounit(p)
-           ! --- BEER-LAMBERT LIGHT COMPETITION LOGIC ---
+! --- BEER-LAMBERT LIGHT COMPETITION LOGIC ---
       
-           shrub_lai = 0.0_r8
-           transmission = 1.0_r8 ! Default: no shading
+      shrub_lai = 0.0_r8
+      transmission = 1.0_r8 ! Default: no shading
 
-           ! ---------------------------------------------
+      ! Apply shrub shading on moss only if enabled by namelist
+      if (use_shrub_moss_shading) then
+         ! 1. If the current patch is moss, find shrub LAI in this topounit
+         if (nint(veg_vp%nonvascular(veg_pp%itype(p))) == 1) then
+            ! Search for a shrub patch in the same topounit and use a fraction of its buried elai
+            do fp_shrub = 1, num_nourbanp
+               p_shrub = filter_nourbanp(fp_shrub)
+               if (veg_pp%topounit(p_shrub) == t .and. nint(veg_vp%woody(veg_pp%itype(p_shrub))) == 2) then
+                  shrub_lai = elai(p_shrub) * 0.25_r8
+                  exit
+               end if
+            end do
+            ! extinction_k (k) is typically 0.5 for shrubs
+            if (shrub_lai > 0.0_r8) then
+               transmission = exp(-extinction_k * shrub_lai)
+            end if
+         end if
+      end if
+      ! ---------------------------------------------
 
            do iv = 1, nrad(p)
               parsun_z(p,iv) = 0._r8

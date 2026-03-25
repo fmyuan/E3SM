@@ -16,6 +16,8 @@ module SoilLittVertTranspMod
   use ColumnDataType         , only : col_cs, c13_col_cs, c14_col_cs
   use ColumnDataType         , only : col_cf, c13_col_cf, c14_col_cf
   use ColumnDataType         , only : col_ns, col_nf, col_ps, col_pf
+  use ColumnType             , only : col_pp
+  use TopounitType           , only : top_pp
   use timeinfoMod
   !
   implicit none
@@ -47,8 +49,11 @@ module SoilLittVertTranspMod
 
   real(r8), public :: som_adv_flux =  0._r8
   !$acc declare create(som_adv_flux)
+  !
   real(r8), public :: max_depth_cryoturb = 3._r8   ! (m) this is the maximum depth of cryoturbation
   !$acc declare create(max_depth_cryoturb)
+
+  real(r8), parameter :: peat_adv_reference_depth = 3._r8 ! m reference depth for peat accumulation rate
   !-----------------------------------------------------------------------
 
 contains
@@ -229,8 +234,12 @@ contains
     real(r8) :: conc_trcr(num_soilc,0:nlevdecomp+1,ndecomp_pools)                  !
     real(r8) :: bet
     real(r8) :: gam(0:nlevdecomp+1)
-    !-----------------------------------------------------------------------
 
+    integer  :: t                             ! indices
+    integer  :: zerolev_diffus
+    real(r8) :: peat_depth_factor             ! column peat depth / reference peat depth
+    real(r8) :: peat_adv_flux                 ! peat accumulation advection rate at the reference peat depth
+    logical  :: is_peatland_topounit          ! true when the current column belongs to a peat-depth topounit
 
     !-----------------------------------------------------------------------
 
@@ -253,6 +262,11 @@ contains
       !$acc enter data create(a_tri(:,:,:),b_tri(:,:,:),&
       !$acc     c_tri(:,:,:),r_tri(:,:,:), &
       !$acc     conc_trcr(:,:,:), gam(:) )
+
+      !
+      peat_adv_flux = 0.0004_r8 / (secspday * 365._r8)
+
+      !
       ntype = 3
       if ( use_c13 ) then
          ntype = ntype+1
@@ -285,10 +299,25 @@ contains
                           ( max_depth_cryoturb - max(altmax(c), altmax_lastyear(c)) ) ), 0._r8)  ! go linearly to zero between ALT and max_depth_cryoturb
                      som_adv_coef(c,j) = 0._r8
                   endif
+
                elseif (  max(altmax(c), altmax_lastyear(c)) > 0._r8 ) then
+                  ! peat topounits get depth-scaled accumulation advection; uplands use standard diffusion
+                  peat_depth_factor = 0._r8
+                  t = col_pp%topounit(c)
+                  if (t >= lbound(top_pp%peat_depth, 1) .and. t <= ubound(top_pp%peat_depth, 1)) then
+                     peat_depth_factor = max(top_pp%peat_depth(t), 0._r8) / peat_adv_reference_depth
+                  endif
+                  is_peatland_topounit = (peat_depth_factor > 0._r8)
+
+                 if (is_peatland_topounit) then
+                  som_adv_coef(c,j) = peat_adv_flux * peat_depth_factor
+                  som_diffus_coef(c,j) = 0._r8
+                 else
                   ! constant advection, constant diffusion
                   som_adv_coef(c,j) = som_adv_flux
                   som_diffus_coef(c,j) = som_diffus
+
+                 endif
                else
                   ! completely frozen soils--no mixing
                   som_adv_coef(c,j) = 0._r8

@@ -510,6 +510,7 @@ module ColumnDataType
     real(r8), pointer :: qflx_top_soil        (:)   => null() ! net water input into soil from top (mm/s)
     real(r8), pointer :: qflx_h2osfc_to_ice   (:)   => null() ! conversion of h2osfc to ice
     real(r8), pointer :: qflx_h2osfc_surf     (:)   => null() ! surface water runoff
+    real(r8), pointer :: qflx_h2osfc_to_downhill (:) => null() ! surface water runoff routed to downhill topounit
     real(r8), pointer :: qflx_snow_h2osfc     (:)   => null() ! snow falling on surface water
     real(r8), pointer :: qflx_drain_perched   (:)   => null() ! sub-surface runoff from perched wt (mm H2O /s)
     real(r8), pointer :: qflx_deficit         (:)   => null() ! water deficit to keep non-negative liquid water content (mm H2O)
@@ -548,7 +549,6 @@ module ColumnDataType
     real(r8), pointer :: qflx_h2oocn_drain    (:)   => null() ! drainage from coastal inundation volume (mm H2O/s)
     real(r8), pointer :: qflx_from_uphill     (:)   => null() ! input to top soil layer from uphill topounit(s) (mm H2O/s))
     real(r8), pointer :: qflx_to_downhill     (:)   => null() ! output from column to the downhill topounit (mm H2O/s))
-    real(r8), pointer :: qflx_h2osfc_to_downhill(:) => null() ! surface (ponded) water runoff routed downhill (mmH2O/s) (NOTE: the above is a total of all term downhill water flux)
 
     real(r8), pointer :: qflx_lat_aqu         (:)   => null() ! Total lateral flux between hummock/hollow (mm H2O /s)
     real(r8), pointer :: qflx_lat_aqu_layer   (:,:) => null() ! Lateral flux between hummock/hollow by layer (mm H2O/s)
@@ -5892,6 +5892,7 @@ contains
     allocate(this%qflx_top_soil          (begc:endc))             ; this%qflx_top_soil        (:)   = spval
     allocate(this%qflx_h2osfc_to_ice     (begc:endc))             ; this%qflx_h2osfc_to_ice   (:)   = spval
     allocate(this%qflx_h2osfc_surf       (begc:endc))             ; this%qflx_h2osfc_surf     (:)   = spval
+    allocate(this%qflx_h2osfc_to_downhill(begc:endc))             ; this%qflx_h2osfc_to_downhill(:) = spval
     allocate(this%qflx_snow_h2osfc       (begc:endc))             ; this%qflx_snow_h2osfc     (:)   = spval
     allocate(this%qflx_drain_perched     (begc:endc))             ; this%qflx_drain_perched   (:)   = spval
     allocate(this%qflx_deficit           (begc:endc))             ; this%qflx_deficit         (:)   = spval
@@ -5929,7 +5930,6 @@ contains
     allocate(this%qflx_h2oocn_drain      (begc:endc))             ; this%qflx_h2oocn_drain    (:)   = spval
     allocate(this%qflx_from_uphill       (begc:endc))             ; this%qflx_from_uphill     (:)   = spval
     allocate(this%qflx_to_downhill       (begc:endc))             ; this%qflx_to_downhill     (:)   = spval
-    allocate(this%qflx_h2osfc_to_downhill(begc:endc))             ; this%qflx_h2osfc_to_downhill(:) = spval
     allocate(this%qflx_lat_aqu           (begc:endc))             ; this%qflx_lat_aqu         (:)   = spval
     allocate(this%qflx_lat_aqu_layer     (begc:endc,1:nlevgrnd))  ; this%qflx_lat_aqu_layer   (:,:) = spval
     allocate(this%qflx_surf_input        (begc:endc))             ; this%qflx_surf_input      (:)   = spval  
@@ -6005,6 +6005,22 @@ contains
           avgflag='A', long_name='Sub-surface drainage by layer', &
           ptr_col=this%qflx_drain_vr)
 
+    if (any(top_pp%peat_depth > 0._r8)) then
+      this%qflx_lat_aqu(begc:endc) = spval
+      call hist_addfld1d (fname='QFLX_LAT_AQU',  units='mm/s',  &
+           avgflag='A', long_name='Lateral flow between hummock and hollow', &
+           ptr_col=this%qflx_lat_aqu, c2l_scale_type='urbanf')
+
+      this%qflx_surf_input(begc:endc) = spval
+      call hist_addfld1d (fname='QFLX_SURF_INPUT',  units='mm/s',  &
+           avgflag='A', long_name='Surface runoff input received from an adjacent topounit', &
+           ptr_col=this%qflx_surf_input, c2l_scale_type='urbanf')
+
+      this%qflx_lat_aqu_layer(begc:endc, :) = spval
+      call hist_addfld2d (fname='QFLX_LAT_AQU_LAYER',  units='mm/s', type2d='levgrnd', &
+           avgflag='A', long_name='Lateral flow between hummock and hollow by layer', &
+           ptr_col=this%qflx_lat_aqu_layer)
+    end if
 #if (defined MARSH)
    this%qflx_lat_aqu(begc:endc) = spval
    call hist_addfld1d (fname='QFLX_LAT_AQU',  units='mm/s',  &
@@ -6047,6 +6063,11 @@ contains
      call hist_addfld1d (fname='QH2OSFC',  units='mm/s',  &
           avgflag='A', long_name='surface water runoff', &
            ptr_col=this%qflx_h2osfc_surf)
+
+    this%qflx_h2osfc_to_downhill(begc:endc) = spval
+     call hist_addfld1d (fname='QH2OSFC_TO_DOWNHILL',  units='mm/s',  &
+          avgflag='A', long_name='surface water runoff routed to downhill topounit', &
+           ptr_col=this%qflx_h2osfc_to_downhill, c2l_scale_type='urbanf')
 
     this%qflx_drain_perched(begc:endc) = spval
      call hist_addfld1d (fname='QDRAI_PERCH',  units='mm/s',  &
@@ -6094,7 +6115,7 @@ contains
           avgflag='A', long_name='column-integrated snow freezing rate', &
            ptr_col=this%qflx_snofrz, set_lake=spval, c2l_scale_type='urbanf')
 
-    if (use_IM2_hillslope_hydrology) then
+    if (use_IM2_hillslope_hydrology .or. any(top_pp%peat_depth > 0._r8)) then
       call hist_addfld1d (fname='QFROM_UPHILL',  units='mm/s',  &
             avgflag='A', long_name='input to top layer soil from uphill topounit(s)', &
             ptr_col=this%qflx_from_uphill, c2l_scale_type='urbanf')
@@ -6104,10 +6125,13 @@ contains
             ptr_col=this%qflx_to_downhill, c2l_scale_type='urbanf')
     endif
 
-    call hist_addfld1d (fname='QTO_H2OSFC_DOWNHILL',  units='mm/s',  &
-            avgflag='A', long_name='output from column ponded water to downhill topounit', &
-            ptr_col=this%qflx_h2osfc_to_downhill, c2l_scale_type='urbanf')
-   
+    if (any(top_pp%peat_depth > 0._r8)) then
+      this%qflx_lat_aqu(begc:endc) = spval
+      call hist_addfld1d (fname='QLAT_AQU', units='kg/m2/s', &
+           avgflag='A', long_name='Lateral flux between hummock/hollow', &
+           ptr_col=this%qflx_lat_aqu, set_lake=spval, c2l_scale_type='urbanf', default='inactive')
+    end if
+
     if (create_glacier_mec_landunit) then
             this%qflx_glcice(begc:endc) = spval
              call hist_addfld1d (fname='QICE',  units='mm/s',  &
@@ -6164,6 +6188,7 @@ contains
     this%qflx_dew_snow (begc:endc) = 0.0_r8
 
     this%qflx_h2osfc_surf(begc:endc) = 0._r8
+    this%qflx_h2osfc_to_downhill(begc:endc) = 0._r8
     this%qflx_snow_melt  (begc:endc)   = 0._r8
 
     this%dwb(begc:endc) = 0._r8
@@ -6175,9 +6200,7 @@ contains
 
     this%qflx_from_uphill(begc:endc) = 0._r8
     this%qflx_to_downhill(begc:endc) = 0._r8
-
-    this%qflx_h2osfc_to_downhill(begc:endc) = 0._r8
-
+    this%qflx_lnd2ocn(begc:endc) = 0._r8
     ! needed for CNNLeaching
     do c = begc, endc
        l = col_pp%landunit(c)

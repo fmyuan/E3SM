@@ -16,7 +16,7 @@ module CanopyHydrologyMod
   use shr_sys_mod       , only : shr_sys_flush
   use decompMod         , only : bounds_type
   use abortutils        , only : endrun
-  use elm_varctl        , only : iulog, tw_irr, extra_gw_irr, irrigate, use_firn_percolation_and_compaction
+  use elm_varctl        , only : iulog, tw_irr, extra_gw_irr, irrigate, use_firn_percolation_and_compaction, use_humhol
   use LandunitType      , only : lun_pp
   use atm2lndType       , only : atm2lnd_type
   use AerosolType       , only : aerosol_type
@@ -880,6 +880,10 @@ contains
                     enddo
                     !--  update the submerged areal fraction using the new d value
                     frac_h2osfc(c) = 0.5*(1.0_r8+erf(d/(sigma*sqrt(2.0))))
+                    if (use_humhol) then
+                       frac_h2osfc(c) = 0.99_r8
+                       !frac_h2osfc(c) = 1.0_r8 * exp(-3.0_r8/humhol_ht*(zwt(c)))
+                    endif
 #if (defined MARSH)
                     frac_h2osfc(c) = 0.99_r8
 #endif

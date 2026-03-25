@@ -168,7 +168,7 @@ contains
      use column_varcon     , only : icol_roof, icol_sunwall, icol_shadewall
      use column_varcon     , only : icol_road_perv, icol_road_imperv
      use landunit_varcon   , only : istice_mec, istice, istdlak, istsoil,istcrop,istwet
-     use elm_varctl        , only : create_glacier_mec_landunit
+     use elm_varctl        , only : create_glacier_mec_landunit, use_humhol
      use elm_initializeMod , only : surfalb_vars  
      use CanopyStateType   , only : canopystate_type
      use subgridAveMod
@@ -345,12 +345,20 @@ contains
                   - qflx_qrgwl(c) - qflx_drain(c) - qflx_drain_perched(c) - qflx_snwcp_ice(c)  &
                   + qflx_lat_aqu(c)) * dtime
 #else
-             errh2o(c) = endwb(c) - begwb(c) &
+             if (use_humhol) then
+                errh2o(c) = endwb(c) - begwb(c) &
+                     - (forc_rain_col(c) + forc_snow_col(c) + qflx_floodc(c) + qflx_from_uphill(c) + qflx_irrig(c) &
+                     - qflx_evap_tot(c) - qflx_surf(c) - qflx_h2osfc_surf(c) - qflx_to_downhill(c) &
+                     - qflx_qrgwl(c) - qflx_drain(c) - qflx_drain_perched(c) - qflx_snwcp_ice(c) &
+                     + qflx_lat_aqu(c) - qflx_lateral(c)) * dtime
+             else
+                errh2o(c) = endwb(c) - begwb(c) &
                      - (forc_rain_col(c) + forc_snow_col(c)  + qflx_floodc(c) + qflx_from_uphill(c) &
                      + qflx_surf_irrig_col(c) + qflx_over_supply_col(c) &
                      - qflx_evap_tot(c) - qflx_surf(c)  - qflx_h2osfc_surf(c) - qflx_to_downhill(c) &
                      - qflx_qrgwl(c) - qflx_drain(c) - qflx_drain_perched(c) - qflx_snwcp_ice(c) - qflx_ice_runoff_xs(c) &
                      - qflx_lateral(c) + qflx_h2orof_drain(c)) * dtime
+             end if
 #endif
              dwb(c) = (endwb(c)-begwb(c))/dtime
 
@@ -401,6 +409,7 @@ contains
 	               ' errh2o= ',errh2o(indexc)
 
           h2o_abort_threshold = 1.e-4_r8
+          if (use_humhol) h2o_abort_threshold = 1.e-3_r8
 
           if ((col_pp%itype(indexc) == icol_roof .or. &
                col_pp%itype(indexc) == icol_road_imperv .or. &
@@ -492,17 +501,29 @@ contains
              write(iulog,*)'qflx_h2osfc_to_ice         = ',qflx_h2osfc_to_ice(indexc)
              write(iulog,*)'dtime                      = ',dtime
              write(iulog,*)'storage_delta              = ',endwb(indexc)-begwb(indexc)
-             wb_flux_sum = forc_rain_col(indexc) + forc_snow_col(indexc) + qflx_floodc(indexc) &
+             if (use_humhol) then
+                wb_flux_sum = forc_rain_col(indexc) + forc_snow_col(indexc) + qflx_floodc(indexc) &
+                     + qflx_from_uphill(indexc) + qflx_irrig(indexc) - qflx_evap_tot(indexc) &
+                     - qflx_surf(indexc) - qflx_h2osfc_surf(indexc) - qflx_to_downhill(indexc) &
+                     - qflx_qrgwl(indexc) - qflx_drain(indexc) - qflx_drain_perched(indexc) &
+                     - qflx_snwcp_ice(indexc) + qflx_lat_aqu(indexc) - qflx_lateral(indexc)
+             else
+                wb_flux_sum = forc_rain_col(indexc) + forc_snow_col(indexc) + qflx_floodc(indexc) &
                      + qflx_from_uphill(indexc) + qflx_surf_irrig_col(indexc) + qflx_over_supply_col(indexc) &
                      - qflx_evap_tot(indexc) - qflx_surf(indexc) - qflx_h2osfc_surf(indexc) &
                      - qflx_to_downhill(indexc) - qflx_qrgwl(indexc) - qflx_drain(indexc) &
                      - qflx_drain_perched(indexc) - qflx_snwcp_ice(indexc) - qflx_ice_runoff_xs(indexc) &
                      - qflx_lateral(indexc) + qflx_h2orof_drain(indexc)
+             end if
              write(iulog,*)'wb_flux_sum                = ',wb_flux_sum
              write(iulog,*)'wb_flux_sum_dt             = ',wb_flux_sum*dtime
              write(iulog,*)'column topounit index      = ',col_pp%topounit(indexc)
              write(iulog,*)'topounit topo_grc_ind      = ',top_pp%topo_grc_ind(col_pp%topounit(indexc))
              write(iulog,*)'topounit weight gridcell   = ',top_pp%wtgcell(col_pp%topounit(indexc))
+             write(iulog,*)'topounit lateral_dist      = ',top_pp%lateral_dist(col_pp%topounit(indexc))
+             write(iulog,*)'topounit regional target   = ',top_pp%regional_target_ti(col_pp%topounit(indexc))
+             write(iulog,*)'topounit is_bog            = ',top_pp%is_bog(col_pp%topounit(indexc))
+             write(iulog,*)'topounit peat_depth        = ',top_pp%peat_depth(col_pp%topounit(indexc))
              write(iulog,*)'topounit elevation         = ',top_pp%elevation(col_pp%topounit(indexc))
              write(iulog,*)'topounit from_uphill state = ',top_ws%from_uphill(col_pp%topounit(indexc))
              write(iulog,*)'h2osno                     = ',h2osno(indexc)

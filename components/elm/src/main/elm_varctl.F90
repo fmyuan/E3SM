@@ -388,6 +388,10 @@ module elm_varctl
   logical, public :: use_vertsoilc       = .false.
   logical, public :: use_extralakelayers = .false.
   logical, public :: use_vichydro        = .false.
+  ! Enable runtime HUM_HOL physics
+  logical, public :: use_humhol           = .false.
+  ! Use observed water table forcing (HUM_HOL option)
+  logical, public :: obs_zwt_forcing     = .false.
   logical, public :: use_century_decomp  = .false.
   logical, public :: use_cn              = .false.
   logical, public :: use_cndv            = .false.
@@ -406,7 +410,12 @@ module elm_varctl
   logical, public :: use_lake_wat_storage = .false.
   logical, public :: use_top_solar_rad   = .false.  ! TOP : sub-grid topographic effect on surface solar radiation
   logical, public :: use_finetop_rad     = .false.  ! fineTOP : fine(grid)-scale topographic effect on surface radiation balance (longwave + shortwave)
-  
+
+  ! New namelist option: enable/disable shrub shading on moss
+  logical, public :: use_shrub_moss_shading = .true. ! true => apply shrub shading to moss (default: enabled)
+  real(r8), public :: boardwalk_shade_frac = 0._r8    ! fraction of ground area shaded by boardwalks [-]
+  real(r8), public :: boardwalk_light_trans = 1._r8   ! shortwave transmissivity through boardwalk-shaded area [-]
+
   !----------------------------------------------------------
   ! Fan controls (use_fan)
   !----------------------------------------------------------

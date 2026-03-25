@@ -1488,6 +1488,8 @@ contains
     use fileutils       , only : getfil   
 	use GridcellType    , only : grc_pp
     use elm_varsur      , only : wt_tunit, elv_tunit, slp_tunit, asp_tunit,num_tunit_per_grd
+    use elm_varsur      , only : dist_tunit, regional_target_tunit
+    use elm_varsur      , only : bog_tunit, peat_depth_tunit, till_ksat_tunit
     use topounit_varcon ,  only : max_topounits, has_topounit
     
     !
@@ -1509,8 +1511,13 @@ contains
     integer ,pointer :: numTopoPerGrid(:)        ! Number of topounits per grid
     real(r8),pointer :: TopounitFracArea(:,:)    ! Topounit fractional area
     real(r8) ,pointer :: TopounitElv(:,:)         ! Topounit elevation
+    real(r8),pointer :: TopounitLateralDist(:,:) ! Topounit lateral distance to the next lower topounit
+    integer ,pointer :: TopounitRegionalTarget(:,:) ! Local target topounit for regional lateral flow
     real(r8),pointer :: TopounitSlope(:,:)       ! Topounit slope 
     integer ,pointer :: TopounitAspect(:,:)      ! Topounit aspect
+    integer ,pointer :: TopounitIsBog(:,:)       ! Topounit bog flag: 1=bog, 0=non-bog
+    real(r8),pointer :: TopounitPeatDepth(:,:)   ! Topounit peat depth (m)
+    real(r8),pointer :: TopounitTillKsat(:,:)    ! Topounit restrictive till saturated conductivity (mm/s)
     integer ,pointer :: num_topo_per_grid(:)      ! Topounit aspect
     real(r8),pointer :: GridElevation(:)      ! Topounit aspect
 !    integer ,pointer :: TopounitIndices(:,:)     ! Topounit indices in each grid
@@ -1523,8 +1530,13 @@ contains
     allocate(numTopoPerGrid(begg:endg))
     allocate(TopounitFracArea(begg:endg,max_topounits))
     allocate(TopounitElv(begg:endg,max_topounits))
+    allocate(TopounitLateralDist(begg:endg,max_topounits))
+    allocate(TopounitRegionalTarget(begg:endg,max_topounits))
     allocate(TopounitSlope(begg:endg,max_topounits))
     allocate(TopounitAspect(begg:endg,max_topounits))
+    allocate(TopounitIsBog(begg:endg,max_topounits))
+    allocate(TopounitPeatDepth(begg:endg,max_topounits))
+    allocate(TopounitTillKsat(begg:endg,max_topounits))
     allocate(num_topo_per_grid(begg:endg))
 !    allocate(TopounitIndices(begg:endg,max_topounits))
 
@@ -1535,8 +1547,13 @@ contains
     TopounitFracArea(:,:) = 0._r8
     TopounitFracArea(:,1) = 1._r8
     TopounitElv(:,:) = 0._r8
+    TopounitLateralDist(:,:) = 1._r8
+    TopounitRegionalTarget(:,:) = 0
     TopounitSlope(:,:) = 0._r8
     TopounitAspect(:,:) = 0
+    TopounitIsBog(:,:) = 0
+    TopounitPeatDepth(:,:) = 0._r8
+    TopounitTillKsat(:,:) = 0._r8
     
     ! Read surface data
     call getfil( lfsurdat, locfn, 0 )
@@ -1574,6 +1591,27 @@ contains
        call endrun( msg=' ERROR: TopounitAveElv NOT on topounit surfdata file'//errMsg(__FILE__, __LINE__))
     endif
 
+    call check_var(ncid=ncid, varname='TopounitLateralDist', vardesc=vardesc, readvar=readvar)
+    if (readvar) then
+       call ncd_io(ncid=ncid, varname='TopounitLateralDist', flag='read', data=TopounitLateralDist, &
+         dim1name=grlnd, readvar=readvar)
+    else
+       TopounitLateralDist(:,:) = 1.0_r8
+    endif
+
+    TopounitRegionalTarget(:,:) = 0
+    call check_var(ncid=ncid, varname='TopounitRegionalTarget', vardesc=vardesc, readvar=readvar)
+    if (readvar) then
+       call ncd_io(ncid=ncid, varname='TopounitRegionalTarget', flag='read', data=TopounitRegionalTarget, &
+         dim1name=grlnd, readvar=readvar)
+    else
+       do n = begg,endg
+          do t = 2,max_topounits
+             TopounitRegionalTarget(n,t) = t - 1
+          end do
+       end do
+    endif
+
     call check_var(ncid=ncid, varname='TopounitSlope', vardesc=vardesc, readvar=readvar)
     if (readvar) then
        call ncd_io(ncid=ncid, varname='TopounitSlope', flag='read', data=TopounitSlope, &
@@ -1583,6 +1621,27 @@ contains
     call check_var(ncid=ncid, varname='TopounitAspect', vardesc=vardesc, readvar=readvar)
     if (readvar) then
        call ncd_io(ncid=ncid, varname='TopounitAspect', flag='read', data=TopounitAspect, &
+         dim1name=grlnd, readvar=readvar)
+    endif
+
+    TopounitIsBog(:,:) = 0
+    call check_var(ncid=ncid, varname='TopounitIsBog', vardesc=vardesc, readvar=readvar)
+    if (readvar) then
+       call ncd_io(ncid=ncid, varname='TopounitIsBog', flag='read', data=TopounitIsBog, &
+         dim1name=grlnd, readvar=readvar)
+    endif
+
+    TopounitPeatDepth(:,:) = 0._r8
+    call check_var(ncid=ncid, varname='TopounitPeatDepth', vardesc=vardesc, readvar=readvar)
+    if (readvar) then
+       call ncd_io(ncid=ncid, varname='TopounitPeatDepth', flag='read', data=TopounitPeatDepth, &
+         dim1name=grlnd, readvar=readvar)
+    endif
+
+    TopounitTillKsat(:,:) = 0._r8
+    call check_var(ncid=ncid, varname='TopounitTillKsat', vardesc=vardesc, readvar=readvar)
+    if (readvar) then
+       call ncd_io(ncid=ncid, varname='TopounitTillKsat', flag='read', data=TopounitTillKsat, &
          dim1name=grlnd, readvar=readvar)
     endif
     
@@ -1609,12 +1668,17 @@ contains
        do t = 1, max_topounits
           wt_tunit(n,t) = TopounitFracArea(n,t)
           elv_tunit(n,t) = TopounitElv(n,t)
-          slp_tunit(n,t) = TopounitSlope(n,t)
-          asp_tunit(n,t) = TopounitAspect(n,t)
+          dist_tunit(n,t) = TopounitLateralDist(n,t)
+          regional_target_tunit(n,t) = TopounitRegionalTarget(n,t)
+          bog_tunit(n,t) = TopounitIsBog(n,t)
+          peat_depth_tunit(n,t) = TopounitPeatDepth(n,t)
+          till_ksat_tunit(n,t) = TopounitTillKsat(n,t)
+    !      slp_tunit(n,t) = TopounitSlope(n,t)
+    !      asp_tunit(n,t) = TopounitAspect(n,t)
        end do
     end do
-    deallocate(maxTopoElv,TopounitFracArea,TopounitElv,TopounitSlope, &
-         TopounitAspect,GridElevation)
+    deallocate(maxTopoElv,TopounitFracArea,TopounitElv,TopounitLateralDist,TopounitRegionalTarget,TopounitSlope, &
+         TopounitAspect,TopounitIsBog,TopounitPeatDepth,TopounitTillKsat,GridElevation)
     
     call ncd_pio_closefile(ncid)
     

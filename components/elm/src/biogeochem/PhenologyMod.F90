@@ -14,7 +14,7 @@ module PhenologyMod
   use shr_sys_mod         , only : shr_sys_flush
   use decompMod           , only : bounds_type
   use elm_varpar          , only : numpft
-  use elm_varctl          , only : iulog
+  use elm_varctl          , only : iulog, use_humhol
   use elm_varcon          , only : tfrz
   use elm_varcon          , only : secspday
   use pftvarcon           , only : npeat_ndllf_dcd_brl_tree, npeat_nbrdlf_dcd_brl_shrub
@@ -685,6 +685,7 @@ contains
     real(r8):: onset_xfer_n_resid
     real(r8):: onset_xfer_p_resid
     real(r8), parameter :: xfer_warn_tol = 1.e-10_r8
+    logical :: is_peatland_topounit
     !-----------------------------------------------------------------------
 
     associate(                                                                                             &
@@ -806,6 +807,7 @@ contains
          c = veg_pp%column(p)
          t = veg_pp%topounit(p)
          g = veg_pp%gridcell(p)           
+         is_peatland_topounit = use_humhol .and. top_pp%peat_depth(t) > 0._r8
       
          if (season_decid(ivt(p)) == 1._r8) then
             soilt = t_soisno(c,3)
@@ -941,8 +943,31 @@ contains
                ! if the gdd flag is set, and if the soil is above freezing
                ! then accumulate growing degree days for onset trigger
 
-               if (onset_gddflag(p) == 1.0_r8 .and. soilt > SHR_CONST_TKFRZ) then
+
+               !if (onset_gddflag(p) == 1.0_r8 .and. soilt > SHR_CONST_TKFRZ) then
+               !   onset_gdd(p) = onset_gdd(p) + (soilt-SHR_CONST_TKFRZ)*fracday
+               if (is_peatland_topounit .and. ivt(p) == npeat_ndllf_dcd_brl_tree) then
+                 !forcing
+                 if (onset_gddflag(p) == 1.0_r8 .and. t_ref2m(p) > 279.50_r8 .and. ws_flag == 1._r8) then
+                   onset_gdd(p) = onset_gdd(p)+(t_ref2m(p)-279.50_r8)*fracday
+                 end if
+                 !then accumulate chilling days for onset trigger
+                 if (onset_gddflag(p) == 1.0_r8 .and. t_ref2m(p) < 279.50_r8 .and. ws_flag == 1._r8) then
+                   onset_chil(p) = onset_chil(p) + fracday
+                 end if
+                 crit_onset_gdd = 9._r8 +2112._r8 * exp(-0.04_r8 * onset_chil(p))
+               else if (is_peatland_topounit .and. ivt(p) == npeat_nbrdlf_dcd_brl_shrub) then
+                 if (onset_gddflag(p) == 1.0_r8 .and. t_ref2m(p) > 279.05_r8 .and. ws_flag == 1._r8) then
+                   onset_gdd(p) = onset_gdd(p) +(t_ref2m(p)-279.05_r8)*fracday
+                 end if
+                 if (onset_gddflag(p) == 1.0_r8 .and. t_ref2m(p) < 279.05_r8 .and. ws_flag == 1._r8) then
+                   onset_chil(p) = onset_chil(p) + fracday
+                 end if
+                 crit_onset_gdd = 33._r8 + 1388._r8 * exp(-0.02_r8 * onset_chil(p))
+               else
+                 if (onset_gddflag(p) == 1.0_r8 .and. soilt > SHR_CONST_TKFRZ) then
                    onset_gdd(p) = onset_gdd(p) + (soilt-SHR_CONST_TKFRZ)*fracday
+                 end if
                end if
 
                ! set onset_flag if critical growing degree-day sum is exceeded
@@ -996,12 +1021,37 @@ contains
             else if (dormant_flag(p)==0.0_r8 .and. offset_flag(p) == 0.0_r8) then
                ! only begin to test for offset daylength once past the summer sol
 
+              if (is_peatland_topounit .and. ivt(p) == npeat_ndllf_dcd_brl_tree) then
+                if(ws_flag == 0._r8 .and. dayl(g) < 46800.0_r8 .and. t_ref2m(p) < 294.5_r8) then
+                  dayl_temp(p) =dayl_temp(p) + ((294.5_r8 - t_ref2m(p))**2 * (dayl(g)/46800.0_r8 )) * fracday
+                end if
+
+                if(ws_flag == 0._r8 .and. dayl_temp(p)> 1750.0_r8) then
+                  offset_flag(p) = 1._r8
+                  dayl_temp(p) = 0._r8
+                  offset_counter(p) = PhenolParamsInst%ndays_off * secspday
+                  prev_leafc_to_litter(p) = 0._r8
+                  prev_frootc_to_litter(p) = 0._r8
+                end if
+              else if (is_peatland_topounit .and. ivt(p) == npeat_nbrdlf_dcd_brl_shrub) then
+                if(ws_flag == 0._r8 .and. dayl(g) < 54600.0_r8 .and. t_ref2m(p) < 290.15_r8) then
+                  dayl_temp(p) =dayl_temp(p) +( (290.15_r8 - t_ref2m(p))**2 *(dayl(g)/54600.0_r8))*fracday
+                end if
+                if(ws_flag == 0._r8 .and. dayl_temp(p)> 1600.0_r8) then
+                  offset_flag(p) = 1._r8
+                  dayl_temp(p) = 0._r8
+                  offset_counter(p) = PhenolParamsInst%ndays_off * secspday
+                  prev_leafc_to_litter(p) = 0._r8
+                  prev_frootc_to_litter(p) = 0._r8
+                end if
+              else
                 if (ws_flag == 0._r8 .and. dayl(g) < PhenolParamsInst%crit_dayl) then
                   offset_flag(p) = 1._r8
                   offset_counter(p) = PhenolParamsInst%ndays_off * secspday
                   prev_leafc_to_litter(p) = 0._r8
                   prev_frootc_to_litter(p) = 0._r8
-                end if
+                 end if
+              end if
             end if
             !make sure a second onset period doesn't occur SL 02-09-22
             if (ws_flag == 0._r8 .and. dayl(g) < PhenolParamsInst%crit_dayl) then

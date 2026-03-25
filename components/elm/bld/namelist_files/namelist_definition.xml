@@ -769,6 +769,13 @@ If TRUE, TOP solar radiation parameterization will be activated, which considers
 If TRUE, fineTOP radiation parameterization will be activated, which considers the effects of fine(grid)-scale topography.
 </entry>
 <!-- End fineTOP radiation parameterization -->
+<!-- Shrub shading on moss: enable/disable ---------------------- -->
+<entry id="use_shrub_moss_shading" type="logical" category="elm_physics"
+       group="elm_inparm" valid_values="" value=".false.">
+If TRUE, apply shrub shading to moss patches. When enabled, light incident on moss
+patches is reduced according to a Beer-Lambert transmission using neighboring shrub LAI.
+</entry>
+<!-- End shrub shading option ---------------------------------- -->
 
 <!-- ========================================================================================  -->
 <!-- Former CPP tokens -->
@@ -817,6 +824,26 @@ Toggle to use 25 lake layers instead of 10
        group="elm_inparm" valid_values="" value=".false.">
 Toggle to turn on the VIC hydrologic parameterizations
 (vichydro=".true." is EXPERIMENTAL NOT SUPPORTED!)
+</entry>
+
+<entry id="use_humhol" type="logical" category="physics"
+       group="elm_inparm" valid_values="" value=".false.">
+If TRUE, enable runtime HUM_HOL physics.
+</entry>
+
+<entry id="boardwalk_shade_frac" type="real" category="physics"
+       group="elm_inparm" valid_values="" value="0.0">
+Fraction of ground area shaded by boardwalks or similar structures.
+</entry>
+
+<entry id="boardwalk_light_trans" type="real" category="physics"
+       group="elm_inparm" valid_values="" value="1.0">
+Shortwave transmissivity through the boardwalk-shaded area.
+</entry>
+
+<entry id="obs_zwt_forcing" type="logical" category="physics"
+       group="elm_inparm" valid_values="" value=".false.">
+If TRUE, use observed water-table forcing (HUM_HOL option) instead of model-calculated zwt.
 </entry>
 
 <entry id="use_crop" type="logical" category="physics"

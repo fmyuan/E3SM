@@ -60,7 +60,7 @@ contains
     use ocn2lndType      , only : ocn2lnd_type
     use elm_varpar       , only : nlevgrnd, nlevurb, nlevsoi
     use SoilHydrologyMod , only : ELMVICMap, Drainage
-    use elm_varctl       , only : use_vsfm, use_IM2_hillslope_hydrology
+    use elm_varctl       , only : use_vsfm, use_IM2_hillslope_hydrology, use_humhol
     !
     ! !ARGUMENTS:
     type(bounds_type)        , intent(in)    :: bounds
@@ -88,6 +88,10 @@ contains
     real(r8) :: qflx_drain_perched_to_downhill, qflx_h2osfc_surf_to_downhill
     real(r8) :: downhill_routing_scale
     real(r8), parameter :: min_full_downhill_receiver_frac = 0.10_r8
+    logical  :: print_downhill_diag
+    logical  :: fen_active_on_grid
+    logical  :: route_surface_to_downhill
+    logical, parameter :: debug_downhill_diag = .false.
     integer  :: g,t,l,c,j,fc,tpu_ind, downhill_t, t2, topi, topf              ! indices
     !-----------------------------------------------------------------------
 
@@ -316,16 +320,50 @@ contains
          ! qflx_drain_perched, and qflx_h2osfc
          ! are passed to the from_uphill water state on the downhill topounit, via qflx_to_downhill
          ! only shift positive fluxes, and only set fluxes if there is a downhill topounit
-         if (use_IM2_hillslope_hydrology) then
+         if (use_IM2_hillslope_hydrology .or. use_humhol) then
             downhill_t = top_pp%downhill_ti(t)
+            if (use_humhol .and. top_pp%is_bog(t) .and. top_pp%topo_grc_ind(t) == 3) then
+               topi = grc_pp%topi(g)
+               topf = grc_pp%topf(g)
+               do t2 = topi, topf
+                  if (top_pp%active(t2) .and. top_pp%topo_grc_ind(t2) == 2) then
+                     downhill_t = t2
+                     exit
+                  endif
+               enddo
+            endif
             if (downhill_t /= -1) then
                qflx_surf_before_downhill          = qflx_surf(c)
                qflx_drain_before_downhill         = qflx_drain(c)
                qflx_drain_perched_before_downhill = qflx_drain_perched(c)
                qflx_h2osfc_surf_before_downhill   = qflx_h2osfc_surf(c)
 
+               fen_active_on_grid = .false.
                topi = grc_pp%topi(g)
                topf = grc_pp%topf(g)
+               do t2 = topi, topf
+                  if (top_pp%active(t2) .and. top_pp%topo_grc_ind(t2) == 1) then
+                     fen_active_on_grid = .true.
+                     exit
+                  endif
+               end do
+               route_surface_to_downhill = .not. (top_pp%topo_grc_ind(t) == 4 .and. &
+                    top_pp%is_bog(downhill_t) .and. .not. fen_active_on_grid)
+
+               downhill_routing_scale = 1._r8
+               if (use_humhol .and. top_pp%wtgcell(downhill_t) < min_full_downhill_receiver_frac) then
+                  downhill_routing_scale = max(0._r8, min(1._r8, &
+                       top_pp%wtgcell(downhill_t) / min_full_downhill_receiver_frac))
+               endif
+
+               ! shift a fixed fraction of qflx_surf
+               if (route_surface_to_downhill) then
+                  qflx_surf_to_downhill = max(0._r8, downhill_routing_scale * frac_to_downhill * qflx_surf(c))
+               else
+                  qflx_surf_to_downhill = 0._r8
+               endif
+               qflx_to_downhill(c) = qflx_surf_to_downhill
+               qflx_surf(c) = qflx_surf(c) - qflx_surf_to_downhill
 
                ! shift a fixed fraction of regular subsurface drainage
                qflx_drain_to_downhill = max(0._r8, downhill_routing_scale * frac_to_downhill * qflx_drain(c))
@@ -337,7 +375,13 @@ contains
                qflx_to_downhill(c) = qflx_to_downhill(c) + qflx_drain_perched_to_downhill
                qflx_drain_perched(c) = qflx_drain_perched(c) - qflx_drain_perched_to_downhill
                
-               qflx_h2osfc_surf_to_downhill = 0._r8
+               ! shift a fixed fraction of qflx_h2osfc_surf
+               if (route_surface_to_downhill) then
+                  qflx_h2osfc_surf_to_downhill = max(0._r8, &
+                       downhill_routing_scale * frac_to_downhill * qflx_h2osfc_surf(c))
+               else
+                  qflx_h2osfc_surf_to_downhill = 0._r8
+               endif
                qflx_h2osfc_to_downhill(c) = qflx_h2osfc_surf_to_downhill
                qflx_to_downhill(c) = qflx_to_downhill(c) + qflx_h2osfc_surf_to_downhill
                qflx_h2osfc_surf(c) = qflx_h2osfc_surf(c) - qflx_h2osfc_surf_to_downhill
@@ -349,6 +393,39 @@ contains
                temp_mass = (qflx_to_downhill(c) * dtime) * (col_pp%wtgcell(c) / top_pp%wtgcell(downhill_t))
                top_ws%from_uphill(downhill_t) = top_ws%from_uphill(downhill_t) + temp_mass
 
+               print_downhill_diag = debug_downhill_diag .and. &
+                    (top_pp%is_bog(t) .and. top_pp%topo_grc_ind(t) == 3 &
+                    .and. abs(top_pp%wtgcell(t) - 2.1752511754418422e-2_r8) < 1.e-10_r8 &
+                    .and. abs(top_pp%peat_depth(t) - 1.8641646375629948_r8) < 1.e-8_r8 &
+                    .and. nstep_mod >= 7670 .and. nstep_mod <= 7680 &
+                    .and. qflx_to_downhill(c) > 1.e-8_r8)
+               if (print_downhill_diag) then
+                  write(iulog,*)'downhill routing diagnostic'
+                  write(iulog,*)'nstep                      = ',nstep_mod
+                  write(iulog,*)'column index               = ',c
+                  write(iulog,*)'gridcell index             = ',col_pp%gridcell(c)
+                  write(iulog,*)'topounit index             = ',t
+                  write(iulog,*)'topounit topo_grc_ind      = ',top_pp%topo_grc_ind(t)
+                  write(iulog,*)'downhill topounit index    = ',downhill_t
+                  write(iulog,*)'downhill topo_grc_ind      = ',top_pp%topo_grc_ind(downhill_t)
+                  write(iulog,*)'source topounit weight     = ',top_pp%wtgcell(t)
+                  write(iulog,*)'downhill topounit weight   = ',top_pp%wtgcell(downhill_t)
+                  write(iulog,*)'downhill routing scale     = ',downhill_routing_scale
+                  write(iulog,*)'column weight gridcell     = ',col_pp%wtgcell(c)
+                  write(iulog,*)'dtime                      = ',dtime
+                  write(iulog,*)'qflx_surf pre              = ',qflx_surf_before_downhill
+                  write(iulog,*)'qflx_drain pre             = ',qflx_drain_before_downhill
+                  write(iulog,*)'qflx_drain_perched pre     = ',qflx_drain_perched_before_downhill
+                  write(iulog,*)'qflx_h2osfc_surf pre       = ',qflx_h2osfc_surf_before_downhill
+                  write(iulog,*)'qflx_surf to_downhill      = ',qflx_surf_to_downhill
+                  write(iulog,*)'qflx_drain to_downhill     = ',qflx_drain_to_downhill
+                  write(iulog,*)'qflx_drain_perched to_down = ',qflx_drain_perched_to_downhill
+                  write(iulog,*)'qflx_h2osfc_surf to_down   = ',qflx_h2osfc_surf_to_downhill
+                  write(iulog,*)'qflx_to_downhill total     = ',qflx_to_downhill(c)
+                  write(iulog,*)'qflx_to_downhill dt        = ',qflx_to_downhill(c) * dtime
+                  write(iulog,*)'from_uphill mass added     = ',temp_mass
+                  write(iulog,*)'from_uphill state after    = ',top_ws%from_uphill(downhill_t)
+               end if
             else
                qflx_to_downhill(c) = 0._r8
             endif

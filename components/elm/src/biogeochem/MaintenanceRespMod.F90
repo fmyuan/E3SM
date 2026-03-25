@@ -26,6 +26,7 @@ module MaintenanceRespMod
   use ColumnDataType      , only : col_es
   use VegetationType      , only : veg_pp
   use VegetationDataType  , only : veg_es, veg_cs, veg_cf, veg_ns
+  use elm_varctl          , only : use_humhol
   !
   implicit none
   save
@@ -248,12 +249,25 @@ contains
          ! gC/m2/s for each of the live plant tissues.
          ! Leaf and live wood MR
 
+         if (use_humhol) then
+            br_mr = br_mr_pft(ivt(p))
+            br_mr_woody = br_mr
+         end if
 
          ! Ben Sulman: Add dormant MR level below a certain temperature
          if(t_ref2m(p) > dormant_mr_temp) then
-             tc = Q10**((t_ref2m(p)-SHR_CONST_TKFRZ - 20.0_r8)/10.0_r8)
+             if (use_humhol) then
+                tc = q10_mr_pft(ivt(p))**((t_ref2m(p)-SHR_CONST_TKFRZ - 20.0_r8)/10.0_r8)
+             else
+                tc = Q10**((t_ref2m(p)-SHR_CONST_TKFRZ - 20.0_r8)/10.0_r8)
+             end if
          else
              tc = dormant_mr_factor
+         end if
+
+         if (use_humhol .and. mr_acclim_warming_frac > 0._r8 .and. spinup_t_nyears(p) > 0) then
+            spinup_temp_offset = annavg_t2m(p) - spinup_t(p)
+            br_mr_woody = br_mr * q10_mr_pft(ivt(p))**((-spinup_temp_offset * mr_acclim_warming_frac)/10.0_r8)
          end if
 
          if (frac_veg_nosno(p) == 1) then
@@ -276,6 +290,14 @@ contains
          end if
          if (br_xr(ivt(p)) .gt. 1e-9_r8) then
             xr(p) = cpool(p) * br_xr(ivt(p)) * tc
+            if (use_humhol) then
+               if (totvegc(p) .gt. 1e-10_r8) then
+                  ! this is to limit the size of cpool
+                  xr(p) = cpool(p) * br_xr(ivt(p)) * exp((min(cpool(p) / totvegc(p),0.3335_r8) - 0.2_r8)/0.02_r8) * tc
+               else
+                  xr(p) = 0._r8
+               end if
+            end if
          else
             xr(p) = 0._r8
          end if
@@ -294,6 +316,15 @@ contains
             ! layer.  This is used with the layer temperature correction
             ! to estimate the total fine root maintenance respiration as a
             ! function of temperature and N content.
+            if (use_humhol) then
+               !recalculate pft-specific rates
+               br_mr = br_mr_pft(ivt(p))
+               if (t_soisno(c,j) > dormant_mr_temp) then
+                   tcsoi(c,j) = q10_mr_pft(ivt(p))**((t_soisno(c,j)-SHR_CONST_TKFRZ - 20.0_r8)/10.0_r8)
+               else
+                   tcsoi(c,j) = dormant_mr_factor
+               end if
+            end if
             froot_mr(p) = froot_mr(p) + frootn(p)*br_mr*tcsoi(c,j)*rootfr(p,j)
          end do
       end do

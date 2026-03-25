@@ -8,7 +8,7 @@ Module SoilHydrologyType
   use elm_varpar            , only : nlevgrnd, nlayer, nlayert, nlevsoi
   use elm_varpar            , only : more_vertlayers, nlevsoifl, toplev_equalspace
   use elm_varcon            , only : zsoi, dzsoi, zisoi, spval
-  use elm_varctl            , only : iulog, use_lnd_rof_two_way
+  use elm_varctl            , only : iulog, use_lnd_rof_two_way, use_humhol
   use SharedParamsMod     , only : ParamsShareInst
   use LandunitType          , only : lun_pp                
   use ColumnType            , only : col_pp      
@@ -937,11 +937,15 @@ contains
      namelist / elm_soilhydrology_inparm / h2osfcflag, origflag
 
 
+     if (use_humhol) then
+        origflag = 1
+     else
 #if (defined MARSH)
-     origflag = 1
+        origflag = 1
 #else
-     origflag = 0
+        origflag = 0
 #endif
+     end if
      h2osfcflag = 1        
 
      if ( masterproc )then

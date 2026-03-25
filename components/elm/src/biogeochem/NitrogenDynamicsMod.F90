@@ -13,6 +13,8 @@ module NitrogenDynamicsMod
   use elm_varcon          , only : dzsoi_decomp, zisoi
   use elm_varctl          , only : use_vertsoilc, use_fan
   use subgridAveMod       , only : p2c, p2c_1d_filter
+  use elm_varctl          , only : use_humhol
+  use subgridAveMod       , only : p2c
   use atm2lndType         , only : atm2lnd_type
   use CNStateType         , only : cnstate_type
   use CropType            , only : crop_type
@@ -160,10 +162,41 @@ contains
       ! Loop through columns
       do c = bounds%begc, bounds%endc
          g = col_pp%gridcell(c)
-         ndep_to_sminn(c) = forc_ndep(g)
-         do p = col_pp%pfti(c), col_pp%pftf(c)
-           ndep_to_npool(p) = 0._r8
-         enddo
+         if (use_humhol) then
+            ! Calculate moss LAI and fractional cover for this column
+            moss_column_lai = 0._r8
+            do p = col_pp%pfti(c), col_pp%pftf(c)
+               if (veg_pp%active(p) .and. nint(veg_vp%nonvascular(veg_pp%itype(p))) == 1) then
+                  moss_column_lai = moss_column_lai + elai(p) * veg_pp%wtcol(p)
+               endif
+            enddo
+            if (moss_column_lai > 0._r8) then
+              moss_ndep_fraction = 1._r8 - exp(-k_intercept * moss_column_lai)
+            else
+              moss_ndep_fraction = 0._r8
+            end if
+
+            total_ndep_flux = 0.57_r8 / (86400_r8 * 365_r8)
+            ndep_to_sminn(c) = total_ndep_flux
+
+            do p = col_pp%pfti(c), col_pp%pftf(c)
+              if (veg_pp%active(p) .and. nint(veg_vp%nonvascular(veg_pp%itype(p))) == 1) then
+                 if (moss_column_lai > 0._r8) then
+                    ndep_to_npool(p) = total_ndep_flux * moss_ndep_fraction / veg_pp%wtcol(p)
+                    ndep_to_sminn(c) = ndep_to_sminn(c) - ndep_to_npool(p) * veg_pp%wtcol(p)
+                 else
+                    ndep_to_npool(p) = 0._r8
+                 endif
+              else
+                 ndep_to_npool(p) = 0._r8
+              endif
+            enddo
+         else
+            ndep_to_sminn(c) = forc_ndep(g)
+            do p = col_pp%pfti(c), col_pp%pftf(c)
+              ndep_to_npool(p) = 0._r8
+            enddo
+         end if
       end do
 
     end associate
@@ -256,6 +289,11 @@ contains
                ! B. Sulman: Loop through patches. Nfix is weighted average of value for each PFT's parameters
                t = 0.0_r8
                if (col_lag_npp(c) /= spval) then
+                  if (use_humhol) then
+                    !need to put npp in units of gC/m2/yr here first
+                    t = (1.8_r8 * (1._r8 - exp(-0.003_r8 * col_lag_npp(c)*(secspday*dayspyr))))/(secspday*dayspyr)
+                    nfix_to_sminn(c) = max(0._r8,t)
+                  else
                      total_weight = 0.0_r8  ! To correct for inactive and unveg cells
                      do p = col_pp%pfti(c), col_pp%pftf(c)
                          if (veg_pp%active(p) .and. (veg_pp%itype(p) .ne. noveg)) then
@@ -269,6 +307,7 @@ contains
                       else
                           nfix_to_sminn(c) = 0._r8
                       endif
+                  end if
                else
                   nfix_to_sminn(c) = 0._r8
                endif

@@ -268,7 +268,7 @@ contains
     !
     ! !USES:
       !$acc routine seq
-    use elm_varctl           , only : use_var_soil_thick, iulog
+    use elm_varctl           , only : use_var_soil_thick, use_humhol, iulog
     use shr_kind_mod         , only : r8 => shr_kind_r8
     use shr_const_mod        , only : SHR_CONST_TKFRZ, SHR_CONST_LATICE, SHR_CONST_G
     use decompMod            , only : bounds_type
@@ -620,6 +620,41 @@ contains
       end do
 
       ! Set up r, a, b, and c vectors for tridiagonal solution
+      do fc = 1, num_hydrologyc
+         c = filter_hydrologyc(fc)
+         nlevbed = nlev2bed(c)
+         ! Keep the saturated-zone root remap active for all humhol topounits
+         ! while testing the corrected below-water-table layer accounting.
+         satroot_remap_active(c) = use_humhol
+         satroot_remap_potential(c) = 0._r8
+         qflx_tran_veg_col_sat(c) = 0._r8
+         if (use_humhol .and. jwt(c)+2 <= nlevbed) then
+            do j = jwt(c)+2, nlevbed
+               satroot_remap_potential(c) = satroot_remap_potential(c)+qflx_rootsoi_col(c,j)
+            end do
+         end if
+         if (satroot_remap_active(c)) then
+            qflx_tran_veg_col_sat(c) = satroot_remap_potential(c)
+         end if
+         if (debug_satroot_remap_diag .and. use_humhol &
+              .and. satroot_remap_potential(c) > 1.e-8_r8 &
+              .and. col_pp%gridcell(c) == 2 &
+              .and. top_pp%topo_grc_ind(col_pp%topounit(c)) == 4) then
+            write(iulog,*)'satroot remap diagnostic'
+            write(iulog,*)'nstep                      = ',nstep_mod
+            write(iulog,*)'column index               = ',c
+            write(iulog,*)'gridcell index             = ',col_pp%gridcell(c)
+            write(iulog,*)'topounit index             = ',col_pp%topounit(c)
+            write(iulog,*)'topounit topo_grc_ind      = ',top_pp%topo_grc_ind(col_pp%topounit(c))
+            write(iulog,*)'topounit peat_depth        = ',top_pp%peat_depth(col_pp%topounit(c))
+            write(iulog,*)'satroot remap active       = ',satroot_remap_active(c)
+            write(iulog,*)'nlevbed                    = ',nlevbed
+            write(iulog,*)'jwt                        = ',jwt(c)
+            write(iulog,*)'zwt                        = ',zwt(c)
+            write(iulog,*)'below-wt root demand       = ',satroot_remap_potential(c)
+            write(iulog,*)'below-wt root demand dt    = ',satroot_remap_potential(c)*dtime
+         end if
+      end do
 
       j = 1
       do fc = 1, num_hydrologyc
@@ -917,6 +952,80 @@ contains
                  + h2osoi_ice(c,j)/(dz(c,j)*denice)
          end do
 
+         ! Fen topounits can become saturated through the soil profile while the
+         ! prognosed water table lags too deep. Before diagnosing qcharge, align
+         ! the water table with the shallowest continuous saturated layer, with
+         ! interpolation through the partially saturated layer above it.
+         t = col_pp%topounit(c)
+         if (use_humhol .and. top_pp%topo_grc_ind(t) == 1 .and. &
+             top_pp%peat_depth(t) > 0._r8 .and. .not. top_pp%is_bog(t) .and. &
+             .not. soilwater_aquifer_layer_active(c)) then
+            k_sat = nlevbed + 1
+            do j = nlevbed, 1, -1
+               layer_capacity = max(watmin, eff_porosity(c,j)*dzmm(c,j))
+               sat_liq = h2osoi_liq(c,j) / layer_capacity
+               if (sat_liq >= fen_zwt_sat_threshold) then
+                  k_sat = j
+               else
+                  exit
+               end if
+            end do
+
+            if (k_sat == 1) then
+               zwt_profile = 0._r8
+            else
+               j = min(k_sat-1, nlevbed)
+               if (j >= 1) then
+                  layer_capacity = max(watmin, eff_porosity(c,j)*dzmm(c,j))
+                  sat_liq = h2osoi_liq(c,j) / layer_capacity
+                  if (sat_liq >= fen_zwt_interp_min) then
+                     if (j == 1) then
+                        zwt_layer_top = 0._r8
+                     else
+                        zwt_layer_top = zi(c,j-1)
+                     end if
+                     zwt_layer_bot = zi(c,j)
+                     sat_frac = (sat_liq - fen_zwt_interp_min) / &
+                          (fen_zwt_sat_threshold - fen_zwt_interp_min)
+                     sat_frac = max(0._r8, min(1._r8, sat_frac))
+                     zwt_profile = zwt_layer_bot - sat_frac*(zwt_layer_bot - zwt_layer_top)
+                  else if (k_sat <= nlevbed) then
+                     zwt_profile = zi(c,k_sat-1)
+                  else
+                     zwt_profile = zwt(c)
+                  end if
+               else
+                  zwt_profile = zwt(c)
+               end if
+            end if
+
+            if (zwt_profile < zwt(c)) then
+               zwt(c) = max(0._r8, zwt_profile)
+               zwtmm(c) = zwt(c)*1.e3_r8
+               if (soilwater_aquifer_layer_active(c)) then
+                  ! The linear solve was built with the extra aquifer layer.
+                  ! Keep jwt in that solve mode until Drainage applies qcharge
+                  ! to wa; Drainage will then recompute the water-table layer.
+                  jwt(c) = nlevbed
+               else
+                  jwt(c) = nlevbed
+                  do j = 1, nlevbed
+                     if (use_var_soil_thick) then
+                        if (zwt(c) <= zi(c,j) .and. zwt(c) < zi(c,nlevbed)) then
+                           jwt(c) = j-1
+                           exit
+                        end if
+                     else
+                        if (zwt(c) <= zi(c,j)) then
+                           jwt(c) = j-1
+                           exit
+                        end if
+                     end if
+                  end do
+               end if
+            end if
+         end if
+
          if (soilwater_aquifer_layer_active(c)) then
             ! The linear solve included the extra aquifer layer. Keep the
             ! water table classified below the explicit soil column until
@@ -955,6 +1064,8 @@ contains
             write(iulog,*)'topounit index             = ',t
             write(iulog,*)'topounit topo_grc_ind      = ',top_pp%topo_grc_ind(t)
             write(iulog,*)'topounit weight gridcell   = ',top_pp%wtgcell(t)
+            write(iulog,*)'topounit peat_depth        = ',top_pp%peat_depth(t)
+            write(iulog,*)'topounit is_bog            = ',top_pp%is_bog(t)
             write(iulog,*)'dtime                      = ',dtime
             write(iulog,*)'nlevbed                    = ',nlevbed
             write(iulog,*)'jwt                        = ',jwt(c)
@@ -1123,6 +1234,72 @@ contains
          end if
          soilwater_resid_with_qcharge = soilwater_actual_delta - &
               (soilwater_expected_delta - soilwater_qcharge_storage_delta)
+         if (use_humhol .and. abs(soilwater_resid_with_qcharge) > soilwater_balance_abort) then
+            g = col_pp%gridcell(c)
+            t = col_pp%topounit(c)
+            write(iulog,*)'soilwater vertical conservation diagnostic'
+            write(iulog,*)'nstep                      = ',nstep_mod
+            write(iulog,*)'column index               = ',c
+            write(iulog,*)'gridcell index             = ',g
+            write(iulog,*)'Latdeg,Londeg              = ',grc_pp%latdeg(g),grc_pp%londeg(g)
+            write(iulog,*)'topounit index             = ',t
+            write(iulog,*)'topounit topo_grc_ind      = ',top_pp%topo_grc_ind(t)
+            write(iulog,*)'topounit weight gridcell   = ',top_pp%wtgcell(t)
+            write(iulog,*)'topounit peat_depth        = ',top_pp%peat_depth(t)
+            write(iulog,*)'topounit is_bog            = ',top_pp%is_bog(t)
+            write(iulog,*)'dtime                      = ',dtime
+            write(iulog,*)'nlevbed                    = ',nlevbed
+            write(iulog,*)'jwt                        = ',jwt(c)
+            write(iulog,*)'zwt                        = ',zwt(c)
+            write(iulog,*)'wa                         = ',wa(c)
+            write(iulog,*)'store beg liq+wa           = ',soilwater_store_beg(c)
+            write(iulog,*)'store end liq+wa           = ',soilwater_store_end
+            write(iulog,*)'store actual delta         = ',soilwater_actual_delta
+            write(iulog,*)'expected infl-root delta   = ',soilwater_expected_delta
+            write(iulog,*)'soilwater resid            = ',soilwater_resid
+            write(iulog,*)'soilwater resid incl qchg  = ',soilwater_resid_with_qcharge
+            write(iulog,*)'qflx_infl                  = ',qflx_infl(c)
+            write(iulog,*)'qflx_infl d                = ',qflx_infl(c)*dtime
+            write(iulog,*)'root sink sum              = ',soilwater_root_sink(c)
+            write(iulog,*)'root sink sum d            = ',soilwater_root_sink(c)*dtime
+            write(iulog,*)'liq deficit correction     = ',liq_deficit_correction
+            write(iulog,*)'liq deficit from aquifer    = ',liq_deficit_from_aquifer
+            write(iulog,*)'liq excess correction      = ',liq_excess_correction
+            write(iulog,*)'liq excess to aquifer      = ',liq_excess_to_aquifer
+            write(iulog,*)'qcharge                    = ',qcharge(c)
+            write(iulog,*)'qcharge d                  = ',qcharge(c)*dtime
+            write(iulog,*)'qcharge storage d          = ',soilwater_qcharge_storage_delta
+            write(iulog,*)'aquifer layer active       = ',soilwater_aquifer_layer_active(c)
+            write(iulog,*)'qflx_deficit               = ',qflx_deficit(c)
+            write(iulog,*)'satroot remap active       = ',satroot_remap_active(c)
+            write(iulog,*)'satroot remap potential    = ',satroot_remap_potential(c)
+            write(iulog,*)'satroot remap potential d  = ',satroot_remap_potential(c)*dtime
+            write(iulog,*)'qflx_tran_veg_col_sat      = ',qflx_tran_veg_col_sat(c)
+            write(iulog,*)'qflx_tran_veg_col_sat d    = ',qflx_tran_veg_col_sat(c)*dtime
+            write(iulog,*)'h2osoi_liq before          = ',h2osoi_liq_before(c,1:nlevbed)
+            write(iulog,*)'h2osoi_liq after implicit  = ',h2osoi_liq_after_implicit(c,1:nlevbed)
+            write(iulog,*)'h2osoi_liq after solve     = ',h2osoi_liq_after_solve(c,1:nlevbed)
+            write(iulog,*)'h2osoi_liq after correct   = ',h2osoi_liq(c,1:nlevbed)
+            write(iulog,*)'h2osoi_liq delta           = ',dwat2(c,1:nlevbed)*dzmm(c,1:nlevbed)
+            write(iulog,*)'dwat2                      = ',dwat2(c,1:nlevbed)
+            write(iulog,*)'rmx                        = ',rmx(c,1:nlevbed)
+            write(iulog,*)'rmx dtime                  = ',rmx(c,1:nlevbed)*dtime
+            write(iulog,*)'qin                        = ',qin(c,1:nlevbed)
+            write(iulog,*)'qin dtime                  = ',qin(c,1:nlevbed)*dtime
+            write(iulog,*)'qout                       = ',qout(c,1:nlevbed)
+            write(iulog,*)'qout dtime                 = ',qout(c,1:nlevbed)*dtime
+            write(iulog,*)'qflx_rootsoi_col           = ',qflx_rootsoi_col(c,1:nlevbed)
+            write(iulog,*)'qflx_rootsoi_col dtime     = ',qflx_rootsoi_col(c,1:nlevbed)*dtime
+            write(iulog,*)'h2osoi_ice                 = ',h2osoi_ice(c,1:nlevbed)
+            write(iulog,*)'eff_porosity               = ',eff_porosity(c,1:nlevbed)
+            write(iulog,*)'watsat                     = ',watsat(c,1:nlevbed)
+            write(iulog,*)'icefrac                    = ',icefrac(c,1:nlevbed)
+            write(iulog,*)'imped                      = ',imped(c,1:nlevbed)
+            write(iulog,*)'dzmm                       = ',dzmm(c,1:nlevbed)
+            write(iulog,*)'zimm                       = ',zimm(c,0:nlevbed)
+            call endrun(msg='SoilWaterMovement vertical solve water balance residual'&
+                 //errMsg(__FILE__, __LINE__))
+         endif
       enddo
 
       ! Save cross-layer flow for use in advective flux calculations (Ben Sulman)
