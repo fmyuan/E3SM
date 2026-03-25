@@ -508,6 +508,7 @@ module ColumnDataType
     real(r8), pointer :: qflx_top_soil        (:)   => null() ! net water input into soil from top (mm/s)
     real(r8), pointer :: qflx_h2osfc_to_ice   (:)   => null() ! conversion of h2osfc to ice
     real(r8), pointer :: qflx_h2osfc_surf     (:)   => null() ! surface water runoff
+    real(r8), pointer :: qflx_h2osfc_to_downhill (:) => null() ! surface water runoff routed to downhill topounit
     real(r8), pointer :: qflx_snow_h2osfc     (:)   => null() ! snow falling on surface water
     real(r8), pointer :: qflx_drain_perched   (:)   => null() ! sub-surface runoff from perched wt (mm H2O /s)
     real(r8), pointer :: qflx_deficit         (:)   => null() ! water deficit to keep non-negative liquid water content (mm H2O)
@@ -5885,6 +5886,7 @@ contains
     allocate(this%qflx_top_soil          (begc:endc))             ; this%qflx_top_soil        (:)   = spval
     allocate(this%qflx_h2osfc_to_ice     (begc:endc))             ; this%qflx_h2osfc_to_ice   (:)   = spval
     allocate(this%qflx_h2osfc_surf       (begc:endc))             ; this%qflx_h2osfc_surf     (:)   = spval
+    allocate(this%qflx_h2osfc_to_downhill(begc:endc))             ; this%qflx_h2osfc_to_downhill(:) = spval
     allocate(this%qflx_snow_h2osfc       (begc:endc))             ; this%qflx_snow_h2osfc     (:)   = spval
     allocate(this%qflx_drain_perched     (begc:endc))             ; this%qflx_drain_perched   (:)   = spval
     allocate(this%qflx_deficit           (begc:endc))             ; this%qflx_deficit         (:)   = spval
@@ -5997,30 +5999,30 @@ contains
           avgflag='A', long_name='Sub-surface drainage by layer', &
           ptr_col=this%qflx_drain_vr)
 
-   this%qflx_lat_aqu(begc:endc) = spval
-   call hist_addfld1d (fname='QFLX_LAT_AQU',  units='mm/s',  &
-        avgflag='A', long_name='Lateral flow between hummock and hollow', &
-        ptr_col=this%qflx_lat_aqu, c2l_scale_type='urbanf')
+    this%qflx_lat_aqu(begc:endc) = spval
+    call hist_addfld1d (fname='QFLX_LAT_AQU',  units='mm/s',  &
+          avgflag='A', long_name='Lateral flow between hummock and hollow', &
+          ptr_col=this%qflx_lat_aqu, c2l_scale_type='urbanf')
 
-   this%qflx_surf_input(begc:endc) = spval
-   call hist_addfld1d (fname='QFLX_SURF_INPUT',  units='mm/s',  &
-        avgflag='A', long_name='Surface runoff input received from an adjacent topounit', &
-        ptr_col=this%qflx_surf_input, c2l_scale_type='urbanf')
+    this%qflx_surf_input(begc:endc) = spval
+    call hist_addfld1d (fname='QFLX_SURF_INPUT',  units='mm/s',  &
+          avgflag='A', long_name='Surface runoff input received from an adjacent topounit', &
+          ptr_col=this%qflx_surf_input, c2l_scale_type='urbanf')
 
-   this%qflx_lat_aqu_layer(begc:endc, :) = spval
-   call hist_addfld2d (fname='QFLX_LAT_AQU_LAYER',  units='mm/s', type2d='levgrnd', &
-        avgflag='A', long_name='Lateral flow between hummock and hollow by layer', &
-        ptr_col=this%qflx_lat_aqu_layer)
+    this%qflx_lat_aqu_layer(begc:endc, :) = spval
+    call hist_addfld2d (fname='QFLX_LAT_AQU_LAYER',  units='mm/s', type2d='levgrnd', &
+          avgflag='A', long_name='Lateral flow between hummock and hollow by layer', &
+          ptr_col=this%qflx_lat_aqu_layer)
 
-   this%qflx_tide(begc:endc) = spval
-   call hist_addfld1d (fname='QFLX_TIDE',  units='mm H2O/s',  &
-        avgflag='A', long_name='Tidal flux between marsh columns', &
-        ptr_col=this%qflx_tide)
+    this%qflx_tide(begc:endc) = spval
+    call hist_addfld1d (fname='QFLX_TIDE',  units='mm H2O/s',  &
+         avgflag='A', long_name='Tidal flux between marsh columns', &
+          ptr_col=this%qflx_tide)
 
-   this%qflx_adv(begc:endc,:) = spval
-   call hist_addfld2d (fname='QFLX_ADV',  units='mm/s', type2d='levgrnd', &
-      avgflag='A', long_name='Vertical flow across soil layers', &
-      ptr_col=this%qflx_adv, c2l_scale_type='urbanf')
+    this%qflx_adv(begc:endc,:) = spval
+    call hist_addfld2d (fname='QFLX_ADV',  units='mm/s', type2d='levgrnd', &
+          avgflag='A', long_name='Vertical flow across soil layers', &
+          ptr_col=this%qflx_adv, c2l_scale_type='urbanf')
 
     this%qflx_irr_demand(begc:endc) = spval
     call hist_addfld1d (fname='QIRRIG_WM',  units='mm/s',  &
@@ -6036,6 +6038,11 @@ contains
      call hist_addfld1d (fname='QH2OSFC',  units='mm/s',  &
           avgflag='A', long_name='surface water runoff', &
            ptr_col=this%qflx_h2osfc_surf)
+
+    this%qflx_h2osfc_to_downhill(begc:endc) = spval
+     call hist_addfld1d (fname='QH2OSFC_TO_DOWNHILL',  units='mm/s',  &
+          avgflag='A', long_name='surface water runoff routed to downhill topounit', &
+           ptr_col=this%qflx_h2osfc_to_downhill, c2l_scale_type='urbanf')
 
     this%qflx_drain_perched(begc:endc) = spval
      call hist_addfld1d (fname='QDRAI_PERCH',  units='mm/s',  &
@@ -6149,6 +6156,7 @@ contains
     this%qflx_dew_snow (begc:endc) = 0.0_r8
 
     this%qflx_h2osfc_surf(begc:endc) = 0._r8
+    this%qflx_h2osfc_to_downhill(begc:endc) = 0._r8
     this%qflx_snow_melt  (begc:endc)   = 0._r8
 
     this%dwb(begc:endc) = 0._r8

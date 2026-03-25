@@ -201,6 +201,7 @@ contains
     !
     ! !USES:
     !$acc routine seq
+    use pftvarcon       , only : noveg
     ! !ARGUMENTS:
     real(r8)            :: multiplier ! function result
     integer, intent(in) :: species    ! which C/N species we're operating on; should be one of the values in SpeciesMod
@@ -233,7 +234,7 @@ contains
        case (COMPONENT_DEADWOOD)
           multiplier = 1._r8 / veg_vp%deadwdcn(pft_type)
        case (COMPONENT_SEED)
-          if (pft_type /= 0) then
+          if (pft_type /= noveg) then
              multiplier = 1._r8
           else
              multiplier = 0._r8
@@ -252,7 +253,7 @@ contains
        case (COMPONENT_DEADWOOD)
           multiplier = 1._r8 / veg_vp%deadwdcp(pft_type)
        case (COMPONENT_SEED)
-          if (pft_type /= 0) then
+          if (pft_type /= noveg) then
              multiplier = 1._r8
           else
              multiplier = 0._r8
