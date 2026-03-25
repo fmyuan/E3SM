@@ -20,6 +20,7 @@ module CanopyFluxesMod
   use elm_varcon            , only : mm_epsilon
   use elm_varcon            , only : pa_to_kpa
   use pftvarcon             , only : crop, nfixer
+  use pftvarcon             , only : blower_u0, blower_lambda
   use decompMod             , only : bounds_type
   use PhotosynthesisMod     , only : Photosynthesis, PhotosynthesisTotal, Fractionation, PhotoSynthesisHydraulicStress
   use SoilMoistStressMod    , only : calc_effective_soilporosity, calc_volumetric_h2oliq
@@ -32,6 +33,7 @@ module CanopyFluxesMod
   use EnergyFluxType        , only : energyflux_type
   use FrictionvelocityType  , only : frictionvel_type
   use SoilStateType         , only : soilstate_type
+  use SoilHydrologyType     , only : soilhydrology_type
   use SolarAbsorbedType     , only : solarabs_type
   use SurfaceAlbedoType     , only : surfalb_type
   use CH4Mod                , only : ch4_type
@@ -42,10 +44,10 @@ module CanopyFluxesMod
   use ColumnDataType        , only : col_es, col_ef, col_ws
   use VegetationType        , only : veg_pp
   use VegetationDataType    , only : veg_es, veg_ef, veg_ws, veg_wf
+  use VegetationDataType    , only : veg_ns
 
   !!! using elm_instMod messes with the compilation order
   use elm_instMod           , only : alm_fates, soil_water_retention_curve
-  use TemperatureType , only : temperature_vars
   use perfMod_GPU
   use timeinfoMod
   use spmdmod          , only: masterproc
@@ -63,7 +65,7 @@ contains
   subroutine CanopyFluxes(bounds,  num_nolakeurbanp, filter_nolakeurbanp, &
        atm2lnd_vars, canopystate_vars, cnstate_vars, energyflux_vars, &
        frictionvel_vars, soilstate_vars, solarabs_vars, surfalb_vars, &
-       ch4_vars, photosyns_vars)
+       ch4_vars, photosyns_vars, soilhydrology_vars)
     ! !DESCRIPTION:
     ! 1. Calculates the leaf temperature:
     ! 2. Calculates the leaf fluxes, transpiration, photosynthesis and
@@ -101,6 +103,7 @@ contains
     use pftvarcon          , only : irrigated
     use elm_varcon         , only : c14ratio
     use shr_const_mod      , only : SHR_CONST_PI
+    use elm_time_manager   , only : get_curr_date
 
     !NEW
     use elm_varsur         , only : firrig
@@ -124,6 +127,7 @@ contains
     type(solarabs_type)       , intent(inout) :: solarabs_vars
     type(surfalb_type)        , intent(inout) :: surfalb_vars
     type(soilstate_type)      , intent(inout) :: soilstate_vars
+    type(soilhydrology_type)  , intent(in)    :: soilhydrology_vars
     type(ch4_type)            , intent(inout) :: ch4_vars
     type(photosyns_type)      , intent(inout) :: photosyns_vars
     real(r8) :: dtime
@@ -173,6 +177,7 @@ contains
     real(r8) :: zldis(bounds%begp:bounds%endp)       ! reference height "minus" zero displacement height [m]
     real(r8) :: wc                                   ! convective velocity [m/s]
     real(r8) :: ugust_total(bounds%begp:bounds%endp) ! gustiness including convective velocity [m/s]
+    real(r8) :: ublow(bounds%begp:bounds%endp)       ! blower-induced effective wind component [m/s]
     real(r8) :: dth(bounds%begp:bounds%endp)         ! diff of virtual temp. between ref. height and surface
     real(r8) :: dthv(bounds%begp:bounds%endp)        ! diff of vir. poten. temp. between ref. height and surface
     real(r8) :: dqh(bounds%begp:bounds%endp)         ! diff of humidity between ref. height and surface
@@ -316,6 +321,7 @@ contains
     real(r8) :: prev_tau(bounds%begp:bounds%endp) ! Previous iteration tau
     real(r8) :: prev_tau_diff(bounds%begp:bounds%endp) ! Previous difference in iteration tau
     real(r8) :: slope_rad, deg2rad
+    integer  :: yr, mon, day, sec
     character(len=64) :: event !! timing event
 
     ! Indices for raw and rah
@@ -412,6 +418,7 @@ contains
          h2osoi_vol           => col_ws%h2osoi_vol            , & ! Input:  [real(r8) (:,:) ]  volumetric soil water (0<=h2osoi_vol<=watsat) [m3/m3] by F. Li and S. Levis
          h2osoi_liq           => col_ws%h2osoi_liq            , & ! Input:  [real(r8) (:,:) ]  liquid water (kg/m2)
          h2osoi_liqvol        => col_ws%h2osoi_liqvol         , & ! Output: [real(r8) (:,:) ]  volumetric liquid water (v/v)
+         zwt                  => soilhydrology_vars%zwt_col   , & ! Input:  [real(r8) (:)   ]  water table depth (m) 
 
          h2ocan               => veg_ws%h2ocan              , & ! Output: [real(r8) (:)   ]  canopy water (mm H2O)
          q_ref2m              => veg_ws%q_ref2m             , & ! Output: [real(r8) (:)   ]  2 m height surface specific humidity (kg/kg)
@@ -450,6 +457,7 @@ contains
          eflx_sh_soil         => veg_ef%eflx_sh_soil        , & ! Output: [real(r8) (:)   ]  sensible heat flux from soil (W/m**2) [+ to atm]
          eflx_sh_veg          => veg_ef%eflx_sh_veg         , & ! Output: [real(r8) (:)   ]  sensible heat flux from leaves (W/m**2) [+ to atm]
          eflx_sh_grnd         => veg_ef%eflx_sh_grnd        , & ! Output: [real(r8) (:)   ]  sensible heat flux from ground (W/m**2) [+ to atm]
+         leafn                => veg_ns%leafn               , &
          rah_above            => frictionvel_vars%rah_above_patch , & ! Output: [real(r8) (:)   ]  above-canopy sensible heat flux resistance [s/m]
          rah_below            => frictionvel_vars%rah_above_patch , & ! Output: [real(r8) (:)   ]  below-canopy sensible heat flux resistance [s/m]
          raw_above            => frictionvel_vars%raw_below_patch , & ! Output: [real(r8) (:)   ]  above-canopy water vapour flux resistance [s/m]
@@ -462,6 +470,7 @@ contains
          obu                  => frictionvel_vars%obu_patch       , & ! Output: [real(r8) (:)   ]  Obukhov length scale [m]
          zeta                 => frictionvel_vars%zeta_patch      , & ! Output: [real(r8) (:)   ]  dimensionless stability parameter 
          vpd                  => frictionvel_vars%vpd_patch       , & ! Output: [real(r8) (:)   ]  vapour pressure deficit [kPa]
+
          begp                 => bounds%begp                               , &
          endp                 => bounds%endp                                 &
          )
@@ -730,17 +739,32 @@ contains
          qaf(p) = (forc_q(t)+qg(c))/2._r8
 
          ! Initialize winds for iteration.
+         !Get the model year to determine if SPRUCE blowers are active
+         call get_curr_date(yr, mon, day, sec)
          if (implicit_stress) then
             wind_speed0(p) = max(0.01_r8, hypot(forc_u(t), forc_v(t)))
             wind_speed_adj(p) = wind_speed0(p)
-            ur(p) = max(1.0_r8, sqrt(wind_speed_adj(p)**2 + ugust(t)**2))
+            ! Blower-induced effective wind component with vertical decay
+            ! Decay height uses min(reference height above displacement, canopy top)
+            ! Set blower_u0 > 0 to enable; default is off (0))
+            ublow(p) = 0.0_r8
+            if (blower_u0 > 0.0_r8 .and. yr >= 2015) then
+               ublow(p) = blower_u0 * exp( - min( htop(p), max( 0.0_r8, forc_hgt_u_patch(p) - displa(p) ) ) / max(blower_lambda, 1.0e-6_r8) )
+            end if
+            ur(p) = max(1.0_r8, sqrt(wind_speed_adj(p)**2 + ugust(t)**2 + ublow(p)**2))
 
             prev_tau(p) = tau_est(t)
          else
-            ur(p) = max(1.0_r8,sqrt(forc_u(t)*forc_u(t)+forc_v(t)*forc_v(t)+ugust(t)*ugust(t)))
+            ! Blower-induced effective wind component with vertical decay
+            ublow(p) = 0.0_r8
+            if (blower_u0 > 0.0_r8 .and. yr >= 2015) then
+               ublow(p) = blower_u0 * exp( - min( htop(p), max( 0.0_r8, forc_hgt_u_patch(p) - displa(p) ) ) / max(blower_lambda, 1.0e-6_r8) )
+            end if
+            ur(p) = max(1.0_r8, sqrt(forc_u(t)*forc_u(t) + forc_v(t)*forc_v(t) + ugust(t)*ugust(t) + ublow(p)*ublow(p)))
          end if
          tau_diff(p) = 1.e100_r8
-         ugust_total(p) = ugust(t)
+         ! Treat blower-induced component as mechanical gustiness added in quadrature
+         ugust_total(p) = sqrt( ugust(t)*ugust(t) + ublow(p)*ublow(p) )
 
          dth(p) = thm(p)-taf(p)
          dqh(p) = forc_q(t)-qaf(p)
@@ -818,7 +842,7 @@ contains
                call shr_flux_update_stress(wind_speed0(p), wsresp(t), tau_est(t), &
                     tau(p), prev_tau(p), tau_diff(p), prev_tau_diff(p), &
                     wind_speed_adj(p))
-               ur(p) = max(1.0_r8, sqrt(wind_speed_adj(p)**2 + ugust(t)**2))
+               ur(p) = max(1.0_r8, sqrt(wind_speed_adj(p)**2 + ugust(t)**2 + ublow(p)**2))
             end if
 
             ! Bulk boundary layer resistance of leaves
@@ -1162,7 +1186,8 @@ contains
                zeta(p) = max(-100._r8,min(zeta(p),-0.01_r8))
                if ((.not. atm_gustiness) .or. force_land_gustiness) then
                   wc = beta*(-grav*ustar(p)*thvstar*zii/thv(c))**0.333_r8
-                  ugust_total(p) = sqrt(ugust(t)**2 + wc**2)
+                  ! Include blower-induced mechanical component in total gustiness
+                  ugust_total(p) = sqrt( ugust(t)**2 + wc**2 + ublow(p)**2 )
                   um(p) = sqrt(ur(p)*ur(p)+wc*wc)
                else
                   um(p) = max(ur(p),0.1_r8)
