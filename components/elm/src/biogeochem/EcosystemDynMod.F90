@@ -122,7 +122,7 @@ contains
   subroutine EcosystemDynLeaching(bounds, num_soilc, filter_soilc, &
        num_soilp, filter_soilp, num_pcropp, filter_pcropp, doalb, &
        cnstate_vars,  &
-       frictionvel_vars, canopystate_vars )
+       soilhydrology_vars, frictionvel_vars, canopystate_vars )
     !
     ! !DESCRIPTION:
     ! The core CN code is executed here. Calculates fluxes for maintenance
@@ -155,6 +155,7 @@ contains
     type(cnstate_type)       , intent(inout) :: cnstate_vars
     type(frictionvel_type)   , intent(in)    :: frictionvel_vars
     type(canopystate_type)   , intent(inout) :: canopystate_vars
+    type(soilhydrology_type) , intent(in)    :: soilhydrology_vars
 
     character(len=64) :: event
     real(r8) :: dt
@@ -203,7 +204,7 @@ contains
     !-----------------------------------------------------------------------
     ! pflotran: when both 'pf-bgc' and 'pf-h' on, no need to call CLM-CN's N leaching module
     if (.not. (pf_cmode .and. pf_hmode)) then
-     call NitrogenLeaching(num_soilc, filter_soilc, dt)
+     call NitrogenLeaching(num_soilc, filter_soilc, soilhydrology_vars, dt)
 
      call PhosphorusLeaching(num_soilc, filter_soilc, dt)
     end if !(.not. (pf_cmode .and. pf_hmode))
