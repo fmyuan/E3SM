@@ -8,6 +8,7 @@ module VegStructUpdateMod
   use shr_sys_mod          , only : shr_sys_flush
   use shr_const_mod        , only : SHR_CONST_PI
   use elm_varctl           , only : iulog
+  use elm_varctl           , only : use_humhol
   use VegetationPropertiesType     , only : veg_vp
   use FrictionVelocityType , only : frictionvel_type
   use CNStateType          , only : cnstate_type
@@ -66,6 +67,7 @@ contains
     real(r8) :: tsai_min   ! PATCH derived minimum tsai
     real(r8) :: tsai_alpha ! monthly decay rate of tsai
     real(r8) :: dt         ! radiation time step (sec)
+    real(r8) :: fb1, fb2, thiswtht
 
     real(r8), parameter :: dtsmonth = 2592000._r8 ! number of seconds in a 30 day month (60x60x24x30)
     !-----------------------------------------------------------------------
@@ -93,9 +95,9 @@ contains
          vegshape           =>  veg_vp%vegshape               ,       & ! Input:  [real(r8) (:) ] vegetation shape for calculating snow buried fraction only (-) (Liston and Heimstra, 2011)
          stocking           =>  veg_vp%stocking               ,       & ! Input:  [real(r8) (:) ] Stocking density [stems / hectare]
 
-         snow_depth         =>  col_ws%snow_depth    ,       & ! Input:  [real(r8) (:) ] snow height (m)
-
-         forc_hgt_u_patch   =>  frictionvel_vars%forc_hgt_u_patch ,       & ! Input:  [real(r8) (:) ] observational height of wind at pft-level [m]
+         snow_depth         =>  col_ws%snow_depth             ,       & ! Input:  [real(r8) (:) ] snow height (m)                                   
+         h2osfc             =>  col_ws%h2osfc                 ,       &
+         forc_hgt_u_patch   =>  frictionvel_vars%forc_hgt_u_patch ,   & ! Input:  [real(r8) (:) ] observational height of wind at pft-level [m]
 
          leafc              =>  veg_cs%leafc      ,       & ! Input:  [real(r8) (:) ] (gC/m2) leaf C
          deadstemc          =>  veg_cs%deadstemc  ,       & ! Input:  [real(r8) (:) ] (gC/m2) dead stem C
@@ -256,6 +258,15 @@ contains
          else
             fb = max(min(snow_depth(c),0.2_r8),0._r8)/0.2_r8   ! 0.2m is assumed
             !depth of snow required for complete burial of grasses
+
+            if (use_humhol .and. nint(veg_vp%nonvascular(ivt(p))) == 1) then
+              !thiswtht = zwt(c)*(-1.0_r8)+humhol_ht/2.0_r8+h2osfc(c)/1000._r8 !height above hollow bottom
+              thiswtht = h2osfc(c)/1000._r8
+              !calculate submerged LAI or buried by snow (10cm is assumed)
+              fb1 = 1._r8 - max(min(snow_depth(c),0.1_r8),0._r8)/0.1_r8
+              fb2 = 1._r8 - max(min(thiswtht,0.1_r8),0._r8)/0.1_r8
+              fb = min(fb1, fb2)
+            endif
          endif
 
          elai(p) = max(tlai(p)*(1._r8 - fb), 0.0_r8)

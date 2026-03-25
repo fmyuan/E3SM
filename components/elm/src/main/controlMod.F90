@@ -71,6 +71,8 @@ module controlMod
                         use_elm_interface, use_elm_bgc, use_pflotran, &
                         use_hydrstress, domain_decomp_type, &
                         use_IM2_hillslope_hydrology, &
+                        use_humhol, obs_zwt_forcing, boardwalk_shade_frac, &
+                        boardwalk_light_trans, use_shrub_moss_shading, &
                         do_budgets, budget_inst, budget_daily, budget_month, &
                         budget_ann, budget_ltann, budget_ltend, &
                         use_lnd_rof_two_way, use_ocn_lnd_one_way, &
@@ -373,6 +375,8 @@ contains
 
     namelist /elm_inparm/ use_var_soil_thick, use_lake_wat_storage, lake_evap_cap_method
 
+    namelist /elm_inparm/ use_humhol, obs_zwt_forcing, boardwalk_shade_frac, boardwalk_light_trans
+
     namelist /elm_inparm/ use_hydrstress
 
     namelist /elm_inparm/ domain_decomp_type
@@ -392,6 +396,8 @@ contains
 
     namelist /elm_inparm/ &
          use_top_solar_rad, use_finetop_rad
+    namelist /elm_inparm/ &
+         use_shrub_moss_shading
 
     namelist /elm_mosart/ &
          lnd_rof_coupling_nstep
@@ -782,6 +788,10 @@ contains
     call mpi_bcast (use_firn_percolation_and_compaction, 1, MPI_LOGICAL, 0, mpicom, ier)
     call mpi_bcast (use_T_rho_dependent_snowthk, 1, MPI_LOGICAL, 0, mpicom, ier)
     call mpi_bcast (use_vichydro, 1, MPI_LOGICAL, 0, mpicom, ier)
+    call mpi_bcast (use_humhol, 1, MPI_LOGICAL, 0, mpicom, ier)
+    call mpi_bcast (obs_zwt_forcing, 1, MPI_LOGICAL, 0, mpicom, ier)
+    call mpi_bcast (boardwalk_shade_frac, 1, MPI_REAL8, 0, mpicom, ier)
+    call mpi_bcast (boardwalk_light_trans, 1, MPI_REAL8, 0, mpicom, ier)
     call mpi_bcast (use_century_decomp, 1, MPI_LOGICAL, 0, mpicom, ier)
     call mpi_bcast (use_cn, 1, MPI_LOGICAL, 0, mpicom, ier)
     call mpi_bcast (use_fates, 1, MPI_LOGICAL, 0, mpicom, ier)
@@ -1115,6 +1125,10 @@ contains
     write(iulog,*) '    use_vancouver = ', use_vancouver
     write(iulog,*) '    use_mexicocity = ', use_mexicocity
     write(iulog,*) '    use_noio = ', use_noio
+    write(iulog,*) '    use_humhol = ', use_humhol
+    write(iulog,*) '    boardwalk_shade_frac = ', boardwalk_shade_frac
+    write(iulog,*) '    boardwalk_light_trans = ', boardwalk_light_trans
+    write(iulog,*) '    obs_zwt_forcing = ', obs_zwt_forcing
     write(iulog,*) '    use_IM2_hillslope_hydrology = ', use_IM2_hillslope_hydrology
     write(iulog,*) '    use_atm_downscaling_to_topunit = ', use_atm_downscaling_to_topunit
     write(iulog,*) '    precip_downscaling_method = ', precip_downscaling_method

@@ -105,6 +105,8 @@ module VegetationDataType
     real(r8), pointer :: begwb        (:) => null() ! water mass begining of the time step
     real(r8), pointer :: endwb        (:) => null() ! water mass end of the time step
     real(r8), pointer :: errh2o       (:) => null() ! water conservation error (mm H2O)
+    real(r8), pointer :: h2o_moss_wc    (:) => null() ! Total water content of Sphagnum moss (relative to dry mass (relative to dry mass))
+    real(r8), pointer :: h2o_moss_inter (:) => null() ! Internal water content of Sphagnum moss (relative to dry mass (relative to dry mass))
   contains
     procedure, public :: Init    => veg_ws_init
     procedure, public :: Restart => veg_ws_restart
@@ -781,6 +783,7 @@ module VegetationDataType
     ! allocation fluxes
     real(r8), pointer :: retransn_to_npool                   (:)   => null()  ! deployment of retranslocated N (gN/m2/s)
     real(r8), pointer :: sminn_to_npool                      (:)   => null()  ! deployment of soil mineral N uptake (gN/m2/s)
+    real(r8), pointer :: ndep_to_npool                       (:)   => null()
     real(r8), pointer :: smin_no3_to_plant_vr                (:,:) => null()
     real(r8), pointer :: smin_nh4_to_plant_vr               (:,:) => null()
     real(r8), pointer :: npool_to_grainn                     (:)   => null()  ! allocation to grain N for prognostic crop (gN/m2/s)
@@ -1822,6 +1825,8 @@ module VegetationDataType
     allocate(this%begwb               (begp:endp))          ; this%begwb             (:) = spval
     allocate(this%endwb               (begp:endp))          ; this%endwb             (:) = spval
     allocate(this%errh2o              (begp:endp))          ; this%errh2o            (:) = spval
+    allocate(this%h2o_moss_wc         (begp:endp))          ; this%h2o_moss_wc       (:) = spval
+    allocate(this%h2o_moss_inter      (begp:endp))          ; this%h2o_moss_inter    (:) = spval
 
     !-----------------------------------------------------------------------
     ! initialize history fields for select members of veg_ws
@@ -1868,6 +1873,11 @@ module VegetationDataType
        call hist_addfld1d (fname='FDRY', units='proportion', &
             avgflag='A', long_name='fraction of foliage that is green and dry', &
             ptr_patch=this%fdry, default='inactive')
+
+       this%h2o_moss_wc(begp:endp) = spval
+       call hist_addfld1d (fname='H2O_MOSS_WC', units='proportion', &
+            avgflag='A', long_name='Relative water content of Moss', &
+            ptr_patch=this%h2o_moss_wc)
     end if
 
     !-----------------------------------------------------------------------
@@ -8282,8 +8292,6 @@ module VegetationDataType
           end if
        end if
 
-
-
        ! net primary production (NPP)
        this%npp(p) = &
             this%gpp(p) - &
@@ -8930,6 +8938,7 @@ module VegetationDataType
     allocate(this%livecrootn_to_litter                (begp:endp)) ; this%livecrootn_to_litter                (:) = spval
     allocate(this%retransn_to_npool                   (begp:endp)) ; this%retransn_to_npool                   (:) = spval
     allocate(this%sminn_to_npool                      (begp:endp)) ; this%sminn_to_npool                      (:) = spval
+    allocate(this%ndep_to_npool                       (begp:endp)) ; this%ndep_to_npool                       (:) = spval 
     allocate(this%npool_to_leafn                      (begp:endp)) ; this%npool_to_leafn                      (:) = spval
     allocate(this%npool_to_leafn_storage              (begp:endp)) ; this%npool_to_leafn_storage              (:) = spval
     allocate(this%npool_to_frootn                     (begp:endp)) ; this%npool_to_frootn                     (:) = spval
@@ -9273,6 +9282,11 @@ module VegetationDataType
     call hist_addfld1d (fname='SMINN_TO_NPOOL', units='gN/m^2/s', &
          avgflag='A', long_name='deployment of soil mineral N uptake', &
          ptr_patch=this%sminn_to_npool)
+
+     this%ndep_to_npool(begp:endp) = spval
+     call hist_addfld1d (fname='NDEP_TO_NPOOL', units='gN/m^2/s', &
+          avgflag='A', long_name='deployment of N deposition to plant npool', &
+          ptr_patch=this%ndep_to_npool)
 
     this%npool_to_leafn(begp:endp) = spval
     call hist_addfld1d (fname='NPOOL_TO_LEAFN', units='gN/m^2/s', &
@@ -9689,6 +9703,7 @@ module VegetationDataType
        this%livecrootn_to_litter(i)                = value_patch
        this%retransn_to_npool(i)                   = value_patch
        this%sminn_to_npool(i)                      = value_patch
+       this%ndep_to_npool(i)                       = value_patch
        this%npool_to_leafn(i)                      = value_patch
        this%npool_to_leafn_storage(i)              = value_patch
        this%npool_to_frootn(i)                     = value_patch
@@ -9771,7 +9786,8 @@ module VegetationDataType
        ! total N deployment (from sminn and retranslocated N pool) (NDEPLOY)
        this%ndeploy(p) = &
             this%sminn_to_npool(p) + &
-            this%retransn_to_npool(p)
+            this%retransn_to_npool(p) + &
+            this%ndep_to_npool(p)
 
        ! pft-level wood harvest
        this%wood_harvestn(p) = &

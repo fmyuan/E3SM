@@ -673,7 +673,7 @@ module TopounitDataType
     !-----------------------------------------------------------------------
     ! initialize history fields for members of top_ws
     !-----------------------------------------------------------------------
-    if (use_IM2_hillslope_hydrology) then
+    if (use_IM2_hillslope_hydrology .or. any(top_pp%peat_depth > 0._r8)) then
       call hist_addfld1d (fname='WATER_FROM_UPHILL',  units='mm',  &
           avgflag='A', long_name='water received from uphill topounit(s)', &
           ptr_topo=this%from_uphill, t2g_scale_type='unity')
