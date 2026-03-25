@@ -55,8 +55,13 @@ module TopounitType
     real(r8), pointer :: lat        (:) => null() ! mean latitude (radians)
     real(r8), pointer :: lon        (:) => null() ! mean longitude (radians)
     real(r8), pointer :: elevation  (:) => null() ! mean soil surface elevation, above mean sea level (m)
+    real(r8), pointer :: lateral_dist (:) => null() ! lateral distance to the next lower topounit in the gridcell (m)
+    integer , pointer :: regional_target_ti (:) => null() ! regional lateral-flow target topounit index
     real(r8), pointer :: slope      (:) => null() ! mean slope angle (radians)
     integer , pointer :: aspect     (:) => null() ! mean aspect angle, measured clockwise from north (radians)
+    logical , pointer :: is_bog     (:) => null() ! true when topounit is a bog, skipped as surface-routing receiver
+    real(r8), pointer :: peat_depth (:) => null() ! peat depth above restrictive till (m)
+    real(r8), pointer :: till_ksat  (:) => null() ! restrictive till saturated conductivity (mm/s)
     real(r8), pointer :: emissivity (:) => null() ! mean surface emissivity
     real(r8), pointer :: surfalb_dir(:,:) => null() ! (topunit,numrad) mean surface albedo (direct)
     real(r8), pointer :: surfalb_dif(:,:) => null() ! (topunit,numrad) mean surface albedo (diffuse)
@@ -99,8 +104,13 @@ module TopounitType
     allocate(this%lat         (begt:endt)) ; this%lat         (:) = spval
     allocate(this%lon         (begt:endt)) ; this%lon         (:) = spval
     allocate(this%elevation   (begt:endt)) ; this%elevation   (:) = spval
+    allocate(this%lateral_dist(begt:endt)) ; this%lateral_dist(:) = spval
+    allocate(this%regional_target_ti(begt:endt)) ; this%regional_target_ti(:) = -1
     allocate(this%slope       (begt:endt)) ; this%slope       (:) = spval
     allocate(this%aspect      (begt:endt)) ; this%aspect      (:) = ispval
+    allocate(this%is_bog      (begt:endt)) ; this%is_bog      (:) = .false.
+    allocate(this%peat_depth  (begt:endt)) ; this%peat_depth  (:) = 0._r8
+    allocate(this%till_ksat   (begt:endt)) ; this%till_ksat   (:) = 0._r8
     allocate(this%emissivity  (begt:endt)) ; this%emissivity  (:) = spval
     allocate(this%surfalb_dir (begt:endt,1:numrad)) ; this%surfalb_dir(:,:) = spval
     allocate(this%surfalb_dif (begt:endt,1:numrad)) ; this%surfalb_dif(:,:) = spval 
@@ -131,8 +141,13 @@ module TopounitType
     deallocate(this%lat         )
     deallocate(this%lon         )
     deallocate(this%elevation   )
+    deallocate(this%lateral_dist)
+    deallocate(this%regional_target_ti)
     deallocate(this%slope       )
     deallocate(this%aspect      )
+    deallocate(this%is_bog      )
+    deallocate(this%peat_depth  )
+    deallocate(this%till_ksat   )
     deallocate(this%emissivity  )
     deallocate(this%surfalb_dir )
     deallocate(this%surfalb_dif )

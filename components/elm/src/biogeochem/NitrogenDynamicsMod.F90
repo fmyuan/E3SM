@@ -13,6 +13,7 @@ module NitrogenDynamicsMod
   use elm_varcon          , only : dzsoi_decomp, zisoi
   use elm_varctl          , only : use_vertsoilc, use_fan
   use subgridAveMod       , only : p2c, p2c_1d_filter
+  use elm_varctl          , only : use_humhol
   use atm2lndType         , only : atm2lnd_type
   use CNStateType         , only : cnstate_type
   use CropType            , only : crop_type
@@ -27,6 +28,7 @@ module NitrogenDynamicsMod
   use ELMFatesInterfaceMod  , only : hlm_fates_interface_type
   use FrictionVelocityType, only : frictionvel_type
   use SoilStateType       , only : soilstate_type
+  use CanopyStateType     , only : canopystate_type
   use FanUpdateMod        , only : fan_eval
 
   !
@@ -47,8 +49,8 @@ module NitrogenDynamicsMod
   !
   ! !PRIVATE DATA:
   type, public :: CNNDynamicsParamsType
-     real(r8) :: sf      ! soluble fraction of mineral N (unitless)
-     real(r8) :: sf_no3  ! soluble fraction of NO3 (unitless)
+     real(r8), pointer :: sf     => null()    ! soluble fraction of mineral N (unitless)
+     real(r8), pointer :: sf_no3 => null()    ! soluble fraction of NO3 (unitless)
   end type CNNDynamicsParamsType
 
   type(CNNDynamicsParamsType), public ::  CNNDynamicsParamsInst
@@ -101,6 +103,8 @@ contains
 
     call NitrogenDynamicsInit()
 
+    allocate(CNNDynamicsParamsInst%sf)
+    allocate(CNNDynamicsParamsInst%sf_no3)
     tString='sf_minn'
     call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
     if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
@@ -114,7 +118,7 @@ contains
   end subroutine readNitrogenDynamicsParams
 
   !-----------------------------------------------------------------------
-  subroutine NitrogenDeposition( bounds, atm2lnd_vars )
+  subroutine NitrogenDeposition( bounds, canopystate_vars, atm2lnd_vars )
     !
     ! !DESCRIPTION:
     ! On the radiation time step, update the nitrogen deposition rate
@@ -124,16 +128,24 @@ contains
     ! directly into the canopy and mineral N entering the soil pool.
     !
     ! !ARGUMENTS:
+    type(canopystate_type)   , intent(in)    :: canopystate_vars
     type(bounds_type)  , intent(in)  :: bounds 
     type(atm2lnd_type) , intent(in)  :: atm2lnd_vars
     !
     ! !LOCAL VARIABLES:
     integer :: g,c,fc                  ! indices
     integer :: begc, endc
+    integer :: p                    ! indices
+    real(r8) :: moss_column_lai        ! effective moss LAI for column
+    real(r8) :: moss_ndep_fraction      ! fraction of N deposition going to moss
+    real(r8) :: total_ndep_flux         ! total N deposition flux
+    real(r8), parameter :: k_intercept = 1.2_r8  ! interception coefficient
     !-----------------------------------------------------------------------
 
     associate(&
          forc_ndep     =>  atm2lnd_vars%forc_ndep_grc           , & ! Input:  [real(r8) (:)]  nitrogen deposition rate (gN/m2/s)
+         elai          =>  canopystate_vars%elai_patch          , & ! Input:  [real(r8) (:)   ]  one-sided leaf area index with burying by snow
+         ndep_to_npool =>  veg_nf%ndep_to_npool   , & ! Output: [real(r8) (:)] N deposition to plant N pool (gN/m2/s)
          ndep_to_sminn =>  col_nf%ndep_to_sminn   & ! Output: [real(r8) (:)]
          )
       begc = bounds%begc
@@ -146,6 +158,41 @@ contains
       do c = begc, endc 
          g = col_pp%gridcell(c)
          ndep_to_sminn(c) = forc_ndep(g)
+         do p = col_pp%pfti(c), col_pp%pftf(c)
+            ndep_to_npool(p) = 0._r8
+         enddo
+
+         if (use_humhol) then
+            ! Calculate moss LAI and fractional cover for this column
+            moss_column_lai = 0._r8
+            do p = col_pp%pfti(c), col_pp%pftf(c)
+               if (veg_pp%active(p) .and. nint(veg_vp%nonvascular(veg_pp%itype(p))) == 1) then
+                  moss_column_lai = moss_column_lai + elai(p) * veg_pp%wtcol(p)
+               endif
+            enddo
+            if (moss_column_lai > 0._r8) then
+              moss_ndep_fraction = 1._r8 - exp(-k_intercept * moss_column_lai)
+            else
+              moss_ndep_fraction = 0._r8
+            end if
+
+            total_ndep_flux = 0.57_r8 / (86400_r8 * 365_r8)
+            ndep_to_sminn(c) = total_ndep_flux
+
+            do p = col_pp%pfti(c), col_pp%pftf(c)
+              if (veg_pp%active(p) .and. nint(veg_vp%nonvascular(veg_pp%itype(p))) == 1) then
+                 if (moss_column_lai > 0._r8) then
+                    ndep_to_npool(p) = total_ndep_flux * moss_ndep_fraction / veg_pp%wtcol(p)
+                    ndep_to_sminn(c) = ndep_to_sminn(c) - ndep_to_npool(p) * veg_pp%wtcol(p)
+                 else
+                    ndep_to_npool(p) = 0._r8
+                 endif
+              else
+                 ndep_to_npool(p) = 0._r8
+              endif
+            enddo
+         end if
+
       end do
 
     end associate
