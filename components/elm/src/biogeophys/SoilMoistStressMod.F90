@@ -321,6 +321,7 @@ contains
     use EnergyFluxType       , only : energyflux_type
     use VegetationType            , only : veg_pp
     use elm_varctl       , only : use_hydrstress
+    use elm_varctl       , only : use_humhol
     !
     ! !ARGUMENTS:
     implicit none
@@ -417,6 +418,13 @@ contains
                else
                   rootr(p,j) = rootfr_unf(p,j)*rresis(p,j)
                end if
+
+               if (use_humhol) then
+                  if (nint(veg_vp%nonvascular(veg_pp%itype(p))) == 1 .and. h2osoi_liqvol(c,j) .ge. 0.05_r8) then
+                     rootr(p,j) = rootfr(p,j)  !Don't consider resistance for moss
+                  end if
+               end if
+
                !it is possible to further separate out a btran function, but I will leave it for the moment, jyt
                if( .not. use_hydrstress ) then
                  btran(p)    = btran(p) + max(rootr(p,j),0._r8) !btran added to rootr, then later rootr divided by (btran+rootr) SLL see line 434

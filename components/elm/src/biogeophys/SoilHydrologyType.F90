@@ -9,6 +9,7 @@ Module SoilHydrologyType
   use elm_varpar            , only : more_vertlayers, nlevsoifl, toplev_equalspace
   use elm_varcon            , only : zsoi, dzsoi, zisoi, spval
   use elm_varctl            , only : iulog, use_lnd_rof_two_way
+  use elm_varctl            , only : use_humhol
   use SharedParamsMod     , only : ParamsShareInst
   use LandunitType          , only : lun_pp                
   use ColumnType            , only : col_pp      
@@ -35,6 +36,10 @@ Module SoilHydrologyType
      real(r8), pointer :: zwt_col           (:)    => null() ! col water table depth
      real(r8), pointer :: zwts_col          (:)    => null() ! col water table depth, the shallower of the two water depths
      real(r8), pointer :: zwt_perched_col   (:)    => null() ! col perched water table depth
+     real(r8), pointer :: zwt_perched_k_col (:)    => null() ! col perched water table crossing layer
+     real(r8), pointer :: zwt_perched_kbarrier_col(:)=> null() ! col perched water table barrier layer
+     real(r8), pointer :: zwt_perched_sat1_col(:)  => null() ! saturation ratio at perched crossing layer
+     real(r8), pointer :: zwt_perched_sat2_col(:)  => null() ! saturation ratio below perched crossing layer
      real(r8), pointer :: wa_col            (:)    => null() ! col water in the unconfined aquifer (mm)
      real(r8), pointer :: beg_wa_grc        (:)    => null() ! grid-level water in the unconfined aquifer at beginning of the time step (mm)
      real(r8), pointer :: end_wa_grc        (:)    => null() ! grid-level water in the unconfined aquifer at end of the time step (mm)
@@ -128,6 +133,10 @@ contains
     allocate(this%zwt_col           (begc:endc))                 ; this%zwt_col           (:)     = spval
     allocate(this%qflx_bot_col      (begc:endc))                 ; this%qflx_bot_col      (:)     = spval
     allocate(this%zwt_perched_col   (begc:endc))                 ; this%zwt_perched_col   (:)     = spval
+    allocate(this%zwt_perched_k_col (begc:endc))                 ; this%zwt_perched_k_col (:)     = spval
+    allocate(this%zwt_perched_kbarrier_col(begc:endc))           ; this%zwt_perched_kbarrier_col(:) = spval
+    allocate(this%zwt_perched_sat1_col(begc:endc))               ; this%zwt_perched_sat1_col(:) = spval
+    allocate(this%zwt_perched_sat2_col(begc:endc))               ; this%zwt_perched_sat2_col(:) = spval
     allocate(this%zwts_col          (begc:endc))                 ; this%zwts_col          (:)     = spval
 
     allocate(this%wa_col            (begc:endc))                 ; this%wa_col            (:)     = spval
@@ -223,6 +232,26 @@ contains
     call hist_addfld1d (fname='ZWT_PERCH',  units='m',  &
          avgflag='A', long_name='perched water table depth (vegetated landunits only)', &
          ptr_col=this%zwt_perched_col, l2g_scale_type='veg')
+
+    this%zwt_perched_k_col(begc:endc) = spval
+    call hist_addfld1d (fname='ZWT_PERCH_K',  units='1',  &
+         avgflag='A', long_name='perched water table diagnostic crossing layer', &
+         ptr_col=this%zwt_perched_k_col, l2g_scale_type='veg')
+
+    this%zwt_perched_kbarrier_col(begc:endc) = spval
+    call hist_addfld1d (fname='ZWT_PERCH_KBARRIER',  units='1',  &
+         avgflag='A', long_name='perched water table diagnostic barrier layer', &
+         ptr_col=this%zwt_perched_kbarrier_col, l2g_scale_type='veg')
+
+    this%zwt_perched_sat1_col(begc:endc) = spval
+    call hist_addfld1d (fname='ZWT_PERCH_SAT1',  units='1',  &
+         avgflag='A', long_name='saturation ratio at perched water table crossing layer', &
+         ptr_col=this%zwt_perched_sat1_col, l2g_scale_type='veg')
+
+    this%zwt_perched_sat2_col(begc:endc) = spval
+    call hist_addfld1d (fname='ZWT_PERCH_SAT2',  units='1',  &
+         avgflag='A', long_name='saturation ratio below perched water table crossing layer', &
+         ptr_col=this%zwt_perched_sat2_col, l2g_scale_type='veg')
 
   end subroutine InitHistory
 
@@ -503,6 +532,7 @@ contains
                          om_frac = 0._r8
                       endif
                    end if
+                   om_frac = min(1.0_r8, max(0._r8, om_frac))
 
                    if (lun_pp%urbpoi(l)) om_frac = 0._r8
                    claycol(c,lev)    = clay
@@ -913,6 +943,9 @@ contains
      origflag = 1
 #endif
      h2osfcflag = 1
+     if (use_humhol) then
+        origflag = 1
+     end if
 
      if ( masterproc )then
 

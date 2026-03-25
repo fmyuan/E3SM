@@ -11,6 +11,7 @@ module NitrifDenitrifMod
   use elm_varcon          , only : rpi, denh2o, dzsoi, zisoi, grav
   use elm_varcon          , only : d_con_g, d_con_w, spval, secspday
   use elm_varctl          , only : use_lch4, iulog
+  use elm_varctl          , only : use_humhol
   use abortutils          , only : endrun
   use decompMod           , only : bounds_type
   use SoilStatetype       , only : soilstate_type
@@ -227,6 +228,9 @@ contains
       organic_max = ParamsShareInst%organic_max
 
       pH(bounds%begc:bounds%endc) = 6.5  !!! set all soils with the same pH as placeholder here
+      if (use_humhol) then
+         pH(bounds%begc:bounds%endc) = 4.0
+      end if
       co2diff_con(1) =   0.1325_r8
       co2diff_con(2) =   0.0009_r8
 

@@ -147,7 +147,7 @@ contains
    !-----------------------------------------------------------------------
    subroutine ColWaterBalanceCheck( bounds, num_do_smb_c, filter_do_smb_c, &
         atm2lnd_vars, glc2lnd_vars, solarabs_vars, &
-        energyflux_vars, canopystate_vars)
+        energyflux_vars, canopystate_vars, soilhydrology_vars)
      !
      ! !DESCRIPTION:
      ! This subroutine accumulates the numerical truncation errors of the water
@@ -169,6 +169,7 @@ contains
      use column_varcon     , only : icol_road_perv, icol_road_imperv
      use landunit_varcon   , only : istice_mec, istice, istdlak, istsoil,istcrop,istwet
      use elm_varctl        , only : create_glacier_mec_landunit, use_IM2_hillslope_hydrology
+     use elm_varctl        , only : use_humhol
      use elm_initializeMod , only : surfalb_vars  
      use CanopyStateType   , only : canopystate_type
      use subgridAveMod
@@ -182,6 +183,7 @@ contains
      type(solarabs_type)   , intent(in)    :: solarabs_vars
      type(energyflux_type) , intent(inout) :: energyflux_vars
      type(canopystate_type), intent(inout) :: canopystate_vars
+     type(soilhydrology_type), intent(in)  :: soilhydrology_vars
      !
      ! !LOCAL VARIABLES:
      integer  :: p,c,l,t,g,fc                           ! indices
@@ -190,6 +192,9 @@ contains
      logical  :: found                                  ! flag in search loop
      integer  :: indexp,indexc,indexl,indext,indexg     ! index of first found in search loop
      real(r8) :: forc_rain_col(bounds%begc:bounds%endc) ! column level rain rate [mm/s]
+	 real(r8) :: wb_flux_sum                            ! flux sum used by column water balance [mm/s]
+	 real(r8) :: evap_component_sum                     ! qflx_evap_tot reconstructed from components [mm/s]
+	 real(r8) :: h2o_abort_threshold                    ! fatal water balance threshold (mm)
      real(r8) :: forc_snow_col(bounds%begc:bounds%endc) ! column level snow rate [mm/s]
      real(r8) :: sol_err_th                             ! solar radiation imbalance threshold
      !-----------------------------------------------------------------------
@@ -206,6 +211,9 @@ contains
           do_capsnow                 =>    col_ws%do_capsnow             , & ! Input:  [logical (:)    ]  true => do snow capping
           h2osno                     =>    col_ws%h2osno                 , & ! Input:  [real(r8) (:)   ]  snow water (mm H2O)
           h2osno_old                 =>    col_ws%h2osno_old             , & ! Input:  [real(r8) (:)   ]  snow water (mm H2O) at previous time step
+          h2osfc                     =>    col_ws%h2osfc                 , & ! Input:  [real(r8) (:)   ]  surface water (mm)
+          h2osoi_liq                 =>    col_ws%h2osoi_liq             , & ! Input:  [real(r8) (:,:) ]  liquid water (kg/m2)
+          h2osoi_ice                 =>    col_ws%h2osoi_ice             , & ! Input:  [real(r8) (:,:) ]  ice lens (kg/m2)
           frac_sno_eff               =>    col_ws%frac_sno_eff           , & ! Input:  [real(r8) (:)   ]  effective snow fraction
           frac_sno                   =>    col_ws%frac_sno               , & ! Input:  [real(r8) (:)   ]  fraction of ground covered by snow (0 to 1)
           begwb                      =>    col_ws%begwb                  , & ! Input:  [real(r8) (:)   ]  water mass begining of the time step
@@ -218,6 +226,9 @@ contains
           qflx_snow_grnd_col         =>    col_wf%qflx_snow_grnd          , & ! Input:  [real(r8) (:)   ]  snow on ground after interception (mm H2O/s) [+]
           qflx_evap_soi              =>    col_wf%qflx_evap_soi           , & ! Input:  [real(r8) (:)   ]  soil evaporation (mm H2O/s) (+ = to atm)
           qflx_irrig                 =>    col_wf%qflx_irrig              , & ! Input:  [real(r8) (:)   ]  irrigation flux (mm H2O /s)
+	      qflx_evap_veg              =>    col_wf%qflx_evap_veg           , & ! Input:  [real(r8) (:)   ]  vegetation evaporation (mm H2O/s) (+ = to atm)
+	      qflx_evap_can              =>    col_wf%qflx_evap_can           , & ! Input:  [real(r8) (:)   ]  canopy evaporation (mm H2O/s) (+ = to atm)
+	      qflx_tran_veg              =>    col_wf%qflx_tran_veg           , & ! Input:  [real(r8) (:)   ]  vegetation transpiration (mm H2O/s) (+ = to atm)
           qflx_surf_irrig_col        =>    col_wf%qflx_surf_irrig         , & ! Input:  [real(r8) (:)   ]  real surface irrigation flux (mm H2O /s)
           qflx_over_supply_col       =>    col_wf%qflx_over_supply        , & ! Input:  [real(r8) (:)   ]  over supply irrigation flux (mm H2O /s)
           qflx_snwcp_ice             =>    col_wf%qflx_snwcp_ice          , & ! Input:  [real(r8) (:)   ]  excess snowfall due to snow capping (mm H2O /s) [+]`
@@ -250,11 +261,16 @@ contains
           qflx_ice_dynbal            =>    grc_wf%qflx_ice_dynbal         , & ! Input:  [real(r8) (:)   ]  ice runoff due to dynamic land cover change (mm H2O /s)
           snow_sources               =>    col_wf%snow_sources            , & ! Output: [real(r8) (:)   ]  snow sources (mm H2O /s)
           snow_sinks                 =>    col_wf%snow_sinks              , & ! Output: [real(r8) (:)   ]  snow sinks (mm H2O /s)
+          qflx_lat_aqu               =>    col_wf%qflx_lat_aqu            , & ! Input:   [real(r8) (:)   ]  lateral flow between hummock and hollow (mm H2O /s)
+          qflx_surf_input            =>    col_wf%qflx_surf_input         , & ! Input:   [real(r8) (:)   ]  input to hollow surface water from hummock (mm H2O /s)
           qflx_lateral               =>    col_wf%qflx_lateral            , & ! Input:  [real(r8) (:)   ]  lateral flux of water to neighboring column (mm H2O /s)
           qflx_lnd2ocn               =>    col_wf%qflx_lnd2ocn            , & ! Input:  [real(r8) (:)   ]  lateral flow from lnd to ocn (mm H2O /s)
           qflx_h2orof_drain          =>    col_wf%qflx_h2orof_drain       , & ! Input:  [real(r8) (:)   ]  drainange from floodplain inundation volume (mm H2O/s) 
           qflx_h2oocn_drain          =>    col_wf%qflx_h2oocn_drain       , & ! Input:  [real(r8) (:)   ]  drainange from floodplain inundation volume (mm H2O/s) 
 
+          qcharge                    =>    soilhydrology_vars%qcharge_col , & ! Input:  [real(r8) (:)   ] aquifer recharge rate (mm/s)
+          wa                         =>    soilhydrology_vars%wa_col      , & ! Input:  [real(r8) (:)   ] unconfined aquifer water (mm)
+          zwt                        =>    soilhydrology_vars%zwt_col     , & ! Input:  [real(r8) (:)   ] water table depth (m)
           eflx_lwrad_out             =>    veg_ef%eflx_lwrad_out       , & ! Input:  [real(r8) (:)   ]  emitted infrared (longwave) radiation (W/m**2)
           eflx_lwrad_net             =>    veg_ef%eflx_lwrad_net       , & ! Input:  [real(r8) (:)   ]  net infrared (longwave) rad (W/m**2) [+ = to atm]
           eflx_sh_tot                =>    veg_ef%eflx_sh_tot          , & ! Input:  [real(r8) (:)   ]  total sensible heat flux (W/m**2) [+ to atm]
@@ -344,6 +360,11 @@ contains
              errh2o(c) = errh2o(c) &
                   - (qflx_tide(c)) * dtime
 #endif
+             if (use_humhol) then
+                errh2o(c) = errh2o(c) &
+                  - (qflx_lat_aqu(c)) * dtime
+             end if
+
              dwb(c) = (endwb(c)-begwb(c))/dtime
 
           else
@@ -392,6 +413,9 @@ contains
                !' global indexc= ',GetGlobalIndex(decomp_index=indexc, elmlevel=namec), &
                ' errh2o= ',errh2o(indexc)             
 
+          h2o_abort_threshold = 1.e-4_r8
+          if (use_humhol) h2o_abort_threshold = 1.e-3_r8
+
           if ((col_pp%itype(indexc) == icol_roof .or. &
                col_pp%itype(indexc) == icol_road_imperv .or. &
                col_pp%itype(indexc) == icol_road_perv) .and. &
@@ -420,12 +444,13 @@ contains
              write(iulog,*)'elm model is stopping'
              call endrun(decomp_index=indexc, elmlevel=namec, msg=errmsg(__FILE__, __LINE__))
 
-          else if (abs(errh2o(indexc)) > 1.e-4_r8 .and. (nstep > 2) ) then
+          else if (abs(errh2o(indexc)) > h2o_abort_threshold .and. (nstep > 2) ) then
 
-             write(iulog,*)'elm model is stopping - error is greater than 1e-4 (mm)'
+             write(iulog,*)'elm model is stopping - water balance error exceeds threshold'
              write(iulog,*)'colum number               = ',col_pp%gridcell(indexc)
              write(iulog,*)'nstep                      = ',nstep
              write(iulog,*)'errh2o                     = ',errh2o(indexc)
+             write(iulog,*)'h2o abort threshold        = ',h2o_abort_threshold
              write(iulog,*)'forc_rain                  = ',forc_rain_col(indexc)
              write(iulog,*)'forc_snow                  = ',forc_snow_col(indexc)
              write(iulog,*)'endwb                      = ',endwb(indexc)
@@ -453,6 +478,48 @@ contains
              write(iulog,*)'qflx_h2orof_drain          = ',qflx_h2orof_drain(indexc)
              write(iulog,*)'qflx_ice_runoff_xs         = ',qflx_ice_runoff_xs(indexc)
              write(iulog,*)'qflx_h2oocn_drain          = ',qflx_h2oocn_drain(indexc)
+
+             if (use_humhol) then
+                write(iulog,*)'qflx_lat_aqu               = ',qflx_lat_aqu(indexc)
+                write(iulog,*)'qcharge                    = ',qcharge(indexc)
+                write(iulog,*)'qcharge dt                 = ',qcharge(indexc)*dtime
+                write(iulog,*)'qflx_from_uphill           = ',qflx_from_uphill(indexc)
+                write(iulog,*)'qflx_to_downhill           = ',qflx_to_downhill(indexc)
+                write(iulog,*)'qflx_surf_input            = ',qflx_surf_input(indexc)
+                write(iulog,*)'qflx_top_soil              = ',qflx_top_soil(indexc)
+                write(iulog,*)'qflx_sl_top_soil           = ',qflx_sl_top_soil(indexc)
+                write(iulog,*)'qflx_snow_melt             = ',qflx_snow_melt(indexc)
+                write(iulog,*)'qflx_snwcp_liq             = ',qflx_snwcp_liq(indexc)
+                write(iulog,*)'qflx_snow_h2osfc           = ',qflx_snow_h2osfc(indexc)
+                write(iulog,*)'qflx_h2osfc_to_ice         = ',qflx_h2osfc_to_ice(indexc)
+                write(iulog,*)'dtime                      = ',dtime
+                write(iulog,*)'storage_delta              = ',endwb(indexc)-begwb(indexc)
+
+                wb_flux_sum = forc_rain_col(indexc) + forc_snow_col(indexc) + qflx_floodc(indexc) &
+                     + qflx_from_uphill(indexc) + qflx_irrig(indexc) - qflx_evap_tot(indexc) &
+                     - qflx_surf(indexc) - qflx_h2osfc_surf(indexc) - qflx_to_downhill(indexc) &
+                     - qflx_qrgwl(indexc) - qflx_drain(indexc) - qflx_drain_perched(indexc) &
+                     - qflx_snwcp_ice(indexc) + qflx_lat_aqu(indexc) - qflx_lateral(indexc)
+                write(iulog,*)'wb_flux_sum                = ',wb_flux_sum
+                write(iulog,*)'wb_flux_sum_dt             = ',wb_flux_sum*dtime
+                write(iulog,*)'column topounit index      = ',col_pp%topounit(indexc)
+                write(iulog,*)'topounit topo_grc_ind      = ',top_pp%topo_grc_ind(col_pp%topounit(indexc))
+                write(iulog,*)'topounit weight gridcell   = ',top_pp%wtgcell(col_pp%topounit(indexc))
+                write(iulog,*)'topounit lateral_dist      = ',top_pp%lateral_dist(col_pp%topounit(indexc))
+                write(iulog,*)'topounit regional target   = ',top_pp%regional_target_ti(col_pp%topounit(indexc))
+                write(iulog,*)'topounit is_bog            = ',top_pp%is_bog(col_pp%topounit(indexc))
+                write(iulog,*)'topounit peat_depth        = ',top_pp%peat_depth(col_pp%topounit(indexc))
+                write(iulog,*)'topounit elevation         = ',top_pp%elevation(col_pp%topounit(indexc))
+                write(iulog,*)'topounit from_uphill state = ',top_ws%from_uphill(col_pp%topounit(indexc))
+                write(iulog,*)'h2osno                     = ',h2osno(indexc)
+                write(iulog,*)'h2osno_old                 = ',h2osno_old(indexc)
+                write(iulog,*)'h2osfc                     = ',h2osfc(indexc)
+                write(iulog,*)'wa                         = ',wa(indexc)
+                write(iulog,*)'zwt                        = ',zwt(indexc)
+                write(iulog,*)'h2osoi_liq                 = ',h2osoi_liq(indexc,1:col_pp%nlevbed(indexc))
+                write(iulog,*)'h2osoi_ice                 = ',h2osoi_ice(indexc,1:col_pp%nlevbed(indexc))
+             end if
+
              write(iulog,*)'elm model is stopping'
              call endrun(decomp_index=indexc, elmlevel=namec, msg=errmsg(__FILE__, __LINE__))
           end if

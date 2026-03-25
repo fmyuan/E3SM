@@ -385,7 +385,7 @@ contains
 
     event = 'CNDeposition'
     call t_start_lnd(event)
-    call NitrogenDeposition(bounds, atm2lnd_vars)
+    call NitrogenDeposition(bounds, canopystate_vars, atm2lnd_vars)
     if (use_fan) then
       call fan_eval(bounds, num_soilc, filter_soilc, &
            atm2lnd_vars, soilstate_vars, frictionvel_vars)
@@ -418,7 +418,7 @@ contains
        end if
        ! This is auto-trophic respiration, thus don't call this for FATES
        call MaintenanceResp(bounds, num_soilc, filter_soilc, num_soilp, filter_soilp, &
-            canopystate_vars, soilstate_vars,  photosyns_vars )
+            canopystate_vars, soilstate_vars,  photosyns_vars, cnstate_vars )
        call t_stop_lnd(event)
 
     end if
