@@ -4,7 +4,7 @@ module VegetationPropertiesType
   use shr_kind_mod   , only : r8 => shr_kind_r8
   use elm_varpar     , only : nlevdecomp
   use elm_varpar     , only : nsoilorder
-  use elm_varctl     , only : nu_com
+  use elm_varctl     , only : nu_com, use_humhol
   use elm_varcon     , only : spval, ispval
   !
   implicit none
@@ -142,6 +142,8 @@ module VegetationPropertiesType
      real(r8), pointer :: mbbopt(:)        => null()   !Ball-Berry stomatal conductance slope
      real(r8), pointer :: nstor(:)         => null()   !Nitrogen storage pool timescale
      real(r8), pointer :: br_xr(:)         => null()   !Base rate for excess respiration
+     real(r8), pointer :: br_mr_pft(:)     => null()   !Base rate for maintanence respiration
+     real(r8), pointer :: q10_mr_pft(:)    => null()   !Q10 for maintanence respiration
      real(r8), pointer :: tc_stress        => null()   !Critial temperature for moisture stress
      ! new properties for flexible PFT
      real(r8), pointer :: climatezone(:)   => null()   !climate zone adapted
@@ -193,6 +195,7 @@ contains
     use pftvarcon , only : fnr, act25, kcha, koha, cpha, vcmaxha, jmaxha, tpuha
     use pftvarcon , only : lmrha, vcmaxhd, jmaxhd, tpuhd, lmrse, qe, theta_cj
     use pftvarcon , only : bbbopt, mbbopt, nstor, br_xr, tc_stress, lmrhd
+    use pftvarcon , only : br_mr_pft, q10_mr_pft
     ! new properties for flexible PFT (NGEE Arctic IM4)
     use pftvarcon , only : climatezone, nonvascular, graminoid, iscft,needleleaf, nfixer
     ! snow/vegetation interactions (NGEE Arctic IM3)
@@ -309,6 +312,8 @@ contains
     allocate( this%mbbopt(0:numpft))                             ; this%mbbopt(:)                =spval
     allocate( this%nstor(0:numpft))                              ; this%nstor(:)                 =spval
     allocate( this%br_xr(0:numpft))                              ; this%br_xr(:)                 =spval
+    allocate( this%br_mr_pft(0:numpft))                          ; this%br_mr_pft(:)             =spval
+    allocate( this%q10_mr_pft(0:numpft))                         ; this%q10_mr_pft(:)            =spval
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
     allocate(this%km_decomp_nh4)
@@ -429,6 +434,11 @@ contains
        this%iscft(m)        = iscft(m)
        this%needleleaf(m)   = needleleaf(m)
        this%nfixer(m)       = nfixer(m)
+
+       if (use_humhol) then
+          this%br_mr_pft(m)    = br_mr_pft(m)
+          this%q10_mr_pft(m)   = q10_mr_pft(m)
+       end if
 
     end do
 

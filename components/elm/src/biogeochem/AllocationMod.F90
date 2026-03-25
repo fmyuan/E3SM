@@ -10,6 +10,7 @@ module AllocationMod
   use shr_log_mod         , only : errMsg => shr_log_errMsg
   use elm_varcon          , only : dzsoi_decomp
   use elm_varctl          , only : use_c13, use_c14, spinup_state
+  use elm_varctl          , only : use_humhol
   use elm_varctl          , only : nyears_ad_carbon_only
   use elm_varctl          , only : use_fates
   use abortutils          , only : endrun
@@ -551,6 +552,7 @@ contains
          vf                           => crop_vars%vf_patch                                    , & ! Output: [real(r8) (:)   ]  vernalization factor
          cphase                       => crop_vars%cphase_patch                                , & ! Output: [real(r8) (:)   ]  phenology phase
 
+         cpool                        => veg_cs%cpool                         , & ! Input:  [real(r8) (:)   ]  =photosynthate pool
          xsmrpool                     => veg_cs%xsmrpool                       , & ! Input:  [real(r8) (:)   ]  (gC/m2) temporary photosynthate C pool
          leafc                        => veg_cs%leafc                          , & ! Input:  [real(r8) (:)   ]
          frootc                       => veg_cs%frootc                         , & ! Input:  [real(r8) (:)   ]
@@ -718,13 +720,29 @@ contains
             ! Determine rate of recovery for xsmrpool deficit
 
             xsmrpool_recover(p) = -xsmrpool(p)/(dayscrecover*secspday)
-            if (xsmrpool_recover(p) < availc(p)) then
-               ! available carbon reduced by amount for xsmrpool recovery
-               availc(p) = availc(p) - xsmrpool_recover(p)
+            !DMR note - Modification from orignial code to use cpool
+            if (use_humhol) then
+               if (cpool(p) < 10.0_r8 * xsmrpool_recover(p)*dt) then
+                  !Take xsmr recovery from existing cpool, if cpool too small then
+                  !use availc
+                  if (xsmrpool_recover(p) < availc(p)) then
+                    ! available carbon reduced by amount for xsmrpool recovery
+                     availc(p) = availc(p) - xsmrpool_recover(p)
+                  else
+                     ! all of the available carbon goes to xsmrpool recovery
+                     xsmrpool_recover(p) = availc(p)
+                     availc(p) = 0.0_r8
+                  end if
+               end if
             else
-               ! all of the available carbon goes to xsmrpool recovery
-               xsmrpool_recover(p) = availc(p)
-               availc(p) = 0.0_r8
+               if (xsmrpool_recover(p) < availc(p)) then
+                  ! available carbon reduced by amount for xsmrpool recovery
+                  availc(p) = availc(p) - xsmrpool_recover(p)
+               else
+                  ! all of the available carbon goes to xsmrpool recovery
+                  xsmrpool_recover(p) = availc(p)
+                  availc(p) = 0.0_r8
+               end if
             end if
             cpool_to_xsmrpool(p) = xsmrpool_recover(p)
          end if
@@ -3195,13 +3213,17 @@ contains
                 if (sminn_tot(fc)  >  0._r8) then
                     !original:  nuptake_prof(fc,j) = sminn_vr(c,j) / sminn_tot(c)
                    nuptake_prof(fc,j) = sminn_vr_loc / sminn_tot(fc)
+                   if (use_humhol) then
+                      nuptake_prof(c,j) = nfixation_prof(c,j)
+                   end if
                 else
                    nuptake_prof(fc,j) = nfixation_prof(c,j)
                 end if
              end do
           end do
 
-          end if
+         end if
+
           if(use_pflotran .and. pf_cmode) then
             do fc=1,num_soilc
                sum1 = 0._r8
@@ -3276,6 +3298,9 @@ contains
                !!! add P demand calculation
                if (solutionp_tot(fc)  >  0.) then
                   puptake_prof(fc,j) = solutionp_vr(c,j) / solutionp_tot(fc)
+                  if (use_humhol) then
+                     puptake_prof(c,j) = nfixation_prof(c,j)
+                  end if
                else
                   puptake_prof(fc,j) = nfixation_prof(c,j)      ! need modifications
                endif
