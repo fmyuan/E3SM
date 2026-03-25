@@ -2543,7 +2543,7 @@ contains
     ! pools during the phenological offset period.
     !
     ! !USES:
-    use pftvarcon , only : npcropmin
+    use pftvarcon , only : crop, iscft
     !
     ! !ARGUMENTS:
     integer                 , intent(in)    :: num_soilp       ! number of soil patches in filter
@@ -2644,7 +2644,7 @@ contains
 
             if (offset_counter(p) == dt) then
                t1 = 1.0_r8 / dt
-               if (ivt(p) >= npcropmin) then
+               if (crop(ivt(p)) == 1._r8 .or. iscft(ivt(p))) then
                ! this assumes that offset_counter == dt for crops
                ! if this were ever changed, we'd need to add code to the "else"
                   leafc_to_litter(p) = (1.0_r8 - presharv(ivt(p))) * ((t1 * leafc(p)) + cpool_to_leafc(p))
@@ -2661,7 +2661,7 @@ contains
             end if
 
             if ( nu_com .eq. 'RD') then
-               if (ivt(p) >= npcropmin) then
+               if (crop(ivt(p)) == 1._r8 .or. iscft(ivt(p))) then
                   if (offset_counter(p) == dt) then
                       t1 = 1.0_r8 / dt
 
@@ -2695,7 +2695,7 @@ contains
             else
                if (offset_counter(p) == dt) then
                   t1 = 1.0_r8 / dt
-                  if (ivt(p) >= npcropmin) then
+                  if (crop(ivt(p)) == 1._r8 .or. iscft(ivt(p))) then
                      ! this assumes that offset_counter == dt for crops
                      ! if this were ever changed, we'd need to add code to the "else"
                      leafn_to_litter(p) = (1.0_r8 - presharv(ivt(p))) * ((t1 * leafn(p)) + npool_to_leafn(p))
@@ -2985,7 +2985,7 @@ contains
     !
     ! !USES:
     use elm_varpar , only : max_patch_per_col, nlevdecomp
-    use pftvarcon  , only : npcropmin
+    use pftvarcon  , only : crop, iscft
     !
     ! !ARGUMENTS:
     integer                 , intent(in)    :: num_soilc       ! number of soil columns in filter
@@ -3117,7 +3117,7 @@ contains
                      ! new ones for now (slevis)
                      ! The food is now directed to the product pools (BDrewniak)
 
-                     if (ivt(p) >= npcropmin) then ! add livestemc to litter
+                     if (crop(ivt(p)) == 1._r8 .or. iscft(ivt(p))) then ! add crop stem to litter
                         ! stem litter carbon fluxes
                         phenology_c_to_litr_met_c(c,j) = phenology_c_to_litr_met_c(c,j) &
                              + livestemc_to_litter(p) * lf_flab(ivt(p)) * wtcol(p) * leaf_prof(p,j)

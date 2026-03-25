@@ -294,7 +294,7 @@ contains
 
 
   !-----------------------------------------------------------------------
-  subroutine PhosphorusLeaching(num_soilc, filter_soilc, dt)
+  subroutine PhosphorusLeaching(bounds, num_soilc, filter_soilc, dt)
     !
     ! !DESCRIPTION:
     ! On the radiation time step, update the phosphorus leaching rate
@@ -304,6 +304,7 @@ contains
     use elm_varpar       , only : nlevsoi, nlevgrnd
     !
     ! !ARGUMENTS:
+    type(bounds_type)        , intent(in)    :: bounds
     integer                  , intent(in)    :: num_soilc       ! number of soil columns in filter
     integer                  , intent(in)    :: filter_soilc(:) ! filter for soil columns
     real(r8) ,intent(in)    :: dt                                     ! radiation time step(seconds)
@@ -386,7 +387,7 @@ contains
 
   !-----------------------------------------------------------------------
 
-  subroutine PhosphorusBiochemMin(num_soilc, filter_soilc, &
+  subroutine PhosphorusBiochemMin(bounds, num_soilc, filter_soilc, &
        cnstate_vars, dt)
     !
     ! !DESCRIPTION:
@@ -401,6 +402,7 @@ contains
 
     !
     ! !ARGUMENTS:
+    type(bounds_type)        , intent(in)  :: bounds
     integer                  , intent(in)  :: num_soilc       ! number of soil columns in filter
     integer                  , intent(in)  :: filter_soilc(:) ! filter for soil columns
     type(cnstate_type)       , intent(in)  :: cnstate_vars

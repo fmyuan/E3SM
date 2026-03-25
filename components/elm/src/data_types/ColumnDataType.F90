@@ -50,6 +50,7 @@ module ColumnDataType
   use ColumnType      , only : col_pp
   use LandunitType    , only : lun_pp
   use GridcellType    , only : grc_pp
+  use TopounitType    , only : top_pp
   use timeInfoMod , only : nstep_mod
   !
   ! !PUBLIC TYPES:
@@ -112,6 +113,9 @@ module ColumnDataType
     real(r8), pointer :: h2osoi_ice         (:,:) => null() ! ice lens (-nlevsno+1:nlevgrnd) (kg/m2)
     real(r8), pointer :: h2osoi_vol         (:,:) => null() ! volumetric soil water (0<=h2osoi_vol<=watsat) (1:nlevgrnd) (m3/m3)
     real(r8), pointer :: h2osfc             (:)   => null() ! surface water (kg/m2)
+    real(r8), pointer :: salinity           (:) => null() ! salinity from PFLOTRAN when using interface (TAO 5/19/2020)
+    real(r8), pointer :: salt_content       (:,:) => null() ! salt content
+    real(r8), pointer :: h2osfc_tide        (:)   => null() ! tidal height above surface
     real(r8), pointer :: h2ocan             (:)   => null() ! canopy water integrated to column (kg/m2)
     real(r8), pointer :: total_plant_stored_h2o(:)=> null() ! total water in plants (kg/m2)
     real(r8), pointer :: wslake_col         (:)   => null() ! col lake water storage (mm H2O)
@@ -235,6 +239,13 @@ module ColumnDataType
     real(r8), pointer :: totsomc_end          (:)    => null()
     real(r8), pointer :: decomp_som2c_vr      (:,:)  => null()
     real(r8), pointer :: cropseedc_deficit    (:)    => null()
+    real(r8), pointer :: DOC_vr               (:,:)  => null() ! gC/m2
+    real(r8), pointer :: DIC_vr               (:,:)  => null() ! gC/m2
+    real(r8), pointer :: CH4_vr               (:,:)  => null() ! gC/m2
+    real(r8), pointer :: totDOC               (:)  => null() ! gC/m2
+    real(r8), pointer :: totDIC               (:)  => null() ! gC/m2
+    real(r8), pointer :: SIC_vr               (:,:) => null() ! Soil inorganic C (carbonates) gC/m3
+    real(r8), pointer :: totSIC               (:)  => null()  ! gC/m2
 
   contains
     procedure, public :: Init    => col_cs_init
@@ -260,6 +271,8 @@ module ColumnDataType
     real(r8), pointer :: smin_nh4                 (:)     => null() ! (gN/m2) soil mineral NH4 pool
     real(r8), pointer :: smin_nh4sorb             (:)     => null() ! (gN/m2) soil mineral NH4 pool absorbed
     real(r8), pointer :: sminn                    (:)     => null() ! (gN/m2) soil mineral N
+    real(r8), pointer :: DON_vr                   (:,:)   => null() ! (gN/m3) vertically-resolved DON
+    real(r8), pointer :: totDON                   (:)     => null() ! (gN/m2) soil total DON
     real(r8), pointer :: ntrunc                   (:)     => null() ! (gN/m2) column-level sink for N truncation
     real(r8), pointer :: cwdn                     (:)     => null() ! (gN/m2) Diagnostic: coarse woody debris N
     real(r8), pointer :: totlitn                  (:)     => null() ! (gN/m2) total litter nitrogen
@@ -488,6 +501,7 @@ module ColumnDataType
     real(r8), pointer :: qflx_gross_infl_soil (:)   => null() ! gross infiltration, before considering the evaporation
     real(r8), pointer :: qflx_adv             (:,:) => null() ! advective flux across different soil layer interfaces [mm H2O/s] [+ downward]
     real(r8), pointer :: qflx_rootsoi         (:,:) => null() ! root and soil water exchange [mm H2O/s] [+ into root]
+    real(r8), pointer :: qflx_tran_veg_sat    (:)   => null() ! Transpiration from saturated zone
     real(r8), pointer :: dwb                  (:)   => null() !  water mass change [+ increase] [mm H2O/s]
     real(r8), pointer :: qflx_infl            (:)   => null() ! infiltration (mm H2O /s)
     real(r8), pointer :: qflx_surf            (:)   => null() ! surface runoff (mm H2O /s)
@@ -534,6 +548,13 @@ module ColumnDataType
     real(r8), pointer :: qflx_h2oocn_drain    (:)   => null() ! drainage from coastal inundation volume (mm H2O/s)
     real(r8), pointer :: qflx_from_uphill     (:)   => null() ! input to top soil layer from uphill topounit(s) (mm H2O/s))
     real(r8), pointer :: qflx_to_downhill     (:)   => null() ! output from column to the downhill topounit (mm H2O/s))
+    real(r8), pointer :: qflx_h2osfc_to_downhill(:) => null() ! surface (ponded) water runoff routed downhill (mmH2O/s) (NOTE: the above is a total of all term downhill water flux)
+
+    real(r8), pointer :: qflx_lat_aqu         (:)   => null() ! Total lateral flux between hummock/hollow (mm H2O /s)
+    real(r8), pointer :: qflx_lat_aqu_layer   (:,:) => null() ! Lateral flux between hummock/hollow by layer (mm H2O/s)
+    real(r8), pointer :: qflx_tran_veg_col_sat (:)  => null() ! 
+    real(r8), pointer :: qflx_surf_input      (:)   => null() ! Runoff input from Hummock (mm H2O/s)
+    real(r8), pointer :: qflx_tide            (:)   => null() ! tidal flux between consecutive timesteps TAO
 
     real(r8), pointer :: mflx_infl_1d         (:)   => null() ! infiltration source in top soil control volume (kg H2O /s)
     real(r8), pointer :: mflx_dew_1d          (:)   => null() ! liquid+snow dew source in top soil control volume (kg H2O /s)
@@ -665,8 +686,8 @@ module ColumnDataType
     real(r8), pointer :: vegfire                               (:)     => null() ! column (gC/m2/s) patch-level fire loss (obsolete, mark for removal) (p2c)
     real(r8), pointer :: wood_harvestc                         (:)     => null() ! column (p2c)
     real(r8), pointer :: hrv_xsmrpool_to_atm                   (:)     => null() ! column excess MR pool harvest mortality (gC/m2/s) (p2c)
-    real(r8), pointer :: plant_to_litter_cflux		             (:)     => null() ! for the purpose of mass balance check
-    real(r8), pointer :: plant_to_cwd_cflux		                 (:)     => null() ! for the purpose of mass balance check
+    real(r8), pointer :: plant_to_litter_cflux                 (:)     => null() ! for the purpose of mass balance check
+    real(r8), pointer :: plant_to_cwd_cflux                    (:)     => null() ! for the purpose of mass balance check
     ! Temporary and annual sums
     real(r8), pointer :: annsum_npp                            (:)     => null() ! col annual sum of NPP, averaged from pft-level (gC/m2/yr)
     ! C4MIP output variable
@@ -680,6 +701,10 @@ module ColumnDataType
     real(r8), pointer :: externalc_to_decomp_delta             (:)     => null() ! col (gC/m2) summarized net change of whole column C i/o to decomposing pool bwtn time-step
     real(r8), pointer :: f_co2_soil_vr                         (:,:)   => null() ! total vertically-resolved soil-atm. CO2 exchange (gC/m3/s)
     real(r8), pointer :: f_co2_soil                            (:)     => null() ! total soil-atm. CO2 exchange (gC/m2/s)
+
+    real(r8), pointer :: DOC_runoff                            (:)     => null() ! column dissolved organic carbon runoff (gC/m2/s)
+    real(r8), pointer :: DIC_runoff                            (:)     => null() ! column dissolved inorganic carbon runoff (gC/m2/s)
+    real(r8), pointer :: ch4flux                               (:)     => null() ! (gC/m2/s) total methane flux
 
   contains
     procedure, public :: Init       => col_cf_init
@@ -800,6 +825,7 @@ module ColumnDataType
     real(r8), pointer :: smin_no3_runoff                       (:)     => null() ! soil mineral NO3 pool loss to runoff (gN/m2/s)
     real(r8), pointer :: smin_nh4_runoff                       (:)     => null() 
     real(r8), pointer :: nh3_soi_flx                           (:)     => null()
+    real(r8), pointer :: DON_runoff                            (:)     => null() ! soil dissolved organic nitrogen pool loss to runoff (gN/m2/s)
     ! nitrification /denitrification diagnostic quantities
     real(r8), pointer :: smin_no3_massdens_vr                  (:,:)   => null() ! (ugN / g soil) soil nitrate concentration
     real(r8), pointer :: soil_bulkdensity                      (:,:)   => null() ! (kg soil / m3) bulk density of soil
@@ -1418,6 +1444,9 @@ contains
     allocate(this%h2osoi_ice_old     (begc:endc,-nlevsno+1:nlevgrnd)) ; this%h2osoi_ice_old     (:,:) = spval
     allocate(this%bw                 (begc:endc,-nlevsno+1:0))        ; this%bw                 (:,:) = spval
     allocate(this%smp_l              (begc:endc,-nlevsno+1:nlevgrnd)) ; this%smp_l              (:,:) = spval
+    allocate(this%salinity           (begc:endc))                     ; this%salinity           (:)   = spval !TAO 5/19/2020
+    allocate(this%salt_content       (begc:endc, 1:nlevgrnd))         ; this%salt_content       (:,:) = spval !SL added 7/27/21
+    allocate(this%h2osfc_tide        (begc:endc))                     ; this%h2osfc_tide        (:)   = spval 
     allocate(this%soilp              (begc:endc,1:nlevgrnd))          ; this%soilp              (:,:) = 0._r8
     allocate(this%swe_old            (begc:endc,-nlevsno+1:0))        ; this%swe_old            (:,:) = spval
     allocate(this%snw_rds            (begc:endc,-nlevsno+1:0))        ; this%snw_rds            (:,:) = spval
@@ -1540,6 +1569,21 @@ contains
      call hist_addfld1d (fname='H2OSFC',  units='mm',  &
           avgflag='A', long_name='surface water depth', &
            ptr_col=this%h2osfc)
+
+   this%salinity(begc:endc) = spval
+    call hist_addfld1d (fname='SALINITY',  units='ppt', &
+         avgflag='A', long_name='Salinity concentration', &
+         ptr_col=this%salinity)
+
+   this%h2osfc_tide(begc:endc) = spval
+   call hist_addfld1d (fname='H2OSFC_TIDE',  units='mm H2O',  &
+      avgflag='A', long_name='Tide height above soil surface', &
+      ptr_col=this%h2osfc_tide)
+
+   !this%osm_inhib(begc:endc) = spval
+   ! call hist_addfld1d (fname='OSM_INHIB',  units=' ',  &
+   !      avgflag='A', long_name='Factor to reduce growth due to salinity stress', &
+   !      ptr_col=this%osm_inhib)
 
     this%h2osoi_vol(begc:endc,:) = spval
      call hist_addfld2d (fname='H2OSOI',  units='mm3/mm3', type2d='levgrnd', &
@@ -1691,6 +1735,8 @@ contains
        this%total_plant_stored_h2o(c) = 0._r8
        this%h2osfc(c)                 = 0._r8
        this%h2ocan(c)                 = 0._r8
+       this%salinity(c)             = 0._r8 !TAO added 5/19/2020
+       this%h2osfc_tide(c)          = 0._r8
        this%frac_h2osfc(c)            = 0._r8
        this%frac_h2osfc_act(c)        = 0._r8
        this%h2orof(c)                 = 0._r8
@@ -1868,6 +1914,9 @@ contains
          this%frac_melted(c,:)  = 0._r8
        end if
     end do
+
+    this%h2osoi_liq_old(begc:endc,:) = this%h2osoi_liq(begc:endc,:)
+    this%h2osoi_ice_old(begc:endc,:) = this%h2osoi_ice(begc:endc,:)
 
   end subroutine col_ws_init
 
@@ -2190,6 +2239,13 @@ contains
     allocate(this%totsomc_1m           (begc:endc))     ; this%totsomc_1m           (:)     = spval
     allocate(this%totlitc              (begc:endc))     ; this%totlitc              (:)     = spval
     allocate(this%totsomc              (begc:endc))     ; this%totsomc              (:)     = spval
+    allocate(this%DOC_vr    (begc:endc,1:nlevdecomp_full))                   ; this%DOC_vr    (:,:)   = 0.0_r8
+    allocate(this%DIC_vr    (begc:endc,1:nlevdecomp_full))                   ; this%DIC_vr    (:,:)   = 0.0_r8
+    allocate(this%CH4_vr    (begc:endc,1:nlevdecomp_full))                   ; this%CH4_vr    (:,:)   = 0.0_r8
+    allocate(this%totDOC    (begc:endc))                   ; this%totDOC    (:)   = 0.0_r8
+    allocate(this%totDIC    (begc:endc))                   ; this%totDIC    (:)   = 0.0_r8
+    allocate(this%SIC_vr    (begc:endc,1:nlevdecomp_full)) ; this%SIC_vr    (:,:) = 0.0_r8
+    allocate(this%totSIC    (begc:endc))                   ; this%totSIC    (:)   = 0.0_r8
 
     !-----------------------------------------------------------------------
     ! initialize history fields for select members of col_cs
@@ -3236,6 +3292,13 @@ contains
        end do
     end do
 
+    do fc = 1, num_soilc
+      c = filter_soilc(fc)
+      this%totDOC(c) = dot_sum(this%DOC_vr(c,1:nlevdecomp),dzsoi_decomp(1:nlevdecomp)) 
+      this%totDIC(c) = dot_sum(this%DIC_vr(c,1:nlevdecomp),dzsoi_decomp(1:nlevdecomp)) 
+      this%totSIC(c) = dot_sum(this%SIC_vr(c,1:nlevdecomp),dzsoi_decomp(1:nlevdecomp)) 
+   enddo
+
     do fc = 1,num_soilc
        c = filter_soilc(fc)
 
@@ -3262,7 +3325,8 @@ contains
             this%totlitc(c)  + &
             this%totsomc(c)  + &
             this%totprodc(c) + &
-            this%ctrunc(c)
+            this%ctrunc(c)   + &
+            this%cropseedc_deficit(c)
 
       ! if we are using the crop model, then we need to add the cropseedc deficit
        if (use_crop) then 
@@ -3426,6 +3490,8 @@ contains
     allocate(this%begnb                 (begc:endc))                     ; this%begnb                 (:)   = spval
     allocate(this%endnb                 (begc:endc))                     ; this%endnb                 (:)   = spval
     allocate(this%errnb                 (begc:endc))                     ; this%errnb                 (:)   = spval
+    allocate(this%DON_vr                (begc:endc,1:nlevdecomp_full))   ; this%DON_vr                (:,:) = 0.0_r8
+    allocate(this%totDON                (begc:endc))                     ; this%totDON                (:)   = 0.0_r8
 
     !-----------------------------------------------------------------------
     ! initialize history fields for select members of col_ns
@@ -4511,6 +4577,7 @@ contains
             this%totlitn(c) + &
             this%totsomn(c) + &
             this%sminn(c) + &
+            this%totDON(c) + &
             this%totprodn(c) + &
             this%totvegn(c)
 
@@ -4524,8 +4591,10 @@ contains
             this%totsomn(c) + &
             this%sminn(c) + &
             this%totprodn(c) + &
+            this%totDON(c) + &
             this%ntrunc(c)+ &
             this%plant_n_buffer(c) + &
+            this%cropseedn_deficit(c) + &
             this%fan_totn(c)
 
        ! if we are using the crop model, then we need to add the cropseedc deficit
@@ -4544,6 +4613,7 @@ contains
             this%cwdn(c) + &
             this%totlitn(c) + &
             this%totsomn(c) + &
+            this%totDON(c) + &
             this%sminn(c)
     end do
 
@@ -4918,6 +4988,7 @@ contains
           this%prod10p(c)       = 0._r8
           this%prod100p(c)      = 0._r8
           this%totprodp(c)      = 0._r8
+          this%cropseedp_deficit(c) = 0._r8
        end if
     end do
 
@@ -5858,6 +5929,12 @@ contains
     allocate(this%qflx_h2oocn_drain      (begc:endc))             ; this%qflx_h2oocn_drain    (:)   = spval
     allocate(this%qflx_from_uphill       (begc:endc))             ; this%qflx_from_uphill     (:)   = spval
     allocate(this%qflx_to_downhill       (begc:endc))             ; this%qflx_to_downhill     (:)   = spval
+    allocate(this%qflx_h2osfc_to_downhill(begc:endc))             ; this%qflx_h2osfc_to_downhill(:) = spval
+    allocate(this%qflx_lat_aqu           (begc:endc))             ; this%qflx_lat_aqu         (:)   = spval
+    allocate(this%qflx_lat_aqu_layer     (begc:endc,1:nlevgrnd))  ; this%qflx_lat_aqu_layer   (:,:) = spval
+    allocate(this%qflx_surf_input        (begc:endc))             ; this%qflx_surf_input      (:)   = spval  
+    allocate(this%qflx_tran_veg_sat      (begc:endc))             ; this%qflx_tran_veg_sat    (:)   = 0._r8
+    allocate(this%qflx_tide              (begc:endc))             ; this%qflx_tide            (:)   = spval !TAO
 
     !VSFM variables
     ncells = endc - begc + 1
@@ -5923,6 +6000,38 @@ contains
            avgflag='A', long_name='land to ocean drainage', &
            ptr_col=this%qflx_lnd2ocn, c2l_scale_type='urbanf')
     endif
+    this%qflx_drain_vr(begc:endc, :) = 0.0_r8
+    call hist_addfld2d (fname='QDRAI_VR',  units='mm/s', type2d='levgrnd', &
+          avgflag='A', long_name='Sub-surface drainage by layer', &
+          ptr_col=this%qflx_drain_vr)
+
+#if (defined MARSH)
+   this%qflx_lat_aqu(begc:endc) = spval
+   call hist_addfld1d (fname='QFLX_LAT_AQU',  units='mm/s',  &
+        avgflag='A', long_name='Lateral flow between hummock and hollow', &
+        ptr_col=this%qflx_lat_aqu, c2l_scale_type='urbanf')
+
+   this%qflx_surf_input(begc:endc) = spval
+   call hist_addfld1d (fname='QFLX_SURF_INPUT',  units='mm/s',  &
+        avgflag='A', long_name='Surface runoff input received from an adjacent topounit', &
+        ptr_col=this%qflx_surf_input, c2l_scale_type='urbanf')
+
+   this%qflx_lat_aqu_layer(begc:endc, :) = spval
+   call hist_addfld2d (fname='QFLX_LAT_AQU_LAYER',  units='mm/s', type2d='levgrnd', &
+        avgflag='A', long_name='Lateral flow between hummock and hollow by layer', &
+        ptr_col=this%qflx_lat_aqu_layer)
+
+   this%qflx_tide(begc:endc) = spval
+   call hist_addfld1d (fname='QFLX_TIDE',  units='mm H2O/s',  &
+        avgflag='A', long_name='Tidal flux between marsh columns', &
+        ptr_col=this%qflx_tide)
+#endif
+
+
+   this%qflx_adv(begc:endc,:) = spval
+   call hist_addfld2d (fname='QFLX_ADV',  units='mm/s', type2d='levgrnd', &
+      avgflag='A', long_name='Vertical flow across soil layers', &
+      ptr_col=this%qflx_adv, c2l_scale_type='urbanf')
 
     this%qflx_irr_demand(begc:endc) = spval
     call hist_addfld1d (fname='QIRRIG_WM',  units='mm/s',  &
@@ -5994,6 +6103,10 @@ contains
             avgflag='A', long_name='output from column to downhill topounit', &
             ptr_col=this%qflx_to_downhill, c2l_scale_type='urbanf')
     endif
+
+    call hist_addfld1d (fname='QTO_H2OSFC_DOWNHILL',  units='mm/s',  &
+            avgflag='A', long_name='output from column ponded water to downhill topounit', &
+            ptr_col=this%qflx_h2osfc_to_downhill, c2l_scale_type='urbanf')
    
     if (create_glacier_mec_landunit) then
             this%qflx_glcice(begc:endc) = spval
@@ -6062,6 +6175,8 @@ contains
 
     this%qflx_from_uphill(begc:endc) = 0._r8
     this%qflx_to_downhill(begc:endc) = 0._r8
+
+    this%qflx_h2osfc_to_downhill(begc:endc) = 0._r8
 
     ! needed for CNNLeaching
     do c = begc, endc
@@ -6284,6 +6399,9 @@ contains
     allocate(this%externalc_to_decomp_delta         (begc:endc))                  ; this%externalc_to_decomp_delta    (:)   = spval
     allocate(this%f_co2_soil_vr                     (begc:endc,1:nlevdecomp_full)); this%f_co2_soil_vr                (:,:) = spval
     allocate(this%f_co2_soil                        (begc:endc))                  ; this%f_co2_soil                   (:)   = spval
+    allocate(this%DOC_runoff                        (begc:endc))                  ; this%DOC_runoff                   (:)   = 0.0_r8  
+    allocate(this%DIC_runoff                        (begc:endc))                  ; this%DIC_runoff                   (:)   = 0.0_r8   
+    allocate(this%ch4flux                           (begc:endc))                  ; this%ch4flux                      (:)   = 0.0_r8 
 
     !-----------------------------------------------------------------------
     ! initialize history fields for select members of col_cf
@@ -7981,6 +8099,10 @@ contains
        this%vegfire(i)               = value_column
        this%wood_harvestc(i)         = value_column
        this%hrv_xsmrpool_to_atm(i)   = value_column
+
+       this%DOC_runoff(i)            = value_column
+       this%DIC_runoff(i)            = value_column
+       this%ch4flux(i)               = value_column
     end do
   
     if(use_crop) then 
@@ -8428,6 +8550,7 @@ contains
     allocate(this%k_nitr_vr                       (begc:endc,1:nlevdecomp_full)) ; this%k_nitr_vr                      (:,:) = spval
     allocate(this%wfps_vr                         (begc:endc,1:nlevdecomp_full)) ; this%wfps_vr                        (:,:) = spval
     allocate(this%f_denit_base_vr                 (begc:endc,1:nlevdecomp_full)) ; this%f_denit_base_vr                (:,:) = spval
+    allocate(this%DON_runoff                      (begc:endc))                   ; this%DON_runoff                (:)   = spval
     allocate(this%diffus                          (begc:endc,1:nlevdecomp_full)) ; this%diffus                         (:,:) = spval
     allocate(this%ratio_k1                        (begc:endc,1:nlevdecomp_full)) ; this%ratio_k1                       (:,:) = spval
     allocate(this%ratio_no3_co2                   (begc:endc,1:nlevdecomp_full)) ; this%ratio_no3_co2                  (:,:) = spval

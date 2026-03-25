@@ -14,6 +14,7 @@ module SoilMoistStressMod
   ! Created by Jinyun Tang, Feb., 2014
   !
   use ColumnDataType   , only : col_es, col_ws
+  use VegetationPropertiesType, only: veg_vp
   !
   implicit none
   save
@@ -358,8 +359,18 @@ contains
          rresis        => energyflux_vars%rresis_patch      , & ! Output: [real(r8) (:,:) ]  root soil water stress (resistance) by layer (0-1)  (nlevgrnd)
 
          h2osoi_vol    => col_ws%h2osoi_vol    , & ! Input:  [real(r8) (:,:) ]  volumetric soil water (0<=h2osoi_vol<=watsat) [m3/m3]
-         h2osoi_liqvol => col_ws%h2osoi_liqvol   & ! Output: [real(r8) (:,:) ]  liquid volumetric moisture, will be used for BeTR
-         )
+         h2osoi_liqvol => col_ws%h2osoi_liqvol , & ! Output: [real(r8) (:,:) ]  liquid volumetric moisture, will be used for BeTR
+         
+         salinity      => col_ws%salinity                      , & !Input: [real(r8) (:)   ] Salinity concentration ppt
+         osm_inhib     => veg_vp%osm_inhib                     , & !Input: [real(r8) (:)   ] osmotic inhibition factor   
+         sal_opt       => veg_vp%sal_opt                       , & !Input: [real(r8) (:)   ] Salinity at which optimal biomass occurs (ppt)     
+         sal_tol       => veg_vp%sal_tol                       , & !Input: [real(r8) (:)   ] Salinity tolerance; width parameter for Gaussian distribution (ppt -1)
+         sal_threshold => veg_vp%sal_threshold                 , & ! Input: [real(r8) (:)   ] Threshold for salinity effects (ppt)
+         KM_salinity   => veg_vp%KM_salinity                   , & ! Input: [real(r8) (:)   ] Half saturation constant for osmotic inhibition
+         floodf        => veg_vp%floodf                        , & !Input: [real(r8) (:)      ] Flood factor to reduce growth when plants submerged
+         h2osfc        => col_ws%h2osfc                          & ! Input:  [real(r8) (:)   ]  surface water (mm)
+         ) 
+
       do j = 1,nlevgrnd
          do f = 1, fn
             p = filterp(f)
@@ -377,18 +388,37 @@ contains
                smp_node = -sucsat(c,j)*s_node**( -bsw(c,j) )
 
                smp_node = max(smpsc(veg_pp%itype(p)), smp_node)
-
+               
                rresis(p,j) = min( (eff_porosity(c,j)/watsat(c,j))* &
+               (smp_node - smpsc(veg_pp%itype(p))) / (smpso(veg_pp%itype(p)) - smpsc(veg_pp%itype(p))), 1._r8)   
+               
+               !using osm_inhib to change root uptake -SLL
+               if (salinity(c) .ge. sal_threshold(veg_pp%itype(p))) then
+                  !osm_inhib(veg_pp%itype(p)) = (1-salinity(c)/(KM_salinity(veg_pp%itype(p))+salinity(c)))
+                  osm_inhib(veg_pp%itype(p)) = exp(-0.5*((salinity(c)-sal_opt(veg_pp%itype(p)))**2/sal_tol(veg_pp%itype(p))**2))
+                  rresis(p,j) = min( (eff_porosity(c,j)/watsat(c,j))* &
                     (smp_node - smpsc(veg_pp%itype(p))) / (smpso(veg_pp%itype(p)) - smpsc(veg_pp%itype(p))), 1._r8)
+                  rresis(p,j) = rresis(p,j)*osm_inhib(veg_pp%itype(p))
+               endif
+
+               !use floodf to change root water uptake
+               if (h2osfc(c) .ge. 0._r8 .and. h2osfc(c) .le. 1000.0_r8) then
+                     floodf(veg_pp%itype(p))=1-0.001*h2osfc(c)
+               elseif(h2osfc(c) .gt. 1000._r8) then
+                     floodf(veg_pp%itype(p))=0.0_r8
+               elseif(h2osfc(c) .lt. 0._r8) then
+                     floodf(veg_pp%itype(p))=1.0_r8                       
+               endif
+               rresis(p,j) = rresis(p,j)*floodf(veg_pp%itype(p))
+
                if (.not. (perchroot .or. perchroot_alt) ) then
                   rootr(p,j) = rootfr(p,j)*rresis(p,j)
                else
                   rootr(p,j) = rootfr_unf(p,j)*rresis(p,j)
                end if
-
                !it is possible to further separate out a btran function, but I will leave it for the moment, jyt
                if( .not. use_hydrstress ) then
-                 btran(p)    = btran(p) + max(rootr(p,j),0._r8)
+                 btran(p)    = btran(p) + max(rootr(p,j),0._r8) !btran added to rootr, then later rootr divided by (btran+rootr) SLL see line 434
                endif
 
                !smp_node_lf = max(smpsc(veg_pp%itype(p)), -sucsat(c,j)*(h2osoi_vol(c,j)/watsat(c,j))**(-bsw(c,j)))
@@ -410,7 +440,7 @@ contains
          do f = 1, fn
             p = filterp(f)
             if (btran(p) > btran0) then
-               rootr(p,j) = rootr(p,j)/btran(p)
+               rootr(p,j) = rootr(p,j)/btran(p) !why is this divided by btran? SLL, see comment in line 413
             else
                rootr(p,j) = 0._r8
             end if

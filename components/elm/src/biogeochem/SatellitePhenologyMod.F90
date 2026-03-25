@@ -9,6 +9,7 @@ module SatellitePhenologyMod
   ! !USES:
   use shr_strdata_mod , only : shr_strdata_type, shr_strdata_create
   use shr_strdata_mod , only : shr_strdata_print, shr_strdata_advance
+  use shr_const_mod   , only : SHR_CONST_TKFRZ
   use shr_kind_mod    , only : r8 => shr_kind_r8
   use shr_kind_mod    , only : CL => shr_kind_CL
   use shr_kind_mod    , only : CX => shr_kind_CXX
@@ -16,16 +17,20 @@ module SatellitePhenologyMod
   use decompMod       , only : bounds_type
   use abortutils      , only : endrun
   use elm_varctl      , only : scmlat,scmlon,single_column
-  use elm_varctl      , only : iulog, use_lai_streams
+  use elm_varctl      , only : iulog, use_lai_streams, use_cn
   use elm_varcon      , only : grlnd
   use controlMod      , only : NLFilename
   use decompMod       , only : gsmap_lnd_gdc2glo
   use domainMod       , only : ldomain
   use fileutils       , only : getavu, relavu
-  use VegetationType       , only : veg_pp
+  use GridcellType         , only : grc_pp
+  use VegetationType       , only : veg_pp                
+  use VegetationDataType   , only : veg_es
   use CanopyStateType , only : canopystate_type
   use WaterstateType  , only : waterstate_type
-  use ColumnDataType  , only : col_ws
+  use ColumnDataType  , only : col_ws, col_es
+  use TemperatureType , only : temperature_type
+  use SoilstateType   , only : soilstate_type
   use perf_mod        , only : t_startf, t_stopf
   use spmdMod         , only : masterproc
   use spmdMod         , only : mpicom, comp_id
@@ -43,11 +48,33 @@ module SatellitePhenologyMod
   public :: SatellitePhenologyInit ! Dynamically allocate memory
   public :: interpMonthlyVeg       ! interpolate monthly vegetation data
   public :: readAnnualVegetation   ! Read in annual vegetation (needed for Dry-deposition)
+  public :: readSatPhenolParams    ! Read in satellite phenology parameters
   !
   ! !PRIVATE MEMBER FUNCTIONS:
   private :: readMonthlyVegetation   ! read monthly vegetation data for two months
   private :: lai_init    ! position datasets for LAI
   private :: lai_interp  ! interpolates between two years of LAI data
+  type, private :: SatPhenolParamsType
+     real(r8), pointer :: crit_dayl        => null() ! critical day length for senescence
+                                                     ! from Biome-BGC, v4.1.2
+     real(r8), pointer :: crit_dayl_stress => null() ! critical day length for senescence (stress)
+     real(r8), pointer :: cumprec_onset    => null() ! 10-day cumulative precipitation threshold for onset
+     real(r8), pointer :: ndays_on         => null() ! number of days to complete leaf onset
+     real(r8), pointer :: ndays_off        => null() ! number of days to complete leaf offset
+     real(r8), pointer :: fstor2tran       => null() ! fraction of storage to move to transfer for each onset
+     real(r8), pointer :: crit_onset_fdd   => null() ! critical number of freezing days to set gdd counter
+     real(r8), pointer :: crit_onset_swi   => null() ! critical number of days > soilpsi_on for onset
+     real(r8), pointer :: soilpsi_on       => null() ! critical soil water potential for leaf onset
+     real(r8), pointer :: crit_offset_fdd  => null() ! critical number of freezing days to initiate offset
+     real(r8), pointer :: crit_offset_swi  => null() ! critical number of water stress days to initiate offset
+     real(r8), pointer :: soilpsi_off      => null() ! critical soil water potential for leaf offset
+     real(r8), pointer :: lwtop            => null() ! live wood turnover proportion (annual fraction)
+     real(r8), pointer :: crit_gdd1        => null() ! critical growing degree days for onset 1
+     real(r8), pointer :: crit_gdd2        => null() ! critical growing degree days for onset 2
+  end type SatPhenolParamsType
+
+  ! SatPhenolParamsInst is populated in readSatPhenolParams
+  type(SatPhenolParamsType), public ::  SatPhenolParamsInst
 
   ! !PRIVATE MEMBER DATA:
   type(shr_strdata_type) :: sdat_lai           ! LAI input data stream
@@ -68,6 +95,142 @@ contains
   ! lai_init
   !
   !-----------------------------------------------------------------------
+  subroutine readSatPhenolParams ( ncid )
+    !
+    ! !DESCRIPTION:
+    !
+    ! !USES:
+    use ncdio_pio    , only: file_desc_t,ncd_io
+    use elm_varcon   , only: secspday
+
+    ! !ARGUMENTS:
+    implicit none
+    type(file_desc_t),intent(inout) :: ncid   ! pio netCDF file id
+    !
+    ! !LOCAL VARIABLES:
+    character(len=32)  :: subname = 'SatPhenolParamsType'
+    character(len=100) :: errCode = '-Error reading in parameters file:'
+    logical            :: readv ! has variable been read in or not
+    real(r8)           :: tempr ! temporary to read in parameter
+    character(len=100) :: tString ! temp. var for reading
+    !-----------------------------------------------------------------------
+
+     allocate(SatPhenolParamsInst%crit_dayl       )
+     allocate(SatPhenolParamsInst%crit_dayl_stress)
+     allocate(SatPhenolParamsInst%cumprec_onset   )
+     allocate(SatPhenolParamsInst%ndays_on        )
+     allocate(SatPhenolParamsInst%ndays_off       )
+     allocate(SatPhenolParamsInst%fstor2tran      )
+     allocate(SatPhenolParamsInst%crit_onset_fdd  )
+     allocate(SatPhenolParamsInst%crit_onset_swi  )
+     allocate(SatPhenolParamsInst%soilpsi_on      )
+     allocate(SatPhenolParamsInst%crit_offset_fdd )
+     allocate(SatPhenolParamsInst%crit_offset_swi )
+     allocate(SatPhenolParamsInst%soilpsi_off     )
+     allocate(SatPhenolParamsInst%lwtop           )
+     allocate(SatPhenolParamsInst%crit_gdd1       )
+     allocate(SatPhenolParamsInst%crit_gdd2       )
+    !
+    ! read in parameters
+    !
+    tString='crit_dayl'
+    call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun( msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    SatPhenolParamsInst%crit_dayl=tempr
+
+    tString='crit_dayl_stress'
+    call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) then
+      SatPhenolParamsInst%crit_dayl_stress = SatPhenolParamsInst%crit_dayl
+    else
+      SatPhenolParamsInst%crit_dayl_stress = tempr
+    end if
+
+    tString='cumprec_onset'
+    call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) then
+       SatPhenolParamsInst%cumprec_onset = 0._r8 
+    else
+       SatPhenolParamsInst%cumprec_onset=tempr
+    end if
+
+    tString='ndays_on'
+    call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun( msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    SatPhenolParamsInst%ndays_on=tempr
+
+    tString='ndays_off'
+    call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun( msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    SatPhenolParamsInst%ndays_off=tempr
+
+    tString='fstor2tran'
+    call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun( msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    SatPhenolParamsInst%fstor2tran=tempr
+
+    tString='crit_onset_fdd'
+    call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun( msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    SatPhenolParamsInst%crit_onset_fdd=tempr
+
+    tString='crit_onset_swi'
+    call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun( msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    SatPhenolParamsInst%crit_onset_swi=tempr
+
+    tString='soilpsi_on'
+    call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun( msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    SatPhenolParamsInst%soilpsi_on=tempr
+
+    tString='crit_offset_fdd'
+    call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun( msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    SatPhenolParamsInst%crit_offset_fdd=tempr
+
+    tString='crit_offset_swi'
+    call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun( msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    SatPhenolParamsInst%crit_offset_swi=tempr
+
+    tString='soilpsi_off'
+    call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun( msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    SatPhenolParamsInst%soilpsi_off=tempr
+
+    tString='lwtop_ann'
+    call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun( msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    SatPhenolParamsInst%lwtop=tempr
+
+    tString='crit_gdd1'
+    call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun( msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    SatPhenolParamsInst%crit_gdd1=tempr
+
+    tString='crit_gdd2'
+    call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
+    if ( .not. readv ) call endrun( msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
+    SatPhenolParamsInst%crit_gdd2=tempr
+
+     !!!!========== Update to device ========= !!!
+     !$acc update device(SatPhenolParamsInst%crit_dayl, &
+     !$acc SatPhenolParamsInst%crit_dayl_stress, &
+     !$acc SatPhenolParamsInst%cumprec_onset   , &
+     !$acc SatPhenolParamsInst%ndays_on        , &
+     !$acc SatPhenolParamsInst%ndays_off       , &
+     !$acc SatPhenolParamsInst%fstor2tran      , &
+     !$acc SatPhenolParamsInst%crit_onset_fdd  , &
+     !$acc SatPhenolParamsInst%crit_onset_swi  , &
+     !$acc SatPhenolParamsInst%soilpsi_on      , &
+     !$acc SatPhenolParamsInst%crit_offset_fdd , &
+     !$acc SatPhenolParamsInst%crit_offset_swi , &
+     !$acc SatPhenolParamsInst%soilpsi_off     , &
+     !$acc SatPhenolParamsInst%lwtop           )
+
+  end subroutine readSatPhenolParams
+
   subroutine lai_init(bounds)
     !
     ! Initialize data stream information for LAI.
@@ -297,49 +460,79 @@ contains
 
   !-----------------------------------------------------------------------
   subroutine SatellitePhenology(bounds, num_filter, filter, &
-       waterstate_vars, canopystate_vars)
+       waterstate_vars, canopystate_vars, soilstate_vars)
     !
     ! !DESCRIPTION:
     ! Ecosystem dynamics: phenology, vegetation
-    ! Calculates leaf areas (tlai, elai),  stem areas (tsai, esai) and height (htop).
+    ! Calculates leaf areas (tlai, elai),  stem areas (tsai, esai) and height
+    ! (htop).
     !
     ! !USES:
     use pftvarcon,  only : woody
     use elm_varctl, only : use_fates_sp
+    use elm_time_manager, only : get_curr_date, get_step_size, get_nstep
+    use elm_varcon      , only : secspday
+    use elm_varctl      , only : use_fates_sp
+    use pftvarcon, only : noveg, nbrdlf_dcd_brl_shrub, season_decid, stress_decid
     !
     ! !ARGUMENTS:
-    type(bounds_type)      , intent(in)    :: bounds
-    integer                , intent(in)    :: num_filter                        ! number of column points in filter
-    integer                , intent(in)    :: filter(bounds%endp-bounds%begp+1) ! patch filter
+    type(bounds_type)      , intent(in)    :: bounds                          
+    integer                , intent(in)    :: num_filter ! number of column points in filter
+    integer                , intent(in)    :: filter(bounds%endp-bounds%begp+1) ! patch filter 
     type(waterstate_type)  , intent(in)    :: waterstate_vars
+    type(soilstate_type)   , intent(in)    :: soilstate_vars
     type(canopystate_type) , intent(inout) :: canopystate_vars
     !
-    ! !LOCAL VARIABLES:
-    integer  :: fp,p,c                            ! indices
+    ! !LOCAL VARIABLES::
+    integer  :: fp,g,p,c                            ! indices
     real(r8) :: ol                                ! thickness of canopy layer covered by snow (m)
     real(r8) :: fb                                ! fraction of canopy layer covered by snow
+    real(r8) :: onset_gdd, fracday, dt, ndays_on, ndays_off, crit_dayl
+    real(r8) :: soilpsi_off, soilpsi_on, crit_onset_swi, crit_offset_swi
+    real(r8) :: crit_offset_fdd, crit_onset_fdd, ws_flag, crit_onset_gdd
+    real(r8) :: crit_gdd1, crit_gdd2, spring_threshold, autumn_threshold
     !-----------------------------------------------------------------------
-
+ 
     associate(                                                           &
-         frac_sno           => col_ws%frac_sno   ,          & ! Input:  [real(r8) (:) ] fraction of ground covered by snow (0 to 1)
-         snow_depth         => col_ws%snow_depth ,          & ! Input:  [real(r8) (:) ] snow height (m)
-         tlai               => canopystate_vars%tlai_patch    ,          & ! Output: [real(r8) (:) ] one-sided leaf area index, no burying by snow
+         frac_sno           => col_ws%frac_sno   ,          & ! Input:  [real(r8) (:) ] fraction of ground covered by snow (0 to 1)       
+         snow_depth         => col_ws%snow_depth ,          & ! Input:  [real(r8) (:) ] snow height (m)                                                       
+         dayl               => grc_pp%dayl,                              & ! Input:  [real(r8)  (:)   ]  daylength (s)
+         prev_dayl          => grc_pp%prev_dayl,                         & ! Input:  [real(r8)  (:)   ]  previous daylength (s)
+         t_ref2m            => veg_es%t_ref2m        ,                   & ! Input:  [real(r8) (:) ] 2-meter air temperature (K)
+         t_soisno           => col_es%t_soisno       ,                   & ! Input : [real(r8) (:) ] soil temperature (K)      
+         tmean              => veg_es%t_2m3650       ,                   & ! Input:[real(r8) (:)   ]  10-year running mean of the 2 m temperature (K)                    
+         soilpsi            => soilstate_vars%soilpsi_col     ,          & ! Input: [real(r8)  (:,:) ]  soil water potential in each soil layer (MPa) 
+         tlai               => canopystate_vars%tlai_patch    ,          & ! Output: [real(r8) (:) ] one-sided leaf area index, no burying by snow 
          tsai               => canopystate_vars%tsai_patch    ,          & ! Output: [real(r8) (:) ] one-sided stem area index, no burying by snow
          elai               => canopystate_vars%elai_patch    ,          & ! Output: [real(r8) (:) ] one-sided leaf area index with burying by snow
          esai               => canopystate_vars%esai_patch    ,          & ! Output: [real(r8) (:) ] one-sided stem area index with burying by snow
-         htop               => canopystate_vars%htop_patch    ,          & ! Output: [real(r8) (:) ] canopy top (m)
-         hbot               => canopystate_vars%hbot_patch    ,          & ! Output: [real(r8) (:) ] canopy bottom (m)
-         frac_veg_nosno_alb => canopystate_vars%frac_veg_nosno_alb_patch & ! Output: [integer  (:) ] fraction of vegetation not covered by snow (0 OR 1) [-]
+         htop               => canopystate_vars%htop_patch    ,          & ! Output: [real(r8) (:) ] canopy top (m)                           
+         hbot               => canopystate_vars%hbot_patch    ,          & ! Output: [real(r8) (:) ] canopy bottom (m)                           
+         frac_veg_nosno_alb => canopystate_vars%frac_veg_nosno_alb_patch,  & ! Output: [integer  (:) ] fraction of vegetation not covered by snow (0 OR 1) [-]
+         sp_gdd             => canopystate_vars%sp_gdd_patch,            & ! Output:
+         sp_chil            => canopystate_vars%sp_chil_patch,           & ! Output:
+         sp_swi_on          => canopystate_vars%sp_swi_on_patch,         & ! Output:
+         sp_swi_off         => canopystate_vars%sp_swi_off_patch,        & ! Output:
+         sp_fdd_off         => canopystate_vars%sp_fdd_off_patch,        & ! Output:
+         sp_onset_day       => canopystate_vars%sp_onset_day_patch,      & ! Output:
+         sp_offset_day      => canopystate_vars%sp_offset_day_patch,     & ! Output:
+         sp_dayl_temp       => canopystate_vars%sp_dayl_temp_patch,      & ! Output:
+         annlai             => canopystate_vars%annlai_patch,            &
+         ivt                => veg_pp%itype                              &
          )
-
+ 
       if (use_lai_streams) then
          call lai_interp(bounds, canopystate_vars)
       endif
+ 
+      dt      = real( get_step_size(), r8 )
+      fracday = dt/secspday
 
       do fp = 1, num_filter
          p = filter(fp)
+         g = veg_pp%gridcell(p)
          c = veg_pp%column(p)
-
+ 
          ! need to update elai and esai only every albedo time step so do not
          ! have any inconsistency in lai and sai between SurfaceAlbedo calls (i.e.,
          ! if albedos are not done every time step).
@@ -355,9 +548,115 @@ contains
          ! leaf area index SAI  <- msai1 and msai2
          ! top height      HTOP <- mhvt1 and mhvt2
          ! bottom height   HBOT <- mhvb1 and mhvb2
+ 
+         !Parameter values 
+         if (.not. use_cn) then 
+            crit_onset_swi  = SatPhenolParamsInst%crit_onset_swi
+            crit_dayl       = SatPhenolParamsInst%crit_dayl
+            ndays_on        = SatPhenolParamsInst%ndays_on
+            ndays_off       = SatPhenolParamsInst%ndays_off
+            crit_onset_fdd  = SatPhenolParamsInst%crit_onset_fdd  !Functionality not implemented
+            crit_offset_swi = SatPhenolParamsInst%crit_offset_swi
+            crit_offset_fdd = SatPhenolParamsInst%crit_offset_fdd
+            soilpsi_off     = SatPhenolParamsInst%soilpsi_off
+            soilpsi_on      = SatPhenolParamsInst%soilpsi_on
+            crit_gdd1       = SatPhenolParamsInst%crit_gdd1
+            crit_gdd2       = SatPhenolParamsInst%crit_gdd2 
+         end if
 
          if (.not. use_lai_streams) then
             tlai(p) = timwt(1)*mlai2t(p,1) + timwt(2)*mlai2t(p,2)
+            !DMR 10.17.18 - Predict seasonal phenology using max monthly LAI
+            !from Satellite
+            !Check if winter solstice has happened (daylength increasing)
+            if (dayl(g) >= prev_dayl(g)) then
+              ws_flag = 1._r8
+            else
+              ws_flag = 0._r8
+            end if
+            !------ Seasonal deciduous phenology ----------------------
+            crit_onset_gdd = exp(crit_gdd1 + crit_gdd2*(tmean(p) - SHR_CONST_TKFRZ))
+            if (.not. use_cn .and. season_decid(ivt(p)) == 1._r8) then
+               tlai(p) = maxval(annlai(:,p))
+               !Spring phenology
+               !Increment GDD and chilling days, check threshold according to model formulation
+               spring_threshold = 0 
+               if (ws_flag == 1._r8) then 
+                 !Default model
+                 sp_gdd(p) = sp_gdd(p) + max((t_soisno(c,3) - SHR_CONST_TKFRZ)*fracday, 0._r8)
+                 if (sp_gdd(p) .ge. crit_onset_gdd) spring_threshold = 1
+               end if
+             
+               if (ws_flag == 1._r8) then   !Onset period
+                 !Set offset counters to zero
+                 sp_offset_day(p) = 0._r8
+                 sp_dayl_temp(p)  = 0._r8
+                 if (spring_threshold == 1) then  
+                   sp_onset_day(p) = min(sp_onset_day(p)+fracday, ndays_on)
+                   tlai(p) = tlai(p) * sp_onset_day(p) / ndays_on
+                 else
+                   tlai(p) = 0._r8
+                 end if
+               else                         !Offset period
+                 !set onset counters to zero
+                 sp_chil(p)       = 0._r8
+                 sp_onset_day(p)  = 0._r8
+                 sp_gdd(p)        = 0._r8
+                 autumn_threshold = 0
+                 !default senescence model
+                 if (dayl(g) .lt. crit_dayl) autumn_threshold = 1
+                 if (autumn_threshold == 1) then
+                   sp_offset_day(p) = min(sp_offset_day(p)+fracday, ndays_off)
+                 end if
+                 tlai(p) = max(tlai(p) * (1.0_r8 - sp_offset_day(p) / ndays_off), 0._r8)
+               end if
+            end if
+ 
+            !-------------Stress deciduous phenology ------------------------
+            if (.not. use_cn .and. stress_decid(ivt(p)) == 1._r8) then
+              tlai(p) = 2.0_r8 !maxval(annlai(:,p))
+              crit_dayl = 36000._r8
+              if (dayl(g) .ge. crit_dayl) then
+                sp_gdd(p) = sp_gdd(p) + max((t_soisno(c,3) - SHR_CONST_TKFRZ)*fracday, 0._r8)
+                if (soilpsi(c,3) .ge. soilpsi_on)  sp_swi_on(p)  = sp_swi_on(p) + fracday
+              end if
+              !Stress offset day counters (only allow positive values)
+              if (soilpsi(c,3) .lt. soilpsi_off) sp_swi_off(p) = sp_swi_off(p) + fracday               
+              if (soilpsi(c,3) .ge. soilpsi_off .and. sp_swi_off(p) .lt. crit_offset_swi) sp_swi_off(p) = max(sp_swi_off(p) - fracday, 0._r8)
+              !Adjust LAI (short term leaf mortality for dryness)
+              !tlai(p) = tlai(p) * max((1.0_r8 - 0.5_r8 * sp_swi_off(p) / crit_offset_swi), 0.5_r8)
+
+              if (t_soisno(c,3) .lt. SHR_CONST_TKFRZ) sp_fdd_off(p) = sp_fdd_off(p) + fracday
+              if (t_soisno(c,3) .ge. SHR_CONST_TKFRZ .and. sp_fdd_off(p) .lt. crit_offset_fdd) sp_fdd_off(p) = max(sp_fdd_off(p) - fracday, 0._r8)
+ 
+              !Onset/full LAI period
+              if (sp_gdd(p) .ge. crit_onset_gdd .and. dayl(g) .ge. crit_dayl .and. sp_swi_on(p) .ge. &
+                crit_onset_swi .and. sp_swi_off(p) .lt. crit_offset_swi) then
+                  sp_onset_day(p) = min(sp_onset_day(p)+fracday, ndays_on)
+                tlai(p) = tlai(p) * sp_onset_day(p) / ndays_on
+                if (sp_onset_day(p) .lt. ndays_on) then 
+                  sp_swi_off(p) = 0._r8   !Force offset counters to zero during onset period
+                  sp_fdd_off(p) = 0._r8
+                end if
+              !Offset period
+              else if (sp_gdd(p) .ge. crit_onset_gdd .and. sp_swi_on(p) .ge. crit_onset_swi .and. &
+                     (dayl(g) .lt. crit_dayl .or. sp_swi_off(p) .ge. crit_offset_swi .or. &
+                     sp_fdd_off(p) .ge. crit_offset_fdd)) then 
+                sp_offset_day(p) = sp_offset_day(p)+fracday
+                tlai(p) = tlai(p) * (ndays_off - sp_offset_day(p)) / ndays_off
+              else
+                tlai(p) = 0._r8
+              end if
+              !reset all counters when full senescence occurs
+              if (sp_offset_day(p) .gt. ndays_off) then
+                sp_offset_day(p) = 0._r8
+                sp_onset_day(p)  = 0._r8
+                sp_gdd(p)        = 0._r8
+                sp_swi_on(p)     = 0._r8
+                sp_swi_off(p)    = 0._r8
+                sp_fdd_off(p)    = 0._r8
+              end if
+           endif
          endif
 
          tsai(p) = timwt(1)*msai2t(p,1) + timwt(2)*msai2t(p,2)

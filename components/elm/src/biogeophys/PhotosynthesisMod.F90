@@ -27,6 +27,7 @@ module  PhotosynthesisMod
   use PhotosynthesisType  , only : photosyns_type
   use VegetationType      , only : veg_pp
   use AllocationMod       , only : nu_com_leaf_physiology
+  use WaterStateType      , only : waterstate_type
   use elm_varctl          , only : carbon_only
   use elm_varctl          , only : carbonnitrogen_only
   use elm_varctl          , only : carbonphosphorus_only
@@ -226,6 +227,7 @@ contains
     use elm_varcon     , only : rgas, tfrz
     use elm_varctl     , only : carbon_only
     use pftvarcon      , only : vcmax_np1, vcmax_np2, vcmax_np3, vcmax_np4, jmax_np1, jmax_np2, jmax_np3
+    use pftvarcon      , only : vpd_max_moss, vpd_min_moss
     !
     ! !ARGUMENTS:
     type(bounds_type)      , intent(in)    :: bounds
@@ -359,6 +361,7 @@ contains
     real(r8) :: sum_nscaler
     real(r8) :: total_lai
     integer  :: rad_layers_patch
+    real(r8) :: wcscaler, vpd_pa, vpd_stress
     !------------------------------------------------------------------------------
     ! Temperature and soil water response functions
 
@@ -368,6 +371,8 @@ contains
          flnr          => veg_vp%flnr                          , & ! Input:  [real(r8) (:)   ]  fraction of leaf N in the Rubisco enzyme (gN Rubisco / gN leaf)
          fnitr         => veg_vp%fnitr                         , & ! Input:  [real(r8) (:)   ]  foliage nitrogen limitation factor (-)
          slatop        => veg_vp%slatop                        , & ! Input:  [real(r8) (:)   ]  specific leaf area at top of canopy, projected area basis [m^2/gC]
+         br_mr         => veg_vp%br_mr_pft                     , &
+         q10_mr        => veg_vp%q10_mr_pft                    , &
 
          forc_pbot     => top_as%pbot                              , & ! Input:  [real(r8) (:)   ]  atmospheric pressure (Pa)
 
@@ -406,7 +411,12 @@ contains
          leafp_storage => veg_ps%leafp_storage , &
          leafp_xfer    => veg_ps%leafp_xfer    , &
          i_vcmax       => veg_vp%i_vc                          , &
-         s_vcmax       => veg_vp%s_vc                            &
+         s_vcmax       => veg_vp%s_vc                          , &
+         h2osfc        => col_ws%h2osfc                        , & !Input: [real(r8) (:)   ]  Surface water
+         salinity      => col_ws%salinity                      , & !Input: [real(r8) (:)   ]  salinity (SLL 4/9/2021)
+         sal_threshold => veg_vp%sal_threshold                 , & !Input: [real(r8) (:)   ] Threshold salinity concentration to trigger osmotic inhibition (ppt)
+         KM_salinity   => veg_vp%KM_salinity                   , & !Input: [real(r8) (:)   ] half saturation constant for osmotic inhibition function
+         osm_inhib     => veg_vp%osm_inhib                       & !Input: [real(r8) (:)   ] osmotic inhibition factor   
          )
 
       if (phase == 'sun') then !sun
@@ -517,19 +527,8 @@ contains
          end if
 
          ! Soil water stress applied to Ball-Berry parameters
-
          bbb(p) = max (bbbopt(p)*btran(p), 1._r8)
          mbb(p) = mbbopt(p)
-
-         ! kc, ko, cp, from: Bernacchi et al (2001) Plant, Cell and Environment 24:253-259
-         !
-         !       kc25 = 404.9 umol/mol
-         !       ko25 = 278.4 mmol/mol
-         !       cp25 = 42.75 umol/mol
-         !
-         ! Derive sco from cp and O2 using present-day O2 (0.209 mol/mol) and re-calculate
-         ! cp to account for variation in O2 using cp = 0.5 O2 / sco
-         !
 
          kc25 = (404.9_r8 / 1.e06_r8) * forc_pbot(t)
          ko25 = (278.4_r8 / 1.e03_r8) * forc_pbot(t)
@@ -786,9 +785,8 @@ contains
             end if
 
             ! Adjust for soil water
-
             vcmax_z(p,iv) = vcmax_z(p,iv) * btran(p)
-            lmr_z(p,iv) = lmr_z(p,iv) * btran(p)
+            lmr_z(p,iv) = lmr_z(p,iv) * btran(p) !will this carry over from the earlier if marsh statement? -SLL 4-8-21
 
             ! output variable
             vcmax25_top(p) = vcmax25top
@@ -813,9 +811,9 @@ contains
          gb_mol(p) = gb * cf
 
          ! Loop through canopy layers (above snow). Only do calculations if daytime
-        do iv = 1, nrad(p)
+         do iv = 1, nrad(p)
 
-            if (par_z(p,iv) <= 0._r8) then           ! night time
+           if (par_z(p,iv) <= 0._r8) then           ! night time
 
                ac(p,iv) = 0._r8
                aj(p,iv) = 0._r8
@@ -872,13 +870,11 @@ contains
                ! End of ci iteration.  Check for an < 0, in which case gs_mol = bbb
 
                if (an(p,iv) < 0._r8) gs_mol(p,iv) = bbb(p)
-
                ! Final estimates for cs and ci (needed for early exit of ci iteration when an < 0)
 
                cs = cair(p) - 1.4_r8/gb_mol(p) * an(p,iv) * forc_pbot(t)
                cs = max(cs,1.e-06_r8)
                ci_z(p,iv) = cair(p) - an(p,iv) * forc_pbot(t) * (1.4_r8*gs_mol(p,iv)+1.6_r8*gb_mol(p)) / (gb_mol(p)*gs_mol(p,iv))
-
                ! Convert gs_mol (umol H2O/m**2/s) to gs (m/s) and then to rs (s/m)
 
                gs = gs_mol(p,iv) / cf
@@ -1260,8 +1256,7 @@ contains
   subroutine brent(x, x1,x2,f1, f2, tol, ip, iv, ic, it, gb_mol, je, cair, oair,&
        lmr_z, par_z, rh_can, gs_mol, &
        atm2lnd_vars, photosyns_vars)
-     !$acc routine seq
-
+    !
     !!DESCRIPTION:
     !Use Brent's method to find the root of a single variable function ci_func, which is known to exist between x1 and x2.
     !The found root will be updated until its accuracy is tol.
@@ -1450,7 +1445,7 @@ contains
   !------------------------------------------------------------------------------
   subroutine ci_func(ci, fval, p, iv, c, t, gb_mol, je, cair, oair, lmr_z, par_z,&
        rh_can, gs_mol, atm2lnd_vars, photosyns_vars)
-    !$acc routine seq
+    !
     !! DESCRIPTION:
     ! evaluate the function
     ! f(ci)=ci - (ca - (1.37rb+1.65rs))*patm*an
@@ -1484,6 +1479,7 @@ contains
     real(r8) :: fnps                 ! fraction of light absorbed by non-photosynthetic pigments
     real(r8) :: theta_psii           ! empirical curvature parameter for electron transport rate
     real(r8) :: theta_ip             ! empirical curvature parameter for ap photosynthesis co-limitation
+    real(r8) :: wcscaler  
     !------------------------------------------------------------------------------
 
     associate(&
@@ -1503,7 +1499,8 @@ contains
          kp_z       => photosyns_vars%kp_z_patch               , & ! Output: [real(r8) (:,:) ]  initial slope of CO2 response curve (C4 plants)
          theta_cj   => photosyns_vars%theta_cj_patch           , & ! Output: [real(r8) (:)   ]  empirical curvature parameter for ac, aj photosynthesis co-limitation
          bbb        => photosyns_vars%bbb_patch                , & ! Output: [real(r8) (:)   ]  Ball-Berry minimum leaf conductance (umol H2O/m**2/s)
-         mbb        => photosyns_vars%mbb_patch                  & ! Output: [real(r8) (:)   ]  Ball-Berry slope of conductance-photosynthesis relationship
+         mbb        => photosyns_vars%mbb_patch                , & ! Output: [real(r8) (:)   ]  Ball-Berry slope of conductance-photosynthesis relationship        
+         h2osfc        => col_ws%h2osfc                          & ! Input: [real(r8) (:)   ]  Surface water
          )
 
       ! Miscellaneous parameters, from Bonan et al (2011) JGR, 116, doi:10.1029/2010JG001593
@@ -1567,9 +1564,7 @@ contains
       gs_mol = max(r1,r2)
 
       ! Derive new estimate for ci
-
       fval =ci - cair + an(p,iv) * forc_pbot(t) * (1.4_r8*gs_mol+1.6_r8*gb_mol) / (gb_mol*gs_mol)
-
     end associate
 
   end subroutine ci_func
@@ -1848,6 +1843,8 @@ contains
          stem_leaf     => veg_vp%stem_leaf                         , & ! allocation parameter: new stem c per new leaf C (gC/gC)
          froot_leaf     => veg_vp%froot_leaf                         , & ! allocation parameter: new fine root C per new leaf C (gC/gC)
          croot_stem     => veg_vp%croot_stem                         , & ! allocation parameter: new coarse root C per new stem C (gC/gC)
+         br_mr      => veg_vp%br_mr_pft                          ,&       
+         q10_mr     => veg_vp%q10_mr_pft                         ,&
          forc_pbot  => top_as%pbot                           , & ! Input:  [real(r8) (:)   ]  atmospheric pressure (Pa)
 
          t_veg         => veg_es%t_veg             , & ! Input:  [real(r8) (:)   ]  vegetation temperature (Kelvin)
@@ -1882,9 +1879,13 @@ contains
          leafp_xfer    => veg_ps%leafp_xfer    , &
          i_vcmax       => veg_vp%i_vc                          , &
          s_vcmax       => veg_vp%s_vc                          , &
-         bsw           => soilstate_inst%bsw_col                , & ! Input:  [real(r8) (:,:) ]  Clapp and Hornberger "b"
-         sucsat        => soilstate_inst%sucsat_col             ,  & ! Input:  [real(r8) (:,:) ]  minimum soil suction (mm)
-         ivt           => veg_pp%itype                             & ! Input:  [integer  (:)   ]  patch vegetation type
+         bsw           => soilstate_inst%bsw_col               , & ! Input:  [real(r8) (:,:) ]  Clapp and Hornberger "b"
+         sucsat        => soilstate_inst%sucsat_col            , & ! Input:  [real(r8) (:,:) ]  minimum soil suction (mm)
+         ivt           => veg_pp%itype                         , & ! Input:  [integer  (:)   ]  patch vegetation type
+         salinity      => col_ws%salinity                      , & ! Input:  [real(r8) (:)   ] salinity ppt
+         sal_threshold => veg_vp%sal_threshold                 , & !Input: [real(r8) (:)   ] Threshold salinity concentration to trigger osmotic inhibition (ppt)
+         KM_salinity   => veg_vp%KM_salinity                   , & !Input: [real(r8) (:)   ] half saturation constant for osmotic inhibition function
+         osm_inhib     => veg_vp%osm_inhib                       & !Input: [real(r8) (:)   ] osmotic inhibition factor
       )
       an_sun        =>    photosyns_inst%an_sun_patch         ! Output: [real(r8) (:,:) ]  net sunlit leaf photosynthesis (umol CO2/m**2/s)
       an_sha        =>    photosyns_inst%an_sha_patch         ! Output: [real(r8) (:,:) ]  net shaded leaf photosynthesis (umol CO2/m**2/s)
@@ -2048,8 +2049,14 @@ contains
 
          ! Soil water stress applied to Ball-Berry parameters
 
-         bbb(p) = bbbopt(p)
-         mbb(p) = mbbopt(p)
+!#if (defined MARSH)
+         !SLL add osm_inhib function here
+         !if (salinity(c) > sal_threshold(veg_pp%itype(p))) then
+         !osm_inhib(veg_pp%itype(p)) = (1-salinity(c)/(KM_salinity(veg_pp%itype(p))+salinity(c)))
+         !   bbb(p) = max (bbbopt(p)*btran(p)*(osm_inhib(veg_pp%itype(p))), 1._r8)
+         !   mbb(p) = mbbopt(p)
+         !end if
+!#endif
 
          ! kc, ko, cp, from: Bernacchi et al (2001) Plant, Cell and Environment
          ! 24:253-259
@@ -2646,16 +2653,15 @@ contains
          !KO  Here's how I'm combining bsun and bsha to get btran
          !KO  But this is not really an indication of soil moisture stress that can be
          !KO  used for, e.g., irrigation?
-         if ( laican_sha+laican_sun > 0._r8 ) then
-            btran(p) = bsun(p) * (laican_sun / (laican_sun + laican_sha)) + &
-                       bsha(p) * (laican_sha / (laican_sun + laican_sha))
-         else
-            !KO  Btran has a valid value even if there is no exposed lai (elai=0).
-            !KO  In this case, bsun and bsha should have the same value and btran
+         !if ( laican_sha+laican_sun > 0._r8 ) then
+            !btran(p) = bsun(p) * (laican_sun / (laican_sun + laican_sha)) + &
+                       !bsha(p) * (laican_sha / (laican_sun + laican_sha))         
+         !else
+            !KO  Btran has a valid value even if there is no exposed lai (elai=0).  
+            !KO  In this case, bsun and bsha should have the same value and btran 
             !KO  can be set to either bsun or bsha.  But this needs to be checked.
-            btran(p) = bsun(p)
-         end if
-
+            !btran(p) = bsun(p)
+         !end if
       end do
 
     end associate

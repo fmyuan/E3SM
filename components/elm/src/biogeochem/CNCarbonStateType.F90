@@ -9,7 +9,7 @@ module CNCarbonStateType
   use elm_varpar             , only : nlevdecomp_full, crop_prog, nlevdecomp
   use elm_varcon             , only : spval, ispval, dzsoi_decomp, zisoi, zsoi
   use landunit_varcon        , only : istcrop 
-  use elm_varctl             , only : iulog, use_vertsoilc, spinup_state 
+  use elm_varctl             , only : iulog, use_vertsoilc, spinup_state
   use decompMod              , only : bounds_type
   use CNStateType            , only : cnstate_type
   use pftvarcon              , only : iscft

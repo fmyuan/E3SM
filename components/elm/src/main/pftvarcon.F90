@@ -22,6 +22,7 @@ module pftvarcon
   use elm_varpar  , only : numpft, numcft, maxpatch_pft, max_patch_per_col, maxpatch_urb
   use elm_varctl  , only : create_crop_landunit
   !-------------------------------------------------------------------------------------------
+  use elm_varpar  , only : max_tide_coeffs
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -33,6 +34,7 @@ module pftvarcon
   integer :: ndllf_evr_tmp_tree     !value for Needleleaf evergreen temperate tree
   integer :: ndllf_evr_brl_tree     !value for Needleleaf evergreen boreal tree
   integer :: ndllf_dcd_brl_tree     !value for Needleleaf deciduous boreal tree
+  integer :: npeat_ndllf_dcd_brl_tree = -1 !value for peatland Needleleaf deciduous boreal tree
   integer :: nbrdlf_evr_trp_tree    !value for Broadleaf evergreen tropical tree
   integer :: nbrdlf_evr_tmp_tree    !value for Broadleaf evergreen temperate tree
   integer :: nbrdlf_dcd_trp_tree    !value for Broadleaf deciduous tropical tree
@@ -42,6 +44,7 @@ module pftvarcon
   integer :: nbrdlf_evr_shrub       !value for Broadleaf evergreen shrub
   integer :: nbrdlf_dcd_tmp_shrub   !value for Broadleaf deciduous temperate shrub
   integer :: nbrdlf_dcd_brl_shrub   !value for Broadleaf deciduous boreal shrub
+  integer :: npeat_nbrdlf_dcd_brl_shrub = -1 !value for peatland Broadleaf deciduous boreal shrub
   integer :: nc3_arctic_grass       !value for C3 arctic grass
   integer :: nc3_nonarctic_grass    !value for C3 non-arctic grass
   integer :: nc4_grass              !value for C4 grass
@@ -132,6 +135,10 @@ module pftvarcon
   real(r8), allocatable :: livewdcp(:)    !live wood (phloem and ray parenchyma) C:P (gC/gP)
   real(r8), allocatable :: deadwdcp(:)    !dead wood (xylem and heartwood) C:P (gC/gP)
 
+  ! Add user-defined N fixation parameters - B. Sulman
+  real(r8), allocatable :: Nfix_NPP_c1(:) ! Pre-exponential parameter in NPP-Nfix eqn
+  real(r8), allocatable :: Nfix_NPP_c2(:) ! Exponential parameter in NPP-Nfix eqn
+
   ! for crop
 
   ! These arrays give information about the merge of unused crop types to the types CLM
@@ -184,6 +191,7 @@ module pftvarcon
   real(r8), allocatable :: fr_flig(:)      !fine root litter lignin fraction
   real(r8), allocatable :: leaf_long(:)    !leaf longevity (yrs)
   real(r8), allocatable :: froot_long(:)   !fine root longevity(yrs)
+  real(r8), allocatable :: rhizome_long(:) !nonwoody rhizome longevity(yrs)
   real(r8), allocatable :: evergreen(:)    !binary flag for evergreen leaf habit (0 or 1)
   real(r8), allocatable :: stress_decid(:) !binary flag for stress-deciduous leaf habit (0 or 1)
   real(r8), allocatable :: season_decid(:) !binary flag for seasonal-deciduous leaf habit (0 or 1)
@@ -293,8 +301,13 @@ module pftvarcon
   real(r8), allocatable :: theta_cj(:)         !
   real(r8), allocatable :: bbbopt(:)           !Ball-Berry stomatal conductance intercept
   real(r8), allocatable :: mbbopt(:)           !Ball-Berry stomatal conductance slope
-  real(r8), allocatable :: nstor(:)            !Nitrogen storage pool timescale
+  real(r8), allocatable :: nstor(:)            !Nitrogen storage pool timescale 
+  real(r8), allocatable :: crit_gdd1(:)        !Critical GDD intercept
+  real(r8), allocatable :: crit_gdd2(:)        !Critical GDD slope with MAT
   real(r8), allocatable :: br_xr(:)            !Base rate for excess respiration
+  real(r8), allocatable :: br_mr_pft(:)         !Base rate for maintenance respiration pft specific
+  real(r8), allocatable :: q10_mr_pft(:)        !Q10 for maintenance respiration pft specific
+  real(r8)              :: q10_mrtmp
   real(r8)              :: tc_stress           !Critial temperature for moisture stress
   real(r8), allocatable :: vcmax_np1(:)        !vcmax~np relationship coefficient
   real(r8), allocatable :: vcmax_np2(:)        !vcmax~np relationship coefficient
@@ -311,6 +324,52 @@ module pftvarcon
   real(r8), allocatable :: gcbc_q(:)           !effectiveness of surface cover in reducing runoff-driven erosion
   real(r8), allocatable :: gcbr_p(:)           !effectiveness of roots in reducing rainfall-driven erosion
   real(r8), allocatable :: gcbr_q(:)           !effectiveness of roots in reducing runoff-driven erosion
+  real(r8), allocatable :: gcpsi(:)            !bare ground LAI-decay parameter
+  real(r8), allocatable :: pftcc(:)            !plant cover reduction factor for transport capacity
+!if (defined HUM_HOL)
+  real(r8)              :: qflx_h2osfc_surfrate
+  real(r8)              :: humhol_ht
+  real(r8)              :: hum_frac
+  real(r8)              :: humhol_dist
+  real(r8)              :: vpd_max_moss
+  real(r8)              :: vpd_min_moss
+  real(r8)              :: blower_u0           ! reference blower wind magnitude at surface [m/s]
+  real(r8)              :: blower_lambda       ! vertical decay e-folding length [m]
+  real(r8)              :: vwc_moss_offset
+! Tidal cycle controls
+  integer               :: num_tide_comps      ! Number of tidal cycle components
+  real(r8)              :: tide_baseline            ! Base tide level (mean of cycle) (mm)
+  real(r8),allocatable  :: tide_coeff_amp(:)            ! Amplitude of tide component (mm)
+  real(r8),allocatable  :: tide_coeff_period(:)        ! Period of tide component (s)
+  real(r8),allocatable  :: tide_coeff_phase(:)         ! Phase shift of tide component (s)
+  real(r8)              :: sfcflow_ratescale         ! Rate scale for surface water flow across columns (s-1)
+ ! parameters for salinity response function
+  real(r8), allocatable :: sal_threshold(:) !threshold for salinity effects (ppt)
+  real(r8), allocatable :: KM_salinity(:)    !half saturation constant for omotic inhibition function (ppt)
+  real(r8), allocatable :: osm_inhib(:)      !osmotic inhibition factor
+  real(r8), allocatable :: sal_opt(:)        !Salinity at which optimal biomass occurs (ppt)
+  real(r8), allocatable :: sal_tol(:)        !Salinity tolerance; width parameter for Gaussian distribution (ppt -1)
+  real(r8), allocatable :: floodf(:)         !flood factor, inhibit growth due to inundation
+
+  !endif
+  !phenology
+  real(r8)              :: phen_a
+  real(r8)              :: phen_b
+  real(r8)              :: phen_c
+  real(r8)              :: phen_topt
+  real(r8)              :: phen_fstar
+  real(r8)              :: phen_cstar
+  real(r8)              :: phen_tforce
+  real(r8)              :: phen_tchil
+  real(r8)              :: phen_pstart
+  real(r8)              :: phen_tb
+  real(r8)              :: phen_ycrit
+  real(r8)              :: phen_spring
+  real(r8)              :: phen_autumn
+  real(r8)              :: phen_tbase
+  real(r8)              :: phen_tc
+  real(r8)              :: phen_crit_dayl
+!endif
 
   ! NGEE Arctic snow-vegetation interactions
   real(r8), allocatable :: bendresist(:)       ! vegetation resistance to bending under snow loading, 0 to 1 (e.g., Liston and Hiemstra 2011; Sturm et al. 2005)
@@ -379,6 +438,8 @@ contains
     integer :: noncropmax       ! max non-crop pft index (to check when 'create_crop_landunit' is true)
     real(r8) :: local_iscft      ! a local transfer of iscft from logical to integer for use in error checks
     character(len=32) :: subname = 'pftconrd'              ! subroutine name
+
+    character(len=256) :: tempname ! For use in reading parameter names from netcdf file
     !
     ! Expected PFT names: The names expected on the paramfile file and the order they are expected to be in.
     ! NOTE: similar types are assumed to be together, first trees (ending with broadleaf_deciduous_boreal_tree
@@ -495,6 +556,9 @@ contains
 
     allocate( grperc        (0:mxpft) )
     allocate( grpnow        (0:mxpft) )
+    allocate( Nfix_NPP_c1   (0:mxpft) )
+    allocate( Nfix_NPP_c2   (0:mxpft) )
+
     allocate( rootprof_beta (0:mxpft) )
 
     allocate( mergetoelmpft (0:mxpft) )
@@ -541,13 +605,14 @@ contains
     allocate( fr_flig       (0:mxpft) )
     allocate( leaf_long     (0:mxpft) )
     allocate( froot_long    (0:mxpft) )
-    allocate( evergreen     (0:mxpft) )
-    allocate( stress_decid  (0:mxpft) )
-    allocate( season_decid  (0:mxpft) )
-    allocate( pconv         (0:mxpft) )
-    allocate( pprod10       (0:mxpft) )
-    allocate( pprod100      (0:mxpft) )
-    allocate( pprodharv10   (0:mxpft) )
+    allocate( rhizome_long  (0:mxpft) )
+    allocate( evergreen     (0:mxpft) )    
+    allocate( stress_decid  (0:mxpft) ) 
+    allocate( season_decid  (0:mxpft) ) 
+    allocate( pconv         (0:mxpft) )        
+    allocate( pprod10       (0:mxpft) )      
+    allocate( pprod100      (0:mxpft) )     
+    allocate( pprodharv10   (0:mxpft) )  
     allocate( cc_leaf       (0:mxpft) )
     allocate( cc_lstem      (0:mxpft) )
     allocate( cc_dstem      (0:mxpft) )
@@ -641,6 +706,10 @@ contains
     allocate( mbbopt             (0:mxpft) )
     allocate( nstor              (0:mxpft) )
     allocate( br_xr              (0:mxpft) )
+    allocate( br_mr_pft          (0:mxpft) )
+    allocate( q10_mr_pft          (0:mxpft) )
+    allocate( crit_gdd1          (0:mxpft) )
+    allocate( crit_gdd2          (0:mxpft) )
     ! Ground cover for soil erosion
     allocate( gcbc_p             (0:mxpft) )
     allocate( gcbc_q             (0:mxpft) )
@@ -660,6 +729,33 @@ contains
     allocate( vegshape           (0:mxpft) )
     allocate( stocking           (0:mxpft) )
     allocate( taper              (0:mxpft) )
+
+    ! Tidal cycle coefficients
+    allocate( tide_coeff_amp (max_tide_coeffs))
+    allocate( tide_coeff_phase (max_tide_coeffs))
+    allocate( tide_coeff_period (max_tide_coeffs))
+    ! Values should be ignored past num_tide_comps but initialize to be sure
+    tide_coeff_amp(:)    = 0.0
+    tide_coeff_phase(:)  = 0.0
+    tide_coeff_period(:) = 1.0 ! Making period 0 would cause divide by 0 error in sinusoid calculation
+
+    ! salinity parameters -should this be an "if defined MARSH"? -SLL
+    
+    ! salinity parameters
+    allocate( sal_threshold (0:mxpft) )
+    allocate( KM_salinity (0:mxpft) )
+    allocate( osm_inhib (0:mxpft) )
+    allocate( sal_opt (0:mxpft) )
+    allocate( sal_tol (0:mxpft) )
+    allocate( floodf (0:mxpft) )
+
+    ! Make sure they are initialized to some values
+    sal_threshold(:) = 50.0_r8
+    KM_salinity(:) = 1.0_r8
+    osm_inhib(:) = 1.8_r8
+    sal_opt(:) = 0.0_r8
+    sal_tol(:) = 50.0_r8
+    floodf(:) = 1.0_r8
 
     ! Set specific vegetation type values
 
@@ -742,6 +838,10 @@ contains
     call ncd_io('deadwdcp',deadwdcp, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
 
+    call ncd_io('Nfix_NPP_c1',Nfix_NPP_c1(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if ( .not. readv ) Nfix_NPP_c1(:) = 1.8_r8 ! Default value in equation, previously hard-coded
+    call ncd_io('Nfix_NPP_c2',Nfix_NPP_c2(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if ( .not. readv ) Nfix_NPP_c2(:) = 0.003_r8 ! Default value in equation, previously hard-coded
 
     call ncd_io('grperc',grperc, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
@@ -773,8 +873,9 @@ contains
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
     call ncd_io('froot_long',froot_long, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if (.not. readv) froot_long = leaf_long
-    !if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
-    call ncd_io('evergreen',evergreen, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    call ncd_io('rhizome_long',rhizome_long(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if (.not. readv) rhizome_long = froot_long
+    call ncd_io('evergreen',evergreen(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
     call ncd_io('stress_decid',stress_decid, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) call endrun(msg=' ERROR: error in reading in pft data'//errMsg(__FILE__, __LINE__))
@@ -1032,7 +1133,110 @@ contains
     end if
     call ncd_io('rsub_top_globalmax', rsub_top_globalmax, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if (.not. readv) rsub_top_globalmax = 10._r8
-    !if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+    !if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft
+    !data'//errMsg(__FILE__,__LINE__))
+!if (defined HUM_HOL)
+    call ncd_io('humhol_ht', humhol_ht, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if ( .not. readv) humhol_ht = 0.15_r8
+    call ncd_io('humhol_dist', humhol_dist, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if ( .not. readv) humhol_dist = 1.0_r8
+    call ncd_io('hum_frac', hum_frac, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if ( .not. readv) hum_frac = 0.5_r8
+    call ncd_io('qflx_h2osfc_surfrate', qflx_h2osfc_surfrate, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if ( .not. readv) qflx_h2osfc_surfrate = 8.9192395533995e-8_r8
+    call ncd_io('vpd_max_moss', vpd_max_moss, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if ( .not. readv) vpd_max_moss = 1500.0_r8
+    call ncd_io('vpd_min_moss', vpd_min_moss, 'read', ncid, readvar=readv, posNOTonfile=.true.) 
+    if ( .not. readv) vpd_min_moss = 1000.0_r8
+    call ncd_io('blower_u0', blower_u0, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if ( .not. readv) blower_u0 = 0.0_r8
+    call ncd_io('blower_lambda', blower_lambda, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if ( .not. readv) blower_lambda = 2.0_r8
+    call ncd_io('vwc_moss_offset', vwc_moss_offset, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if ( .not. readv) vwc_moss_offset = 0.0_r8
+
+#ifdef MARSH
+! Tidal cycle parameters
+    ! Defaults from Teri's hard coded numbers
+    ! Multiple parameters specified in params file like tide_coeff_amp_1, tide_coeff_amp_2, ...
+    call ncd_io('tide_baseline',tide_baseline, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if (.not. readv) tide_baseline = 800.0_r8
+    do i=1,max_tide_coeffs
+      write(tempname,'(I0)') i
+      call ncd_io('tide_coeff_amp_'//trim(tempname),tide_coeff_amp(i), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+      if (.not. readv) then
+         write(iulog,*) "Stopped looking for tidal components after not finding ",'tide_coeff_amp_'//trim(tempname)
+         num_tide_comps=i-1
+         exit
+      else
+         num_tide_comps=i
+      endif
+      call ncd_io('tide_coeff_period_'//trim(tempname),tide_coeff_period(i), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+      if (.not. readv) call endrun(msg="Error: Must specify amp, period, and phase for each tide component: i = "//trim(tempname))
+      call ncd_io('tide_coeff_phase_'//trim(tempname),tide_coeff_phase(i), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+      if (.not. readv) call endrun(msg="Error: Must specify amp, period, and phase for each tide component: i = "//trim(tempname))
+   enddo
+   if(num_tide_comps == 0) then
+      write(iulog,*) "No tidal coefficients found in parameter file. Using Teri's 2-component fit values for GCREW site as default"
+      num_tide_comps = 2
+      tide_coeff_amp(1) = 250.0_r8
+      tide_coeff_amp(2) = 1.0/0.91518
+      tide_coeff_period(1) = 1.0/0.00003
+      tide_coeff_period(2) = 1.0/0.00000001
+      tide_coeff_phase(1) = 513.4328
+      tide_coeff_phase(2) = 0.0
+   endif
+   call ncd_io('sfcflow_ratescale',sfcflow_ratescale, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+   if (.not. readv) sfcflow_ratescale = 7.0e-5_r8 ! Probably better to have default be zero for safety
+   ! salinity parameters
+   call ncd_io('sal_threshold', sal_threshold(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+   if ( .not. readv ) sal_threshold(:) = 50.0_r8 !placeholder value for now-update with more accurate -SLL
+   call ncd_io('KM_salinity', KM_salinity(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+   if ( .not. readv ) KM_salinity(:) = 1.0_r8 !placeholder value for now-update with more accurate -SLL
+   call ncd_io('osm_inhib', osm_inhib(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+   if ( .not. readv ) osm_inhib(:) = 1.0_r8 
+   call ncd_io('sal_opt', sal_opt(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+   if ( .not. readv ) sal_opt(:) = 0.0_r8 
+   call ncd_io('sal_tol', sal_tol(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+   if ( .not. readv ) sal_tol(:) = 50.0_r8 
+   call ncd_io('floodf', floodf(0:npft-1), 'read', ncid, readvar=readv, posNOTonfile=.true.)
+   if ( .not. readv ) floodf(:) = 1.0_r8 
+#endif
+
+!    call ncd_io('phen_a', phen_a, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+!    if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+!    call ncd_io('phen_b', phen_b, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+!    if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+!    call ncd_io('phen_c', phen_c, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+!    if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+!    call ncd_io('phen_topt', phen_topt, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+!    if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+!    call ncd_io('phen_fstar', phen_fstar, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+!    if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+!    call ncd_io('phen_cstar', phen_cstar, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+!    if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+!    call ncd_io('phen_tforce', phen_tforce, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+!    if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+!    call ncd_io('phen_tchil', phen_tchil, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+!    if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+!    call ncd_io('phen_pstart', phen_pstart, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+!    if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+!    call ncd_io('phen_tb', phen_tb, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+!    if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+!    call ncd_io('phen_ycrit', phen_ycrit, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+!    if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+!    call ncd_io('phen_spring', phen_spring, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+!    if ( .not. readv) phen_spring = 0._r8
+!    call ncd_io('phen_autumn', phen_autumn, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+!    if ( .not. readv) phen_autumn = 0._r8
+!    call ncd_io('phen_tbase', phen_tbase, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+!    if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+!    call ncd_io('phen_tc', phen_tc, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+!    if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
+!    call ncd_io('crit_dayl', phen_crit_dayl, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+!    if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft ! data'//errMsg(__FILE__,__LINE__))
+
+!endif
     call ncd_io('fnr', fnr, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
     call ncd_io('act25', act25, 'read', ncid, readvar=readv, posNOTonfile=.true.)
@@ -1074,6 +1278,10 @@ contains
     call ncd_io('br_xr', br_xr, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     !if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
     if (.not. readv) br_xr(:) = 0._r8
+    call ncd_io('crit_gdd1', crit_gdd1, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if (.not. readv) crit_gdd1(:) = 4.8_r8
+    call ncd_io('crit_gdd2', crit_gdd2, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if (.not. readv) crit_gdd2(:) = 0.13_r8
     call ncd_io('tc_stress', tc_stress, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv) call endrun(msg='ERROR:  error in reading in pft data'//errMsg(__FILE__,__LINE__))
     call ncd_io('gcbc_p',gcbc_p, 'read', ncid, readvar=readv, posNOTonfile=.true.)
@@ -1084,7 +1292,6 @@ contains
     if ( .not. readv ) gcbr_p(:) = 0._r8
     call ncd_io('gcbr_q',gcbr_q, 'read', ncid, readvar=readv, posNOTonfile=.true.)
     if ( .not. readv ) gcbr_q(:) = 0._r8
-
     call ncd_io('mergetoclmpft', mergetoelmpft, 'read', ncid, readvar=readv)
     ! in case parameter file is using 'mergetoelmpft'
     if ( .not. readv ) call ncd_io('mergetoelmpft', mergetoelmpft, 'read', ncid, readvar=readv)
@@ -1194,6 +1401,13 @@ contains
     do i=0, mxpft
        if (temp_iscft(i) == 1._r8) iscft(i) = .true.
        if (temp_iscft(i) == 0._r8) iscft(i) = .false.
+    end do
+
+    npeat_ndllf_dcd_brl_tree = -1
+    npeat_nbrdlf_dcd_brl_shrub = -1
+    do i = 0, npft-1
+       if (trim(pftname(i)) == 'peatlnd_needleleaf_deciduous_boreal_tree') npeat_ndllf_dcd_brl_tree = i
+       if (trim(pftname(i)) == 'peatlnd_broadleaf_deciduous_boreal_shrub') npeat_nbrdlf_dcd_brl_shrub = i
     end do
 
    if ( PFT_DEFAULT ) then
@@ -1630,4 +1844,3 @@ contains
   end subroutine set_num_cfts_known_to_model
 
 end module pftvarcon
-

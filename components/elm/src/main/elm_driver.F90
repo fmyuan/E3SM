@@ -287,9 +287,15 @@ contains
     ! Specified phenology
     ! ============================================================================
 
-    if (use_cn) then
-       ! For dry-deposition need to call CLMSP so that mlaidiff is obtained
-       if ( n_drydep > 0 .and. drydep_method == DD_XLND ) then
+    if (.not.use_fates) then
+       if (use_cn) then
+          ! For dry-deposition need to call CLMSP so that mlaidiff is obtained
+          if ( n_drydep > 0 .and. drydep_method == DD_XLND) then 
+             call t_startf('interpMonthlyVeg')
+             call interpMonthlyVeg(bounds_proc, canopystate_vars)
+             call t_stopf('interpMonthlyVeg')
+          endif
+       else
           call t_startf('interpMonthlyVeg')
           call interpMonthlyVeg(bounds_proc, canopystate_vars)
           call t_stopf('interpMonthlyVeg')
@@ -717,7 +723,7 @@ contains
             filter(nc)%num_nolakec, filter(nc)%nolakec, &
             filter(nc)%num_nolakep, filter(nc)%nolakep, &
             atm2lnd_vars, canopystate_vars, &
-            aerosol_vars )
+            soilhydrology_vars, aerosol_vars )
        call t_stopf('canhydro')
 
        ! ============================================================================
@@ -799,7 +805,7 @@ contains
             filter(nc)%num_nolakeurbanp, filter(nc)%nolakeurbanp,                        &
             atm2lnd_vars, canopystate_vars, cnstate_vars, energyflux_vars,               &
             frictionvel_vars, soilstate_vars, solarabs_vars, surfalb_vars,               &
-            ch4_vars, photosyns_vars )
+            ch4_vars, photosyns_vars, soilhydrology_vars )
        call t_stopf('canflux')
 
        ! Fluxes for all urban landunits
@@ -1158,7 +1164,7 @@ contains
              if (use_fates_sp) then
                call SatellitePhenology(bounds_clump,               &
                filter_inactive_and_active(nc)%num_soilp, filter_inactive_and_active(nc)%soilp,    &
-               waterstate_vars, canopystate_vars)
+               waterstate_vars, canopystate_vars, soilstate_vars)
              endif
              
           else ! not ( if-use_cn   or if-use_fates)
@@ -1166,7 +1172,7 @@ contains
                 ! Prescribed biogeography - prescribed canopy structure, some prognostic carbon fluxes
                 call SatellitePhenology(bounds_clump,               &
                      filter(nc)%num_nolakep, filter(nc)%nolakep,    &
-                     waterstate_vars, canopystate_vars)
+                     waterstate_vars, canopystate_vars, soilstate_vars)
              end if
           end if  ! end of if-use_cn   or if-use_fates
        end if ! end of is_active_betr_bgc
@@ -1292,7 +1298,7 @@ contains
                filter(nc)%num_soilc, filter(nc)%soilc,             &
                filter(nc)%num_soilp, filter(nc)%soilp,             &
                filter(nc)%num_pcropp, filter(nc)%pcropp, doalb,    &
-               cnstate_vars,  frictionvel_vars, canopystate_vars )
+               cnstate_vars, soilhydrology_vars, frictionvel_vars, canopystate_vars )
          end if
        end if
 
@@ -1321,7 +1327,7 @@ contains
        if (use_cn .and. doalb) then
            call VegStructUpdate(filter(nc)%num_soilp, filter(nc)%soilp,   &
                 frictionvel_vars, cnstate_vars, &
-                canopystate_vars, crop_vars)
+                canopystate_vars, crop_vars, soilhydrology_vars)
        end if
 
 
@@ -1333,7 +1339,7 @@ contains
        call ColWaterBalanceCheck(bounds_clump, &
             filter(nc)%num_do_smb_c, filter(nc)%do_smb_c, &
             atm2lnd_vars, glc2lnd_vars, solarabs_vars,  &
-            energyflux_vars, canopystate_vars)
+            energyflux_vars, canopystate_vars, soilhydrology_vars)
        call t_stopf('balchk')
 
        call t_startf('gridbalchk')
@@ -1357,7 +1363,7 @@ contains
 
           call ColCBalanceCheck(bounds_clump, &
                filter(nc)%num_soilc, filter(nc)%soilc, &
-               col_cs, col_cf)
+               col_cs, col_cf, soilstate_vars)
 
           call ColNBalanceCheck(bounds_clump, &
                filter(nc)%num_soilc, filter(nc)%soilc, &

@@ -22,7 +22,7 @@ module VerticalProfileMod
   ! !PUBLIC MEMBER FUNCTIONS:
   public:: decomp_vertprofiles
   !
-  logical , public :: exponential_rooting_profile = .true.
+  logical , public :: exponential_rooting_profile = .true.   !Set false to use same as hydrology
   logical , public :: pftspecific_rootingprofile = .true.
   ! how steep profile is for root C inputs (1/ e-folding depth) (1/m)
   real(r8), public :: rootprof_exp  = 3._r8 

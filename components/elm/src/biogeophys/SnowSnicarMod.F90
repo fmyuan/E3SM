@@ -579,7 +579,7 @@ contains
                   call endrun(decomp_index=c_idx, elmlevel=namec, msg=errmsg(__FILE__, __LINE__))
                endif
             enddo
-#endif _OPENACC
+#endif
 
             ! Incident flux weighting parameters
             !  - sum of all VIS bands must equal 1

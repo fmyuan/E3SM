@@ -57,14 +57,16 @@ contains
             do fc = 1,num_soilc
                c = filter_soilc(fc)
                
+               
                ! mineral N loss due to leaching and runoff
                col_ns%smin_no3_vr(c,j) = max( col_ns%smin_no3_vr(c,j) - &
                     ( col_nf%smin_no3_leached_vr(c,j) + col_nf%smin_no3_runoff_vr(c,j) ) * dt, 0._r8)
-               
+
                col_ns%sminn_vr(c,j) = col_ns%smin_no3_vr(c,j) + col_ns%smin_nh4_vr(c,j)
                if (use_pflotran .and. pf_cmode) then 
                   col_ns%sminn_vr(c,j) = col_ns%sminn_vr(c,j) + col_ns%smin_nh4sorb_vr(c,j)
                end if
+               
 
                if (.not.(use_pflotran .and. pf_cmode)) then
                    ! column level nitrogen fluxes from fire

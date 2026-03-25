@@ -268,12 +268,12 @@ contains
     !
     ! !USES:
       !$acc routine seq
-    use elm_varctl           , only : use_var_soil_thick
+    use elm_varctl           , only : use_var_soil_thick, iulog
     use shr_kind_mod         , only : r8 => shr_kind_r8
     use shr_const_mod        , only : SHR_CONST_TKFRZ, SHR_CONST_LATICE, SHR_CONST_G
     use decompMod            , only : bounds_type
     use elm_varcon           , only : wimp,grav,hfus,tfrz
-    use elm_varcon           , only : e_ice,denh2o, denice
+    use elm_varcon           , only : e_ice,denh2o, denice, watmin
     use elm_varpar           , only : nlevsoi, max_patch_per_col, nlevgrnd
     use elm_time_manager     , only : get_step_size
     use column_varcon        , only : icol_roof, icol_road_imperv
@@ -282,6 +282,9 @@ contains
     use SoilHydrologyType    , only : soilhydrology_type
     use VegetationType       , only : veg_pp
     use ColumnType           , only : col_pp
+    use GridcellType         , only : grc_pp
+    use TopounitType         , only : top_pp
+    use timeinfoMod          , only : nstep_mod
     !
     ! !ARGUMENTS:
     implicit none
@@ -296,7 +299,9 @@ contains
 
     !
     ! !LOCAL VARIABLES:
-    integer  :: p,c,fc,j                                     ! do loop indices
+    integer  :: p,c,fc,j,g,t                                 ! do loop indices
+    integer  :: k_sat                                        ! top layer in continuous saturated block
+    integer  :: layer_liq_min_j, layer_excess_max_j          ! diagnostic layer indices
     integer  :: nlevbed                                      ! number of layers to bedrock
     integer  :: jtop(bounds%begc:bounds%endc)                ! top level at each column
     integer  :: jbot(bounds%begc:bounds%endc)                ! bottom level at each column
@@ -321,6 +326,7 @@ contains
     real(r8) :: s_node                                       ! soil wetness
     real(r8) :: s1                                           ! "s" at interface of layer
     real(r8) :: s2                                           ! k*s**(2b+2)
+    real(r8) :: s_y                                          ! specific yield for aquifer correction
     real(r8) :: smp(bounds%begc:bounds%endc,1:nlevgrnd)       ! soil matrix potential [mm]
     real(r8) :: sdamp                                        ! extrapolates soiwat dependence of evaporation
     integer  :: pi                                           ! pft index
@@ -345,6 +351,34 @@ contains
     real(r8) :: dsmpds                                       !temporary variable
     real(r8) :: dhkds                                        !temporary variable
     real(r8) :: hktmp                                        !temporary variable
+    real(r8) :: satroot_remap_potential(bounds%begc:bounds%endc) ! below-water-table root demand [mm/s]
+    real(r8) :: h2osoi_liq_before(bounds%begc:bounds%endc,1:nlevgrnd)
+    real(r8) :: h2osoi_liq_after_implicit(bounds%begc:bounds%endc,1:nlevgrnd)
+    real(r8) :: h2osoi_liq_after_solve(bounds%begc:bounds%endc,1:nlevgrnd)
+    real(r8) :: layer_capacity, layer_liq_min, layer_excess_max
+    real(r8) :: sat_liq, sat_frac                            ! liquid saturation relative to effective porosity
+    real(r8) :: zwt_layer_top, zwt_layer_bot                 ! layer bounds for profile-derived water table (m)
+    real(r8) :: zwt_profile                                  ! water table inferred from post-solve saturation (m)
+    real(r8) :: implicit_layer_liq_min, implicit_layer_excess_max
+    real(r8) :: liq_deficit, liq_deficit_correction, liq_deficit_from_aquifer
+    real(r8) :: liq_excess, liq_excess_correction, liq_excess_to_aquifer
+    real(r8) :: soilwater_store_beg(bounds%begc:bounds%endc)
+    real(r8) :: soilwater_store_end
+    real(r8) :: soilwater_actual_delta
+    real(r8) :: soilwater_expected_delta
+    real(r8) :: soilwater_resid
+    real(r8) :: soilwater_resid_with_qcharge
+    real(r8) :: soilwater_qcharge_storage_delta
+    real(r8) :: soilwater_root_sink(bounds%begc:bounds%endc)
+    logical  :: soilwater_aquifer_layer_active(bounds%begc:bounds%endc)
+    logical  :: satroot_remap_active(bounds%begc:bounds%endc) ! apply saturated-zone root remap to this column
+    logical  :: used_explicit_fallback
+    logical, parameter :: debug_satroot_remap_diag = .false.
+    real(r8), parameter :: fen_zwt_interp_min = 0.90_r8
+    real(r8), parameter :: fen_zwt_sat_threshold = 0.99_r8
+    real(r8), parameter :: soilwater_liq_min_abort = -100._r8
+    real(r8), parameter :: soilwater_liq_excess_abort = 1000._r8
+    real(r8), parameter :: soilwater_balance_abort = 0.5_r8
     !-----------------------------------------------------------------------
 
     associate(&
@@ -354,6 +388,7 @@ contains
          nlev2bed          =>    col_pp%nlevbed                        , & ! Input:  [integer  (:)   ]  number of layers to bedrock
 
          origflag          =>    soilhydrology_vars%origflag        , & ! Input:  constant
+         wa                =>    soilhydrology_vars%wa_col          , & ! Input/Output:  [real(r8) (:)   ] aquifer water (mm)
          qcharge           =>    soilhydrology_vars%qcharge_col     , & ! Input:  [real(r8) (:)   ]  aquifer recharge rate (mm/s)
          zwt               =>    soilhydrology_vars%zwt_col         , & ! Input:  [real(r8) (:)   ]  water table depth (m)
          fracice           =>    soilhydrology_vars%fracice_col     , & ! Input:  [real(r8) (:,:) ]  fractional impermeability (-)
@@ -377,7 +412,10 @@ contains
          qflx_deficit      =>    col_wf%qflx_deficit    , & ! Input:  [real(r8) (:)   ]  water deficit to keep non-negative liquid water content
          qflx_infl         =>    col_wf%qflx_infl       , & ! Input:  [real(r8) (:)   ]  infiltration (mm H2O /s)
          qflx_rootsoi_col  =>    col_wf%qflx_rootsoi    , & ! Input: [real(r8) (:,:) ]  vegetation/soil water exchange (mm H2O/s) (+ = to atm)
-         t_soisno          =>    col_es%t_soisno        & ! Input:  [real(r8) (:,:) ]  soil temperature (Kelvin)
+         qflx_tran_veg_col_sat   =>    col_wf%qflx_tran_veg_sat, & ! Output: [real(r8) (:)   ]
+         qflx_adv          =>    col_wf%qflx_adv        , & ! Output: [real(r8) (:,:) ] ! advective flux across different soil layer interfaces [mm H2O/s] [+ downward]
+
+         t_soisno          =>    col_es%t_soisno        & ! Input:  [real(r8) (:,:) ]  soil temperature (Kelvin)                       
          )
 
 
@@ -387,6 +425,8 @@ contains
       do fc = 1, num_hydrologyc
         c = filter_hydrologyc(fc)
         nlevbed = nlev2bed(c)
+        soilwater_store_beg(c) = wa(c)
+        soilwater_root_sink(c) = 0._r8
         do j = 1, nlevbed
             zmm(c,j) = z(c,j)*1.e3_r8
             dzmm(c,j) = dz(c,j)*1.e3_r8
@@ -396,6 +436,8 @@ contains
             vol_ice(c,j) = min(watsat(c,j), h2osoi_ice(c,j)/(dz(c,j)*denice))
             icefrac(c,j) = min(1._r8,vol_ice(c,j)/watsat(c,j))
             vwc_liq(c,j) = max(h2osoi_liq(c,j),1.0e-6_r8)/(dz(c,j)*denh2o)
+            soilwater_store_beg(c) = soilwater_store_beg(c) + h2osoi_liq(c,j)
+            soilwater_root_sink(c) = soilwater_root_sink(c) + qflx_rootsoi_col(c,j)
          end do
       end do
 
@@ -429,6 +471,7 @@ contains
                end if
             end if
          enddo
+         soilwater_aquifer_layer_active(c) = .not. use_var_soil_thick .and. jwt(c) >= nlevbed
 
          ! compute vwc at water table depth (mainly for case when t < tfrz)
          !     this will only be used when zwt is below the soil column
@@ -578,8 +621,6 @@ contains
 
       ! Set up r, a, b, and c vectors for tridiagonal solution
 
-      ! Node j=1 (top)
-
       j = 1
       do fc = 1, num_hydrologyc
          c = filter_hydrologyc(fc)
@@ -591,6 +632,15 @@ contains
          dqodw1(c,j) = -(-hk(c,j)*dsmpdw(c,j)   + num*dhkdw(c,j))/den
          dqodw2(c,j) = -( hk(c,j)*dsmpdw(c,j+1) + num*dhkdw(c,j))/den
          rmx(c,j) =  qin(c,j) - qout(c,j) - qflx_rootsoi_col(c,j)
+
+         if (satroot_remap_active(c)) then
+            if (j == jwt(c)+1) then !water table in this layer
+              rmx(c,j) =  qin(c,j) - qout(c,j) - qflx_rootsoi_col(c,j) - qflx_tran_veg_col_sat(c)
+            else                    !water table below this layer
+              rmx(c,j) =  qin(c,j) - qout(c,j) - qflx_rootsoi_col(c,j)
+            end if
+         end if
+
          amx(c,j) =  0._r8
          bmx(c,j) =  dzmm(c,j)*(sdamp+1._r8/dtime) + dqodw1(c,j)
          cmx(c,j) =  dqodw2(c,j)
@@ -614,7 +664,18 @@ contains
             qout(c,j)   = -hk(c,j)*num/den
             dqodw1(c,j) = -(-hk(c,j)*dsmpdw(c,j)   + num*dhkdw(c,j))/den
             dqodw2(c,j) = -( hk(c,j)*dsmpdw(c,j+1) + num*dhkdw(c,j))/den
-            rmx(c,j)    =  qin(c,j) - qout(c,j) -  qflx_rootsoi_col(c,j)
+            rmx(c,j)    =  qin(c,j) - qout(c,j) - qflx_rootsoi_col(c,j)
+            if (satroot_remap_active(c)) then
+               if (j > jwt(c)+1) then
+                 rmx(c,j)    =  qin(c,j) - qout(c,j)
+               else if (j == jwt(c)+1) then
+                 rmx(c,j)    =  qin(c,j) - qout(c,j) - qflx_rootsoi_col(c,j) - qflx_tran_veg_col_sat(c)
+               else
+                 rmx(c,j)    =  qin(c,j) - qout(c,j) - qflx_rootsoi_col(c,j)
+               end if
+            end if
+
+
             amx(c,j)    = -dqidw0(c,j)
             bmx(c,j)    =  dzmm(c,j)/dtime - dqidw1(c,j) + dqodw1(c,j)
             cmx(c,j)    =  dqodw2(c,j)
@@ -637,6 +698,15 @@ contains
             qout(c,j)   =  0._r8
             dqodw1(c,j) =  0._r8
             rmx(c,j)    =  qin(c,j) - qout(c,j) - qflx_rootsoi_col(c,j)
+            if (satroot_remap_active(c)) then
+               if (j > jwt(c)+1) then
+                 rmx(c,j)    =  qin(c,j) - qout(c,j)
+               else if (j == jwt(c)+1) then
+                 rmx(c,j)    =  qin(c,j) - qout(c,j) - qflx_rootsoi_col(c,j) - qflx_tran_veg_col_sat(c)
+               else
+                 rmx(c,j)    =  qin(c,j) - qout(c,j) - qflx_rootsoi_col(c,j)
+               end if
+            end if
             amx(c,j)    = -dqidw0(c,j)
             bmx(c,j)    =  dzmm(c,j)/dtime - dqidw1(c,j) + dqodw1(c,j)
             cmx(c,j)    =  0._r8
@@ -686,6 +756,15 @@ contains
             end if
 
             rmx(c,j) =  qin(c,j) - qout(c,j) - qflx_rootsoi_col(c,j)
+            if (satroot_remap_active(c)) then
+               if (j > jwt(c)+1) then
+                 rmx(c,j)    =  qin(c,j) - qout(c,j)
+               else if (j == jwt(c)+1) then
+                 rmx(c,j)    =  qin(c,j) - qout(c,j) - qflx_rootsoi_col(c,j) - qflx_tran_veg_col_sat(c)
+               else
+                 rmx(c,j)    =  qin(c,j) - qout(c,j) - qflx_rootsoi_col(c,j)
+               end if
+            end if
             amx(c,j) = -dqidw0(c,j)
             bmx(c,j) =  dzmm(c,j)/dtime - dqidw1(c,j) + dqodw1(c,j)
             cmx(c,j) =  dqodw2(c,j)
@@ -748,8 +827,184 @@ contains
          c = filter_hydrologyc(fc)
          nlevbed = nlev2bed(c)
          do j = 1, nlevbed
-            h2osoi_liq(c,j) = h2osoi_liq(c,j) + dwat2(c,j)*dzmm(c,j)
+            h2osoi_liq_before(c,j) = h2osoi_liq(c,j)
+            h2osoi_liq_after_implicit(c,j) = h2osoi_liq(c,j) + dwat2(c,j)*dzmm(c,j)
+            h2osoi_liq_after_solve(c,j) = h2osoi_liq_after_implicit(c,j)
          end do
+
+         implicit_layer_liq_min = huge(1._r8)
+         implicit_layer_excess_max = -huge(1._r8)
+         do j = 1, nlevbed
+            layer_capacity = eff_porosity(c,j)*dzmm(c,j)
+            implicit_layer_liq_min = min(implicit_layer_liq_min, h2osoi_liq_after_implicit(c,j))
+            implicit_layer_excess_max = max(implicit_layer_excess_max, &
+                 h2osoi_liq_after_implicit(c,j) - layer_capacity)
+         end do
+
+         ! If the linearized implicit solve is non-monotone, keep the timestep
+         ! budget but reject the ill-conditioned implicit increment for this column.
+         used_explicit_fallback = implicit_layer_liq_min < soilwater_liq_min_abort .or. &
+              implicit_layer_excess_max > soilwater_liq_excess_abort
+         if (used_explicit_fallback) then
+            do j = 1, nlevbed
+               h2osoi_liq_after_solve(c,j) = h2osoi_liq_before(c,j) + rmx(c,j)*dtime
+            end do
+         end if
+
+         do j = 1, nlevbed
+            h2osoi_liq(c,j) = h2osoi_liq_after_solve(c,j)
+         end do
+
+         ! The implicit vertical solve can overshoot ice-limited saturated layers
+         ! and produce negative liquid water. Keep the correction conservative by
+         ! borrowing deficits from deeper layers, then from the aquifer at bedrock.
+         ! Also push excess liquid downward, then to the aquifer at bedrock, so
+         ! an explicit fallback cannot leave any layer above ice-limited capacity.
+         liq_deficit_correction = 0._r8
+         liq_deficit_from_aquifer = 0._r8
+         liq_excess_correction = 0._r8
+         liq_excess_to_aquifer = 0._r8
+         do j = 1, nlevbed-1
+            if (h2osoi_liq(c,j) < watmin) then
+               liq_deficit = watmin - h2osoi_liq(c,j)
+               h2osoi_liq(c,j) = h2osoi_liq(c,j) + liq_deficit
+               h2osoi_liq(c,j+1) = h2osoi_liq(c,j+1) - liq_deficit
+               liq_deficit_correction = liq_deficit_correction + liq_deficit
+            end if
+         end do
+         j = nlevbed
+         if (h2osoi_liq(c,j) < watmin) then
+            liq_deficit = watmin - h2osoi_liq(c,j)
+            h2osoi_liq(c,j) = h2osoi_liq(c,j) + liq_deficit
+            wa(c) = wa(c) - liq_deficit
+            liq_deficit_correction = liq_deficit_correction + liq_deficit
+            liq_deficit_from_aquifer = liq_deficit
+         end if
+         if (liq_deficit_from_aquifer > 0._r8) then
+            s_y = watsat(c,nlevbed) * &
+                 (1._r8 - (1._r8 + 1.e3_r8*zwt(c)/sucsat(c,nlevbed))**(-1._r8/bsw(c,nlevbed)))
+            s_y = max(s_y,0.02_r8)
+            zwt(c) = zwt(c) + liq_deficit_from_aquifer/1000._r8/s_y
+            zwt(c) = max(0._r8,min(80._r8,zwt(c)))
+         end if
+         do j = 1, nlevbed-1
+            layer_capacity = max(watmin, eff_porosity(c,j)*dzmm(c,j))
+            if (h2osoi_liq(c,j) > layer_capacity) then
+               liq_excess = h2osoi_liq(c,j) - layer_capacity
+               h2osoi_liq(c,j) = h2osoi_liq(c,j) - liq_excess
+               h2osoi_liq(c,j+1) = h2osoi_liq(c,j+1) + liq_excess
+               liq_excess_correction = liq_excess_correction + liq_excess
+            end if
+         end do
+         j = nlevbed
+         layer_capacity = max(watmin, eff_porosity(c,j)*dzmm(c,j))
+         if (h2osoi_liq(c,j) > layer_capacity) then
+            liq_excess = h2osoi_liq(c,j) - layer_capacity
+            h2osoi_liq(c,j) = h2osoi_liq(c,j) - liq_excess
+            wa(c) = wa(c) + liq_excess
+            liq_excess_correction = liq_excess_correction + liq_excess
+            liq_excess_to_aquifer = liq_excess
+         end if
+         if (liq_excess_to_aquifer > 0._r8) then
+            s_y = watsat(c,nlevbed) * &
+                 (1._r8 - (1._r8 + 1.e3_r8*zwt(c)/sucsat(c,nlevbed))**(-1._r8/bsw(c,nlevbed)))
+            s_y = max(s_y,0.02_r8)
+            zwt(c) = zwt(c) - liq_excess_to_aquifer/1000._r8/s_y
+            zwt(c) = max(0._r8,min(80._r8,zwt(c)))
+         end if
+         do j = 1, nlevbed
+            h2osoi_vol(c,j) = h2osoi_liq(c,j)/(dz(c,j)*denh2o) &
+                 + h2osoi_ice(c,j)/(dz(c,j)*denice)
+         end do
+
+         if (soilwater_aquifer_layer_active(c)) then
+            ! The linear solve included the extra aquifer layer. Keep the
+            ! water table classified below the explicit soil column until
+            ! Drainage applies qcharge to WA.
+            ! Drainage treats exact equality with the bottom interface as
+            ! inside the bottom layer, so keep this strictly below bedrock.
+            zwt(c) = max(zwt(c), zi(c,nlevbed) + 1.e-9_r8)
+            zwtmm(c) = zwt(c)*1.e3_r8
+            jwt(c) = nlevbed
+         end if
+
+         layer_liq_min = huge(1._r8)
+         layer_excess_max = -huge(1._r8)
+         layer_liq_min_j = 1
+         layer_excess_max_j = 1
+         do j = 1, nlevbed
+            layer_capacity = eff_porosity(c,j)*dzmm(c,j)
+            if (h2osoi_liq(c,j) < layer_liq_min) then
+               layer_liq_min = h2osoi_liq(c,j)
+               layer_liq_min_j = j
+            end if
+            if (h2osoi_liq(c,j) - layer_capacity > layer_excess_max) then
+               layer_excess_max = h2osoi_liq(c,j) - layer_capacity
+               layer_excess_max_j = j
+            end if
+         end do
+         if (layer_liq_min < soilwater_liq_min_abort .or. &
+             layer_excess_max > soilwater_liq_excess_abort) then
+            g = col_pp%gridcell(c)
+            t = col_pp%topounit(c)
+            write(iulog,*)'soilwater vertical solve diagnostic'
+            write(iulog,*)'nstep                      = ',nstep_mod
+            write(iulog,*)'column index               = ',c
+            write(iulog,*)'gridcell index             = ',g
+            write(iulog,*)'Latdeg,Londeg              = ',grc_pp%latdeg(g),grc_pp%londeg(g)
+            write(iulog,*)'topounit index             = ',t
+            write(iulog,*)'topounit topo_grc_ind      = ',top_pp%topo_grc_ind(t)
+            write(iulog,*)'topounit weight gridcell   = ',top_pp%wtgcell(t)
+            write(iulog,*)'dtime                      = ',dtime
+            write(iulog,*)'nlevbed                    = ',nlevbed
+            write(iulog,*)'jwt                        = ',jwt(c)
+            write(iulog,*)'layer liq min              = ',layer_liq_min
+            write(iulog,*)'layer liq min j            = ',layer_liq_min_j
+            write(iulog,*)'layer excess max           = ',layer_excess_max
+            write(iulog,*)'layer excess max j         = ',layer_excess_max_j
+            write(iulog,*)'implicit layer liq min      = ',implicit_layer_liq_min
+            write(iulog,*)'implicit layer excess max   = ',implicit_layer_excess_max
+            write(iulog,*)'used explicit fallback      = ',used_explicit_fallback
+            write(iulog,*)'zwt                        = ',zwt(c)
+            write(iulog,*)'qcharge before update      = ',qcharge(c)
+            write(iulog,*)'qcharge before update d    = ',qcharge(c)*dtime
+            write(iulog,*)'satroot remap active       = ',satroot_remap_active(c)
+            write(iulog,*)'satroot remap potential    = ',satroot_remap_potential(c)
+            write(iulog,*)'satroot remap potential d  = ',satroot_remap_potential(c)*dtime
+            write(iulog,*)'qflx_tran_veg_col_sat      = ',qflx_tran_veg_col_sat(c)
+            write(iulog,*)'qflx_tran_veg_col_sat d    = ',qflx_tran_veg_col_sat(c)*dtime
+            write(iulog,*)'qflx_infl                  = ',qflx_infl(c)
+            write(iulog,*)'qflx_infl d                = ',qflx_infl(c)*dtime
+            write(iulog,*)'liq deficit correction     = ',liq_deficit_correction
+            write(iulog,*)'liq deficit from aquifer    = ',liq_deficit_from_aquifer
+            write(iulog,*)'liq excess correction      = ',liq_excess_correction
+            write(iulog,*)'liq excess to aquifer      = ',liq_excess_to_aquifer
+            write(iulog,*)'h2osoi_liq before          = ',h2osoi_liq_before(c,1:nlevbed)
+            write(iulog,*)'h2osoi_liq after implicit  = ',h2osoi_liq_after_implicit(c,1:nlevbed)
+            write(iulog,*)'h2osoi_liq after solve     = ',h2osoi_liq_after_solve(c,1:nlevbed)
+            write(iulog,*)'h2osoi_liq after correct   = ',h2osoi_liq(c,1:nlevbed)
+            write(iulog,*)'h2osoi_liq delta           = ',dwat2(c,1:nlevbed)*dzmm(c,1:nlevbed)
+            write(iulog,*)'dwat2                      = ',dwat2(c,1:nlevbed)
+            write(iulog,*)'rmx                        = ',rmx(c,1:nlevbed)
+            write(iulog,*)'rmx dtime                  = ',rmx(c,1:nlevbed)*dtime
+            write(iulog,*)'qin                        = ',qin(c,1:nlevbed)
+            write(iulog,*)'qin dtime                  = ',qin(c,1:nlevbed)*dtime
+            write(iulog,*)'qout                       = ',qout(c,1:nlevbed)
+            write(iulog,*)'qout dtime                 = ',qout(c,1:nlevbed)*dtime
+            write(iulog,*)'qflx_rootsoi_col           = ',qflx_rootsoi_col(c,1:nlevbed)
+            write(iulog,*)'qflx_rootsoi_col dtime     = ',qflx_rootsoi_col(c,1:nlevbed)*dtime
+            write(iulog,*)'h2osoi_ice                 = ',h2osoi_ice(c,1:nlevbed)
+            write(iulog,*)'eff_porosity               = ',eff_porosity(c,1:nlevbed)
+            write(iulog,*)'watsat                     = ',watsat(c,1:nlevbed)
+            write(iulog,*)'icefrac                    = ',icefrac(c,1:nlevbed)
+            write(iulog,*)'imped                      = ',imped(c,1:nlevbed)
+            write(iulog,*)'smp                        = ',smp(c,1:nlevbed)
+            write(iulog,*)'hk                         = ',hk(c,1:nlevbed)
+            write(iulog,*)'dzmm                       = ',dzmm(c,1:nlevbed)
+            write(iulog,*)'zimm                       = ',zimm(c,0:nlevbed)
+            call endrun(msg='SoilWaterMovement vertical solve produced out-of-bounds layer water'&
+                 //errMsg(__FILE__, __LINE__))
+         end if
 
          ! calculate qcharge for case jwt < nlevsoi
          if (use_var_soil_thick) then
@@ -790,7 +1045,12 @@ contains
                qcharge(c) = 0._r8
             endif
           else
-            if (jwt(c) < nlevbed) then
+            if (soilwater_aquifer_layer_active(c)) then
+               ! If the solve used the extra aquifer layer, diagnose recharge
+               ! from that layer even if a later profile correction moved jwt
+               ! back into the explicit soil column.
+               qcharge(c) = dwat2(c,nlevsoi+1)*dzmm(c,nlevsoi+1)/dtime
+            else if (jwt(c) < nlevbed) then
                wh_zwt = 0._r8   !since wh_zwt = -sucsat - zq_zwt, where zq_zwt = -sucsat
 
                ! Recharge rate qcharge to groundwater (positive to aquifer)
@@ -823,8 +1083,7 @@ contains
                qcharge(c) = max(-10.0_r8/dtime,qcharge(c))
                qcharge(c) = min( 10.0_r8/dtime,qcharge(c))
             else
-            ! if water table is below soil column, compute qcharge from dwat2(11)
-               qcharge(c) = dwat2(c,nlevsoi+1)*dzmm(c,nlevsoi+1)/dtime
+               qcharge(c) = 0._r8
             endif
          endif
       end do
@@ -839,6 +1098,43 @@ contains
             if(h2osoi_liq(c,j)<0._r8)then
                qflx_deficit(c) = qflx_deficit(c) - h2osoi_liq(c,j)
             endif
+         enddo
+      enddo
+
+      do fc = 1, num_hydrologyc
+         c = filter_hydrologyc(fc)
+         nlevbed = nlev2bed(c)
+         soilwater_store_end = wa(c)
+         do j = 1, nlevbed
+         soilwater_store_end = soilwater_store_end + h2osoi_liq(c,j)
+         enddo
+         soilwater_actual_delta = soilwater_store_end - soilwater_store_beg(c)
+         soilwater_expected_delta = (qflx_infl(c) - soilwater_root_sink(c))*dtime
+         soilwater_resid = soilwater_actual_delta - soilwater_expected_delta
+         soilwater_qcharge_storage_delta = 0._r8
+         ! When this timestep's non-variable-soil-thickness solve used its
+         ! extra aquifer layer, qcharge is the water transferred out of the
+         ! explicit soil layers in this routine. Otherwise qcharge is diagnosed
+         ! here but applied later by Drainage, so it should not enter this local
+         ! vertical-solve storage check.
+         if (soilwater_aquifer_layer_active(c)) then
+            soilwater_qcharge_storage_delta = soilwater_expected_delta - soilwater_actual_delta
+            qcharge(c) = soilwater_qcharge_storage_delta/dtime
+         end if
+         soilwater_resid_with_qcharge = soilwater_actual_delta - &
+              (soilwater_expected_delta - soilwater_qcharge_storage_delta)
+      enddo
+
+      ! Save cross-layer flow for use in advective flux calculations (Ben Sulman)
+      do fc = 1, num_hydrologyc
+         c = filter_hydrologyc(fc)
+         nlevbed = nlev2bed(c)
+         qflx_adv(c,0) = qin(c,1) ! Layer zero is flow out of space above top layer, i.e. infiltration
+         do j = 1, nlevbed
+            qflx_adv(c,j) = qout(c,j)
+         enddo
+         do j = nlevbed+1, nlevgrnd
+            qflx_adv(c,j) = 0.0_r8
          enddo
       enddo
 
@@ -1195,7 +1491,7 @@ contains
       do fc = 1, num_filterc
          c = filterc(fc)
          nlevbed = nlev2bed(c)
-         do j = 1, nlevbed
+         do j = 1, nlevsoi
             rootr_col(c,j) = 0._r8
          end do
       end do

@@ -71,6 +71,7 @@ module VegetationDataType
     real(r8), pointer :: t_ref2m_max_inst_u (:) => null() ! instantaneous daily max of average 2 m height surface air temp - urban (K)
     real(r8), pointer :: t_veg24            (:) => null() ! 24hr average vegetation temperature (K)
     real(r8), pointer :: t_veg240           (:) => null() ! 240hr average vegetation temperature (K)
+    real(r8), pointer :: t_2m3650           (:) => null() ! 10-year average 2-m temperature (K)
     real(r8), pointer :: gdd0               (:) => null() ! growing degree-days base  0C from planting  (ddays)
     real(r8), pointer :: gdd8               (:) => null() ! growing degree-days base  8C from planting  (ddays)
     real(r8), pointer :: gdd10              (:) => null() ! growing degree-days base 10C from planting  (ddays)
@@ -151,6 +152,7 @@ module VegetationDataType
     real(r8), pointer :: totvegc            (:) => null() ! (gC/m2) total vegetation carbon, excluding cpool
     real(r8), pointer :: totpftc            (:) => null() ! (gC/m2) total patch-level carbon, including cpool
     real(r8), pointer :: totvegc_abg        (:) => null() ! (gC/m2) total above vegetation carbon, excluding cpool
+    real(r8), pointer :: osm_inhib          (:) => null() ! osm_inhib
     real(r8), pointer :: begcb              (:) => null() ! patch carbon mass, beginning of time step (gC/m**2)
     real(r8), pointer :: endcb              (:) => null() ! patch carbon mass, end of time step (gC/m**2)
     real(r8), pointer :: errcb              (:) => null() ! patch carbon balance error for the timestep (gC/m**2)
@@ -509,6 +511,7 @@ module VegetationDataType
     real(r8), pointer :: frootc_to_litter                    (:) => null()    ! fine root C litterfall (gC/m2/s)
     real(r8), pointer :: livestemc_to_litter                 (:) => null()    ! live stem C litterfall (gC/m2/s)
     real(r8), pointer :: grainc_to_food                      (:) => null()    ! grain C to food for prognostic crop(gC/m2/s)
+    real(r8), pointer :: livecrootc_to_litter                (:) => null()    ! live coarse root C litterfall (gC/m2/s)
 
     ! maintenance respiration fluxes
     real(r8), pointer :: leaf_mr                             (:) => null()    ! leaf maintenance respiration (gC/m2/s)
@@ -776,9 +779,11 @@ module VegetationDataType
     real(r8), pointer :: leafn_to_retransn                   (:)   => null()  ! leaf N to retranslocated N pool (gN/m2/s)
     real(r8), pointer :: frootn_to_retransn                  (:)   => null()  ! fine root N to retranslocated N pool (gN/m2/s)
     real(r8), pointer :: frootn_to_litter                    (:)   => null()  ! fine root N litterfall (gN/m2/s)
+    real(r8), pointer :: livecrootn_to_litter                (:)   => null()  ! live coarse root N litterfall (gN/m2/s)
     ! allocation fluxes
     real(r8), pointer :: retransn_to_npool                   (:)   => null()  ! deployment of retranslocated N (gN/m2/s)
     real(r8), pointer :: sminn_to_npool                      (:)   => null()  ! deployment of soil mineral N uptake (gN/m2/s)
+    real(r8), pointer :: ndep_to_npool                       (:) => null()
     real(r8), pointer :: smin_no3_to_plant_vr                (:,:) => null()
     real(r8), pointer :: smin_nh4_to_plant_vr               (:,:) => null()
     real(r8), pointer :: npool_to_grainn                     (:)   => null()  ! allocation to grain N for prognostic crop (gN/m2/s)
@@ -957,6 +962,7 @@ module VegetationDataType
     real(r8), pointer :: leafp_to_retransp                   (:)     ! leaf P to retranslocated P pool (gP/m2/s)
     real(r8), pointer :: frootp_to_retransp                  (:)     ! fine root P to retranslocated P pool (gP/m2/s)
     real(r8), pointer :: frootp_to_litter                    (:)     ! fine root P litterfall (gP/m2/s)
+    real(r8), pointer :: livecrootp_to_litter                (:)     ! live coarse root P litterfall (gP/m2/s)
     real(r8), pointer :: retransp_to_ppool                   (:)     ! deployment of retranslocated P (gP/m2/s)
     real(r8), pointer :: sminp_to_ppool                      (:)     ! deployment of soil mineral P uptake (gP/m2/s)
     real(r8), pointer :: ppool_to_grainp                     (:)     ! allocation to grain P for prognostic crop (gP/m2/s)
@@ -1096,6 +1102,7 @@ module VegetationDataType
     allocate(this%t_ref2m_max_inst_u (begp:endp))                   ; this%t_ref2m_max_inst_u (:)   = spval
     allocate(this%t_veg24            (begp:endp))                   ; this%t_veg24            (:)   = spval
     allocate(this%t_veg240           (begp:endp))                   ; this%t_veg240           (:)   = spval
+    allocate(this%t_2m3650           (begp:endp))                   ; this%t_2m3650           (:)   = spval
     allocate(this%gdd0               (begp:endp))                   ; this%gdd0               (:)   = spval
     allocate(this%gdd8               (begp:endp))                   ; this%gdd8               (:)   = spval
     allocate(this%gdd10              (begp:endp))                   ; this%gdd10              (:)   = spval
@@ -1186,6 +1193,11 @@ module VegetationDataType
     call hist_addfld1d (fname='TV240', units='K',  &
          avgflag='A', long_name='vegetation temperature (last 240hrs)', &
          ptr_patch=this%t_veg240, default='inactive')
+
+    this%t_2m3650(begp:endp)  = spval
+    call hist_addfld1d (fname='T2M3650', units='K',  &
+         avgflag='A', long_name='air temperature (last 10yrs)', &
+         ptr_patch=this%t_2m3650, default='inactive')
 
     if (crop_prog) then
        this%gdd0(begp:endp) = spval
@@ -1446,6 +1458,11 @@ module VegetationDataType
          desc='240hr average of vegetation temperature',  accum_type='runmean', accum_period=-10,  &
          subgrid_type='pft', numlev=1, init_value=0._r8)
 
+    this%t_2m3650(bounds%begp:bounds%endp) = spval
+    call init_accum_field (name='T_2M3650', units='K',                                              &
+         desc='10-year average of 2m temperature',  accum_type='runmean', accum_period=-3650,  &
+         subgrid_type='pft', numlev=1, init_value=0._r8)
+
     if ( crop_prog )then
        call init_accum_field (name='TDM10', units='K', &
             desc='10-day running mean of min 2-m temperature', accum_type='runmean', accum_period=-10, &
@@ -1517,6 +1534,9 @@ module VegetationDataType
 
     call extract_accum_field ('T_VEG240', rbufslp, nstep)
     this%t_veg240(begp:endp) = rbufslp(begp:endp)
+
+    call extract_accum_field ('T_2M3650', rbufslp, nstep)
+    this%t_2m3650(begp:endp) = rbufslp(begp:endp)
 
     if (crop_prog) then
        call extract_accum_field ('TDM10', rbufslp, nstep)
@@ -1618,6 +1638,12 @@ module VegetationDataType
     call update_accum_field  ('T_VEG240', rbufslp       , nstep)
     call extract_accum_field ('T_VEG240', this%t_veg240 , nstep)
 
+    ! fill the temporary variable
+    do p = begp,endp
+       rbufslp(p) = this%t_ref2m(p)
+    end do
+    call update_accum_field  ('T_2M3650', rbufslp       , nstep)
+    call extract_accum_field ('T_2M3650', this%t_2m3650, nstep)
 
     ! Accumulate and extract TREFAV - hourly average 2m air temperature
     ! Used to compute maximum and minimum of hourly averaged 2m reference
@@ -1973,6 +1999,7 @@ module VegetationDataType
        allocate(this%grainc_xfer        (begp :endp))   ;  this%grainc_xfer        (:)   = spval
        allocate(this%woodc              (begp :endp))   ;  this%woodc              (:)   = spval
        allocate(this%totvegc_abg        (begp :endp))   ;  this%totvegc_abg        (:)   = spval
+       allocate(this%osm_inhib          (begp :endp))   ;  this%osm_inhib          (:)   = spval
     endif  !  not use_fates
 
     allocate(this%begcb              (begp :endp))   ;  this%begcb              (:) = spval
@@ -2145,6 +2172,11 @@ module VegetationDataType
             avgflag='A', long_name='total aboveground vegetation carbon, excluding cpool', &
             ptr_patch=this%totvegc_abg)
 
+     !   this%osm_inhib(begc:endc) = spval
+     !   call hist_addfld1d (fname='OSM_INHIB',  units=' ',  &
+     !        avgflag='A', long_name='Factor to reduce growth due to salinity stress', &
+     !        ptr_col=this%osm_inhib)
+            
        ! end of c12 block
 
     else if ( carbon_type == 'c13' ) then
@@ -2468,14 +2500,14 @@ module VegetationDataType
                 this%leafc_storage(p) = 0._r8
              else
                 if (veg_vp%evergreen(veg_pp%itype(p)) == 1._r8) then
-                   this%leafc(p)         = 1._r8 * ratio
+                   this%leafc(p)         = 20._r8 * ratio
                    this%leafc_storage(p) = 0._r8
                 else if (iscft(veg_pp%itype(p))) then ! prognostic crop types
                    this%leafc(p) = 0._r8
                    this%leafc_storage(p) = 0._r8
                 else
                    this%leafc(p) = 0._r8
-                   this%leafc_storage(p) = 1._r8 * ratio
+                   this%leafc_storage(p) = 20._r8 * ratio
                 end if
              end if
              this%leafc_xfer(p) = 0._r8
@@ -3474,7 +3506,7 @@ module VegetationDataType
     !--------------------------------
     ! the spinup_state variable is being written by the column-level carbon state restart
     ! routine, so only need to handle the reading part here
-    if (carbon_type == 'c12'  .or. carbon_type == 'c14') then
+    if (carbon_type == 'c12'  .or. carbon_type == 'c14' .or. carbon_type == 'c13') then
         if (flag == 'read') then
            call restartvar(ncid=ncid, flag=flag, varname='spinup_state', xtype=ncd_int,  &
                 long_name='Spinup state of the model that wrote this restart file: ' &
@@ -4983,8 +5015,8 @@ module VegetationDataType
     type(column_phosphorus_state), intent(inout) :: col_ps
     !
     ! !LOCAL VARIABLES:
-    integer  :: p        ! indices
-    integer  :: fp       ! lake filter indices
+    integer  :: c,p      ! indices
+    integer  :: fc,fp    ! lake filter indices
     !-----------------------------------------------------------------------
     associate( &
      totvegp_patch  => this%totvegp   , &
@@ -5058,6 +5090,12 @@ module VegetationDataType
       call p2c(bounds, num_soilc, filter_soilc, &
            cropseedp_deficit_patch(bounds%begp:bounds%endp) , &
            cropseedp_deficit_col(bounds%begc:bounds%endc) )
+   else
+      ! Non-crop runs still include this column pool in TOTCOLP.
+      do fc = 1,num_soilc
+         c = filter_soilc(fc)
+         cropseedp_deficit_col(c) = 0._r8
+      end do
    endif
    end associate
 
@@ -5796,6 +5834,7 @@ module VegetationDataType
        allocate(this%leafc_to_litter                     (begp:endp)) ;    this%leafc_to_litter                      (:) = spval
        allocate(this%frootc_to_litter                    (begp:endp)) ;    this%frootc_to_litter                     (:) = spval
        allocate(this%livestemc_to_litter                 (begp:endp)) ;    this%livestemc_to_litter                  (:) = spval
+       allocate(this%livecrootc_to_litter                (begp:endp)) ;    this%livecrootc_to_litter                 (:) = spval
        allocate(this%grainc_to_food                      (begp:endp)) ;    this%grainc_to_food                       (:) = spval
        allocate(this%leaf_mr                             (begp:endp)) ;    this%leaf_mr                              (:) = spval
        allocate(this%froot_mr                            (begp:endp)) ;    this%froot_mr                             (:) = spval
@@ -6334,6 +6373,11 @@ module VegetationDataType
        call hist_addfld1d (fname='FROOTC_TO_LITTER', units='gC/m^2/s', &
             avgflag='A', long_name='fine root C litterfall', &
             ptr_patch=this%frootc_to_litter, default='inactive')
+            
+       this%livecrootc_to_litter(begp:endp) = spval
+       call hist_addfld1d (fname='LIVECROOTC_TO_LITTER', units='gC/m^2/s', &
+            avgflag='A', long_name='live coarse root C litterfall', &
+            ptr_patch=this%livecrootc_to_litter, default='inactive')
 
        this%leaf_mr(begp:endp) = spval
        call hist_addfld1d (fname='LEAF_MR', units='gC/m^2/s', &
@@ -6996,6 +7040,11 @@ module VegetationDataType
             avgflag='A', long_name='C13 fine root C litterfall', &
             ptr_patch=this%frootc_to_litter, default='inactive')
 
+       this%livecrootc_to_litter(begp:endp) = spval
+       call hist_addfld1d (fname='C13_LIVECROOTC_TO_LITTER', units='gC13/m^2/s', &
+            avgflag='A', long_name='C13 live coarse root C litterfall', &
+            ptr_patch=this%livecrootc_to_litter, default='inactive')
+
        this%leaf_mr(begp:endp) = spval
        call hist_addfld1d (fname='C13_LEAF_MR', units='gC13/m^2/s', &
             avgflag='A', long_name='C13 leaf maintenance respiration', &
@@ -7591,6 +7640,11 @@ module VegetationDataType
             avgflag='A', long_name='C14 fine root C litterfall', &
             ptr_patch=this%frootc_to_litter, default='inactive')
 
+       this%livecrootc_to_litter(begp:endp) = spval
+       call hist_addfld1d (fname='C14_LIVECROOTC_TO_LITTER', units='gC14/m^2/s', &
+            avgflag='A', long_name='C14 live coarse root C litterfall', &
+            ptr_patch=this%livecrootc_to_litter, default='inactive')
+     
        this%leaf_mr(begp:endp) = spval
        call hist_addfld1d (fname='C14_LEAF_MR', units='gC14/m^2/s', &
             avgflag='A', long_name='C14 leaf maintenance respiration', &
@@ -8282,6 +8336,7 @@ module VegetationDataType
        this%litfall(p) = &
             this%leafc_to_litter(p)                     + &
             this%frootc_to_litter(p)                    + &
+            this%livecrootc_to_litter(p)                + &
             this%m_leafc_to_litter(p)                   + &
             this%m_leafc_storage_to_litter(p)           + &
             this%m_leafc_xfer_to_litter(p)              + &
@@ -8463,7 +8518,8 @@ module VegetationDataType
             this%hrv_livecrootc_xfer_to_litter(p)    + &
             this%hrv_deadcrootc_to_litter(p)         + &
             this%hrv_deadcrootc_storage_to_litter(p) + &
-            this%hrv_deadcrootc_xfer_to_litter(p)
+            this%hrv_deadcrootc_xfer_to_litter(p)    + &
+            this%livecrootc_to_litter(p)
        ! putting the harvested crop stem and grain in the wood loss bdrewniak
        if ( crop_prog .and. iscft(veg_pp%itype(p)))then
           this%woodc_loss(p) = &
@@ -8647,6 +8703,7 @@ module VegetationDataType
           this%deadcrootc_xfer_to_deadcrootc(i)       = value_patch
           this%leafc_to_litter(i)                     = value_patch
           this%frootc_to_litter(i)                    = value_patch
+          this%livecrootc_to_litter(i)                = value_patch
           this%leaf_mr(i)                             = value_patch
           this%froot_mr(i)                            = value_patch
           this%livestem_mr(i)                         = value_patch
@@ -8907,6 +8964,7 @@ module VegetationDataType
     allocate(this%frootn_to_litter                    (begp:endp)) ; this%frootn_to_litter                    (:) = spval
     allocate(this%retransn_to_npool                   (begp:endp)) ; this%retransn_to_npool                   (:) = spval
     allocate(this%sminn_to_npool                      (begp:endp)) ; this%sminn_to_npool                      (:) = spval
+    allocate(this%ndep_to_npool                       (begp:endp)) ; this%ndep_to_npool                       (:) = spval 
     allocate(this%npool_to_leafn                      (begp:endp)) ; this%npool_to_leafn                      (:) = spval
     allocate(this%npool_to_leafn_storage              (begp:endp)) ; this%npool_to_leafn_storage              (:) = spval
     allocate(this%npool_to_frootn                     (begp:endp)) ; this%npool_to_frootn                     (:) = spval
@@ -8935,6 +8993,7 @@ module VegetationDataType
     allocate(this%npool_to_grainn                     (begp:endp)) ; this%npool_to_grainn                     (:) = spval
     allocate(this%npool_to_grainn_storage             (begp:endp)) ; this%npool_to_grainn_storage             (:) = spval
     allocate(this%livestemn_to_litter                 (begp:endp)) ; this%livestemn_to_litter                 (:) = spval
+    allocate(this%livecrootn_to_litter                (begp:endp)) ; this%livecrootn_to_litter                (:) = spval
     allocate(this%grainn_to_food                      (begp:endp)) ; this%grainn_to_food                      (:) = spval
     allocate(this%grainn_xfer_to_grainn               (begp:endp)) ; this%grainn_xfer_to_grainn               (:) = spval
     allocate(this%grainn_storage_to_xfer              (begp:endp)) ; this%grainn_storage_to_xfer              (:) = spval
@@ -9236,6 +9295,11 @@ module VegetationDataType
          avgflag='A', long_name='fine root N litterfall', &
          ptr_patch=this%frootn_to_litter, default='inactive')
 
+    this%livecrootn_to_litter(begp:endp) = spval
+    call hist_addfld1d (fname='LIVECROOTN_TO_LITTER', units='gN/m^2/s', &
+         avgflag='A', long_name='live coarse root N litterfall', &
+         ptr_patch=this%livecrootn_to_litter, default='inactive')     
+
     this%retransn_to_npool(begp:endp) = spval
     call hist_addfld1d (fname='RETRANSN_TO_NPOOL', units='gN/m^2/s', &
          avgflag='A', long_name='deployment of retranslocated N', &
@@ -9245,6 +9309,11 @@ module VegetationDataType
     call hist_addfld1d (fname='SMINN_TO_NPOOL', units='gN/m^2/s', &
          avgflag='A', long_name='deployment of soil mineral N uptake', &
          ptr_patch=this%sminn_to_npool)
+
+     this%ndep_to_npool(begp:endp) = spval
+     call hist_addfld1d (fname='NDEP_TO_NPOOL', units='gN/m^2/s', &
+          avgflag='A', long_name='deployment of N deposition to plant npool', &
+          ptr_patch=this%ndep_to_npool)
 
     this%npool_to_leafn(begp:endp) = spval
     call hist_addfld1d (fname='NPOOL_TO_LEAFN', units='gN/m^2/s', &
@@ -9658,8 +9727,10 @@ module VegetationDataType
        this%leafn_to_litter(i)                     = value_patch
        this%leafn_to_retransn(i)                   = value_patch
        this%frootn_to_litter(i)                    = value_patch
+       this%livecrootn_to_litter(i)                = value_patch
        this%retransn_to_npool(i)                   = value_patch
        this%sminn_to_npool(i)                      = value_patch
+       this%ndep_to_npool(i)                       = value_patch
        this%npool_to_leafn(i)                      = value_patch
        this%npool_to_leafn_storage(i)              = value_patch
        this%npool_to_frootn(i)                     = value_patch
@@ -9742,7 +9813,8 @@ module VegetationDataType
        ! total N deployment (from sminn and retranslocated N pool) (NDEPLOY)
        this%ndeploy(p) = &
             this%sminn_to_npool(p) + &
-            this%retransn_to_npool(p)
+            this%retransn_to_npool(p) + &
+            this%ndep_to_npool(p)
 
        ! pft-level wood harvest
        this%wood_harvestn(p) = &
@@ -9862,7 +9934,8 @@ module VegetationDataType
       else
          this%sen_nloss_litter(p) = &
              this%leafn_to_litter(p)                + &
-             this%frootn_to_litter(p)
+             this%frootn_to_litter(p)               + &
+             this%livecrootn_to_litter(p)
       end if
 
     end do
@@ -10035,6 +10108,7 @@ module VegetationDataType
     allocate(this%ppool_to_grainp                     (begp:endp)) ; this%ppool_to_grainp                     (:) = spval
     allocate(this%ppool_to_grainp_storage             (begp:endp)) ; this%ppool_to_grainp_storage             (:) = spval
     allocate(this%livestemp_to_litter                 (begp:endp)) ; this%livestemp_to_litter                 (:) = spval
+    allocate(this%livecrootp_to_litter                (begp:endp)) ; this%livecrootp_to_litter                (:) = spval
     allocate(this%grainp_to_food                      (begp:endp)) ; this%grainp_to_food                      (:) = spval
     allocate(this%grainp_xfer_to_grainp               (begp:endp)) ; this%grainp_xfer_to_grainp               (:) = spval
     allocate(this%grainp_storage_to_xfer              (begp:endp)) ; this%grainp_storage_to_xfer              (:) = spval
@@ -10325,6 +10399,11 @@ module VegetationDataType
     call hist_addfld1d (fname='FROOTP_TO_LITTER', units='gP/m^2/s', &
          avgflag='A', long_name='fine root P litterfall', &
          ptr_patch=this%frootp_to_litter, default='inactive')
+
+    this%livecrootp_to_litter(begp:endp) = spval
+    call hist_addfld1d (fname='LIVECROOTP_TO_LITTER', units='gP/m^2/s', &
+         avgflag='A', long_name='live coarse root P litterfall', &
+         ptr_patch=this%livecrootp_to_litter, default='inactive')
 
     this%retransp_to_ppool(begp:endp) = spval
     call hist_addfld1d (fname='RETRANSP_TO_PPOOL', units='gP/m^2/s', &
@@ -10734,6 +10813,7 @@ module VegetationDataType
        this%leafp_to_litter(i)                     = value_patch
        this%leafp_to_retransp(i)                   = value_patch
        this%frootp_to_litter(i)                    = value_patch
+       this%livecrootp_to_litter(i)                = value_patch
        this%retransp_to_ppool(i)                   = value_patch
        this%sminp_to_ppool(i)                      = value_patch
        this%ppool_to_leafp(i)                      = value_patch
@@ -10933,7 +11013,8 @@ module VegetationDataType
       else
          this%sen_ploss_litter(p) = &
              this%leafp_to_litter(p)                + &
-             this%frootp_to_litter(p)
+             this%frootp_to_litter(p)               + &
+             this%livecrootp_to_litter(p)
       end if
 
     end do

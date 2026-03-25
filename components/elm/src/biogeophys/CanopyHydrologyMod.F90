@@ -26,6 +26,7 @@ module CanopyHydrologyMod
   use ColumnDataType    , only : col_es, col_ws, col_wf  
   use VegetationType    , only : veg_pp
   use VegetationDataType, only : veg_ws, veg_wf  
+  use SoilHydrologyType , only : soilhydrology_type
   use elm_varcon        , only : snw_rds_min
   use pftvarcon         , only : irrigated
   use GridcellType      , only : grc_pp
@@ -100,7 +101,7 @@ contains
    subroutine CanopyHydrology(bounds, &
         num_nolakec, filter_nolakec, num_nolakep, filter_nolakep, &
         atm2lnd_vars, canopystate_vars, &
-        aerosol_vars )
+        soilhydrology_vars, aerosol_vars )
      !
      ! !DESCRIPTION:
      ! Calculation of
@@ -135,6 +136,7 @@ contains
      integer                , intent(in)    :: filter_nolakep(:)    ! patch filter for non-lake points
      type(atm2lnd_type)     , intent(in)    :: atm2lnd_vars
      type(canopystate_type) , intent(in)    :: canopystate_vars
+     type(soilhydrology_type) , intent(in)  :: soilhydrology_vars
      type(aerosol_type)     , intent(inout) :: aerosol_vars
      !
      ! !LOCAL VARIABLES:
@@ -711,7 +713,7 @@ contains
 
        ! update surface water fraction (this may modify frac_sno)
        call FracH2oSfc(bounds, num_nolakec, filter_nolakec, &
-             col_wf%qflx_h2osfc2topsoi, dtime)
+             col_wf%qflx_h2osfc2topsoi, soilhydrology_vars, dtime)
 
      end associate
 
@@ -774,7 +776,7 @@ contains
 
    !-----------------------------------------------------------------------
    subroutine FracH2OSfc(bounds, num_h2osfc, filter_h2osfc, &
-         qflx_h2osfc2topsoi,dtime, no_update)
+         qflx_h2osfc2topsoi, soilhydrology_vars, dtime, no_update)
      !
      ! !DESCRIPTION:
      ! Determine fraction of land surfaces which are submerged  
@@ -784,9 +786,11 @@ contains
      use shr_const_mod   , only : shr_const_pi
      use shr_spfn_mod    , only : erf => shr_spfn_erf
      use landunit_varcon , only : istsoil, istcrop
-     !
+     use pftvarcon       , only : humhol_ht!
+
      ! !ARGUMENTS:
      type(bounds_type)     , intent(in)           :: bounds           
+     type(soilhydrology_type) , intent(in)        :: soilhydrology_vars
      integer               , intent(in)           :: num_h2osfc       ! number of column points in column filter
      integer               , intent(in)           :: filter_h2osfc(:) ! column filter 
      real(r8)              , intent(inout)        :: qflx_h2osfc2topsoi(bounds%begc:bounds%endc)     
@@ -815,7 +819,8 @@ contains
           frac_sno     => col_ws%frac_sno     , & ! Output: [real(r8) (:)   ] fraction of ground covered by snow (0 to 1)
           frac_sno_eff => col_ws%frac_sno_eff , & ! Output: [real(r8) (:)   ] eff. fraction of ground covered by snow (0 to 1)
           frac_h2osfc  => col_ws%frac_h2osfc  , & ! Output: [real(r8) (:)   ] col fractional area with surface water greater than zero
-          frac_h2osfc_act => col_ws%frac_h2osfc_act & ! Output: [real(r8) (:)   ] col fractional area with surface water greater than zero
+          frac_h2osfc_act => col_ws%frac_h2osfc_act, & ! Output: [real(r8) (:)   ] col fractional area with surface water greater than zero
+          zwt          =>    soilhydrology_vars%zwt_col & ! Input:  [real(r8) (:)   ]  water table depth (m)  
           )
 
        ! arbitrary lower limit on h2osfc for safer numerics...
@@ -875,6 +880,9 @@ contains
                     enddo
                     !--  update the submerged areal fraction using the new d value
                     frac_h2osfc(c) = 0.5*(1.0_r8+erf(d/(sigma*sqrt(2.0))))
+#if (defined MARSH)
+                    frac_h2osfc(c) = 0.99_r8
+#endif
                 endif ! end if polygonal test
              else ! if h2osfc(c) <= min_h2osfc
                 frac_h2osfc(c) = 0._r8

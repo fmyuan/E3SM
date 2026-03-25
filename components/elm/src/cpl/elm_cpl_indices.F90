@@ -166,7 +166,7 @@ contains
     use shr_megan_mod  , only: shr_megan_fields_token, shr_megan_mechcomps_n
     use shr_fan_mod    , only: shr_fan_fields_token, shr_fan_to_atm
     use elm_varctl     , only: use_voc, iac_present
-    use elm_varpar     , only: iac_npft, iac_nharvest
+    use elm_varpar     , only: numpft, numharvest
     !
     ! !ARGUMENTS:
     implicit none
@@ -372,7 +372,7 @@ contains
     !---------------------------------
 
     if (iac_present) then
-      do p = 0,iac_npft-1
+      do p = 0,numpft
           write(cpft,'(I0)') p
          cpft=trim(cpft)
          index_l2x_Sl_hr(p) = mct_avect_indexra(l2x,trim('Sl_hr_pft' // cpft))
@@ -386,7 +386,7 @@ contains
          index_x2l_Sz_pct_pft_prev(p) = mct_avect_indexra(x2l,trim(name))
 
          ! iac harvest to land
-         if (p < iac_nharvest) then
+         if (p < numharvest) then
             name = 'Sz_harvest_frac' // cpft
             index_x2l_Sz_harvest_frac(p) = mct_avect_indexra(x2l,trim(name))
          end if

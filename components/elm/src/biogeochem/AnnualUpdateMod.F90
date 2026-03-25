@@ -9,6 +9,8 @@ module AnnualUpdateMod
   use CNStateType      , only : cnstate_type
   use ColumnDataType   , only : col_cf
   use VegetationDataType, only : veg_cf
+  use MaintenanceRespMod, only : mr_acclim_spinup_years_Inst
+  use elm_varctl       , only : spinup_state
 
   use timeinfoMod
   !
@@ -60,6 +62,8 @@ contains
       tempmax_retransp_patch      => cnstate_vars%tempmax_retransp_patch  , &
       annavg_t2m_patch            => cnstate_vars%annavg_t2m_patch    , &
       tempavg_t2m_patch           => cnstate_vars%tempavg_t2m_patch    , &
+      spinup_t_patch              => cnstate_vars%spinup_t_patch , &
+      spinup_t_nyears_patch       => cnstate_vars%spinup_t_nyears_patch , &
       annsum_npp                  => veg_cf%annsum_npp   , &
       tempsum_npp                 => veg_cf%tempsum_npp  , &
       annsum_npp_col              => col_cf%annsum_npp      , &

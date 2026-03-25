@@ -2270,7 +2270,7 @@ contains
          end if
        end do
 
-       if (use_pflotran .and. pf_cmode) then
+       !if (use_pflotran .and. pf_cmode) then
           ! note: the follwoing should be useful to non-pflotran-coupled, but seems cause 1 BFB test unmatching.
           ! add up all vertical transport tendency terms and calculate total som leaching loss as the sum of these
           do l = 1, ndecomp_pools
@@ -2293,7 +2293,7 @@ contains
                    this%decomp_cpools_leached_col(c,l)
              end do
           end do
-       end if
+       !end if
 
     end if
     

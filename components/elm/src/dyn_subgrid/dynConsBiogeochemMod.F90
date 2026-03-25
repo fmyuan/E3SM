@@ -992,6 +992,8 @@ contains
    cnstate_vars%bgtr_patch(p)                  = 0._r8
    cnstate_vars%annavg_t2m_patch(p)            = cnstate_vars%annavg_t2m_col(c)
    cnstate_vars%tempavg_t2m_patch(p)           = 0._r8
+   cnstate_vars%spinup_t_patch(p)              = cnstate_vars%annavg_t2m_col(c)
+   cnstate_vars%spinup_t_nyears_patch(p)       = 0
    cnstate_vars%alloc_pnow_patch(p)            = 1._r8
    cnstate_vars%c_allometry_patch(p)           = 0._r8
    cnstate_vars%n_allometry_patch(p)           = 0._r8

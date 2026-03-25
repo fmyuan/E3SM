@@ -64,6 +64,7 @@ module VegetationPropertiesType
      real(r8), pointer :: fr_flig       (:) => null()  ! fine root litter lignin fraction
      real(r8), pointer :: leaf_long     (:) => null()  ! leaf longevity (yrs)
      real(r8), pointer :: froot_long    (:) => null()  ! fine root longevity (yrs)
+     real(r8), pointer :: rhizome_long  (:) => null()  ! nonwoody rhizome longevity (yrs)
      real(r8), pointer :: evergreen     (:) => null()  ! binary flag for evergreen leaf habit (0 or 1)
      real(r8), pointer :: stress_decid  (:) => null()  ! binary flag for stress-deciduous leaf habit (0 or 1)
      real(r8), pointer :: season_decid  (:) => null()  ! binary flag for seasonal-deciduous leaf habit (0 or 1)
@@ -92,6 +93,9 @@ module VegetationPropertiesType
      real(r8), pointer :: livewdcp      (:) => null()  ! live wood (phloem and ray parenchyma) C:P (gC/gP)
      real(r8), pointer :: deadwdcp      (:) => null()  ! dead wood (xylem and heartwood) C:P (gC/gP)
      real(r8), pointer :: graincp       (:) => null()  ! grain C:P (gC/gP) for prognostic crop model
+
+     real(r8), pointer :: Nfix_NPP_c1   (:) => null()  ! Pre-exponential parameter in NPP-based N fixation eqn
+     real(r8), pointer :: Nfix_NPP_c2   (:) => null()  ! Exponential parameter in NPP-based N fixation eqn
 
      ! pft dependent parameters for phosphorus for nutrient competition
      real(r8), pointer :: vmax_plant_nh4(:)      => null()   ! vmax for plant nh4 uptake
@@ -142,6 +146,10 @@ module VegetationPropertiesType
      real(r8), pointer :: mbbopt(:)        => null()   !Ball-Berry stomatal conductance slope
      real(r8), pointer :: nstor(:)         => null()   !Nitrogen storage pool timescale
      real(r8), pointer :: br_xr(:)         => null()   !Base rate for excess respiration
+     real(r8), pointer :: br_mr_pft(:)     => null()   !Base rate for maintanence respiration
+     real(r8), pointer :: q10_mr_pft(:)    => null()   !Q10 for maintanence respiration
+     real(r8), pointer :: crit_gdd1(:) => null()   !Deciduous pheonlogy critical GDD intercept
+     real(r8), pointer :: crit_gdd2(:) => null()   !Deciduous pheonlogy critical GDD slope
      real(r8), pointer :: tc_stress        => null()   !Critial temperature for moisture stress
      ! new properties for flexible PFT
      real(r8), pointer :: climatezone(:)   => null()   !climate zone adapted
@@ -156,6 +164,13 @@ module VegetationPropertiesType
      real(r8), pointer :: vegshape(:)         ! shape parameter to modify shrub burial by snow (1 = parabolic, 2 = hemispheric)
      real(r8), pointer :: stocking(:)         ! stocking density for pft (stems / hectare)
      real(r8), pointer :: taper(:)            ! ratio of height:radius_breast_height (woody vegetation allometry)
+     !salinity response parameters
+     real(r8), allocatable :: sal_threshold(:)       !Threshold for salinity effects (ppt)
+     real(r8), allocatable :: KM_salinity(:)         !Half saturation constant for omotic inhibition function (ppt)
+     real(r8), allocatable :: osm_inhib(:)           !Osmotic inhibition factor
+     real(r8), allocatable :: sal_opt(:)             !Salinity at which optimal biomass occurs (ppt)
+     real(r8), allocatable :: sal_tol(:)             !Salinity tolerance; width parameter for Gaussian distribution (ppt -1)
+     real(r8), allocatable :: floodf(:)              !Growth inhibition factor due to flooding/inundation (0-1)
 
    contains
    procedure, public :: Init => veg_vp_init
@@ -177,9 +192,11 @@ contains
     use pftvarcon , only : lflitcn, frootcn, livewdcn, deadwdcn, froot_leaf, stem_leaf, croot_stem
     use pftvarcon , only : flivewd, fcur, lf_flab, lf_fcel, lf_flig, fr_flab, fr_fcel, fr_flig
     use pftvarcon , only : leaf_long, froot_long, evergreen, stress_decid, season_decid
+    use pftvarcon , only : rhizome_long
     use pftvarcon , only : manunitro, graincn, fleafcn, ffrootcn, fstemcn, dwood
     use pftvarcon , only : presharv, convfact, fyield
     use pftvarcon , only : leafcp,lflitcp, frootcp, livewdcp, deadwdcp,graincp
+    use pftvarcon , only : Nfix_NPP_c1, Nfix_NPP_c2 
     use pftvarcon , only : vmax_plant_nh4, vmax_plant_no3, vmax_plant_p, vmax_minsurf_p_vr
     use pftvarcon , only : km_plant_nh4, km_plant_no3, km_plant_p, km_minsurf_p_vr
     use pftvarcon , only : km_decomp_nh4, km_decomp_no3, km_decomp_p, km_nit, km_den
@@ -193,10 +210,12 @@ contains
     use pftvarcon , only : fnr, act25, kcha, koha, cpha, vcmaxha, jmaxha, tpuha
     use pftvarcon , only : lmrha, vcmaxhd, jmaxhd, tpuhd, lmrse, qe, theta_cj
     use pftvarcon , only : bbbopt, mbbopt, nstor, br_xr, tc_stress, lmrhd
+    use pftvarcon , only : br_mr_pft, q10_mr_pft, crit_gdd1, crit_gdd2
     ! new properties for flexible PFT (NGEE Arctic IM4)
     use pftvarcon , only : climatezone, nonvascular, graminoid, iscft,needleleaf, nfixer
     ! snow/vegetation interactions (NGEE Arctic IM3)
     use pftvarcon , only : bendresist, stocking, vegshape, taper
+    use pftvarcon , only : sal_threshold, KM_salinity, osm_inhib, sal_opt, sal_tol, floodf
     !
 
     class (vegetation_properties_type) :: this
@@ -259,6 +278,7 @@ contains
     allocate(this%presharv      (0:numpft))        ; this%presharv     (:)   =spval
     allocate(this%convfact      (0:numpft))        ; this%convfact     (:)   =spval
     allocate(this%fyield        (0:numpft))        ; this%fyield       (:)   =spval
+    allocate(this%rhizome_long  (0:numpft))        ; this%rhizome_long (:)   =spval
 
 
     allocate(this%leafcp        (0:numpft))        ; this%leafcp       (:)   =spval
@@ -267,6 +287,9 @@ contains
     allocate(this%livewdcp      (0:numpft))        ; this%livewdcp     (:)   =spval
     allocate(this%deadwdcp      (0:numpft))        ; this%deadwdcp     (:)   =spval
     allocate(this%graincp       (0:numpft))        ; this%graincp      (:)   =spval
+   
+    allocate(this%Nfix_NPP_c1   (0:numpft))        ; this%Nfix_NPP_c1   (:)   =spval
+    allocate(this%Nfix_NPP_c2   (0:numpft))        ; this%Nfix_NPP_c2   (:)   =spval
 
     allocate( this%alpha_nfix    (0:numpft))                     ; this%alpha_nfix    (:)        =spval
     allocate( this%alpha_ptase   (0:numpft))                     ; this%alpha_ptase   (:)        =spval
@@ -309,6 +332,8 @@ contains
     allocate( this%mbbopt(0:numpft))                             ; this%mbbopt(:)                =spval
     allocate( this%nstor(0:numpft))                              ; this%nstor(:)                 =spval
     allocate( this%br_xr(0:numpft))                              ; this%br_xr(:)                 =spval
+    allocate( this%br_mr_pft(0:numpft))                          ; this%br_mr_pft(:)             =spval
+    allocate( this%q10_mr_pft(0:numpft))                         ; this%q10_mr_pft(:)            =spval
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
     allocate(this%km_decomp_nh4)
@@ -335,6 +360,15 @@ contains
     allocate(this%stocking(0:numpft))                            ; this%stocking(:)              =spval
     allocate(this%taper(0:numpft))                               ; this%taper(:)                 =spval
 
+    allocate( this%crit_gdd1(0:numpft))                          ; this%crit_gdd1(:)             =spval
+    allocate( this%crit_gdd2(0:numpft))                          ; this%crit_gdd2(:)             =spval
+ 
+    allocate( this%sal_threshold(0:numpft))        ; this%sal_threshold(:)       =spval
+    allocate( this%KM_salinity(0:numpft))          ; this%KM_salinity(:)         =spval
+    allocate( this%osm_inhib(0:numpft))            ; this%osm_inhib(:)           =spval
+    allocate( this%sal_opt(0:numpft))              ; this%sal_opt(:)             =spval
+    allocate( this%sal_tol(0:numpft))              ; this%sal_tol(:)             =spval 
+    allocate( this%floodf(0:numpft))               ; this%floodf(:)              =spval
     do m = 0,numpft
 
        ! not needed anymore: woody(m)=1 for tree, 2 for shrub, or 0 for any other
@@ -382,6 +416,7 @@ contains
        this%fr_flig(m)      = fr_flig(m)
        this%leaf_long(m)    = leaf_long(m)
        this%froot_long(m)   = froot_long(m)
+       this%rhizome_long(m) = rhizome_long(m)
        this%evergreen(m)    = evergreen(m)
        this%stress_decid(m) = stress_decid(m)
        this%season_decid(m) = season_decid(m)
@@ -430,6 +465,11 @@ contains
        this%needleleaf(m)   = needleleaf(m)
        this%nfixer(m)       = nfixer(m)
 
+       this%crit_gdd1(m)    = crit_gdd1(m)
+       this%crit_gdd2(m)    = crit_gdd2(m)
+
+       this%Nfix_NPP_c1(m)  = Nfix_NPP_c1(m)
+       this%Nfix_NPP_c2(m)  = Nfix_NPP_c2(m)
     end do
 
     do m = 0,numpft
@@ -449,6 +489,12 @@ contains
         this%vmax_nfix(m)      = vmax_nfix(m)
         this%km_nfix(m)        = km_nfix(m)
         this%vmax_ptase(m)     = vmax_ptase(m)
+        this%sal_threshold(m)  = sal_threshold(m)
+        this%KM_salinity(m)    = KM_salinity(m)
+        this%osm_inhib(m)      = osm_inhib(m)
+        this%sal_opt(m)        = sal_opt(m)
+        this%sal_tol(m)        = sal_tol(m)
+        this%floodf(m)         = floodf(m)
 
         do j = 1 , nlevdecomp
            this%decompmicc_patch_vr(m,j) = decompmicc_patch_vr(j,m)

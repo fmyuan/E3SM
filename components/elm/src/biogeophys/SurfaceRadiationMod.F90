@@ -7,7 +7,9 @@ module SurfaceRadiationMod
   ! !USES:
   use shr_kind_mod      , only : r8 => shr_kind_r8
   use shr_log_mod       , only : errMsg => shr_log_errMsg
-  use elm_varctl        , only : use_snicar_frc, use_fates, iulog
+   use elm_varctl        , only : use_snicar_frc, use_fates, iulog
+   use VegetationPropertiesType, only: veg_vp
+   use pftvarcon         , only : noveg
   use abortutils        , only : endrun
   use decompMod         , only : bounds_type
   use elm_varcon        , only : namec, spval, ispval
@@ -378,6 +380,7 @@ contains
      real(r8) :: sabg_oc(bounds%begp:bounds%endp)    ! solar radiation absorbed by ground without OC [W/m2]
      real(r8) :: sabg_dst(bounds%begp:bounds%endp)   ! solar radiation absorbed by ground without dust [W/m2]
      real(r8) :: parveg(bounds%begp:bounds%endp)     ! absorbed par by vegetation (W/m**2)
+     real(r8) :: ground_sw_scale                     ! effective boardwalk reduction factor for ground SW absorption [-]
      !
      integer, parameter :: noonsec   = isecspday / 2 ! seconds at local noon
      !
@@ -520,6 +523,8 @@ contains
              t = veg_pp%topounit(p)
              g = veg_pp%gridcell(p)
 
+             ground_sw_scale = 1._r8
+
              ! Absorbed by canopy
 
              cad(p,ib) = forc_solad(t,ib)*fabd(p,ib)
@@ -540,10 +545,13 @@ contains
              ! Solar radiation absorbed by ground surface
              ! calculate absorbed solar by soil/snow separately
              absrad  = trd(p,ib)*(1._r8-albsod(c,ib)) + tri(p,ib)*(1._r8-albsoi(c,ib))
+             absrad = absrad * ground_sw_scale
              sabg_soil(p) = sabg_soil(p) + absrad
              absrad  = trd(p,ib)*(1._r8-albsnd_hst(c,ib)) + tri(p,ib)*(1._r8-albsni_hst(c,ib))
+             absrad = absrad * ground_sw_scale
              sabg_snow(p) = sabg_snow(p) + absrad
              absrad  = trd(p,ib)*(1._r8-albgrd(c,ib)) + tri(p,ib)*(1._r8-albgri(c,ib))
+             absrad = absrad * ground_sw_scale
              sabg(p) = sabg(p) + absrad
              fsa(p)  = fsa(p)  + absrad
              if (veg_pp%is_on_soil_col(p) .or. veg_pp%is_on_crop_col(p)) then
@@ -562,14 +570,17 @@ contains
              if (use_snicar_frc) then
                 ! Solar radiation absorbed by ground surface without BC
                 absrad_bc = trd(p,ib)*(1._r8-albgrd_bc(c,ib)) + tri(p,ib)*(1._r8-albgri_bc(c,ib))
+                absrad_bc = absrad_bc * ground_sw_scale
                 sabg_bc(p) = sabg_bc(p) + absrad_bc
 
                 ! Solar radiation absorbed by ground surface without OC
                 absrad_oc = trd(p,ib)*(1._r8-albgrd_oc(c,ib)) + tri(p,ib)*(1._r8-albgri_oc(c,ib))
+                absrad_oc = absrad_oc * ground_sw_scale
                 sabg_oc(p) = sabg_oc(p) + absrad_oc
 
                 ! Solar radiation absorbed by ground surface without dust
                 absrad_dst = trd(p,ib)*(1._r8-albgrd_dst(c,ib)) + tri(p,ib)*(1._r8-albgri_dst(c,ib))
+                absrad_dst = absrad_dst * ground_sw_scale
                 sabg_dst(p) = sabg_dst(p) + absrad_dst
 
                 ! Solar radiation absorbed by ground surface without any aerosols
@@ -724,25 +735,29 @@ contains
        enddo
 
        ! Radiation diagnostics
-       do fp = 1,num_nourbanp
+      do fp = 1,num_nourbanp
           p = filter_nourbanp(fp)
+          c = veg_pp%column(p)
           t = veg_pp%topounit(p)
           g = veg_pp%gridcell(p)
+          ground_sw_scale = 1._r8
 
           ! NDVI and reflected solar radiation
 
-          rvis = albd(p,1)*forc_solad(t,1) + albi(p,1)*forc_solai(t,1)
-          rnir = albd(p,2)*forc_solad(t,2) + albi(p,2)*forc_solai(t,2)
+          rvis = albd(p,1)*forc_solad(t,1) + albi(p,1)*forc_solai(t,1) + &
+               (trd(p,1)*(1._r8-albgrd(c,1)) + tri(p,1)*(1._r8-albgri(c,1))) * (1._r8-ground_sw_scale)
+          rnir = albd(p,2)*forc_solad(t,2) + albi(p,2)*forc_solai(t,2) + &
+               (trd(p,2)*(1._r8-albgrd(c,2)) + tri(p,2)*(1._r8-albgri(c,2))) * (1._r8-ground_sw_scale)
           fsr(p) = rvis + rnir
 
           fsds_vis_d(p) = forc_solad(t,1)
           fsds_nir_d(p) = forc_solad(t,2)
           fsds_vis_i(p) = forc_solai(t,1)
           fsds_nir_i(p) = forc_solai(t,2)
-          fsr_vis_d(p)  = albd(p,1)*forc_solad(t,1)
-          fsr_nir_d(p)  = albd(p,2)*forc_solad(t,2)
-          fsr_vis_i(p)  = albi(p,1)*forc_solai(t,1)
-          fsr_nir_i(p)  = albi(p,2)*forc_solai(t,2)
+          fsr_vis_d(p)  = albd(p,1)*forc_solad(t,1) + trd(p,1)*(1._r8-albgrd(c,1)) * (1._r8-ground_sw_scale)
+          fsr_nir_d(p)  = albd(p,2)*forc_solad(t,2) + trd(p,2)*(1._r8-albgrd(c,2)) * (1._r8-ground_sw_scale)
+          fsr_vis_i(p)  = albi(p,1)*forc_solai(t,1) + tri(p,1)*(1._r8-albgri(c,1)) * (1._r8-ground_sw_scale)
+          fsr_nir_i(p)  = albi(p,2)*forc_solai(t,2) + tri(p,2)*(1._r8-albgri(c,2)) * (1._r8-ground_sw_scale)
 
           solarabs_vars%fsr_vis_d_patch(p) = fsr_vis_d(p)
           solarabs_vars%fsr_vis_i_patch(p) = fsr_vis_i(p)
@@ -752,8 +767,8 @@ contains
           if (local_secp1 == isecspday/2) then
              fsds_vis_d_ln(p) = forc_solad(t,1)
              fsds_nir_d_ln(p) = forc_solad(t,2)
-             fsr_vis_d_ln(p) = albd(p,1)*forc_solad(t,1)
-             fsr_nir_d_ln(p) = albd(p,2)*forc_solad(t,2)
+             fsr_vis_d_ln(p) = fsr_vis_d(p)
+             fsr_nir_d_ln(p) = fsr_nir_d(p)
              fsds_vis_i_ln(p) = forc_solai(t,1)
              parveg_ln(p)     = parveg(p)
           else
@@ -889,11 +904,15 @@ contains
 
       ! local variables
       integer           :: fp                         ! non-urban filter patch index
+      integer           :: fp_shrub                   ! helper index for searching shrub patches
       integer           :: p                          ! patch index
       integer           :: t                          ! topounit index
-      integer           :: g                          ! gridcell index
       integer           :: iv                         ! canopy layer index
       integer,parameter :: ipar = 1                   ! The band index for PAR
+      real(r8) :: shrub_lai     ! To store shrub LAI for the current column
+      real(r8) :: transmission  ! Transmission fraction (0.0 to 1.0)
+      real(r8), parameter :: extinction_k = 0.5_r8  ! Extinction coefficient for shrubs
+      integer :: p_shrub, itype
 
       associate(   &
             tlai_z      => surfalb_vars%tlai_z_patch,     & ! tlai increment for canopy layer
@@ -918,6 +937,12 @@ contains
 
            p = filter_nourbanp(fp)
            t = veg_pp%topounit(p)
+           ! --- BEER-LAMBERT LIGHT COMPETITION LOGIC ---
+      
+           shrub_lai = 0.0_r8
+           transmission = 1.0_r8 ! Default: no shading
+
+           ! ---------------------------------------------
 
            do iv = 1, nrad(p)
               parsun_z(p,iv) = 0._r8
@@ -948,15 +973,20 @@ contains
            ! Absorbed PAR profile through canopy
            ! If sun/shade big leaf code, nrad=1 and fluxes from SurfaceAlbedo
            ! are canopy integrated so that layer values equal big leaf values.
-
-           g = veg_pp%gridcell(p)
+           !We multiply the incident radiation by the 'transmission' factor.
+           ! If the patch is NOT moss, transmission is 1.0 (no change).
+           ! If the patch IS moss, transmission is the fraction of light passing through shrubs.
 
            do iv = 1, nrad(p)
-              parsun_z(p,iv) = forc_solad(t,ipar)*fabd_sun_z(p,iv) + forc_solai(t,ipar)*fabi_sun_z(p,iv)
-              parsha_z(p,iv) = forc_solad(t,ipar)*fabd_sha_z(p,iv) + forc_solai(t,ipar)*fabi_sha_z(p,iv)
+              parsun_z(p,iv) = (forc_solad(t,ipar) * transmission) * fabd_sun_z(p,iv) + &
+                          (forc_solai(t,ipar) * transmission) * fabi_sun_z(p,iv)
+
+             parsha_z(p,iv) = (forc_solad(t,ipar) * transmission) * fabd_sha_z(p,iv) + &
+                          (forc_solai(t,ipar) * transmission) * fabi_sha_z(p,iv)
            end do
 
-        end do ! end of fp = 1,num_nourbanp loop
+        end do ! end of fp loop
+
       end associate
 
       return

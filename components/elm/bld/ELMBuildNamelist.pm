@@ -1558,8 +1558,11 @@ sub setup_cmdl_maxpft {
   my $val;
   my $var = "maxpft";
   my %maxpatchpft;
+  my %maxpatchpft_cap;
   $maxpatchpft{'.true.'}   = 51;
   $maxpatchpft{'.false.'} = 17;
+  $maxpatchpft_cap{'.true.'}   = 51;
+  $maxpatchpft_cap{'.false.'} = 25;
   if ( $opts->{$var} ne "default") {
     $val = $opts->{$var};
   } else {
@@ -1582,8 +1585,8 @@ sub setup_cmdl_maxpft {
       	
       }
   }
-  if ( $nl_flags->{'maxpft'} > $maxpatchpft{$nl_flags->{'use_crop'}} ) {
-    fatal_error("** Max patch PFT's can NOT exceed $maxpatchpft{$nl_flags->{'use_crop'}}\n" .
+  if ( $nl_flags->{'maxpft'} > $maxpatchpft_cap{$nl_flags->{'use_crop'}} ) {
+    fatal_error("** Max patch PFT's can NOT exceed $maxpatchpft_cap{$nl_flags->{'use_crop'}}\n" .
     "**\n" .
     "** Set maxpft by the following means from highest to lowest precedence:\n" .
     "** * by the command-line options -maxpft\n" .

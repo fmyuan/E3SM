@@ -103,7 +103,7 @@ contains
     ! CNAllocaiton is divided into 3 subroutines:
     ! (1) Allocation1_PlantNPDemand  is called in EcosystemDynNoLeaching1
     ! (2) Allocation2_ResolveNPLimit is called in SoilLittDecompAlloc (this subroutine)
-    ! (3) PlantCNPAlloc  is called in SoilLittDecompAlloc2
+    ! (3) Allocation3_PlantCNPAlloc  is called in SoilLittDecompAlloc2
     !-----------------------------------------------------------------------------
 
     ! !USES:
@@ -578,8 +578,10 @@ contains
     !-----------------------------------------------------------------------------
 
     ! !USES:
-    use AllocationMod , only: PlantCNPAlloc_RD, PlantCNPAlloc_ECAMIC ! Phase-3 of CNAllocation
+      !$acc routine seq
+    use AllocationMod , only: Allocation3_PlantCNPAlloc ! Phase-3 of CNAllocation
     use atm2lndType     , only: atm2lnd_type
+    use elm_varctl   , only: cnallocate_carbon_only, cnallocate_carbonnitrogen_only, cnallocate_carbonphosphorus_only
 
     !
     ! !ARGUMENT:
@@ -632,13 +634,20 @@ contains
          fpg                              =>    cnstate_vars%fpg_col                                   , & ! Output: [real(r8) (:)   ]  fraction of potential gpp (no units)
          sminn_to_plant                   =>    col_nf%sminn_to_plant                   , & ! Output: [real(r8) (:)     ]  col N uptake (gN/m2/s)
          sminn_to_plant_vr                =>    col_nf%sminn_to_plant_vr                , & ! Input:  [real(r8) (:,:)    ]  vertically-resolved N uptake (gN/m3/s)
+         sminp_to_plant_vr                =>    col_pf%sminp_to_plant_vr                , & ! Input:  [real(r8) (:,:)    ]  vertically-resolved N uptake (gN/m3/s)
+         sminp_to_plant                   =>    col_pf%sminp_to_plant                , &
+         fpg_p                            =>    cnstate_vars%fpg_p_col                  , &
 
          smin_no3_to_plant_vr             =>    col_nf%smin_no3_to_plant_vr             , & ! Output: [real(r8) (:,:) ]
          smin_nh4_to_plant_vr             =>    col_nf%smin_nh4_to_plant_vr             , & ! Output: [real(r8) (:,:) ]
 
          col_plant_ndemand_vr             =>    col_nf%plant_ndemand_vr                 , & ! Input:  [real(r8) (:)     ]  col N uptake (gN/m2/s)
+         col_plant_pdemand_vr             =>    col_pf%plant_pdemand_vr                 , & ! Input:  [real(r8) (:)     ]  col P uptake (gP/m2/s)
 
          plant_ndemand_col                =>    col_nf%plant_ndemand                    , & ! Output:  [real(r8) (:,:) ]
+
+         supplement_to_sminn_vr       => col_nf%supplement_to_sminn_vr      , & ! Output: [real(r8) (:,:) ]
+         supplement_to_sminp_vr       => col_pf%supplement_to_sminp_vr      , & ! Output: [real(r8) (:,:) ]
 
          w_scalar                         =>    col_cf%w_scalar                           , & ! Input:  [real(r8) (:,:)   ]  fraction by which decomposition is limited by moisture availability
          decomp_cascade_hr_vr             =>    col_cf%decomp_cascade_hr_vr               , & ! Output: [real(r8) (:,:,:) ]  vertically-resolved het. resp. from decomposing C pools (gC/m3/s)
@@ -648,6 +657,7 @@ contains
          phr_vr                           =>    col_cf%phr_vr                             , & ! Output: [real(r8) (:,:)   ]  potential HR (gC/m3/s)
          fphr                             =>    col_cf%fphr                               , & ! Output: [real(r8) (:,:)   ]  fraction of potential SOM + LITTER heterotrophic
 
+         sminn_vr                         =>    col_ns%sminn_vr                        , &
          smin_no3_vr                      =>    col_ns%smin_no3_vr                     , &
          smin_nh4_vr                      =>    col_ns%smin_nh4_vr                       &
          )
@@ -659,9 +669,8 @@ contains
             smin_nh4_to_plant_vr_loc(:,:) = 0._r8
             smin_no3_to_plant_vr_loc(:,:) = 0._r8
 
-
       ! MUST have already updated needed bgc variables from PFLOTRAN by this point
-      if(use_elm_interface.and.use_pflotran.and.pf_cmode) then
+      if((use_elm_interface.and.use_pflotran.and.pf_cmode)) then
          ! fpg calculation
          do fc=1,num_soilc
             c = filter_soilc(fc)
@@ -743,6 +752,7 @@ contains
          end if
 
          ! needs to zero CLM-CNP variables NOT available from pflotran bgc coupling
+         ! BSulman: I think this causes P conservation problems because plants still allocate P but supplemental P was set to zero
          call CNvariables_nan4pf(bounds, num_soilc, filter_soilc, &
                         num_soilp, filter_soilp)
 
@@ -762,23 +772,16 @@ contains
       if(.not.use_fates)then
         event = 'CNAllocation - phase-3'
         call t_start_lnd(event)
-        if(nu_com .eq. 'RD') then
-           call PlantCNPAlloc_RD(bounds                      , &
+        call Allocation3_PlantCNPAlloc (bounds                      , &
                   num_soilc, filter_soilc, num_soilp, filter_soilp    , &
                   canopystate_vars                                    , &
                   cnstate_vars, crop_vars, dt)
-         else
-           call PlantCNPAlloc_ECAMIC(bounds                      , &
-                     num_soilc, filter_soilc, num_soilp, filter_soilp    , &
-                     canopystate_vars                                    , &
-                     cnstate_vars, crop_vars, dt)
-         endif 
         call t_stop_lnd(event)
       end if
       !------------------------------------------------------------------
 
     if(use_pflotran.and.pf_cmode) then
-    ! in PlantCNPAlloc():
+    ! in Allocation3_PlantCNPAlloc():
     ! smin_nh4_to_plant_vr(c,j), smin_no3_to_plant_vr(c,j), sminn_to_plant_vr(c,j) may be adjusted
     ! therefore, we need to update smin_no3_vr(c,j) & smin_nh4_vr(c,j)
       do fc = 1,num_soilc
@@ -786,8 +789,11 @@ contains
            do j = 1,nlevdecomp
                smin_no3_vr(c,j) = smin_no3_vr(c,j) - (smin_no3_to_plant_vr(c,j) - smin_no3_to_plant_vr_loc(c,j))*dt
                smin_nh4_vr(c,j) = smin_nh4_vr(c,j) - (smin_nh4_to_plant_vr(c,j) - smin_nh4_to_plant_vr_loc(c,j))*dt
+               if(smin_no3_vr(c,j)<0._r8) write(iulog,*),'SoilLitDec NO3 = ',smin_no3_vr(c,j)
+               if(smin_nh4_vr(c,j)<0._r8) write(iulog,*),'SoilLitDec NH4 = ',smin_nh4_vr(c,j)
                smin_no3_vr(c,j) = max(0._r8, smin_no3_vr(c,j))
                smin_nh4_vr(c,j) = max(0._r8, smin_nh4_vr(c,j))
+               sminn_vr(c,j)    = smin_nh4_vr(c,j) + smin_no3_vr(c,j)
             end do
       end do
     end if !(use_pflotran.and.pf_cmode)
@@ -859,7 +865,8 @@ contains
    end do
 
    ! pflotran not yet support phosphous cycle
-   if ( carbon_only .or.  carbonnitrogen_only  ) then
+   ! bsulman: This causes P conservation error because P supplement is zeroed out but fpg_p is 1 plants still grow and accumulate P
+   if ((carbon_only .or. carbonnitrogen_only)) then
       call veg_ps%SetValues(num_patch=num_soilp,  filter_patch=filter_soilp,  value_patch=0._r8)
       call col_ps%SetValues(num_column=num_soilc, filter_column=filter_soilc, value_column=0._r8)
 

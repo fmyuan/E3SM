@@ -193,13 +193,13 @@ contains
        ! these are also fractions of actual grid cell
        !    but are for this year so can use the current/prior col_pp%wtgcell for veg in
        !    this cell to get the final fractions of col or veg land unit
-       ! land unit type 1 is vegetated land unit
+       ! istsoil is the vegetated land unit
        ! just need to make sure that the values are <= 1
 
        harvest_rates(:,begg:endg) = 0._r8
        do g = begg,endg
          do c = bounds%begc, bounds%endc
-            if (col_pp%itype(c) .eq. 1 .and. col_pp%gridcell(c) .eq. g) then
+            if (col_pp%itype(c) .eq. istsoil .and. col_pp%gridcell(c) .eq. g) then
                 ! sum the harvest data into one field 
                 do h=0,(numharvest-1)
                    if (.not.(col_pp%wtgcell(c) .eq. 0._r8)) then

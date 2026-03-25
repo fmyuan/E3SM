@@ -7,7 +7,7 @@ module MaintenanceRespMod
   !
   ! !USES:
   use shr_kind_mod        , only : r8 => shr_kind_r8
-  use elm_varpar          , only : nlevgrnd
+  use elm_varpar          , only : nlevgrnd, nlevdecomp
   use shr_const_mod       , only : SHR_CONST_TKFRZ
   use decompMod           , only : bounds_type
   use abortutils          , only : endrun
@@ -17,6 +17,7 @@ module MaintenanceRespMod
   use VegetationPropertiesType      , only : veg_vp
   use SoilStateType       , only : soilstate_type
   use CanopyStateType     , only : canopystate_type
+  use CNStateType         , only : cnstate_type
   use TemperatureType     , only : temperature_type
   use PhotosynthesisType  , only : photosyns_type
   use CNCarbonFluxType    , only : carbonflux_type
@@ -34,13 +35,25 @@ module MaintenanceRespMod
   public :: MaintenanceResp
   public :: readMaintenanceRespParams
 
-   type, private :: MaintenanceRespParamsType
-      real(r8):: br_mr        !base rate for maintenance respiration(gC/gN/s)
-   end type MaintenanceRespParamsType
+  type, private :: MaintenanceRespParamsType
+     real(r8):: br_mr        !base rate for maintenance respiration(gC/gN/s)
+     real(r8):: dormant_mr_temp ! Temperature for dormancy (K)
+     real(r8):: dormant_mr_factor ! Dormancy multiplier for maint resp (unitless)
+     real(r8):: mr_acclim_warming_frac ! woody acclimation fraction per degree warming (1 = 100%)
+     integer :: mr_acclim_spinup_years ! number of spinup years used to define acclimation baseline
+  end type MaintenanceRespParamsType
 
   !type(MaintenanceRespParamsType),private ::  MaintenanceRespParamsInst
   real(r8), public :: br_mr_Inst
+  real(r8), public :: dormant_mr_temp_Inst
+  real(r8), public :: dormant_mr_factor_Inst
+  real(r8), public :: mr_acclim_warming_frac_Inst
+  integer, public :: mr_acclim_spinup_years_Inst
   !$acc declare create(br_mr_Inst)
+  !$acc declare create(dormant_mr_temp_Inst)
+  !$acc declare create(dormant_mr_factor_Inst)
+  !$acc declare create(mr_acclim_warming_frac_Inst)
+  !$acc declare create(mr_acclim_spinup_years_Inst)
   !-----------------------------------------------------------------------
 
 contains
@@ -71,6 +84,45 @@ contains
      if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
      br_mr_Inst = tempr
 
+     ! Add parameters for dormant maintenance resp
+     tString='dormant_mr_temp'
+     call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
+     ! Default value: 0, so if it's missing the whole process is turned off
+     if ( .not. readv ) then
+        dormant_mr_temp_Inst=0.0_r8
+     else
+        dormant_mr_temp_Inst=tempr
+     end if
+
+
+     tString='dormant_mr_factor'
+     call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
+     if ( .not. readv .and. dormant_mr_temp_Inst == 0.0_r8) then
+        ! Neither dormancy param is defined, so we can ignore both
+        dormant_mr_temp_Inst=0.0_r8
+     elseif ( .not. readv ) then
+        ! Doesn't work if dormancy temp is defined and factor is not
+        call endrun(msg=trim('-Error: dormant_mr_temp defined but dormant_mr_factor is not')//trim(tString)//errMsg(__FILE__,__LINE__))
+     else
+        dormant_mr_factor_Inst=tempr
+     end if
+
+     tString='mr_acclim_warming_frac'
+     call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
+     if ( .not. readv ) then
+        mr_acclim_warming_frac_Inst = 0.0_r8
+     else
+        mr_acclim_warming_frac_Inst = tempr
+     end if
+
+     tString='mr_acclim_spinup_years'
+     call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
+     if ( .not. readv ) then
+        mr_acclim_spinup_years_Inst = 0
+     else
+        mr_acclim_spinup_years_Inst = nint(tempr)
+     end if
+
    end subroutine readMaintenanceRespParams
 
   !-----------------------------------------------------------------------
@@ -78,7 +130,7 @@ contains
   !
   subroutine MaintenanceResp(bounds, &
        num_soilc, filter_soilc, num_soilp, filter_soilp, &
-       canopystate_vars, soilstate_vars, photosyns_vars)
+       canopystate_vars, soilstate_vars, photosyns_vars, cnstate_vars)
     !
     ! !DESCRIPTION:
     !
@@ -94,12 +146,18 @@ contains
     type(canopystate_type)   , intent(in)    :: canopystate_vars
     type(soilstate_type)     , intent(in)    :: soilstate_vars
     type(photosyns_type)     , intent(in)    :: photosyns_vars
+    type(cnstate_type)       , intent(in)    :: cnstate_vars
     !
     ! !LOCAL VARIABLES:
     integer :: c,p,j ! indices
     integer :: fp    ! soil filter patch index
     integer :: fc    ! soil filter column index
     real(r8):: br_mr ! base rate (gC/gN/s)
+    real(r8):: br_mr_woody ! acclimated woody base rate (gC/gN/s)
+    real(r8):: dormant_mr_temp ! Temperature for dormancy
+    real(r8):: dormant_mr_factor ! Multiplication factor that replaces Q10
+    real(r8):: mr_acclim_warming_frac ! acclimation fraction per degree warming
+    real(r8):: spinup_temp_offset ! annual mean temperature departure from spinup baseline
     real(r8):: q10   ! temperature dependence
     real(r8):: tc    ! temperature correction, 2m air temp (unitless)
     real(r8):: tcsoi(bounds%begc:bounds%endc,nlevgrnd) ! temperature correction by soil layer (unitless)
@@ -109,11 +167,16 @@ contains
          ivt            =>    veg_pp%itype                             , & ! Input:  [integer  (:)   ]  patch vegetation type
          woody          =>    veg_vp%woody                      , & ! Input:  [real(r8) (:)   ]  woody lifeform flag (0 = non-woody, 1 = tree, 2 = shrub)
          br_xr          =>    veg_vp%br_xr                      , & ! Input:  [real(r8) (:)   ]  base rate for excess respiration
+         br_mr_pft       =>    veg_vp%br_mr_pft                   , & ! Input: [real(r8) (:)   ]  base rate for maintenance respiration (pft-specific)
+         q10_mr_pft      =>    veg_vp%q10_mr_pft                  , & ! Input: [real(r8) (:)   ] temperature sensitivity for maint respiration (pft-specific)
          frac_veg_nosno =>    canopystate_vars%frac_veg_nosno_patch , & ! Input:  [integer  (:)   ]  fraction of vegetation not covered by snow (0 OR 1) [-]
          laisun         =>    canopystate_vars%laisun_patch         , & ! Input:  [real(r8) (:)   ]  sunlit projected leaf area index
          laisha         =>    canopystate_vars%laisha_patch         , & ! Input:  [real(r8) (:)   ]  shaded projected leaf area index
 
          rootfr         =>    soilstate_vars%rootfr_patch           , & ! Input:  [real(r8) (:,:) ]  fraction of roots in each soil layer  (nlevgrnd)
+         annavg_t2m     =>    cnstate_vars%annavg_t2m_patch         , & ! Input:  [real(r8) (:)   ]  annual average 2m air temperature (K)
+         spinup_t       =>    cnstate_vars%spinup_t_patch           , & ! Input:  [real(r8) (:)   ]  spinup reference temperature (K)
+         spinup_t_nyears =>   cnstate_vars%spinup_t_nyears_patch    , & ! Input: [integer (:) ] spinup years in reference temperature
 
          t_soisno       =>    col_es%t_soisno         , & ! Input:  [real(r8) (:,:) ]  soil temperature (Kelvin)  (-nlevsno+1:nlevgrnd)
          t_ref2m        =>    veg_es%t_ref2m          , & ! Input:  [real(r8) (:)   ]  2 m height surface air temperature (Kelvin)
@@ -129,6 +192,7 @@ contains
          livecroot_mr   =>    veg_cf%livecroot_mr    , & ! Output: [real(r8) (:)   ]
          grain_mr       =>    veg_cf%grain_mr        , & ! Output: [real(r8) (:)   ]
          xr             =>    veg_cf%xr              , & ! Output: [real(r8) (:)   ]  (gC/m2) respiration of excess C
+         totvegc        =>    veg_cs%totvegc         , &
 
          frootn         =>    veg_ns%frootn       , & ! Input:  [real(r8) (:)   ]  (gN/m2) fine root N
          livestemn      =>    veg_ns%livestemn    , & ! Input:  [real(r8) (:)   ]  (gN/m2) live stem N
@@ -144,7 +208,12 @@ contains
       ! set constants
       br_mr = br_mr_Inst
 
-      ! Peter Thornton: 3/13/09
+      ! Ben Sulman: Adding dormant maintenance resp
+      dormant_mr_temp = dormant_mr_temp_Inst
+      dormant_mr_factor = dormant_mr_factor_Inst
+      mr_acclim_warming_frac = mr_acclim_warming_frac_Inst
+
+      ! Peter Thornton: 3/13/09 
       ! Q10 was originally set to 2.0, an arbitrary choice, but reduced to 1.5 as part of the tuning
       ! to improve seasonal cycle of atmospheric CO2 concentration in global
       ! simulatoins
@@ -159,20 +228,34 @@ contains
 
             ! calculate temperature corrections for each soil layer, for use in
             ! estimating fine root maintenance respiration with depth
-            tcsoi(c,j) = Q10**((t_soisno(c,j)-SHR_CONST_TKFRZ - 20.0_r8)/10.0_r8)
-
+            ! Ben Sulman: Adding lower dormant maintenance resp below a certain
+            ! temperature
+            if (t_soisno(c,j) > dormant_mr_temp) then
+                tcsoi(c,j) = Q10**((t_soisno(c,j)-SHR_CONST_TKFRZ - 20.0_r8)/10.0_r8)
+            else
+                tcsoi(c,j) = dormant_mr_factor
+            end if
          end do
       end do
 
       ! patch loop for leaves and live wood
       do fp = 1, num_soilp
          p = filter_soilp(fp)
+         br_mr = br_mr_Inst
+         br_mr_woody = br_mr
 
          ! calculate maintenance respiration fluxes in
          ! gC/m2/s for each of the live plant tissues.
          ! Leaf and live wood MR
 
-         tc = Q10**((t_ref2m(p)-SHR_CONST_TKFRZ - 20.0_r8)/10.0_r8)
+
+         ! Ben Sulman: Add dormant MR level below a certain temperature
+         if(t_ref2m(p) > dormant_mr_temp) then
+             tc = Q10**((t_ref2m(p)-SHR_CONST_TKFRZ - 20.0_r8)/10.0_r8)
+         else
+             tc = dormant_mr_factor
+         end if
+
          if (frac_veg_nosno(p) == 1) then
             leaf_mr(p) = lmrsun(p) * laisun(p) * 12.011e-6_r8 + &
                          lmrsha(p) * laisha(p) * 12.011e-6_r8
@@ -183,27 +266,24 @@ contains
          end if
 
          if (woody(ivt(p)) >= 1.0_r8) then
-            livestem_mr(p) = livestemn(p)*br_mr*tc
-            livecroot_mr(p) = livecrootn(p)*br_mr*tc
+            livestem_mr(p) = livestemn(p)*br_mr_woody*tc
+            livecroot_mr(p) = livecrootn(p)*br_mr_woody*tc
          else if (iscft(ivt(p)) .and. livestemn(p) .gt. 0._r8) then
             livestem_mr(p) = livestemn(p)*br_mr*tc
             grain_mr(p) = grainn(p)*br_mr*tc
+         else ! Graminoid rhizomes
+            livecroot_mr(p) = livecrootn(p)*br_mr*tc
          end if
          if (br_xr(ivt(p)) .gt. 1e-9_r8) then
             xr(p) = cpool(p) * br_xr(ivt(p)) * tc
-            !xr_above(p) = xr(p) * (leafn(p) + livestemn(p)) / &
-            !          (leafn(p) + livestemn(p) + frootn(p))
-            !xr_below(p) = xr(p) - xr_above(p)
          else
             xr(p) = 0._r8
-            !xr_above(p) = 0._r8
-            !xr_below(p) = 0._r8
          end if
       end do
 
       ! soil and patch loop for fine root
 
-      do j = 1,nlevgrnd
+      do j = 1,nlevdecomp
          do fp = 1,num_soilp
             p = filter_soilp(fp)
             c = veg_pp%column(p)
@@ -217,7 +297,7 @@ contains
             froot_mr(p) = froot_mr(p) + frootn(p)*br_mr*tcsoi(c,j)*rootfr(p,j)
          end do
       end do
-
+      
     end associate
 
   end subroutine MaintenanceResp

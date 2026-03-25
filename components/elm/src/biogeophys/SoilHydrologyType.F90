@@ -35,6 +35,10 @@ Module SoilHydrologyType
      real(r8), pointer :: zwt_col           (:)    => null() ! col water table depth
      real(r8), pointer :: zwts_col          (:)    => null() ! col water table depth, the shallower of the two water depths
      real(r8), pointer :: zwt_perched_col   (:)    => null() ! col perched water table depth
+     real(r8), pointer :: zwt_perched_k_col (:)    => null() ! col perched water table crossing layer
+     real(r8), pointer :: zwt_perched_kbarrier_col(:)=> null() ! col perched water table barrier layer
+     real(r8), pointer :: zwt_perched_sat1_col(:)  => null() ! saturation ratio at perched crossing layer
+     real(r8), pointer :: zwt_perched_sat2_col(:)  => null() ! saturation ratio below perched crossing layer
      real(r8), pointer :: wa_col            (:)    => null() ! col water in the unconfined aquifer (mm)
      real(r8), pointer :: beg_wa_grc        (:)    => null() ! grid-level water in the unconfined aquifer at beginning of the time step (mm)
      real(r8), pointer :: end_wa_grc        (:)    => null() ! grid-level water in the unconfined aquifer at end of the time step (mm)
@@ -128,6 +132,10 @@ contains
     allocate(this%zwt_col           (begc:endc))                 ; this%zwt_col           (:)     = spval
     allocate(this%qflx_bot_col      (begc:endc))                 ; this%qflx_bot_col      (:)     = spval
     allocate(this%zwt_perched_col   (begc:endc))                 ; this%zwt_perched_col   (:)     = spval
+    allocate(this%zwt_perched_k_col (begc:endc))                 ; this%zwt_perched_k_col (:)     = spval
+    allocate(this%zwt_perched_kbarrier_col(begc:endc))           ; this%zwt_perched_kbarrier_col(:) = spval
+    allocate(this%zwt_perched_sat1_col(begc:endc))               ; this%zwt_perched_sat1_col(:) = spval
+    allocate(this%zwt_perched_sat2_col(begc:endc))               ; this%zwt_perched_sat2_col(:) = spval
     allocate(this%zwts_col          (begc:endc))                 ; this%zwts_col          (:)     = spval
 
     allocate(this%wa_col            (begc:endc))                 ; this%wa_col            (:)     = spval
@@ -223,6 +231,26 @@ contains
     call hist_addfld1d (fname='ZWT_PERCH',  units='m',  &
          avgflag='A', long_name='perched water table depth (vegetated landunits only)', &
          ptr_col=this%zwt_perched_col, l2g_scale_type='veg')
+
+    this%zwt_perched_k_col(begc:endc) = spval
+    call hist_addfld1d (fname='ZWT_PERCH_K',  units='1',  &
+         avgflag='A', long_name='perched water table diagnostic crossing layer', &
+         ptr_col=this%zwt_perched_k_col, l2g_scale_type='veg')
+
+    this%zwt_perched_kbarrier_col(begc:endc) = spval
+    call hist_addfld1d (fname='ZWT_PERCH_KBARRIER',  units='1',  &
+         avgflag='A', long_name='perched water table diagnostic barrier layer', &
+         ptr_col=this%zwt_perched_kbarrier_col, l2g_scale_type='veg')
+
+    this%zwt_perched_sat1_col(begc:endc) = spval
+    call hist_addfld1d (fname='ZWT_PERCH_SAT1',  units='1',  &
+         avgflag='A', long_name='saturation ratio at perched water table crossing layer', &
+         ptr_col=this%zwt_perched_sat1_col, l2g_scale_type='veg')
+
+    this%zwt_perched_sat2_col(begc:endc) = spval
+    call hist_addfld1d (fname='ZWT_PERCH_SAT2',  units='1',  &
+         avgflag='A', long_name='saturation ratio below perched water table crossing layer', &
+         ptr_col=this%zwt_perched_sat2_col, l2g_scale_type='veg')
 
   end subroutine InitHistory
 
@@ -503,6 +531,7 @@ contains
                          om_frac = 0._r8
                       endif
                    end if
+                   om_frac = min(1.0_r8, max(0._r8, om_frac))
 
                    if (lun_pp%urbpoi(l)) om_frac = 0._r8
                    claycol(c,lev)    = clay
@@ -590,8 +619,12 @@ contains
                  micro_sigma(c)/sqrt(2.0*shr_const_pi)*exp(-d**2/(2.0*micro_sigma(c)**2))
             this%h2osfc_thresh_col(c) = 1.e3_r8 * this%h2osfc_thresh_col(c) !convert to mm from meters
          else
-            this%h2osfc_thresh_col(c) = 0._r8
+            this%h2osfc_thresh_col(c) = 0._r8     !changed from 0 to 1 TAO 29/8/2018
          endif
+
+#if (defined MARSH)
+            this%h2osfc_thresh_col(c) = 2.e3_r8    ! set to zero for no h2osfc (w/frac_infclust =large) changed from 0 to 1 TAO 29/8/2018
+#endif
 
          if (this%h2osfcflag == 0) then
             this%h2osfc_thresh_col(c) = 0._r8    ! set to zero for no h2osfc (w/frac_infclust =large)
@@ -600,6 +633,11 @@ contains
          ! set decay factor
          g = col_pp%gridcell(c)
          this%hkdepth_col(c) = 1._r8/fdrain(g)
+
+#if (defined MARSH)
+      ! Is this supposed to be set with fdrain?
+      ! this%hkdepth_col(c) = 4._r8/2.5_r8
+#endif
 
       end do
     end associate
@@ -899,9 +937,12 @@ contains
      namelist / elm_soilhydrology_inparm / h2osfcflag, origflag
 
 
-     ! preset values
+#if (defined MARSH)
+     origflag = 1
+#else
      origflag = 0
-     h2osfcflag = 1
+#endif
+     h2osfcflag = 1        
 
      if ( masterproc )then
 

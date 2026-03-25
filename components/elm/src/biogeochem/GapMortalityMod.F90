@@ -20,6 +20,7 @@ module GapMortalityMod
   use CropType            , only : crop_type
 
   use elm_varctl          , only : nu_com
+  use elm_varctl             , only : iulog
   use timeinfoMod , only : dayspyr_mod
   !
   implicit none
@@ -32,7 +33,7 @@ module GapMortalityMod
   public :: readGapMortParams
 
   type, public :: CNGapMortParamsType
-      real(r8), pointer :: am     => null() ! mortality rate based on annual rate, fractional mortality (1/yr)
+      real(r8), pointer :: am(:)     => null() ! mortality rate based on annual rate, fractional mortality (1/yr)
       real(r8), pointer :: k_mort => null() ! coeff. of growth efficiency in mortality equation
   end type CNGapMortParamsType
 
@@ -50,7 +51,7 @@ contains
       ! Read in parameters
       !
       ! !USES:
-      use ncdio_pio  , only : file_desc_t,ncd_io
+      use ncdio_pio  , only : file_desc_t,ncd_io,ncd_inqdid,ncd_inqdlen
       !
       ! !ARGUMENTS:
       implicit none
@@ -59,16 +60,20 @@ contains
       ! !LOCAL VARIABLES:
       character(len=32)  :: subname = 'CNGapMortParamsType'
       character(len=100) :: errCode = '-Error reading in parameters file:'
+      integer :: dimid            ! netCDF dimension id
+      integer :: npft             ! number of pfts on pft-physiology file
       logical            :: readv ! has variable been read in or not
       real(r8)           :: tempr ! temporary to read in constant
       character(len=100) :: tString ! temp. var for reading
       !-----------------------------------------------------------------------
-      allocate(CNGapMortParamsInst%am, CNGapMortParamsInst%k_mort)
+      call ncd_inqdid(ncid,'pft',dimid)
+      call ncd_inqdlen(ncid,dimid,npft)
+      allocate(CNGapMortParamsInst%am(0:npft))
+      allocate(CNGapMortParamsInst%k_mort)
 
       tString='r_mort'
-      call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
+      call ncd_io(varname=trim(tString), data=CNGapMortParamsInst%am, flag='read', ncid=ncid, readvar=readv)
       if ( .not. readv ) call endrun(msg=trim(errCode)//trim(tString)//errMsg(__FILE__, __LINE__))
-      CNGapMortParamsInst%am=tempr
 
       tString='k_mort'
       call ncd_io(varname=trim(tString),data=tempr, flag='read', ncid=ncid, readvar=readv)
@@ -114,8 +119,6 @@ contains
          )
 
       dayspyr = dayspyr_mod
-      ! set the mortality rate based on annual rate
-      am = CNGapMortParamsInst%am
       ! set coeff of growth efficiency in mortality equation
       k_mort = CNGapMortParamsInst%k_mort
 
@@ -123,15 +126,16 @@ contains
           call mortality_rate_soilorder(num_soilp,filter_soilp,cnstate_vars)
       end if
 
-
       ! patch loop
       do fp = 1,num_soilp
          p = filter_soilp(fp)
 
+         ! set the mortality rate based on annual rate
+         am = CNGapMortParamsInst%am(ivt(p))
+
          if (nu_com .eq. 'RD') then
              am = cnstate_vars%r_mort_cal_patch(p)
          end if
-
 
         m  = am/(dayspyr * secspday)
 

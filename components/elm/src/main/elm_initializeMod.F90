@@ -764,6 +764,8 @@ contains
 
     call canopystate_vars%initAccBuffer(bounds_proc)
 
+    call energyflux_vars%initAccBuffer(bounds_proc)
+
     if (crop_prog) then
        call crop_vars%initAccBuffer(bounds_proc)
     end if
@@ -1001,6 +1003,7 @@ contains
     call veg_es%InitAccVars(bounds_proc)
     call energyflux_vars%initAccVars(bounds_proc)
     call canopystate_vars%initAccVars(bounds_proc)
+    call energyflux_vars%initAccVars(bounds_proc)
     if (crop_prog) then
        call crop_vars%initAccVars(bounds_proc)
     end if
@@ -1085,7 +1088,7 @@ contains
              call get_clump_bounds(nc, bounds_clump)
              call SatellitePhenology(bounds_clump, &
                   filter_inactive_and_active(nc)%num_soilp, filter_inactive_and_active(nc)%soilp, &
-                  waterstate_vars, canopystate_vars)
+                  waterstate_vars, canopystate_vars, soilstate_vars)
           end do
           !$OMP END PARALLEL DO
        end if

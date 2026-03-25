@@ -300,26 +300,17 @@ contains
        call add_topounit(ti=ti, gi=gdc, wtgcell=wttopounit2gridcell, elv=elv, slp=slp, asp=asp,topo_ind=topo_ind,is_tpu_active = is_tpu_active)
     end do
 
-    ! Loop through topounits again to find its nearest downhill topounit on this gridcell
-    ! part of the IM2 hillslope hydrology implementation
-    if (ntopos > 1 .and. use_IM2_hillslope_hydrology) then
-      ! find the minimum elevation over all topounits on the gridcell
-      min_elev = top_pp%elevation(begt)
-      min_index = begt
-      do t1 = begt+1, endt
-         if (top_pp%elevation(t1) < min_elev) then
-            min_elev = top_pp%elevation(t1)
-            min_index = t1
-         endif
-      end do
-      ! find the closest downhill neighbor for each topounit
-      dn_index = -1  ! value of -1 indicates no downhill neighbor
+    ! Loop through topounits again to find the nearest downhill non-bog topounit
+    ! on this gridcell for the IM2/HUM_HOL surface-routing implementation.
+    if (ntopos > 1 .and. (use_IM2_hillslope_hydrology)) then
+      ! find the closest downhill non-bog neighbor for each topounit
       do t1 = begt, endt
          t1_elev = top_pp%elevation(t1)
-         dn_elev = min_elev
+         dn_index = -1  ! value of -1 indicates no downhill neighbor
+         dn_elev = -huge(1._r8)
          do t2 = begt, endt
             t2_elev = top_pp%elevation(t2)
-            if ((t2_elev < t1_elev) .and. (t2_elev >= dn_elev)) then
+            if ((t2_elev < t1_elev) .and. (t2_elev > dn_elev) .and. top_pp%active(t2)) then
                dn_elev = t2_elev
                dn_index = t2
             endif

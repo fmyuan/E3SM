@@ -40,7 +40,8 @@ module EcosystemBalanceCheckMod
   use ColumnDataType      , only : column_nitrogen_state, column_nitrogen_flux
   use ColumnDataType      , only : column_phosphorus_state, column_phosphorus_flux
   use VegetationType      , only : veg_pp
-  use VegetationDataType  , only : veg_cf, veg_nf, veg_pf
+  use VegetationDataType  , only : veg_cs, veg_cf, veg_nf, veg_pf
+  use SoilStateType       , only : soilstate_type
 
   use timeinfoMod
 
@@ -88,17 +89,33 @@ contains
     ! !LOCAL VARIABLES:
     integer :: c     ! indices
     integer :: fc   ! lake filter indices
+    integer :: p     ! patch index
     !-----------------------------------------------------------------------
 
     associate(                                        &
-         totcolc   =>  col_cs%totcolc , & ! Input:  [real(r8) (:)]  (gC/m2) total column carbon, incl veg and cpool
-         col_begcb =>  col_cs%begcb     & ! Output: [real(r8) (:)]  carbon mass, beginning of time step (gC/m**2)
+         totcolc       =>  col_cs%totcolc       , & ! Input:  [real(r8) (:)]  total column carbon, incl veg and cpool
+         totpftc       =>  col_cs%totpftc       , & ! Input:  [real(r8) (:)]  patch carbon averaged to column
+         cwdc          =>  col_cs%cwdc          , & ! Input:  [real(r8) (:)]  coarse woody debris carbon
+         totlitc       =>  col_cs%totlitc       , & ! Input:  [real(r8) (:)]  litter carbon
+         totsomc       =>  col_cs%totsomc       , & ! Input:  [real(r8) (:)]  soil organic matter carbon
+         col_begcb     =>  col_cs%begcb         , & ! Output: [real(r8) (:)]  carbon mass, beginning of time step
+         totpftc_beg   =>  col_cs%totpftc_beg   , & ! Output: [real(r8) (:)]  beginning patch carbon averaged to column
+         cwdc_beg      =>  col_cs%cwdc_beg      , & ! Output: [real(r8) (:)]  beginning coarse woody debris carbon
+         totlitc_beg   =>  col_cs%totlitc_beg   , & ! Output: [real(r8) (:)]  beginning litter carbon
+         totsomc_beg   =>  col_cs%totsomc_beg     & ! Output: [real(r8) (:)]  beginning soil organic matter carbon
          )
 
       ! calculate beginning column-level carbon balance, for mass conservation check
       do fc = 1,num_soilc
          c = filter_soilc(fc)
          col_begcb(c) = totcolc(c)
+         totpftc_beg(c) = totpftc(c)
+         cwdc_beg(c) = cwdc(c)
+         totlitc_beg(c) = totlitc(c)
+         totsomc_beg(c) = totsomc(c)
+         do p = col_pp%pfti(c), col_pp%pftf(c)
+            veg_cs%begcb(p) = veg_cs%totpftc(p)
+         end do
       end do
 
     end associate
@@ -181,7 +198,7 @@ contains
   !-----------------------------------------------------------------------
   subroutine ColCBalanceCheck(bounds, &
        num_soilc, filter_soilc, &
-       col_cs, col_cf)
+       col_cs, col_cf, soilstate_vars)
     !
     ! !DESCRIPTION:
     ! On the radiation time step, perform carbon mass conservation check for column and pft
@@ -192,17 +209,37 @@ contains
     integer                   , intent(in)    :: filter_soilc(:) ! filter for soil columns
     type(column_carbon_state) , intent(inout) :: col_cs
     type(column_carbon_flux)  , intent(in)    :: col_cf
+    type(soilstate_type)      , intent(in)    :: soilstate_vars
     !
     ! !LOCAL VARIABLES:
-    integer  :: c,err_index    ! indices
+    integer  :: c,err_index,p,j  ! indices
     integer  :: fc             ! lake filter indices
     logical  :: err_found      ! error flag
     real(r8) :: dt             ! radiation time step (seconds)
+    real(r8) :: patch_delta
+    real(r8) :: patch_litter_source
+    real(r8) :: patch_product_source
+    real(r8) :: phen_litter_sink
+    real(r8) :: phen_litter_source
     integer  :: nstep
     !-----------------------------------------------------------------------
 
     associate(                                                                           &
          totcolc                   =>    col_cs%totcolc                  , & ! Input:  [real(r8) (:) ]  (gC/m2)   total column carbon, incl veg and cpool
+         col_totpftc               =>    col_cs%totpftc                  , & ! Input:  [real(r8) (:) ]  patch carbon averaged to column
+         col_cwdc                  =>    col_cs%cwdc                     , & ! Input:  [real(r8) (:) ]  coarse woody debris carbon
+         col_totlitc               =>    col_cs%totlitc                  , & ! Input:  [real(r8) (:) ]  litter carbon
+         col_totsomc               =>    col_cs%totsomc                  , & ! Input:  [real(r8) (:) ]  soil organic matter carbon
+         col_prod1c                =>    col_cs%prod1c                   , & ! Input:  [real(r8) (:) ]  crop product carbon
+         col_ctrunc                =>    col_cs%ctrunc                   , & ! Input:  [real(r8) (:) ]  truncation carbon sink
+         col_totpftc_beg           =>    col_cs%totpftc_beg              , & ! Input:  [real(r8) (:) ]  beginning patch carbon averaged to column
+         col_cwdc_beg              =>    col_cs%cwdc_beg                 , & ! Input:  [real(r8) (:) ]  beginning coarse woody debris carbon
+         col_totlitc_beg           =>    col_cs%totlitc_beg              , & ! Input:  [real(r8) (:) ]  beginning litter carbon
+         col_totsomc_beg           =>    col_cs%totsomc_beg              , & ! Input:  [real(r8) (:) ]  beginning soil organic matter carbon
+         col_totpftc_end           =>    col_cs%totpftc_end              , & ! Output: [real(r8) (:) ]  ending patch carbon averaged to column
+         col_cwdc_end              =>    col_cs%cwdc_end                 , & ! Output: [real(r8) (:) ]  ending coarse woody debris carbon
+         col_totlitc_end           =>    col_cs%totlitc_end              , & ! Output: [real(r8) (:) ]  ending litter carbon
+         col_totsomc_end           =>    col_cs%totsomc_end              , & ! Output: [real(r8) (:) ]  ending soil organic matter carbon
          gpp                       =>    col_cf%gpp                       , & ! Input:  [real(r8) (:) ]  (gC/m2/s) gross primary production
          er                        =>    col_cf%er                        , & ! Input:  [real(r8) (:) ]  (gC/m2/s) total ecosystem respiration, autotrophic + heterotrophic
          col_fire_closs            =>    col_cf%fire_closs                , & ! Input:  [real(r8) (:) ]  (gC/m2/s) total column-level fire C loss
@@ -213,6 +250,9 @@ contains
          som_c_leached             =>    col_cf%som_c_leached             , & ! Input:  [real(r8) (:) ]  (gC/m^2/s)total SOM C loss from vertical transport
          som_c_yield               =>    col_cf%somc_yield                , & ! Input:  [real(r8) (:) ]  (gC/m^2/s)total SOM C loss by erosion
          col_decompc_delta         =>    col_cf%externalc_to_decomp_delta , & ! Input:  [real(r8) (:) ]  (gC/m2/s) summarized net change of whole column C i/o to decomposing pool bwtn time-step
+         phen_c_to_litr_met        =>    col_cf%phenology_c_to_litr_met_c , & ! Input:  [real(r8) (:,:)] phenology C flux to metabolic litter
+         phen_c_to_litr_cel        =>    col_cf%phenology_c_to_litr_cel_c , & ! Input:  [real(r8) (:,:)] phenology C flux to cellulose litter
+         phen_c_to_litr_lig        =>    col_cf%phenology_c_to_litr_lig_c , & ! Input:  [real(r8) (:,:)] phenology C flux to lignin litter
          col_cinputs               =>    col_cf%cinputs                   , & ! Output: [real(r8) (:)]  column-level C inputs (gC/m2/s)
          col_coutputs              =>    col_cf%coutputs                  , & ! Output: [real(r8) (:)]  column-level C outputs (gC/m2/s)
          col_begcb                 =>    col_cs%begcb                    , & ! Output: [real(r8) (:) ]  carbon mass, beginning of time step (gC/m**2)
@@ -234,6 +274,10 @@ contains
 
          ! calculate the total column-level carbon storage, for mass conservation check
          col_endcb(c) = totcolc(c)
+         col_totpftc_end(c) = col_totpftc(c)
+         col_cwdc_end(c) = col_cwdc(c)
+         col_totlitc_end(c) = col_totlitc(c)
+         col_totsomc_end(c) = col_totsomc(c)
 
          ! FATES also checks to see if input fluxes match
          ! a change in the total stock. So hwere we assume that
@@ -269,7 +313,6 @@ contains
             col_coutputs(c) = col_coutputs(c) + som_c_yield(c)
          end if
 
-
          ! calculate the total column-level carbon balance error for this time step
          col_errcb(c) = (col_cinputs(c) - col_coutputs(c))*dt - (col_endcb(c) - col_begcb(c))
 
@@ -304,6 +347,88 @@ contains
           write(iulog,*)'endcb                 = ',col_endcb(c),col_cs%totsomc(c)
           write(iulog,*)'totsomc               = ',col_cs%totsomc(c)
           write(iulog,*)'delta store           = ',col_endcb(c)-col_begcb(c)
+          phen_litter_sink = 0._r8
+          do j = 1, nlevdecomp
+             phen_litter_sink = phen_litter_sink + &
+                  (phen_c_to_litr_met(c,j) + phen_c_to_litr_cel(c,j) + &
+                   phen_c_to_litr_lig(c,j)) * dzsoi_decomp(j) * dt
+          end do
+          phen_litter_source = 0._r8
+          do p = col_pp%pfti(c), col_pp%pftf(c)
+             if (veg_pp%active(p) .and. (veg_pp%itype(p) .ne. noveg)) then
+                phen_litter_source = phen_litter_source + veg_pp%wtcol(p) * &
+                     (veg_cf%leafc_to_litter(p) + veg_cf%frootc_to_litter(p) + &
+                      veg_cf%livestemc_to_litter(p) + veg_cf%livecrootc_to_litter(p)) * dt
+             end if
+          end do
+          write(iulog,*)'component_deltas       = ', &
+               col_totpftc_end(c)-col_totpftc_beg(c), &
+               col_cwdc_end(c)-col_cwdc_beg(c), &
+               col_totlitc_end(c)-col_totlitc_beg(c), &
+               col_totsomc_end(c)-col_totsomc_beg(c)
+          write(iulog,*)'component_end          = ', &
+               col_totpftc(c), col_cwdc(c), col_totlitc(c), &
+               col_totsomc(c), col_prod1c(c), col_ctrunc(c)
+          write(iulog,*)'phen_litter src/sink  = ', phen_litter_source, phen_litter_sink
+          write(iulog,*)'patch carbon diagnostics for failing column'
+          write(iulog,*)'  patch, pft, wtcol, ar_dt, ar_wt_dt, mr_dt, gr_dt, xr_dt, gpp_dt, npp_dt'
+          do p = col_pp%pfti(c), col_pp%pftf(c)
+             if (veg_pp%active(p) .and. (veg_pp%itype(p) .ne. noveg)) then
+                veg_cs%endcb(p) = veg_cs%totpftc(p)
+                patch_delta = veg_cs%endcb(p) - veg_cs%begcb(p)
+                patch_litter_source = &
+                     (veg_cf%leafc_to_litter(p) + veg_cf%frootc_to_litter(p) + &
+                      veg_cf%livestemc_to_litter(p) + veg_cf%livecrootc_to_litter(p)) * dt
+                patch_product_source = &
+                     (veg_cf%hrv_leafc_to_prod1c(p) + veg_cf%hrv_livestemc_to_prod1c(p) + &
+                      veg_cf%hrv_grainc_to_prod1c(p) + veg_cf%hrv_deadstemc_to_prod10c(p) + &
+                      veg_cf%hrv_deadstemc_to_prod100c(p)) * dt
+                write(iulog,*)'  patch_balance = ', p, veg_pp%itype(p), veg_pp%wtcol(p), &
+                     veg_cs%begcb(p), veg_cs%endcb(p), patch_delta, patch_delta*veg_pp%wtcol(p), &
+                     patch_litter_source, patch_litter_source*veg_pp%wtcol(p), patch_product_source
+                write(iulog,*)'  patch_fluxes = ', p, veg_pp%itype(p), veg_pp%wtcol(p), &
+                     veg_cf%ar(p)*dt, veg_cf%ar(p)*veg_pp%wtcol(p)*dt, &
+                     veg_cf%mr(p)*dt, veg_cf%gr(p)*dt, veg_cf%xr(p)*dt, &
+                     veg_cf%gpp(p)*dt, veg_cf%npp(p)*dt
+                write(iulog,*)'  patch_xsmr   = ', p, &
+                     veg_cf%cpool_to_xsmrpool(p)*dt, veg_cf%xsmrpool_recover(p)*dt, &
+                     veg_cf%xsmrpool_turnover(p)*dt, veg_cf%xsmrpool_to_atm(p)*dt
+                write(iulog,*)'  patch_pools  = ', p, &
+                     veg_cs%cpool(p), veg_cs%xsmrpool(p), veg_cs%totpftc(p), veg_cs%totvegc(p), &
+                     veg_cs%leafc(p), veg_cs%frootc(p), veg_cs%livestemc(p), veg_cs%livecrootc(p)
+                write(iulog,*)'  patch_totals = ', p, &
+                     veg_cs%dispvegc(p), veg_cs%storvegc(p), veg_cs%ctrunc(p), &
+                     veg_cs%deadstemc(p), veg_cs%deadcrootc(p), veg_cs%gresp_storage(p), &
+                     veg_cs%gresp_xfer(p)
+                write(iulog,*)'  patch_leaf   = ', p, &
+                     veg_cs%leafc(p), veg_cs%leafc_storage(p), veg_cs%leafc_xfer(p), &
+                     veg_cf%leafc_to_litter(p)*dt, veg_cf%leafc_storage_to_xfer(p)*dt, &
+                     veg_cf%leafc_xfer_to_leafc(p)*dt, veg_cf%cpool_to_leafc(p)*dt, &
+                     veg_cf%cpool_to_leafc_storage(p)*dt
+                write(iulog,*)'  patch_froot  = ', p, &
+                     veg_cs%frootc(p), veg_cs%frootc_storage(p), veg_cs%frootc_xfer(p), &
+                     veg_cf%frootc_to_litter(p)*dt, veg_cf%frootc_storage_to_xfer(p)*dt, &
+                     veg_cf%frootc_xfer_to_frootc(p)*dt, veg_cf%cpool_to_frootc(p)*dt, &
+                     veg_cf%cpool_to_frootc_storage(p)*dt
+                write(iulog,*)'  patch_croot  = ', p, &
+                     veg_cs%livecrootc(p), veg_cs%livecrootc_storage(p), veg_cs%livecrootc_xfer(p), &
+                     veg_cf%livecrootc_to_litter(p)*dt, veg_cf%livecrootc_to_deadcrootc(p)*dt, &
+                     veg_cf%livecrootc_storage_to_xfer(p)*dt, &
+                     veg_cf%livecrootc_xfer_to_livecrootc(p)*dt, &
+                     veg_cf%cpool_to_livecrootc(p)*dt, veg_cf%cpool_to_livecrootc_storage(p)*dt
+                write(iulog,*)'  patch_stem   = ', p, &
+                     veg_cs%livestemc(p), veg_cs%livestemc_storage(p), veg_cs%livestemc_xfer(p), &
+                     veg_cs%deadstemc(p), veg_cs%deadstemc_storage(p), veg_cs%deadstemc_xfer(p), &
+                     veg_cf%livestemc_to_litter(p)*dt, veg_cf%livestemc_to_deadstemc(p)*dt, &
+                     veg_cf%livestemc_storage_to_xfer(p)*dt, &
+                     veg_cf%livestemc_xfer_to_livestemc(p)*dt
+                write(iulog,*)'  patch_droot  = ', p, &
+                     veg_cs%deadcrootc(p), veg_cs%deadcrootc_storage(p), veg_cs%deadcrootc_xfer(p), &
+                     veg_cf%deadcrootc_storage_to_xfer(p)*dt, &
+                     veg_cf%deadcrootc_xfer_to_deadcrootc(p)*dt
+                write(iulog,*)'  patch_rootfr = ', p, (soilstate_vars%rootfr_patch(p,j), j=1,nlevdecomp)
+             end if
+          end do
 
           if (ero_ccycle) then
              write(iulog,*)'erosion               = ',som_c_yield(c)*dt
@@ -362,6 +487,7 @@ contains
     associate(                                                                             &
          totcoln                   =>    col_ns%totcoln                  , & ! Input:  [real(r8) (:)]  (gN/m2) total column nitrogen, incl veg
          ndep_to_sminn             =>    col_nf%ndep_to_sminn             , & ! Input:  [real(r8) (:)]  atmospheric N deposition to soil mineral N (gN/m2/s)
+         ndep_to_npool             =>    veg_nf%ndep_to_npool             , & ! Input:  [real(r8) (:)]  atmospheric N deposition to plant N pool (gN/m2/s)
          nfix_to_sminn             =>    col_nf%nfix_to_sminn             , & ! Input:  [real(r8) (:)]  symbiotic/asymbiotic N fixation to soil mineral N (gN/m2/s)
          nfix_to_ecosysn           =>    col_nf%nfix_to_ecosysn           , &
          fert_to_sminn             =>    col_nf%fert_to_sminn             , & ! Input:  [real(r8) (:)]
@@ -443,6 +569,7 @@ contains
             do p = col_pp%pfti(c), col_pp%pftf(c)
                if (veg_pp%active(p) .and. (veg_pp%itype(p) .ne. noveg)) then
                   col_ninputs(c) = col_ninputs(c) + supplement_to_plantn(p) * veg_pp%wtcol(p)
+                  col_ninputs(c) = col_ninputs(c) + ndep_to_npool(p) * veg_pp%wtcol(p)
                end if
             end do
 
@@ -481,6 +608,8 @@ contains
          col_noutputs(c) = col_noutputs(c) + &
                col_prod1n_loss(c) + col_prod10n_loss(c) + col_prod100n_loss(c)
 
+         col_noutputs(c) = col_noutputs(c) + col_prod1n_loss(c)
+         
          col_noutputs(c) = col_noutputs(c) - som_n_leached(c)
 
          if (use_fan) col_noutputs(c) = col_noutputs(c) + fan_totnout(c)
@@ -593,6 +722,7 @@ contains
          primp_to_labilep          => col_pf%primp_to_labilep          , &
          secondp_to_occlp          => col_pf%secondp_to_occlp          , &
          fert_p_to_sminp           => col_pf%fert_p_to_sminp           , &
+         som_p_leached             => col_pf%som_p_leached             , & ! Input: [real (r8) (:) total SOMP loss from vertical advection
          som_p_yield               => col_pf%somp_yield                , & ! Input:  [real(r8) (:)]  SOM P pool loss by erosion (gP/m^2/s)
          labilep_yield             => col_pf%labilep_yield             , & ! Input:  [real(r8) (:)]  soil labile mineral P loss by erosion (gP/m^s/s)
          secondp_yield             => col_pf%secondp_yield             , & ! Input:  [real(r8) (:)]  soil secondary mineral P loss by erosion (gP/m^s/s)
@@ -730,6 +860,7 @@ contains
             col_poutputs(c) = col_poutputs(c) + som_p_yield(c) + labilep_yield(c) + &
                secondp_yield(c) !+ occlp_yield(c) + primp_yield(c)
          end if
+         col_poutputs(c) = col_poutputs(c) - som_p_leached(c)
 
          ! calculate the total column-level phosphorus balance error for this time step
          col_errpb(c) = (col_pinputs(c) - col_poutputs(c))*dt - &
@@ -954,7 +1085,13 @@ contains
       call c2g(bounds, col_som_c_leached(bounds%begc:bounds%endc), grc_som_c_leached(bounds%begg:bounds%endg), &
                c2l_scale_type = 'unity', l2g_scale_type = 'unity')
       call c2g(bounds, col_som_c_yield(bounds%begc:bounds%endc), grc_som_c_yield(bounds%begg:bounds%endg), &
-               c2l_scale_type = 'unity', l2g_scale_type = 'unity')  
+               c2l_scale_type = 'unity', l2g_scale_type = 'unity')
+      call c2g(bounds, col_cf%DOC_runoff(bounds%begc:bounds%endc), grc_cf%DOC_runoff(bounds%begg:bounds%endg), &
+               c2l_scale_type = 'unity', l2g_scale_type = 'unity')
+      call c2g(bounds, col_cf%DIC_runoff(bounds%begc:bounds%endc), grc_cf%DIC_runoff(bounds%begg:bounds%endg), &
+               c2l_scale_type = 'unity', l2g_scale_type = 'unity')
+      call c2g(bounds, col_cf%ch4flux(bounds%begc:bounds%endc), grc_cf%ch4flux(bounds%begg:bounds%endg), &
+               c2l_scale_type = 'unity', l2g_scale_type = 'unity')
 
       if (use_fates) then 
         call c2g(bounds, col_cf%litfall(bounds%begc:bounds%endc), grc_cinputs(bounds%begg:bounds%endg), &
@@ -1156,6 +1293,7 @@ contains
          write(iulog,*)'begcb                 = ',begcb_grc(g)
          write(iulog,*)'endcb                 = ',endcb_grc(g)
          write(iulog,*)'delta store           = ',endcb_grc(g)-begcb_grc(g)
+         
          call endrun(msg=errMsg(__FILE__, __LINE__))
 #endif
       end if
