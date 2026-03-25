@@ -1,7 +1,6 @@
 module initVerticalMod
 
 #include "shr_assert.h"
-
   !-----------------------------------------------------------------------
   ! !DESCRIPTION:
   ! Initialize vertical components of column datatype

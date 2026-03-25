@@ -399,6 +399,12 @@ contains
          mbb           => photosyns_vars%mbb_patch                 , & ! Output: [real(r8) (:)   ]  Ball-Berry slope of conductance-photosynthesis relationship
          rh_leaf       => photosyns_vars%rh_leaf_patch             , & ! Output: [real(r8) (:)   ]  fractional humidity at leaf surface (dimensionless)
 
+         h2osfc        => col_ws%h2osfc                        , & !Input: [real(r8) (:)   ]  Surface water
+         salinity      => col_ws%salinity                      , & !Input: [real(r8) (:)   ]  salinity (SLL 4/9/2021)
+         sal_threshold => veg_vp%sal_threshold                 , & !Input: [real(r8) (:)   ] Threshold salinity concentration to trigger osmotic inhibition (ppt)
+         KM_salinity   => veg_vp%KM_salinity                   , & !Input: [real(r8) (:)   ] half saturation constant for osmotic inhibition function
+         osm_inhib     => veg_vp%osm_inhib                     , & !Input: [real(r8) (:)   ] osmotic inhibition factor
+
          leafn         => veg_ns%leafn           , &
          leafn_storage => veg_ns%leafn_storage   , &
          leafn_xfer    => veg_ns%leafn_xfer      , &
@@ -813,9 +819,9 @@ contains
          gb_mol(p) = gb * cf
 
          ! Loop through canopy layers (above snow). Only do calculations if daytime
-        do iv = 1, nrad(p)
+         do iv = 1, nrad(p)
 
-            if (par_z(p,iv) <= 0._r8) then           ! night time
+           if (par_z(p,iv) <= 0._r8) then           ! night time
 
                ac(p,iv) = 0._r8
                aj(p,iv) = 0._r8
@@ -1484,6 +1490,7 @@ contains
     real(r8) :: fnps                 ! fraction of light absorbed by non-photosynthetic pigments
     real(r8) :: theta_psii           ! empirical curvature parameter for electron transport rate
     real(r8) :: theta_ip             ! empirical curvature parameter for ap photosynthesis co-limitation
+    real(r8) :: wcscaler  
     !------------------------------------------------------------------------------
 
     associate(&
@@ -1880,6 +1887,11 @@ contains
          leafp         => veg_ps%leafp         , &
          leafp_storage => veg_ps%leafp_storage , &
          leafp_xfer    => veg_ps%leafp_xfer    , &
+
+         salinity      => col_ws%salinity                      , & ! Input:  [real(r8) (:)   ] salinity ppt
+         sal_threshold => veg_vp%sal_threshold                 , & !Input: [real(r8) (:)   ] Threshold salinity concentration to trigger osmotic inhibition (ppt)
+         KM_salinity   => veg_vp%KM_salinity                   , & !Input: [real(r8) (:)   ] half saturation constant for osmotic inhibition function
+         osm_inhib     => veg_vp%osm_inhib                     , & !Input: [real(r8) (:)   ] osmotic inhibition factor
          i_vcmax       => veg_vp%i_vc                          , &
          s_vcmax       => veg_vp%s_vc                          , &
          bsw           => soilstate_inst%bsw_col                , & ! Input:  [real(r8) (:,:) ]  Clapp and Hornberger "b"
@@ -2050,6 +2062,13 @@ contains
 
          bbb(p) = bbbopt(p)
          mbb(p) = mbbopt(p)
+#if (defined MARSH)
+         if (salinity(c) > sal_threshold(veg_pp%itype(p))) then
+         osm_inhib(veg_pp%itype(p)) = (1-salinity(c)/(KM_salinity(veg_pp%itype(p))+salinity(c)))
+            bbb(p) = max (bbbopt(p)*btran(p)*(osm_inhib(veg_pp%itype(p))), 1._r8)
+            mbb(p) = mbbopt(p)
+         end if
+#endif
 
          ! kc, ko, cp, from: Bernacchi et al (2001) Plant, Cell and Environment
          ! 24:253-259

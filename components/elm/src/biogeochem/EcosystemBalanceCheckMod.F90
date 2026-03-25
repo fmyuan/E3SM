@@ -29,7 +29,7 @@ module EcosystemBalanceCheckMod
   use elm_time_manager    , only : get_curr_date
   use CNStateType         , only : fert_type , fert_continue, fert_dose, fert_start, fert_end
   use elm_varctl          , only : forest_fert_exp
-  use pftvarcon           , only: noveg
+  use pftvarcon           , only : noveg
   use elm_varctl          , only : NFIX_PTASE_plant
   use GridcellType        , only : grc_pp
   use GridcellDataType    , only : gridcell_carbon_state, gridcell_carbon_flux
@@ -955,6 +955,12 @@ contains
                c2l_scale_type = 'unity', l2g_scale_type = 'unity')
       call c2g(bounds, col_som_c_yield(bounds%begc:bounds%endc), grc_som_c_yield(bounds%begg:bounds%endg), &
                c2l_scale_type = 'unity', l2g_scale_type = 'unity')  
+      call c2g(bounds, col_cf%DOC_runoff(bounds%begc:bounds%endc), grc_cf%DOC_runoff(bounds%begg:bounds%endg), &
+               c2l_scale_type = 'unity', l2g_scale_type = 'unity')
+      call c2g(bounds, col_cf%DIC_runoff(bounds%begc:bounds%endc), grc_cf%DIC_runoff(bounds%begg:bounds%endg), &
+               c2l_scale_type = 'unity', l2g_scale_type = 'unity')
+      call c2g(bounds, col_cf%ch4flux(bounds%begc:bounds%endc), grc_cf%ch4flux(bounds%begg:bounds%endg), &
+               c2l_scale_type = 'unity', l2g_scale_type = 'unity')
 
       if (use_fates) then 
         call c2g(bounds, col_cf%litfall(bounds%begc:bounds%endc), grc_cinputs(bounds%begg:bounds%endg), &

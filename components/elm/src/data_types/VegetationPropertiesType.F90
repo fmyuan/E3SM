@@ -156,6 +156,13 @@ module VegetationPropertiesType
      real(r8), pointer :: vegshape(:)         ! shape parameter to modify shrub burial by snow (1 = parabolic, 2 = hemispheric)
      real(r8), pointer :: stocking(:)         ! stocking density for pft (stems / hectare)
      real(r8), pointer :: taper(:)            ! ratio of height:radius_breast_height (woody vegetation allometry)
+     !salinity response parameters
+     real(r8), allocatable :: sal_threshold(:)       !Threshold for salinity effects (ppt)
+     real(r8), allocatable :: KM_salinity(:)         !Half saturation constant for omotic inhibition function (ppt)
+     real(r8), allocatable :: osm_inhib(:)           !Osmotic inhibition factor
+     real(r8), allocatable :: sal_opt(:)             !Salinity at which optimal biomass occurs (ppt)
+     real(r8), allocatable :: sal_tol(:)             !Salinity tolerance; width parameter for Gaussian distribution (ppt -1)
+     real(r8), allocatable :: floodf(:)              !Growth inhibition factor due to flooding/inundation (0-1)
 
    contains
    procedure, public :: Init => veg_vp_init
@@ -197,6 +204,7 @@ contains
     use pftvarcon , only : climatezone, nonvascular, graminoid, iscft,needleleaf, nfixer
     ! snow/vegetation interactions (NGEE Arctic IM3)
     use pftvarcon , only : bendresist, stocking, vegshape, taper
+    use pftvarcon , only : sal_threshold, KM_salinity, osm_inhib, sal_opt, sal_tol, floodf
     !
 
     class (vegetation_properties_type) :: this
@@ -335,6 +343,12 @@ contains
     allocate(this%stocking(0:numpft))                            ; this%stocking(:)              =spval
     allocate(this%taper(0:numpft))                               ; this%taper(:)                 =spval
 
+    allocate( this%sal_threshold(0:numpft))        ; this%sal_threshold(:)       =spval
+    allocate( this%KM_salinity(0:numpft))          ; this%KM_salinity(:)         =spval
+    allocate( this%osm_inhib(0:numpft))            ; this%osm_inhib(:)           =spval
+    allocate( this%sal_opt(0:numpft))              ; this%sal_opt(:)             =spval
+    allocate( this%sal_tol(0:numpft))              ; this%sal_tol(:)             =spval 
+    allocate( this%floodf(0:numpft))               ; this%floodf(:)              =spval
     do m = 0,numpft
 
        ! not needed anymore: woody(m)=1 for tree, 2 for shrub, or 0 for any other
@@ -449,6 +463,12 @@ contains
         this%vmax_nfix(m)      = vmax_nfix(m)
         this%km_nfix(m)        = km_nfix(m)
         this%vmax_ptase(m)     = vmax_ptase(m)
+        this%sal_threshold(m)  = sal_threshold(m)
+        this%KM_salinity(m)    = KM_salinity(m)
+        this%osm_inhib(m)      = osm_inhib(m)
+        this%sal_opt(m)        = sal_opt(m)
+        this%sal_tol(m)        = sal_tol(m)
+        this%floodf(m)         = floodf(m)
 
         do j = 1 , nlevdecomp
            this%decompmicc_patch_vr(m,j) = decompmicc_patch_vr(j,m)

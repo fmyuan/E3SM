@@ -151,6 +151,7 @@ module VegetationDataType
     real(r8), pointer :: totvegc            (:) => null() ! (gC/m2) total vegetation carbon, excluding cpool
     real(r8), pointer :: totpftc            (:) => null() ! (gC/m2) total patch-level carbon, including cpool
     real(r8), pointer :: totvegc_abg        (:) => null() ! (gC/m2) total above vegetation carbon, excluding cpool
+    real(r8), pointer :: osm_inhib          (:) => null() ! osm_inhib
     real(r8), pointer :: begcb              (:) => null() ! patch carbon mass, beginning of time step (gC/m**2)
     real(r8), pointer :: endcb              (:) => null() ! patch carbon mass, end of time step (gC/m**2)
     real(r8), pointer :: errcb              (:) => null() ! patch carbon balance error for the timestep (gC/m**2)
@@ -780,7 +781,7 @@ module VegetationDataType
     real(r8), pointer :: retransn_to_npool                   (:)   => null()  ! deployment of retranslocated N (gN/m2/s)
     real(r8), pointer :: sminn_to_npool                      (:)   => null()  ! deployment of soil mineral N uptake (gN/m2/s)
     real(r8), pointer :: smin_no3_to_plant_vr                (:,:) => null()
-    real(r8), pointer :: smin_nh4_to_plant_vr               (:,:) => null()
+    real(r8), pointer :: smin_nh4_to_plant_vr                (:,:) => null()
     real(r8), pointer :: npool_to_grainn                     (:)   => null()  ! allocation to grain N for prognostic crop (gN/m2/s)
     real(r8), pointer :: npool_to_grainn_storage             (:)   => null()  ! allocation to grain N storage for prognostic crop (gN/m2/s)
     real(r8), pointer :: npool_to_leafn                      (:)   => null()  ! allocation to leaf N (gN/m2/s)
@@ -1973,6 +1974,7 @@ module VegetationDataType
        allocate(this%grainc_xfer        (begp :endp))   ;  this%grainc_xfer        (:)   = spval
        allocate(this%woodc              (begp :endp))   ;  this%woodc              (:)   = spval
        allocate(this%totvegc_abg        (begp :endp))   ;  this%totvegc_abg        (:)   = spval
+       allocate(this%osm_inhib          (begp :endp))   ;  this%osm_inhib          (:)   = spval
     endif  !  not use_fates
 
     allocate(this%begcb              (begp :endp))   ;  this%begcb              (:) = spval
@@ -2145,6 +2147,11 @@ module VegetationDataType
             avgflag='A', long_name='total aboveground vegetation carbon, excluding cpool', &
             ptr_patch=this%totvegc_abg)
 
+     !   this%osm_inhib(begc:endc) = spval
+     !   call hist_addfld1d (fname='OSM_INHIB',  units=' ',  &
+     !        avgflag='A', long_name='Factor to reduce growth due to salinity stress', &
+     !        ptr_col=this%osm_inhib)
+            
        ! end of c12 block
 
     else if ( carbon_type == 'c13' ) then
@@ -2468,14 +2475,14 @@ module VegetationDataType
                 this%leafc_storage(p) = 0._r8
              else
                 if (veg_vp%evergreen(veg_pp%itype(p)) == 1._r8) then
-                   this%leafc(p)         = 1._r8 * ratio
+                   this%leafc(p)         = 20._r8 * ratio
                    this%leafc_storage(p) = 0._r8
                 else if (iscft(veg_pp%itype(p))) then ! prognostic crop types
                    this%leafc(p) = 0._r8
                    this%leafc_storage(p) = 0._r8
                 else
                    this%leafc(p) = 0._r8
-                   this%leafc_storage(p) = 1._r8 * ratio
+                   this%leafc_storage(p) = 20._r8 * ratio
                 end if
              end if
              this%leafc_xfer(p) = 0._r8
@@ -3474,7 +3481,7 @@ module VegetationDataType
     !--------------------------------
     ! the spinup_state variable is being written by the column-level carbon state restart
     ! routine, so only need to handle the reading part here
-    if (carbon_type == 'c12'  .or. carbon_type == 'c14') then
+    if (carbon_type == 'c12'  .or. carbon_type == 'c14' .or. carbon_type == 'c13') then
         if (flag == 'read') then
            call restartvar(ncid=ncid, flag=flag, varname='spinup_state', xtype=ncd_int,  &
                 long_name='Spinup state of the model that wrote this restart file: ' &
@@ -4983,8 +4990,8 @@ module VegetationDataType
     type(column_phosphorus_state), intent(inout) :: col_ps
     !
     ! !LOCAL VARIABLES:
-    integer  :: p        ! indices
-    integer  :: fp       ! lake filter indices
+    integer  :: c,p      ! indices
+    integer  :: fc,fp    ! lake filter indices
     !-----------------------------------------------------------------------
     associate( &
      totvegp_patch  => this%totvegp   , &
@@ -5058,6 +5065,12 @@ module VegetationDataType
       call p2c(bounds, num_soilc, filter_soilc, &
            cropseedp_deficit_patch(bounds%begp:bounds%endp) , &
            cropseedp_deficit_col(bounds%begc:bounds%endc) )
+   else
+      ! Non-crop runs still include this column pool in TOTCOLP.
+      do fc = 1,num_soilc
+         c = filter_soilc(fc)
+         cropseedp_deficit_col(c) = 0._r8
+      end do
    endif
    end associate
 

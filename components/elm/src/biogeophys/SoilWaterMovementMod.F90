@@ -578,8 +578,6 @@ contains
 
       ! Set up r, a, b, and c vectors for tridiagonal solution
 
-      ! Node j=1 (top)
-
       j = 1
       do fc = 1, num_hydrologyc
          c = filter_hydrologyc(fc)

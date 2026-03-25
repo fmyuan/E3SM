@@ -52,8 +52,12 @@ module CNPBudgetMod
   integer, parameter :: f_dwt_conv_cflux       = 10
   integer, parameter :: f_dwt_seedc_to_leaf    = 11
   integer, parameter :: f_dwt_seedc_to_deadstem= 12
+  integer, parameter :: f_DOC_runoff           = 13
+  integer, parameter :: f_DIC_runoff           = 14
+  integer, parameter :: f_CH4_flux             = 15
+  integer, parameter :: f_c_last               = 15
 
-  integer, parameter, public :: c_f_size = f_dwt_seedc_to_deadstem
+  integer, parameter, public :: c_f_size = f_c_last
 
   character(len=51), parameter :: c_f_name(c_f_size) = &
        (/&
@@ -66,6 +70,9 @@ module CNPBudgetMod
        '      decomposition loss from 100-year product pool', &
        '                 SOM C loss from vertical transport', &
        '                                         SOM C loss', &
+       '                                        DOC leached', &
+       '                                        DIC leached', &
+       '                             CH4 flux to atmosphere', &
        '          flux to atmosphere due to dynamic weights', &
        '         seed source to leaf due to dynamic weights', &
        '   seed source to dead steam due to dynamic weights'  &
@@ -73,29 +80,30 @@ module CNPBudgetMod
        
        
   ! N inputs
-  integer, parameter :: f_ndep_to_sminn        = 13
-  integer, parameter :: f_nfix_to_ecosysn      = 14
-  integer, parameter :: f_nfix_to_sminn        = 15
-  integer, parameter :: f_supplement_to_sminn  = 16
-  integer, parameter :: f_fert_to_sminn        = 17
-  integer, parameter :: f_soyfixn_to_sminn     = 18
-  integer, parameter :: f_supplement_to_plantn = 19
-  integer, parameter :: f_nfert_dose           = 20
+  integer, parameter :: f_ndep_to_sminn        = f_c_last + 1
+  integer, parameter :: f_nfix_to_ecosysn      = f_c_last + 2
+  integer, parameter :: f_nfix_to_sminn        = f_c_last + 3
+  integer, parameter :: f_supplement_to_sminn  = f_c_last + 4
+  integer, parameter :: f_fert_to_sminn        = f_c_last + 5
+  integer, parameter :: f_soyfixn_to_sminn     = f_c_last + 6
+  integer, parameter :: f_supplement_to_plantn = f_c_last + 7
+  integer, parameter :: f_nfert_dose           = f_c_last + 8
 
   ! N outputs
-  integer, parameter :: f_denit                = 21
-  integer, parameter :: f_fire_ploss           = 22
-  integer, parameter :: f_n2o_nit              = 23
-  integer, parameter :: f_smin_no3_leached     = 24
-  integer, parameter :: f_smin_no3_runoff      = 25
-  integer, parameter :: f_sminn_leached        = 26
-  integer, parameter :: f_col_prod1n_loss      = 27
-  integer, parameter :: f_col_prod10n_loss     = 28
-  integer, parameter :: f_col_prod100n_loss    = 29
-  integer, parameter :: f_som_n_leached        = 30
-  integer, parameter :: f_som_n_yield          = 31
+  integer, parameter :: f_denit                = f_c_last + 9
+  integer, parameter :: f_fire_ploss           = f_c_last + 10
+  integer, parameter :: f_n2o_nit              = f_c_last + 11
+  integer, parameter :: f_smin_no3_leached     = f_c_last + 12
+  integer, parameter :: f_smin_no3_runoff      = f_c_last + 13
+  integer, parameter :: f_sminn_leached        = f_c_last + 14
+  integer, parameter :: f_col_prod1n_loss      = f_c_last + 15
+  integer, parameter :: f_col_prod10n_loss     = f_c_last + 16
+  integer, parameter :: f_col_prod100n_loss    = f_c_last + 17
+  integer, parameter :: f_som_n_leached        = f_c_last + 18
+  integer, parameter :: f_som_n_yield          = f_c_last + 19
+  integer, parameter :: f_n_last               = f_c_last + 19
 
-  integer, parameter, public :: n_f_size = f_som_n_yield - f_dwt_seedc_to_deadstem
+  integer, parameter, public :: n_f_size = f_n_last - f_c_last
 
   character(len=39), parameter :: n_f_name(n_f_size) = &
        (/&
@@ -121,26 +129,27 @@ module CNPBudgetMod
        /)
 
   ! P inputs
-  integer, parameter :: f_primp_to_labilep     = 32
-  integer, parameter :: f_supplement_to_sminp  = 33
-  integer, parameter :: f_supplement_to_plantp = 34
-  integer, parameter :: f_pfert_dose           = 35
+  integer, parameter :: f_primp_to_labilep     = f_n_last + 1
+  integer, parameter :: f_supplement_to_sminp  = f_n_last + 2
+  integer, parameter :: f_supplement_to_plantp = f_n_last + 3
+  integer, parameter :: f_pfert_dose           = f_n_last + 4
 
   ! P outputs
-  integer, parameter :: f_secondp_to_occlp     = 36
-  integer, parameter :: f_sminp_leached        = 37
-  integer, parameter :: f_col_fire_ploss       = 38
-  integer, parameter :: f_solutionp            = 39
-  integer, parameter :: f_labilep              = 40
-  integer, parameter :: f_secondp              = 41
-  integer, parameter :: f_col_prod1p_loss      = 42
-  integer, parameter :: f_col_prod10p_loss     = 43
-  integer, parameter :: f_col_prod100p_loss    = 44
-  integer, parameter :: f_som_p_yield          = 45
-  integer, parameter :: f_labilep_yield        = 46
-  integer, parameter :: f_secondp_yield        = 47
+  integer, parameter :: f_secondp_to_occlp     = f_n_last + 5
+  integer, parameter :: f_sminp_leached        = f_n_last + 6
+  integer, parameter :: f_col_fire_ploss       = f_n_last + 7
+  integer, parameter :: f_solutionp            = f_n_last + 8
+  integer, parameter :: f_labilep              = f_n_last + 9
+  integer, parameter :: f_secondp              = f_n_last + 10
+  integer, parameter :: f_col_prod1p_loss      = f_n_last + 11
+  integer, parameter :: f_col_prod10p_loss     = f_n_last + 12
+  integer, parameter :: f_col_prod100p_loss    = f_n_last + 13
+  integer, parameter :: f_som_p_yield          = f_n_last + 14
+  integer, parameter :: f_labilep_yield        = f_n_last + 15
+  integer, parameter :: f_secondp_yield        = f_n_last + 16
+  integer, parameter :: f_p_last               = f_n_last + 16
 
-  integer, parameter, public :: p_f_size = f_secondp_yield - f_som_n_yield
+  integer, parameter, public :: p_f_size = f_p_last - f_n_last
 
   character(len=44), parameter :: p_f_name(p_f_size) = &
        (/&

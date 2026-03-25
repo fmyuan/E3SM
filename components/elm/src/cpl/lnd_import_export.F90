@@ -32,6 +32,7 @@ contains
     ! !USES:
     use elm_varctl       , only: co2_type, co2_ppmv, iulog, use_c13, create_glacier_mec_landunit, &
                                  metdata_type, metdata_bypass, metdata_biases, co2_file, aero_file, use_atm_downscaling_to_topunit
+    use elm_varctl       , only: tide_file
     use elm_varctl       , only: const_climate_hist, add_temperature, add_co2, use_cn, use_fates
     use elm_varctl       , only: startdate_add_temperature, startdate_add_co2
     use elm_varcon       , only: rair, o2_molar_const, c13ratio
@@ -1111,6 +1112,49 @@ contains
        end if
 
        !set the topounit-level atmospheric variables that are not handled in downscaling code
+
+        !------------------------------------Tidal forcing--------------------------------------------------
+        if (tide_file .ne. '') then
+         if (atm2lnd_vars%loaded_bypassdata .eq. 0 ) then !.or. (mon .eq. 1 .and. day .eq. 1 .and. tod .eq. 0)) then ! Do on the first day of the year
+          if (masterproc .and. i .eq. 1) then  ! Only do it on one processor
+           ierr = nf90_open(trim(tide_file), nf90_nowrite, ncid)
+           if(ierr == 0) then
+            ! We can read the lenght of the array. Currently we might be wasting memory since the vars for holding the data were already allocated for 100 years
+            ierr = nf90_inq_dimid(ncid, 'time', dimid)
+            if(ierr .ne. 0) call endrun('Error finding time variable')
+            ierr = nf90_Inquire_Dimension(ncid, dimid, len = thistimelen)
+            if(ierr .ne. 0) call endrun('Error reading time variable')
+            write(iulog,*),'Reading tide forcing file. Found time dimension of length',thistimelen
+            if(thistimelen>876000) write(iulog,*), 'Warning: truncating tide forcing data length to 876000'
+            atm2lnd_vars%tide_forcing_len = min(thistimelen,876000)
+
+            ierr = nf90_inq_varid(ncid, 'tide_height',varid) ! Tide height should be in m
+            if(ierr .ne. 0) call endrun('Error finding tide_height variable')
+            ierr = nf90_get_var(ncid, varid, atm2lnd_vars%tide_height(1,1:atm2lnd_vars%tide_forcing_len),(/1,1/),(/1,atm2lnd_vars%tide_forcing_len/))
+            if(ierr .ne. 0) call endrun('Error reading tide_height variable')
+            ierr = nf90_inq_varid(ncid, 'tide_salinity',varid)
+            if(ierr .ne. 0) call endrun('Error finding tide_salinity variable')
+            ierr = nf90_get_var(ncid, varid, atm2lnd_vars%tide_salinity(1,1:atm2lnd_vars%tide_forcing_len),(/1,1/),(/1,atm2lnd_vars%tide_forcing_len/))
+            if(ierr .ne. 0) call endrun('Error reading tide_salinity variable')
+
+            ierr = nf90_close(ncid)
+            write(iulog,*) 'Reading tide height and salinity from file '//trim(tide_file)
+           else
+            if(tide_file .ne. '') write(iulog,*) 'Did not find tide forcing file '//trim(tide_file)
+            atm2lnd_vars%tide_forcing_len = 1
+            atm2lnd_vars%tide_height(:,:) = 0.0_r8
+            atm2lnd_vars%tide_salinity(:,:) = 0.0_r8
+           endif
+          end if
+          if (i .eq. 1) then
+           call mpi_bcast (atm2lnd_vars%tide_height, 876000, MPI_REAL8, 0, mpicom, ier)
+           call mpi_bcast (atm2lnd_vars%tide_salinity, 876000, MPI_REAL8, 0, mpicom, ier)
+          end if
+
+         end if
+       endif
+
+       !set the topounit-level atmospheric state and flux forcings (bypass mode)
        do topo = grc_pp%topi(g), grc_pp%topf(g)
          ! first, all the state forcings
         if (implicit_stress) then
@@ -1323,7 +1367,7 @@ contains
         end if
 
         !get weights/indices for interpolation (assume values represent annual averages)
-        nindex(1) = min(max(yr,1850),2100)-1764
+        nindex(1) = min(max(yr,1850),2006)-1764 !changed to 2050 from 2006 TAO 6/8/2018 changed back for test suite on 11/15/2018
         if (thiscalday .le. 182.5) then 
           nindex(2) = nindex(1)-1  
         else

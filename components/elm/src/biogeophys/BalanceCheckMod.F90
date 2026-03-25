@@ -340,6 +340,10 @@ contains
                   - qflx_qrgwl(c) - qflx_drain(c) - qflx_drain_perched(c) - qflx_snwcp_ice(c) - qflx_ice_runoff_xs(c) &
                   - qflx_lateral(c) + qflx_h2orof_drain(c) - qflx_lnd2ocn(c) + qflx_h2oocn_drain(c)) * dtime
 
+#if (defined MARSH)
+             errh2o(c) = errh2o(c) &
+                  - (qflx_tide(c)) * dtime
+#endif
              dwb(c) = (endwb(c)-begwb(c))/dtime
 
           else
@@ -441,6 +445,9 @@ contains
              write(iulog,*)'qflx_glcice_melt           = ',qflx_glcice_melt(indexc)
              write(iulog,*)'qflx_glcice_frz            = ',qflx_glcice_frz(indexc)
              write(iulog,*)'qflx_lateral               = ',qflx_lateral(indexc)
+#if (defined MARSH)
+             write(iulog,*)'qflx_tide                  = ',qflx_tide(indexc)
+#endif
              write(iulog,*)'qflx_lnd2ocn               = ',qflx_lnd2ocn(indexc)
              write(iulog,*)'total_plant_stored_h2o_col = ',total_plant_stored_h2o_col(indexc)
              write(iulog,*)'qflx_h2orof_drain          = ',qflx_h2orof_drain(indexc)
