@@ -33,7 +33,7 @@ contains
     use elm_varctl       , only: co2_type, co2_ppmv, iulog, use_c13, create_glacier_mec_landunit, &
                                  metdata_type, metdata_bypass, metdata_biases, co2_file, aero_file, use_atm_downscaling_to_topunit
     use elm_varctl       , only: const_climate_hist, add_temperature, add_co2, use_cn, use_fates
-    use elm_varctl       , only: startdate_add_temperature, startdate_add_co2
+    use elm_varctl       , only: startdate_add_temperature, startdate_add_co2, use_humhol,obs_zwt_forcing
     use elm_varcon       , only: rair, o2_molar_const, c13ratio
     use elm_time_manager , only: get_nstep, get_step_size, get_curr_calday, get_curr_date, get_calday
     use elm_varorb       , only: eccen, mvelpp, lambm0, obliqr
@@ -238,7 +238,11 @@ contains
         !on first timestep, read all the met data for relevant gridcell(s) and store in array.
         !   Met data are held in short integer format to save memory.
         !   Each node must have enough memory to hold these data.
-        met_nvars=7
+        if (obs_zwt_forcing) then
+           met_nvars=8    !8 for ZWT
+        else
+           met_nvars=7
+        end if
         if (metdata_type(1:3) == 'cpl') met_nvars=14
 
         if (atm2lnd_vars%loaded_bypassdata == 0) then
@@ -697,6 +701,14 @@ contains
             ea = 0.70_R8 + 5.95e-05_R8 * 0.01_R8 * e * exp(1500.0_R8/tbot)
             atm2lnd_vars%forc_lwrad_not_downscaled_grc(g) = ea * SHR_CONST_STEBOL * tbot**4
         end if 
+
+        !Water table
+        if (obs_zwt_forcing) then 
+          atm2lnd_vars%forc_zwt_not_downscaled_grc(g) = -1.0_R8*((atm2lnd_vars%atm_input(8,g,1,tindex(8,1))*atm2lnd_vars%scale_factors(8)+ &
+                                                      atm2lnd_vars%add_offsets(8))*wt1(8) + (atm2lnd_vars%atm_input(8,g,1,tindex(8,2)) &
+                                                      *atm2lnd_vars%scale_factors(8)+atm2lnd_vars%add_offsets(8))*wt2(8)) * &
+                                                      atm2lnd_vars%var_mult(8,g,mon) + atm2lnd_vars%var_offset(8,g,mon) 
+        end if
 
         !Shortwave radiation (cosine zenith angle interpolation)
         call get_curr_date(mid_yr, mid_mon, mid_day, mid_tod, offset=-get_step_size()/2)

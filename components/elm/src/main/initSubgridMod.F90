@@ -14,7 +14,7 @@ module initSubgridMod
   use elm_varcon     , only : namep, namec, namel, namet
   use decompMod      , only : bounds_type
   use GridcellType   , only : grc_pp                
-  Use TopounitType   , only : top_pp
+  use TopounitType   , only : top_pp
   use LandunitType   , only : lun_pp                
   use ColumnType     , only : col_pp                
   use VegetationType      , only : veg_pp                
@@ -398,7 +398,8 @@ contains
   end subroutine elm_ptrs_check
 
   !-----------------------------------------------------------------------
-  subroutine add_topounit(ti, gi, wtgcell,elv, slp, asp,topo_ind,is_tpu_active)
+  subroutine add_topounit(ti, gi, wtgcell,elv, dist, slp, asp,topo_ind,is_tpu_active,is_bog, &
+       peat_depth, till_ksat, regional_target_ti)
     !
     ! !DESCRIPTION:
     ! Add an entry in the topounit-level arrays. ti gives the index of the last topounit
@@ -410,10 +411,15 @@ contains
     integer  , intent(in)    :: gi           ! gridcell index on which this topounit should be placed 
     real(r8) , intent(in)    :: wtgcell      ! weight of the topounit relative to the gridcell
     real(r8) , intent(in)    :: elv          ! topounit elevation
+    real(r8) , intent(in)    :: dist         ! lateral distance to the next lower topounit
     real(r8) , intent(in)    :: slp          ! topounit slope
     integer , intent(in)    :: asp           ! topounit aspect
     integer , intent(in)    :: topo_ind      ! topounit index in the grid
     logical , intent(in)    :: is_tpu_active
+    logical , intent(in)    :: is_bog        ! true when topounit is a bog, skipped as surface-routing receiver
+    real(r8), intent(in)    :: peat_depth    ! peat depth above restrictive till (m)
+    real(r8), intent(in)    :: till_ksat     ! restrictive till saturated conductivity (mm/s)
+    integer , intent(in)    :: regional_target_ti ! global target for regional lateral exchange
     !
     ! !LOCAL VARIABLES:
     character(len=*), parameter :: subname = 'add_topounit'
@@ -424,10 +430,15 @@ contains
     top_pp%gridcell(ti) = gi
     top_pp%wtgcell(ti) = wtgcell
     top_pp%elevation(ti) = elv
+    top_pp%lateral_dist(ti) = dist
     top_pp%slope(ti) = slp
     top_pp%aspect(ti) = asp
     top_pp%topo_grc_ind(ti) = topo_ind    
     top_pp%active(ti) = is_tpu_active
+    top_pp%is_bog(ti) = is_bog
+    top_pp%peat_depth(ti) = peat_depth
+    top_pp%till_ksat(ti) = till_ksat
+    top_pp%regional_target_ti(ti) = regional_target_ti
     top_pp%downhill_ti(ti) = -1   ! initialized to no downhill neighbor state (-1)
     
   end subroutine add_topounit

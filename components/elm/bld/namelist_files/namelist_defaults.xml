@@ -117,6 +117,14 @@ attributes from the config_cache.xml file (with keys converted to upper-case).
 <precip_downscaling_method>ERMM</precip_downscaling_method>
 <!-- Do lake water storage -->
 <use_lake_wat_storage>.false.</use_lake_wat_storage>
+<!-- Enable runtime HUM_HOL physics -->
+<use_humhol>.false.</use_humhol>
+<!-- Fraction of ground area shaded by boardwalks -->
+<boardwalk_shade_frac>0.0</boardwalk_shade_frac>
+<!-- Shortwave transmissivity through the boardwalk-shaded area -->
+<boardwalk_light_trans>1.0</boardwalk_light_trans>
+<!-- Use observed water table forcing (HUM_HOL option) -->
+<obs_zwt_forcing>.false.</obs_zwt_forcing>
 
 <!-- ================================================================== -->
 <!-- The default filenames are given relative to the root directory
@@ -681,6 +689,8 @@ this mask will have smb calculated over the entire global land surface
 
 <!-- Use the radiation parameterization for fine-scale topographic effects -->
 <use_finetop_rad>.false.</use_finetop_rad>
+<!-- Enable shrub shading on moss  -->
+<use_shrub_moss_shading>.false.</use_shrub_moss_shading>
 
 <!-- SNICAR (SNow, ICe, and Aerosol Radiative model) datasets -->
 <!--  ***********  Resolution independent:   ***********  -->

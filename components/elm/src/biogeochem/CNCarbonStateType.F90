@@ -10,6 +10,7 @@ module CNCarbonStateType
   use elm_varcon             , only : spval, ispval, dzsoi_decomp, zisoi, zsoi
   use landunit_varcon        , only : istcrop 
   use elm_varctl             , only : iulog, use_vertsoilc, spinup_state 
+  use elm_varctl             , only : use_humhol
   use decompMod              , only : bounds_type
   use CNStateType            , only : cnstate_type
   use pftvarcon              , only : iscft
@@ -458,6 +459,9 @@ contains
              else
                 if (veg_vp%evergreen(veg_pp%itype(p)) == 1._r8) then
                    this%leafc_patch(p)         = 1._r8 * ratio
+                   if (use_humhol) then
+                      this%leafc_patch(p)         = 50._r8 * ratio
+                   end if
                    this%leafc_storage_patch(p) = 0._r8
                 else if (iscft(veg_pp%itype(p))) then ! prognostic crop types
                    this%leafc_patch(p) = 0._r8
@@ -465,6 +469,9 @@ contains
                 else
                    this%leafc_patch(p) = 0._r8
                    this%leafc_storage_patch(p) = 1._r8 * ratio
+                   if (use_humhol) then
+                      this%leafc_storage_patch(p) = 50._r8 * ratio
+                   end if
                 end if
              end if
              this%leafc_xfer_patch(p) = 0._r8
