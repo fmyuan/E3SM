@@ -87,6 +87,8 @@ module CNStateType
 
      real(r8) , pointer :: tempavg_t2m_patch           (:)     ! patch temporary average 2m air temperature (K)
      real(r8) , pointer :: annavg_t2m_patch            (:)     ! patch annual average 2m air temperature (K)
+     real(r8) , pointer :: spinup_t_patch              (:)     ! patch spinup reference temperature (K)
+     integer  , pointer :: spinup_t_nyears_patch       (:)     ! patch number of spinup years included in spinup reference temp
      real(r8) , pointer :: annavg_t2m_col              (:)     ! col annual average of 2m air temperature, averaged from pft-level (K)
      real(r8) , pointer :: scalaravg_col               (:,:)   ! column average scalar for decompostion (for ad_spinup)
      real(r8) , pointer :: annsum_counter_col          (:)     ! col seconds since last annual accumulator turnover
@@ -116,6 +118,8 @@ module CNStateType
      real(r8), pointer :: onset_gddflag_patch          (:)     ! patch onset flag for growing degree day sum
      real(r8), pointer :: onset_fdd_patch              (:)     ! patch onset freezing degree days counter
      real(r8), pointer :: onset_gdd_patch              (:)     ! patch onset growing degree days
+     real(r8), pointer :: onset_chil_patch             (:)
+     real(r8), pointer :: dayl_temp                    (:)
      real(r8), pointer :: onset_swi_patch              (:)     ! patch onset soil water index
      real(r8), pointer :: offset_flag_patch            (:)     ! patch offset flag
      real(r8), pointer :: offset_counter_patch         (:)     ! patch offset days counter
@@ -276,6 +280,8 @@ contains
     allocate(this%annavg_t2m_col      (begc:endc))                   ; this%annavg_t2m_col      (:)   = spval
     allocate(this%scalaravg_col       (begc:endc,1:nlevdecomp_full)) ; this%scalaravg_col       (:,:) = spval
     allocate(this%annavg_t2m_patch    (begp:endp))                   ; this%annavg_t2m_patch    (:)   = spval
+    allocate(this%spinup_t_patch(begp:endp))                         ; this%spinup_t_patch(:) = spval
+    allocate(this%spinup_t_nyears_patch(begp:endp))                  ; this%spinup_t_nyears_patch(:) = ispval
 
     allocate(this%nfire_col           (begc:endc))                   ; this%nfire_col           (:)   = spval
     allocate(this%fsr_col             (begc:endc))                   ; this%fsr_col             (:)   = spval
@@ -323,6 +329,8 @@ contains
     allocate(this%annmax_retransn_patch       (begp:endp)) ;    this%annmax_retransn_patch       (:) = spval
     allocate(this%downreg_patch               (begp:endp)) ;    this%downreg_patch               (:) = spval
     allocate(this%rc14_atm_patch              (begp:endp)) ;    this%rc14_atm_patch              (:) = spval    
+    allocate(this%onset_chil_patch            (begp:endp)) ;    this%onset_chil_patch            (:) = spval
+    allocate(this%dayl_temp                   (begp:endp)) ;    this%dayl_temp                   (:) = spval
 
 
     !! add phosphorus -X.YANG
@@ -521,6 +529,11 @@ contains
          avgflag='A', long_name='temporary average 2m air temperature', &
          ptr_patch=this%tempavg_t2m_patch, default='inactive')
 
+    this%spinup_t_patch(begp:endp) = spval
+    call hist_addfld1d (fname='SPINUP_T', units='K', &
+         avgflag='A', long_name='spinup reference temperature', &
+         ptr_patch=this%spinup_t_patch, default='inactive')
+
     this%dormant_flag_patch(begp:endp) = spval
     call hist_addfld1d (fname='DORMANT_FLAG', units='1', &
          avgflag='A', long_name='dormancy flag', &
@@ -545,6 +558,11 @@ contains
     call hist_addfld1d (fname='ONSET_GDDFLAG', units='1', &
          avgflag='A', long_name='onset flag for growing degree day sum', &
          ptr_patch=this%onset_gddflag_patch, default='inactive')
+
+    this%onset_chil_patch(begp:endp) = spval
+    call hist_addfld1d (fname='ONSET_CHIL', units='none', &
+         avgflag='A', long_name='onset chilling day sum', &
+         ptr_patch=this%onset_chil_patch, default='inactive')
 
     this%onset_fdd_patch(begp:endp) = spval
     call hist_addfld1d (fname='ONSET_FDD', units='C degree-days', &
@@ -1057,6 +1075,8 @@ contains
        if (lun_pp%ifspecial(l)) then
           this%annavg_t2m_patch  (p)          = spval
           this%tempavg_t2m_patch (p)          = spval
+          this%spinup_t_patch(p)              = spval
+          this%spinup_t_nyears_patch(p)       = ispval
           this%dormant_flag_patch(p)          = spval
           this%days_active_patch(p)           = spval
           this%onset_flag_patch(p)            = spval
@@ -1122,6 +1142,10 @@ contains
           this%bgtr_patch(p)           = 0._r8
           this%annavg_t2m_patch(p)     = 280._r8
           this%tempavg_t2m_patch(p)    = 0._r8
+          if (nsrest == nsrStartup) then
+             this%spinup_t_patch(p)        = 280._r8
+             this%spinup_t_nyears_patch(p) = 0
+          end if
           this%grain_flag_patch(p)     = 0._r8
 
           ! non-phenology variables
@@ -1271,6 +1295,16 @@ contains
          dim1name='pft', &
          long_name='', units='', &
          interpinic_flag='interp', readvar=readvar, data=this%tempavg_t2m_patch) 
+
+    call restartvar(ncid=ncid, flag=flag, varname='spinup_t', xtype=ncd_double,  &
+         dim1name='pft', &
+         long_name='spinup reference temperature', units='K', &
+         interpinic_flag='interp', readvar=readvar, data=this%spinup_t_patch)
+
+    call restartvar(ncid=ncid, flag=flag, varname='spinup_t_nyears', xtype=ncd_int,  &
+         dim1name='pft', &
+         long_name='number of spinup years in spinup reference temperature', units='1', &
+         interpinic_flag='interp', readvar=readvar, data=this%spinup_t_nyears_patch)
 
     call restartvar(ncid=ncid, flag=flag, varname='alloc_pnow', xtype=ncd_double,  &
          dim1name='pft', &
