@@ -359,6 +359,11 @@ module pftvarcon
   real(r8), allocatable :: waterlevel_opt(:)   ! Water level at which optimal biomass occurs (mm)
   real(r8), allocatable :: waterlevel_tol(:)   ! Water level tolerance; width parameter for Gaussian distribution (mm -1)
 
+  real(r8)              :: humhol_ht
+  real(r8)              :: hum_frac
+  real(r8)              :: humhol_dist
+  real(r8)              :: bd_adj              !adjustment for bulk_density (used to change porosity in SoilStateType.F90 TAO 9/25/205)
+
   !
   ! !PUBLIC MEMBER FUNCTIONS:
   public :: pftconrd ! Read and initialize vegetation (PFT) constants
@@ -1161,6 +1166,16 @@ contains
    if ( .not. readv ) waterlevel_opt(:) = 0.0_r8 
    call ncd_io('waterlevel_tol', waterlevel_tol(:), 'read', ncid, readvar=readv, posNOTonfile=.true.)
    if ( .not. readv ) waterlevel_tol(:) = 50.0_r8 
+
+    call ncd_io('humhol_ht', humhol_ht, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if ( .not. readv) humhol_ht = 0.15_r8
+    call ncd_io('humhol_dist', humhol_dist, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if ( .not. readv) humhol_dist = 1.0_r8
+    call ncd_io('hum_frac', hum_frac, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if ( .not. readv) hum_frac = 0.5_r8
+    call ncd_io('bd_adj', bd_adj, 'read', ncid, readvar=readv, posNOTonfile=.true.)
+    if ( .not. readv) bd_adj = 1.0_r8
+
 #endif
 
     call ncd_io('fnr', fnr, 'read', ncid, readvar=readv, posNOTonfile=.true.)
