@@ -42,6 +42,16 @@ module controlMod
   use FanMod                  , only: nh4_ads_coef
   use AllocationMod           , only: nu_com_phosphatase,nu_com_nfix
   use seq_drydep_mod          , only: drydep_method, DD_XLND, n_drydep
+  use elm_varctl              , only: forest_fert_exp
+  use elm_varctl              , only: ECA_Pconst_RGspin
+  use elm_varctl              , only: NFIX_PTASE_plant
+  use elm_varctl              , only : use_pheno_flux_limiter
+  use elm_varctl              , only: startdate_add_temperature, startdate_add_co2
+  use elm_varctl              , only: add_temperature, add_co2
+  use elm_varctl              , only: const_climate_hist
+  use elm_varctl              , only: use_top_solar_rad
+  use elm_varctl              , only: snow_shape, snicar_atm_type, use_dust_snow_internal_mixing
+  use elm_varctl              , only: onset_gdd_extension
   use EcosystemBalanceCheckMod, only: bgc_balance_check_tolerance => balance_check_tolerance
 
   use elm_varctl, only: nu_com, use_dynroot, use_fan, fan_mode, fan_to_bgc_veg, &
@@ -354,6 +364,9 @@ contains
 
     ! bgc & pflotran interface
     namelist /elm_inparm/ use_elm_interface, use_elm_bgc, use_pflotran
+
+    ! onset_gdd_extension in plant phenology
+    namelist /elm_inparm/ onset_gdd_extension
 
     namelist /elm_inparm/ use_dynroot
 
@@ -1024,6 +1037,9 @@ contains
     call mpi_bcast (use_elm_interface, 1, MPI_LOGICAL, 0, mpicom, ier)
     call mpi_bcast (use_elm_bgc, 1, MPI_LOGICAL, 0, mpicom, ier)
     call mpi_bcast (use_pflotran, 1, MPI_LOGICAL, 0, mpicom, ier)
+
+    ! phenology
+    call mpi_bcast (onset_gdd_extension, 1, MPI_LOGICAL, 0, mpicom, ier)
 
     !cpl_bypass
      call mpi_bcast (metdata_type,   len(metdata_type),   MPI_CHARACTER, 0, mpicom, ier)
