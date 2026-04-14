@@ -1029,7 +1029,13 @@ contains
               /(tkwat*z(c,1)+thk(c,1)*zh2osfc)
       enddo
 
-      ! Soil heat capacity, from de Vires (1963)
+      ! Save surface water thermal conductivity for history output
+      do fc = 1, num_nolakec
+         c = filter_nolakec(fc)
+         soilstate_vars%tk_h2osfc_col(c) = tk_h2osfc(c)
+      enddo
+
+      ! Soil heat capacity, from de Vries (1963)
       ! Urban values are from Masson et al. 2002, Evaluation of the Town Energy Balance (TEB)
       ! scheme with direct measurements from dry districts in two cities, J. Appl. Meteorol.,
       ! 41, 1011-1026.

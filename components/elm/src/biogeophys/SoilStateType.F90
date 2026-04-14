@@ -72,6 +72,7 @@ module SoilStateType
 
   !!!   ! thermal conductivity / heat capacity
      real(r8), pointer :: thk_col              (:,:) ! col thermal conductivity of each layer [W/m-K]
+     real(r8), pointer :: tk_h2osfc_col        (:)   ! col thermal conductivity of surface water [W/(m K)]
      real(r8), pointer :: tkmg_col             (:,:) ! col thermal conductivity, soil minerals  [W/m-K] (new) (nlevgrnd)
      real(r8), pointer :: tkdry_col            (:,:) ! col thermal conductivity, dry soil (W/m/Kelvin) (nlevgrnd)
      real(r8), pointer :: tksatu_col           (:,:) ! col thermal conductivity, saturated soil [W/m-K] (new) (nlevgrnd)
@@ -175,6 +176,7 @@ contains
     allocate(this%gwc_thr_col          (begc:endc))                     ; this%gwc_thr_col          (:)   = spval
 
     allocate(this%thk_col              (begc:endc,-nlevsno+1:nlevgrnd)) ; this%thk_col              (:,:) = spval
+    allocate(this%tk_h2osfc_col        (begc:endc))                     ; this%tk_h2osfc_col        (:)   = spval
     allocate(this%tkmg_col             (begc:endc,nlevgrnd))            ; this%tkmg_col             (:,:) = spval
     allocate(this%tkdry_col            (begc:endc,nlevgrnd))            ; this%tkdry_col            (:,:) = spval
     allocate(this%tksatu_col           (begc:endc,nlevgrnd))            ; this%tksatu_col           (:,:) = spval
@@ -280,6 +282,17 @@ contains
     call hist_addfld2d (fname='SNO_TK', units='W/m-K', type2d='levsno', &
          avgflag='A', long_name='Thermal conductivity', &
          ptr_col=data2dptr, no_snow_behavior=no_snow_normal, default='inactive')
+
+    this%thk_col(begc:endc,1:nlevgrnd) = spval
+    data2dptr => this%thk_col(:,1:nlevgrnd)
+    call hist_addfld2d (fname='TK', units='W/m-K', type2d='levgrnd', &
+         avgflag='A', long_name='Thermal conductivity at soil layer centers', &
+         ptr_col=data2dptr, l2g_scale_type='veg', default='inactive')
+
+    this%tk_h2osfc_col(begc:endc) = spval
+    call hist_addfld1d (fname='TK_H2OSFC', units='W/(m K)', &
+         avgflag='A', long_name='Thermal conductivity of surface water', &
+         ptr_col=this%tk_h2osfc_col, default='inactive')
 
     this%hk_l_col(begc:endc,:) = spval
     call hist_addfld2d (fname='HK',  units='mm/s', type2d='levgrnd',  &
