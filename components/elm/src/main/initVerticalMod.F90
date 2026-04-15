@@ -721,8 +721,8 @@ contains
 	              nlevbed = min(nlevbed, nlevgrnd)
                   
                   col_pp%nlevbed(c) = nlevbed
-	              col_pp%zibed(c)   = zisoi(nlevbed)
                end if
+               col_pp%zibed(c)   = zisoi(col_pp%nlevbed(c))
 
 
             end do

@@ -740,6 +740,16 @@ contains
                 call pedotransf(ipedof, sand, clay, &
                      this%watsat_col(c,lev), this%bsw_col(c,lev), this%sucsat_col(c,lev), xksat)
 
+                if (lev > nlevbed) then
+                   ! it's weired if bedrock takes its upper layer's porosity and hydraulic conductivity
+                   ! this may not affect hydrology, but affect thermal properties of rock.
+                   ! but, the followings are totally arbitrary
+                   this%watsat_col(c,lev) = 0.001_r8
+                   sand = 99.0_r8  ! this (clay 1%) would result in tkm of about 8.7 W/m K (sandstone?)
+                   clay = 1.0_r8
+                   xksat = 1.0e-50_r8
+                endif
+
                 om_watsat         = max(0.93_r8 - 0.1_r8   *(zsoi(lev)/zsapric), 0.83_r8)
                 om_b              = min(2.7_r8  + 9.3_r8   *(zsoi(lev)/zsapric), 12.0_r8)
                 om_sucsat         = min(10.3_r8 - 0.2_r8   *(zsoi(lev)/zsapric), 10.1_r8)
