@@ -1465,6 +1465,7 @@ contains
 
                ! from Zhao (1997) and Koren (1999)
                supercool(c,j) = 0.0_r8
+#ifndef SUPERCOOL_OFF
                if (lun_pp%itype(l) == istsoil .or. lun_pp%itype(l) == istcrop .or. col_pp%itype(c) == icol_road_perv) then
                   if(t_soisno(c,j) < tfrz) then
                      smp = hfus*(tfrz-t_soisno(c,j))/(grav*t_soisno(c,j)) * 1000._r8  !(mm)
@@ -1472,7 +1473,7 @@ contains
                      supercool(c,j) = supercool(c,j)*dz(c,j)*1000._r8       ! (mm)
                   endif
                endif
-
+#endif
                if (h2osoi_liq(c,j) > supercool(c,j) .AND. t_soisno(c,j) < tfrz) then
                   imelt(c,j) = 2
                   !             tinc(c,j) = t_soisno(c,j) - tfrz
