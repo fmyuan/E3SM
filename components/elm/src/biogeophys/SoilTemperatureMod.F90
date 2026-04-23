@@ -174,7 +174,7 @@ contains
       !$acc routine seq
     use elm_varpar               , only : nlevsno, nlevgrnd, nlevurb
     use elm_varctl               , only : iulog
-    use elm_varcon               , only : cnfac, cpice, cpliq, denh2o
+    use elm_varcon               , only : cnfac, cpice, cpliq, denh2o, denice
     use landunit_varcon          , only : istice, istice_mec, istsoil, istcrop
     use column_varcon            , only : icol_roof, icol_sunwall, icol_shadewall, icol_road_perv, icol_road_imperv
     use landunit_varcon          , only : istwet, istice, istice_mec, istsoil, istcrop
@@ -927,10 +927,10 @@ contains
                     col_pp%itype(c) /= icol_roof) then
 
                   satw = (h2osoi_liq(c,j)/denh2o + h2osoi_ice(c,j)/denice)/(dz(c,j)*watsat(c,j))
-                  satw = min(1._r8, satw)
+                  satw = max(0._r8, min(1._r8, satw))
                   if (satw > .1e-6_r8) then
-                     if (t_soisno(c,j) >= tfrz) then       ! Unfrozen soil
-                        dke = max(0._r8, log10(satw) + 1.0_r8)
+                     if (t_soisno(c,j) > tfrz) then       ! Unfrozen soil
+                        dke = max(0._r8, log10(satw) + 1.0_r8)  ! but why ??? satw: 0.1~1.0, i.e. 0~1
                      else                               ! Frozen soil
                         dke = satw
                      end if
@@ -938,6 +938,7 @@ contains
                           h2osoi_ice(c,j)/(denice*dz(c,j)))
                      dksat = tkmg(c,j)*tkwat**(fl*watsat(c,j))*tkice**((1._r8-fl)*watsat(c,j))
                      thk(c,j) = dke*dksat + (1._r8-dke)*tkdry(c,j)
+                     !thk(c,j) = satw*dksat + (1._r8-satw)*tkdry(c,j)
                   else
                      thk(c,j) = tkdry(c,j)
                   endif
