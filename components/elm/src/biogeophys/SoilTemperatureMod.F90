@@ -1317,6 +1317,7 @@ contains
     use elm_varcon       , only : tfrz, hfus, grav
     use column_varcon    , only : icol_roof, icol_sunwall, icol_shadewall, icol_road_perv
     use landunit_varcon  , only : istsoil, istcrop, istice_mec,istice
+    use elm_varcon       , only : denh2o, denice
     !
     ! !ARGUMENTS:
     type(bounds_type)      , intent(in)    :: bounds
@@ -1465,15 +1466,18 @@ contains
 
                ! from Zhao (1997) and Koren (1999)
                supercool(c,j) = 0.0_r8
-#ifndef SUPERCOOL_OFF
                if (lun_pp%itype(l) == istsoil .or. lun_pp%itype(l) == istcrop .or. col_pp%itype(c) == icol_road_perv) then
                   if(t_soisno(c,j) < tfrz) then
+#ifndef SUPERCOOL_OFF
                      smp = hfus*(tfrz-t_soisno(c,j))/(grav*t_soisno(c,j)) * 1000._r8  !(mm)
                      supercool(c,j) = watsat(c,j)*(smp/sucsat(c,j))**(-1._r8/bsw(c,j))
                      supercool(c,j) = supercool(c,j)*dz(c,j)*1000._r8       ! (mm)
+#else
+                     ! (TODO) there may be an issue of ice expansion over porosity
+                     !supercool(c,j) = (denh2o-denice)*dz(c,j)*watsat(c,j)   ! ice expansion limited???
+#endif
                   endif
                endif
-#endif
                if (h2osoi_liq(c,j) > supercool(c,j) .AND. t_soisno(c,j) < tfrz) then
                   imelt(c,j) = 2
                   !             tinc(c,j) = t_soisno(c,j) - tfrz
@@ -1586,12 +1590,19 @@ contains
                               h2osoi_ice(c,j) = 0._r8
                            else
                               h2osoi_ice(c,j) = min(wmass0(c,j) - supercool(c,j),wice0(c,j)-xm(c,j))
+#ifdef SUPERCOOL_OFF
+                              ! ice cannot be over porosity as well.
+                              ! there is possibility of ice expansion over, rest of which will add into liq. water below
+                              h2osoi_ice(c,j) = min(denice*dz(c,j)*watsat(c,j), h2osoi_ice(c,j))
+#endif
                            endif
                         endif
                         heatr = hm(c,j) - hfus*(wice0(c,j)-h2osoi_ice(c,j))/dtime
                      endif
 
                      h2osoi_liq(c,j) = max(0._r8,wmass0(c,j)-h2osoi_ice(c,j))
+                     ! liq cannot be over ice-excluded porosity.
+                     !h2osoi_liq(c,j) = min(denh2o*dz(c,j)*(watsat(c,j)-h2osoi_ice(c,j)/denice/dz(c,j)), h2osoi_liq(c,j)) ! may have water mass balance issue
 
                      if (abs(heatr) > 0._r8) then
                         if (j == snl(c)+1) then
