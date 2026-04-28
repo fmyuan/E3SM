@@ -833,6 +833,7 @@ contains
                      (2.7_r8 - (1_r8 - 0.053_r8)*this%bd_col(c,lev))
 
                   ! for now, leave heat capacity alone - RPF
+               end if
 
              end if
           end do
