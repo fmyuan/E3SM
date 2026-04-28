@@ -12,7 +12,7 @@ module SoilTemperatureMod
   use shr_infnan_mod    , only : nan => shr_infnan_nan
   use decompMod         , only : bounds_type
   use abortutils        , only : endrun
-  use elm_varctl        , only : iulog, use_finetop_rad
+  use elm_varctl        , only : iulog, use_finetop_rad, use_balland_and_arp
   use elm_varcon        , only : spval
   use UrbanParamsType   , only : urbanparams_type
   use atm2lndType       , only : atm2lnd_type
@@ -835,6 +835,7 @@ contains
     use landunit_varcon , only : istice, istice_mec, istwet
     use column_varcon   , only : icol_roof, icol_sunwall, icol_shadewall, icol_road_perv, icol_road_imperv
     use elm_varctl      , only : iulog, use_T_rho_dependent_snowthk
+    use SharedParamsMod , only : ParamsShareInst
     !
     ! !ARGUMENTS:
     type(bounds_type)      , intent(in)    :: bounds
@@ -855,6 +856,13 @@ contains
     real(r8) :: fl                        ! volume fraction of liquid or unfrozen water to total water
     real(r8) :: satw                      ! relative total water content of soil.
     real(r8) :: zh2osfc
+    real(r8) :: sand                      ! sand fraction for current layer
+    real(r8) :: clay                      ! clay fraction for current layer
+    real(r8) :: gravel                    ! gravel fraction for current layer
+    real(r8) :: om_frac                   ! organic matter fraction for current layer
+    real(r8) :: organic_max               ! organic matter (kg/m3) threshold
+    character(len=64) :: event
+    
     real(r8), parameter :: rho_ice     = 917._r8
     real(r8) :: k_snw_vals(5)
     real(r8) :: k_snw_tmps(5)
@@ -867,6 +875,9 @@ contains
     data k_snw_coe3(:) /0.0205_r8, 0.0252_r8, 0.0336_r8, 0.0386_r8, 0.0455_r8/
     !-----------------------------------------------------------------------
     call t_startf('SoilThermProp')
+
+    ! Get organic matter threshold parameter
+    organic_max = ParamsShareInst%organic_max
 
     associate(                                                 &
          snl          =>    col_pp%snl                       , & ! Input:  [integer  (:)   ]  number of snow layers
@@ -897,6 +908,10 @@ contains
          csol         =>    soilstate_vars%csol_col          , & ! Input:  [real(r8) (:,:) ]  heat capacity, soil solids (J/m**3/Kelvin)
          watsat       =>    soilstate_vars%watsat_col        , & ! Input:  [real(r8) (:,:) ]  volumetric soil water at saturation (porosity)
          tksatu       =>    soilstate_vars%tksatu_col        , & ! Input:  [real(r8) (:,:) ]  thermal conductivity, saturated soil [W/m-K]
+         cellsand     =>    soilstate_vars%cellsand_col      , & ! Input:  [real(r8) (:,:) ]  sand fraction [%]
+         cellclay     =>    soilstate_vars%cellclay_col      , & ! Input:  [real(r8) (:,:) ]  clay fraction [%]
+         cellgrvl     =>    soilstate_vars%cellgrvl_col      , & ! Input:  [real(r8) (:,:) ]  gravel fraction [%]
+         cellorg      =>    soilstate_vars%cellorg_col       , & ! Input:  [real(r8) (:,:) ]  organic matter [kg/m3]
          thk          =>    soilstate_vars%thk_col             & ! Output: [real(r8) (:,:) ]  thermal conductivity of each layer  [W/m-K]
          )
 
@@ -925,19 +940,61 @@ contains
 
                   satw = (h2osoi_liq(c,j)/denh2o + h2osoi_ice(c,j)/denice)/(dz(c,j)*watsat(c,j))
                   satw = min(1._r8, satw)
-                  if (satw > .1e-6_r8) then
-                     if (t_soisno(c,j) >= tfrz) then       ! Unfrozen soil
-                        dke = max(0._r8, log10(satw) + 1.0_r8)
-                     else                               ! Frozen soil
-                        dke = satw
-                     end if
-                     fl = (h2osoi_liq(c,j)/(denh2o*dz(c,j))) / (h2osoi_liq(c,j)/(denh2o*dz(c,j)) + &
-                          h2osoi_ice(c,j)/(denice*dz(c,j)))
-                     dksat = tkmg(c,j)*tkwat**(fl*watsat(c,j))*tkice**((1._r8-fl)*watsat(c,j))
-                     thk(c,j) = dke*dksat + (1._r8-dke)*tkdry(c,j)
+
+                  ! Extract soil texture for current column and layer
+                  if (j <= nlevsoi) then
+                     sand = cellsand(c,j) / 100.0_r8    ! Convert from % to fraction
+                     clay = cellclay(c,j) / 100.0_r8    ! Convert from % to fraction
+                     gravel = cellgrvl(c,j) / 100.0_r8  ! Convert from % to fraction
+                     om_frac = cellorg(c,j) / organic_max
                   else
-                     thk(c,j) = tkdry(c,j)
+                     ! Below nlevsoi, use values from bottom soil layer
+                     sand = cellsand(c,nlevsoi) / 100.0_r8
+                     clay = cellclay(c,nlevsoi) / 100.0_r8
+                     gravel = cellgrvl(c,nlevsoi) / 100.0_r8
+                     om_frac = 0.0_r8
+                  end if
+
+                  if (.not. use_balland_and_arp) then
+                     if (satw > .1e-6_r8) then
+                        if (t_soisno(c,j) >= tfrz) then       ! Unfrozen soil
+                           dke = max(0._r8, log10(satw) + 1.0_r8)
+                        else                               ! Frozen soil
+                           dke = satw
+                        end if
+                        fl = (h2osoi_liq(c,j)/(denh2o*dz(c,j))) / (h2osoi_liq(c,j)/(denh2o*dz(c,j)) + &
+                           h2osoi_ice(c,j)/(denice*dz(c,j)))
+                        dksat = tkmg(c,j)*tkwat**(fl*watsat(c,j))*tkice**((1._r8-fl)*watsat(c,j))
+                        thk(c,j) = dke*dksat + (1._r8-dke)*tkdry(c,j)
+                     else
+                        thk(c,j) = tkdry(c,j)
+                     endif
+                  else
+                     if (satw > .1_e6_r8) then
+                        if (t_soisno(c,j) > tfrz) then
+                           if (om_frac .lt. 1_r8) then
+                              dke = satw**(0.5_r8*(1_r8+om_frac-0.24_r8*sand-gravel)) * &
+                                 ((1_r8/(1_r8+exp(-18.3_r8*satw)))**3 - ((1_r8-satw)/2_r8)**3)**(1_r8-om_frac)
+                           else
+                              dke = satw
+                           endif
+                           dksat = (tkmg(c,j)**(1-watsat))*(tkwat**watsat)
+                        else
+                           if (om_frac .lt. 1_r8) then
+                              dke = satw**2
+                           else
+                              dke = satw**(1_r8+om_frac)
+                           endif
+                           fl = (h2osoi_liq(c,j)/(denh2o*dz(c,j))) / (h2osoi_liq(c,j)/(denh2o*dz(c,j)) + &
+                              h2osoi_ice(c,j)/(denice*dz(c,j)))
+                           dksat = (tkmg(c,j)**(1-watsat))*(tkice**((1._r8-fl)*watsat))*(tkwat**(fl*watsat))
+                        endif  
+                        thk = (dksat - tkdry(c,j))*dke + tkdry(c,j) 
+                     else
+                        thk = tkdry(c,j)
+                     endif
                   endif
+
                   if (j > nlevbed) thk(c,j) = thk_bedrock
                else if (lun_pp%itype(l) == istice .OR. lun_pp%itype(l) == istice_mec) then
                   thk(c,j) = tkwat

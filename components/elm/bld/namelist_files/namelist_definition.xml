@@ -2364,4 +2364,12 @@ Cold-start initialization conditions in tundra start saturated and frozen.
 <default>Default: .false.</default>
 </entry>
 
+<entry id="use_balland_and_arp" type="logical" category="default_settings"
+       group="elm_inparm" value=".false.">
+Use Balland and Arp (2005) thermal conductivity model instead of the default Farouki (1981)
+implementation of the Johansen scheme. The Balland and Arp model provides an alternative
+formulation for calculating soil thermal conductivity based on soil texture and moisture content.
+<default>Default: .false.</default>
+</entry>
+
 </namelist_definition>

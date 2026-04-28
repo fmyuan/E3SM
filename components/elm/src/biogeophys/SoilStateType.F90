@@ -18,7 +18,7 @@ module SoilStateType
   use elm_varcon      , only : secspday, mu, denh2o, denice, grlnd
   use landunit_varcon , only : istice, istdlak, istwet, istsoil, istcrop, istice_mec
   use column_varcon   , only : icol_roof, icol_sunwall, icol_shadewall, icol_road_perv, icol_road_imperv
-  use elm_varctl      , only : use_cn, use_lch4,use_dynroot, use_fates
+  use elm_varctl      , only : use_cn, use_lch4,use_dynroot, use_fates, use_balland_and_arp
   use elm_varctl      , only : use_erosion
   use elm_varctl      , only : use_var_soil_thick
   use elm_varctl      , only : iulog, fsurdat, hist_wrtch4diag
@@ -820,6 +820,19 @@ contains
 
                 this%watmin_col(c,lev) = &
                      this%watsat_col(c,lev)*(-min_liquid_pressure/this%sucsat_col(c,lev))**(-1._r8/this%bsw_col(c,lev))
+
+               if (use_balland_and_arp) then
+                  ! rewrite all of the thermal conductivity parameters to be consistent
+                  ! with Balland and Arp 2005 model
+                  tkm = (om_tkm**om_frac)*(8.0_r8**sand)*(2.5_r8**(1._r8-om_frac-sand))                
+                  this%tkmg_col(c,lev)   = tkm ** (1._r8- this%watsat_col(c,lev))
+
+                  this%tksatu_col(c,lev) = this%tkmg_col(c,lev)*0.57_r8**this%watsat_col(c,lev)
+
+                  this%tkdry_col(c,lev)  = ((0.053_r8*tkm-tkair)*this%bd_col(c,lev) + tkair*2.8_r8) / &
+                     (2.7_r8 - (1_r8 - 0.053_r8)*this%bd_col(c,lev))
+
+                  ! for now, leave heat capacity alone - RPF
 
              end if
           end do
