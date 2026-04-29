@@ -345,6 +345,7 @@ contains
     use FuncPedotransferMod , only : pedotransf, get_ipedof
     use RootBiophysMod      , only : init_vegrootfr
     use, intrinsic :: ieee_exceptions
+    use elm_varcon          , only : tkair
     !
     ! !ARGUMENTS:
     class(soilstate_type) :: this
