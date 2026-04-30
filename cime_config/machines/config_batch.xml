@@ -768,6 +768,19 @@
          </queues>
    </batch_system>
 
+   <batch_system MACH="pathfinder" type="slurm">
+      <directives>
+        <directive> -p parallel</directive>
+        <directive> -q normal</directive>
+        <directive> --mem-per-cpu=0gb</directive>
+        <directive> -c 1</directive>
+        <directive> -N $SHELL{ echo $(./xmlquery --value NUM_NODES) }</directive>
+        <directive> --ntasks-per-node=$SHELL{ total=$(./xmlquery --value TOTAL_TASKS 2>/dev/null || ./xmlquery --value TOTALPES 2>/dev/null); if [[ -z "$total" || "$total" -eq 0 ]]; then echo 64; elif [[ $total -lt 64 ]]; then echo $total; else echo 64; fi }</directive>
+      </directives>
+      <queues>
+        <queue walltimemax="24:00:00" nodemin="1" nodemax="9999" default="true" strict="true">parallel</queue>
+      </queues>
+    </batch_system>
 
    <batch_system MACH="cades-baseline" type="slurm" >
          <submit_args>
