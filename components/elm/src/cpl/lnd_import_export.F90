@@ -79,8 +79,14 @@ contains
     real(r8) :: b0,b1,b2,b3,b4,b5,b6 ! coefficients for esat over ice
     real(r8) :: tdc, t               ! Kelvins to Celcius function and its input
     real(r8) :: vp                   ! water vapor pressure (Pa)
-    integer  :: thisng, np, num, nu_nml, nml_error                 
-    integer  :: ng_all(100000)
+    integer  :: thisng, np, num, nu_nml, nml_error
+    integer, allocatable :: lnfmind_x_all(:)    ! gathered lnfmind x-indices (lon)
+    integer, allocatable :: lnfmind_y_all(:)    ! gathered lnfmind y-indices (lat)
+    integer, allocatable :: lnfmind_x_local(:)  ! local lnfmind x-indices
+    integer, allocatable :: lnfmind_y_local(:)  ! local lnfmind y-indices
+    real(r8), allocatable :: lnfm_sendbuf(:,:)  ! (2920, total_ng) rank 0 send buffer
+    real(r8), allocatable :: lnfm_recvbuf(:,:)  ! (2920, thisng) receive buffer
+    integer, allocatable :: recvcounts(:), displs(:) ! for gatherv/scatterv
     real(r8) :: swndf, swndr, swvdf, swvdr, ratio_rvrf, frac, q
     real(r8) :: thiscosz, avgcosz, szenith
     integer  :: swrad_period_len, swrad_period_start, thishr, thismin
@@ -102,7 +108,7 @@ contains
     !real(r8) :: lnfm1(192,94,2920)
     !real(r8) :: ndep1(144,96,1), ndep2(144,96,1)
     !real(r8) :: aerodata(14,144,96,14)
-    integer  :: lnfmind(2)
+
     integer  :: var_month_count(12)
     integer*2 :: temp(1,500000)
     integer :: xtoget, ytoget, thisx, thisy, calday_start
@@ -187,6 +193,38 @@ contains
     ! Below the units are therefore given in mm/s.
 
     thisng = bounds%endg - bounds%begg + 1
+
+    ! Lightning: read file and bcast lat/lon coords before the g loop so all
+    ! ranks participate in collective calls at the same point.
+    if (use_cn .or. use_fates) then
+      if (atm2lnd_vars%loaded_bypassdata .eq. 0) then
+        if (masterproc) then
+          nu_nml = getavu()
+          open( nu_nml, file=trim(NLFilename), status='old', iostat=nml_error )
+          call find_nlgroup_name(nu_nml, 'light_streams', status=nml_error)
+          if (nml_error == 0) then
+            read(nu_nml, nml=light_streams, iostat=nml_error)
+            if (nml_error /= 0) call endrun(msg='ERROR reading light_streams namelist')
+          end if
+          close(nu_nml)
+          call relavu( nu_nml )
+          allocate(atm2lnd_vars%lnfm_all(192,94,2920))
+          ierr = nf90_open(trim(stream_fldFileName_lightng), NF90_NOWRITE, ncid)
+          ierr = nf90_inq_varid(ncid, 'lat', varid)
+          ierr = nf90_get_var(ncid, varid, smapt62_lat)
+          ierr = nf90_inq_varid(ncid, 'lon', varid)
+          ierr = nf90_get_var(ncid, varid, smapt62_lon)
+          ierr = nf90_inq_varid(ncid, 'lnfm', varid)
+          ierr = nf90_get_var(ncid, varid, atm2lnd_vars%lnfm_all)
+          ierr = nf90_close(ncid)
+        end if
+        call mpi_bcast(smapt62_lon, 192, MPI_REAL8, 0, mpicom, ier)
+        call mpi_bcast(smapt62_lat, 94,  MPI_REAL8, 0, mpicom, ier)
+        allocate(lnfmind_x_local(thisng))
+        allocate(lnfmind_y_local(thisng))
+      end if
+    end if
+
     do g = bounds%begg,bounds%endg
        i = 1 + (g - bounds%begg)
        
@@ -444,7 +482,9 @@ contains
             atm2lnd_vars%timelen_spinup(v) = nyears_spinup*(365*nint(24./atm2lnd_vars%timeres(v)))
     
             ierr = nf90_inq_varid(met_ncids(v), trim(metvars(v)), varid)
-            !get the conversion factors
+            !get the conversion factors; default to identity (scale=1, offset=0) if attributes absent
+            atm2lnd_vars%scale_factors(v) = 1.0_R8
+            atm2lnd_vars%add_offsets(v)   = 0.0_R8
             ierr = nf90_get_att(met_ncids(v), varid, 'scale_factor', atm2lnd_vars%scale_factors(v))
             ierr = nf90_get_att(met_ncids(v), varid, 'add_offset', atm2lnd_vars%add_offsets(v))
             !get the met data         
@@ -675,14 +715,13 @@ contains
             atm2lnd_vars%forc_solai_grc(g,2) = swndf
             atm2lnd_vars%forc_solai_grc(g,1) = swvdf
         else
-            swndr = max(((atm2lnd_vars%atm_input(4,g,1,tindex(4,2))*atm2lnd_vars%scale_factors(4)+ &
-                                     atm2lnd_vars%add_offsets(4))*wt2(4)) * 0.50_R8, 0.0_r8)
-            swndf = max(((atm2lnd_vars%atm_input(4,g,1,tindex(4,2))*atm2lnd_vars%scale_factors(4)+ &
-                                    atm2lnd_vars%add_offsets(4))*wt2(4))*0.50_R8, 0.0_r8)
-            swvdr = max(((atm2lnd_vars%atm_input(4,g,1,tindex(4,2))*atm2lnd_vars%scale_factors(4)+ &
-                                    atm2lnd_vars%add_offsets(4))*wt2(4))*0.50_R8, 0.0_r8)
-            swvdf = max(((atm2lnd_vars%atm_input(4,g,1,tindex(4,2))*atm2lnd_vars%scale_factors(4)+ &
-                                    atm2lnd_vars%add_offsets(4))*wt2(4))*0.50_R8, 0.0_r8)
+            ! compute shared SW input once to prevent compiler FP optimization producing NaN/Inf
+            frac = max((atm2lnd_vars%atm_input(4,g,1,tindex(4,2))*atm2lnd_vars%scale_factors(4) &
+                        + atm2lnd_vars%add_offsets(4)) * wt2(4) * 0.50_R8, 0.0_r8)
+            swndr = frac
+            swndf = frac
+            swvdr = frac
+            swvdf = frac
             ratio_rvrf =   min(0.99_R8,max(0.29548_R8 + 0.00504_R8*swndr &
                            -1.4957e-05_R8*swndr**2 + 1.4881e-08_R8*swndr**3,0.01_R8))
             atm2lnd_vars%forc_solad_grc(g,2) = ratio_rvrf*swndr
@@ -813,75 +852,25 @@ contains
           atm2lnd_vars%forc_hdm(g) = atm2lnd_vars%hdm1(atm2lnd_vars%hdmind(g,1),atm2lnd_vars%hdmind(g,2),1)*wt1(1) + &
                                      atm2lnd_vars%hdm2(atm2lnd_vars%hdmind(g,1),atm2lnd_vars%hdmind(g,2),1)*wt2(1)
 
-          if (atm2lnd_vars%loaded_bypassdata .eq. 0 .and. masterproc .and. i .eq. 1) then 
-            ! Read light_streams namelist to get filename
-            nu_nml = getavu()
-            open( nu_nml, file=trim(NLFilename), status='old', iostat=nml_error )
-            call find_nlgroup_name(nu_nml, 'light_streams', status=nml_error)
-            if (nml_error == 0) then
-              read(nu_nml, nml=light_streams,iostat=nml_error)
-              if (nml_error /= 0) then
-                call endrun(msg='ERROR reading light_streams namelist')
-              end if
-            end if
-            close(nu_nml)
-            call relavu( nu_nml )
-
-            !Get all of the data (master processor only)
-            allocate(atm2lnd_vars%lnfm_all       (192,94,2920))
-            ierr = nf90_open(trim(stream_fldFileName_lightng), NF90_NOWRITE, ncid)
-            ierr = nf90_inq_varid(ncid, 'lat', varid)
-            ierr = nf90_get_var(ncid, varid, smapt62_lat)
-            ierr = nf90_inq_varid(ncid, 'lon', varid)
-            ierr = nf90_get_var(ncid, varid, smapt62_lon)
-            ierr = nf90_inq_varid(ncid, 'lnfm', varid)
-            ierr = nf90_get_var(ncid, varid, atm2lnd_vars%lnfm_all)
-            ierr = nf90_close(ncid)
-          end if
-          if (atm2lnd_vars%loaded_bypassdata .eq. 0 .and. i .eq. 1) then
-            call mpi_bcast (smapt62_lon, 192, MPI_REAL8, 0, mpicom, ier)
-            call mpi_bcast (smapt62_lat, 94, MPI_REAL8, 0, mpicom, ier)
-          end if
           if (atm2lnd_vars%loaded_bypassdata .eq. 0) then
             mindist=99999
             do thisx = 1,192
               do thisy = 1,94
-                if (ldomain%lonc(g) .lt. 0) then 
+                if (ldomain%lonc(g) .lt. 0) then
                   if (smapt62_lon(thisx) >= 180) smapt62_lon(thisx) = smapt62_lon(thisx)-360._r8
-                else if (ldomain%lonc(g) .ge. 180) then 
+                else if (ldomain%lonc(g) .ge. 180) then
                   if (smapt62_lon(thisx) < 0) smapt62_lon(thisx) = smapt62_lon(thisx) + 360._r8
                 end if
                 thisdist = 100*((smapt62_lat(thisy) - ldomain%latc(g))**2 + &
                             (smapt62_lon(thisx) - ldomain%lonc(g))**2)**0.5
                 if (thisdist .lt. mindist) then
                   mindist = thisdist
-                  lnfmind(1) = thisx
-                  lnfmind(2) = thisy
+                  lnfmind_x_local(i) = thisx
+                  lnfmind_y_local(i) = thisy
                 end if
               end do
             end do
-            if (masterproc) then
-              atm2lnd_vars%lnfm(g,:) = atm2lnd_vars%lnfm_all(lnfmind(1),lnfmind(2),:)
-              do np = 1,npes-1
-                if (i == 1) then 
-                  call mpi_recv(thisng,  1, MPI_INTEGER, np, 100000+np, mpicom, status, ier)
-                  ng_all(np) = thisng
-                end if
-                if (i <= ng_all(np)) then 
-                  call mpi_recv(lnfmind, 2, MPI_INTEGER, np, 200000+np, mpicom, status, ier)
-                  call mpi_send(atm2lnd_vars%lnfm_all(lnfmind(1),lnfmind(2),:), 2920, &
-                            MPI_REAL8, np, 300000+np, mpicom, ier)
-                end if
-              end do
-            else
-              if (i == 1)  call mpi_send(thisng,  1, MPI_INTEGER, 0, 100000+iam, mpicom, ier)
-              call mpi_send(lnfmind, 2, MPI_INTEGER, 0, 200000+iam, mpicom, ier) 
-              call mpi_recv(atm2lnd_vars%lnfm(g,:), 2920, MPI_REAL8, 0, 300000+iam, mpicom, status, ier)
-            end if
           end if
-
-          !Lightning data is 3-hourly.  Does not currently interpolate.
-          atm2lnd_vars%forc_lnfm(g) = atm2lnd_vars%lnfm(g, ((int(thiscalday)-1)*8+tod/(3600*3))+1)
 
    !------------------------------------Nitrogen deposition----------------------------------------------
 
@@ -1412,6 +1401,69 @@ contains
         endif
 
      end do
+
+    ! Lightning: gather lnfmind from all ranks to rank 0, do lookups, scatter lnfm back.
+    if (use_cn .or. use_fates) then
+      if (atm2lnd_vars%loaded_bypassdata .eq. 0) then
+        allocate(recvcounts(0:npes-1))
+        allocate(displs(0:npes-1))
+        call mpi_allgather(thisng, 1, MPI_INTEGER, recvcounts, 1, MPI_INTEGER, mpicom, ier)
+        displs(0) = 0
+        do np = 1, npes-1
+          displs(np) = displs(np-1) + recvcounts(np-1)
+        end do
+        if (masterproc) then
+          allocate(lnfmind_x_all(sum(recvcounts)))
+          allocate(lnfmind_y_all(sum(recvcounts)))
+        else
+          allocate(lnfmind_x_all(1))  ! dummy on non-master
+          allocate(lnfmind_y_all(1))
+        end if
+        call mpi_gatherv(lnfmind_x_local, thisng, MPI_INTEGER, &
+             lnfmind_x_all, recvcounts, displs, MPI_INTEGER, 0, mpicom, ier)
+        call mpi_gatherv(lnfmind_y_local, thisng, MPI_INTEGER, &
+             lnfmind_y_all, recvcounts, displs, MPI_INTEGER, 0, mpicom, ier)
+
+        ! rank 0 builds send buffer: lnfm_sendbuf(2920, total_ng)
+        if (masterproc) then
+          allocate(lnfm_sendbuf(2920, sum(recvcounts)))
+          do np = 0, npes-1
+            do num = 1, recvcounts(np)
+              lnfm_sendbuf(:, displs(np)+num) = &
+                   atm2lnd_vars%lnfm_all(lnfmind_x_all(displs(np)+num), &
+                                         lnfmind_y_all(displs(np)+num), :)
+            end do
+          end do
+          deallocate(atm2lnd_vars%lnfm_all)
+        else
+          allocate(lnfm_sendbuf(2920, 1))  ! dummy on non-master
+        end if
+
+        ! scatter lnfm back into a (2920, thisng) temp buffer then transpose into
+        ! lnfm(begg:endg, 2920) since the two layouts are incompatible for direct scatterv
+        allocate(lnfm_recvbuf(2920, thisng))
+        call mpi_scatterv(lnfm_sendbuf, recvcounts*2920, displs*2920, MPI_REAL8, &
+             lnfm_recvbuf, thisng*2920, MPI_REAL8, 0, mpicom, ier)
+        do num = 1, thisng
+          atm2lnd_vars%lnfm(bounds%begg+num-1, :) = lnfm_recvbuf(:, num)
+        end do
+
+        deallocate(lnfm_recvbuf)
+        deallocate(lnfmind_x_local)
+        deallocate(lnfmind_y_local)
+        deallocate(lnfmind_x_all)
+        deallocate(lnfmind_y_all)
+        deallocate(lnfm_sendbuf)
+        deallocate(recvcounts)
+        deallocate(displs)
+
+        ! assign forc_lnfm for each local gridcell
+        do g = bounds%begg, bounds%endg
+          atm2lnd_vars%forc_lnfm(g) = atm2lnd_vars%lnfm(g, ((int(thiscalday)-1)*8+tod/(3600*3))+1)
+        end do
+      end if
+    end if
+
 #ifdef CPL_BYPASS
     atm2lnd_vars%loaded_bypassdata = 1
 #endif
