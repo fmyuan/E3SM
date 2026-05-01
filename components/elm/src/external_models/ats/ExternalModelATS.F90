@@ -62,7 +62,7 @@ contains
     type(em_ats_type) :: this
 
     this = EM_ATS_Create2(ats_inputdir, ats_inputfile, mpicom)
-    this%verbosity = 2
+    this%verbosity = 1
   end subroutine EM_ATS_Create
 
   !------------------------------------------------------------------------
@@ -333,9 +333,9 @@ contains
     call EM_ATS_GetFieldPtr(this, var_id, this%ncolumns, ats_field)
     do i=1,this%ncolumns
        ii = this%col_filter(i)
-       field(ii) = ats_field(i)
+       field(i) = ats_field(i)
        if (this%verbosity >= lverbosity) then
-          write(iulog,*) "GET: ", var_name, " : column ", i, " = ", field(ii)
+          write(iulog,*) "GET: ", var_name, " : column ", i, " = ", field(i)
        end if
     end do
   end subroutine EM_ATS_GetField_Copy
@@ -362,9 +362,9 @@ contains
     call EM_ATS_GetFieldPtrW(this, var_id, this%ncolumns, ats_field)
     do i=1,this%ncolumns
        ii = this%col_filter(i)
-       ats_field(i) = field(ii)
+       ats_field(i) = field(i)
        if (this%verbosity >= lverbosity) then
-          write(iulog,*) "SET: ", var_name, " : column ", i, " = ", field(ii)
+          write(iulog,*) "SET: ", var_name, " : column ", i, " = ", field(i)
        end if
     end do
   end subroutine EM_ATS_SetField_Copy
@@ -395,9 +395,9 @@ contains
     do i=1,this%ncolumns
        ii = this%col_filter(i)
        do j=1,this%nlevgrnd
-          field(ii, j) = ats_field((i-1) * this%nlevgrnd + j)
+          field(i, j) = ats_field((i-1) * this%nlevgrnd + j)
           if (this%verbosity >= lverbosity) then
-             write(iulog,*) "GET: ", var_name, " : column ", i, " cell ", j, " = ", field(ii,j)
+             write(iulog,*) "GET: ", var_name, " : column ", i, " cell ", j, " = ", field(i,j)
           end if
        end do
     end do
@@ -426,9 +426,9 @@ contains
     do i=1,this%ncolumns
        ii = this%col_filter(i)
        do j=1,this%nlevgrnd
-          ats_field((i-1) * this%nlevgrnd + j) = field(ii,j)
+          ats_field((i-1) * this%nlevgrnd + j) = field(i,j)
           if (this%verbosity >= lverbosity) then
-             write(iulog,*) "SET:", var_name, " : column ", i, " cell ", j, " = ", field(ii,j)
+             write(iulog,*) "SET:", var_name, " : column ", i, " cell ", j, " = ", field(i,j)
           end if
        end do
     end do
@@ -461,9 +461,9 @@ contains
     call EM_ATS_GetFieldPtrW(this, var_id, this%ncolumns, ats_field)
     do i=1,this%ncolumns
        ii = this%col_filter(i)
-       ats_field(i) = factor * field(ii)
+       ats_field(i) = factor * field(i)
        if (this%verbosity >= lverbosity) then
-          write(iulog,*) "SET: ", var_name, " : column ", i, " = ", field(ii)
+          write(iulog,*) "SET: ", var_name, " : column ", i, " = ", field(i)
        end if
     end do
   end subroutine EM_ATS_SetField_ScalarMultiply
@@ -491,9 +491,9 @@ contains
     call EM_ATS_GetFieldPtr(this, var_id, this%ncolumns, ats_field)
     do i=1,this%ncolumns
        ii = this%col_filter(i)
-       field(ii) = factor * ats_field(i)
+       field(i) = factor * ats_field(i)
        if (this%verbosity >= lverbosity) then
-          write(iulog,*) "GET: ", var_name, " : column ", i, " = ", field(ii)
+          write(iulog,*) "GET: ", var_name, " : column ", i, " = ", field(i)
        end if
     end do
   end subroutine EM_ATS_GetField_ScalarMultiply
@@ -517,18 +517,17 @@ contains
     integer, intent(in) :: ncolumns_all
 
     integer :: ncolumns
-    
+
     ! only 1 clump or memory is not contiguous
     if (nclumps /= 1) then
        call endrun("ATS only works with 1 clump.")
     end if
 
-    if (ncolumns /= filter(1)%num_hydrologyc) then
-       write(iulog,*) "WARNING: ATS does not support non-hydrology columns in spatially explicit mode.  Likely URBAN_REGION_ID /= 0."
-       ! call endrun("ATS does not support non-hydrology columns in spatially explicit mode.  Likely URBAN_REGION_ID /= 0.")
-    end if
-
     ncolumns = filter(1)%num_hydrologyc
+    if (ncolumns_all /= ncolumns) then
+       write(iulog,*) "ERROR: ATS does not support non-hydrology columns. ncolumns_all = ", ncolumns_all, " num_hydrologyc = ", ncolumns
+       call endrun("ATS does not support non-hydrology columns in spatially explicit mode. Check that the land use dataset has no urban, lake, or other non-natural land cover types (URBAN_REGION_ID == 0).")
+    end if
 
     ! number of soil columns == number of hydrology columns == number
     ! of soil PFTs
@@ -566,7 +565,7 @@ contains
     integer :: ats_ncols_local
     integer :: ats_ncols_global
     integer :: ats_nlevgrnd
-    integer :: i, j
+    integer :: i, j, ii
 
     real(c_double) :: ats_dzs(this%nlevgrnd)
     real(c_double) :: ats_areas(this%ncolumns)
@@ -588,15 +587,17 @@ contains
     end if
 
     ! check dzs
+    ii = this%col_filter(1)
     do j=1,this%nlevgrnd
-       if (abs(ats_dzs(j) - col_pp%dz(1,j)) > 1.e-10_r8) then
+       if (abs(ats_dzs(j) - col_pp%dz(ii,j)) > 1.e-10_r8) then
           call endrun("ATS dzs do not match ELM dzs.")
        end if
     end do
 
     ! check column areas
     do i=1,this%ncolumns
-       if (abs(ats_areas(i) - grc_pp%area(i)) > 1.e-10_r8) then
+       ii = this%col_filter(i)
+       if (abs(ats_areas(i) - grc_pp%area(col_pp%gridcell(ii))) > 1.e-10_r8) then
           write(iulog,*) "WARNING: ATS column areas do not match ELM grid cell areas -- perhaps incorrect ordering."
           ! call endrun("ATS column areas do not match ELM grid cell areas -- perhaps incorrect ordering.")
        end if
@@ -709,11 +710,11 @@ contains
        ii = this%col_filter(i)
        h2osoi_liq_total = 0._r8
        do j=1,this%nlevgrnd
-          col_ws%h2osoi_liq(ii,j) = col_ws%h2osoi_liq(ii,j) * porosity(ii,j) * col_pp%dz(ii,j) * denh2o
+          col_ws%h2osoi_liq(ii,j) = col_ws%h2osoi_liq(ii,j) * porosity(i,j) * col_pp%dz(ii,j) * denh2o
           h2osoi_liq_total = h2osoi_liq_total + col_ws%h2osoi_liq(ii,j)
           if (this%verbosity >= 2) then
              write(iulog,*) "GET: saturation : column ", i, " cell ", j, " = ", col_ws%h2osoi_liq(ii,j)
-             write(iulog,*) "ELM: porosity : column ", i, " cell ", j, " = ", porosity(ii,j)
+             write(iulog,*) "ELM: porosity : column ", i, " cell ", j, " = ", porosity(i,j)
              write(iulog,*) "ELM: dz : column ", i, " cell ", j, " = ", col_pp%dz(ii,j)
              write(iulog,*) "ELM: density = ", denh2o
              write(iulog,*) "GET: h2osoi_liq : column ", i, " cell ", j, " = ", col_ws%h2osoi_liq(ii,j)

@@ -428,10 +428,10 @@ contains
     allocate(lcount(1))
     lcount(1) = n_ats_cells
     allocate(gcount(npes))
-    call MPI_Alltoall(lcount, 1, MPI_INTEGER, &
+    call MPI_Allgather(lcount(1), 1, MPI_INTEGER, &
          gcount, 1, MPI_INTEGER, mpicom, ier)
     if (ier /= 0) then
-       write(iulog,*) 'decompInit_ats(): Alltoall failed'
+       write(iulog,*) 'decompInit_ats(): Allgather failed'
        call endrun(msg=errMsg(__FILE__, __LINE__))
     end if
 
