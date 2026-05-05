@@ -224,14 +224,14 @@ contains
     allocate(this%npf                                (1:14))        ; this%npf                           (:)   = ival
     !allocate(this%atm_input       (14,begg:endg,1,1:600000))        ; this%atm_input               (:,:,:,:)   = ival_short
     allocate(this%loaded_bypassdata                        )        ; this%loaded_bypassdata                   = 0
-    allocate(this%add_offsets                        (1:14))        ; this%add_offsets                   (:)   = ival_float 
-    allocate(this%scale_factors                      (1:14))        ; this%scale_factors                 (:)   = ival_float
+    allocate(this%add_offsets                        (1:14))        ; this%add_offsets                   (:)   = 0.0_r8
+    allocate(this%scale_factors                      (1:14))        ; this%scale_factors                 (:)   = 1.0_r8
     allocate(this%startyear_met                            )        ; this%startyear_met                       = ival_int
     allocate(this%endyear_met_spinup                       )        ; this%endyear_met_spinup                  = ival_int
     allocate(this%endyear_met_trans                        )        ; this%endyear_met_trans                   = ival_int
     allocate(this%timeres                            (1:14))        ; this%timeres                       (:)   = ival
     allocate(this%var_offset              (14,begg:endg,12))        ; this%var_offset                (:,:,:)   = ival
-    allocate(this%var_mult                (14,begg:endg,12))        ; this%var_mult                  (:,:,:)   = ival
+    allocate(this%var_mult                (14,begg:endg,12))        ; this%var_mult                  (:,:,:)   = 1.0_r8
     allocate(this%co2_input                      (1,1,3000))        ; this%co2_input                 (:,:,:)   = ival    
     allocate(this%c13o2_input                    (1,1,3000))        ; this%c13o2_input               (:,:,:)   = ival
     allocate(this%ndepind                     (begg:endg,2))        ; this%ndepind                     (:,:)   = ival_int
