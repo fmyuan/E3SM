@@ -301,6 +301,7 @@ contains
     integer  :: jtop(bounds%begc:bounds%endc)                ! top level at each column
     integer  :: jbot(bounds%begc:bounds%endc)                ! bottom level at each column
     real(r8) :: delta_z_zwt
+    real(r8) :: watsat(bounds%begc:bounds%endc,1:nlevgrnd)    ! volumetric soil water at saturation (porosity or eff_porosity)
     real(r8) :: hk(bounds%begc:bounds%endc,1:nlevgrnd)        ! hydraulic conductivity [mm h2o/s]
     real(r8) :: dhkdw(bounds%begc:bounds%endc,1:nlevgrnd)     ! d(hk)/d(vol_liq)
     real(r8) :: amx(bounds%begc:bounds%endc,1:nlevgrnd+1)     ! "a" left off diagonal of tridiagonal matrix
@@ -361,7 +362,7 @@ contains
          hkdepth           =>    soilhydrology_vars%hkdepth_col     , & ! Input:  [real(r8) (:)   ]  decay factor (m)
 
          smpmin            =>    soilstate_vars%smpmin_col          , & ! Input:  [real(r8) (:)   ]  restriction for min of soil potential (mm)
-         watsat            =>    soilstate_vars%watsat_col          , & ! Input:  [real(r8) (:,:) ]  volumetric soil water at saturation (porosity)
+         watsat0           =>    soilstate_vars%watsat_col          , & ! Input:  [real(r8) (:,:) ]  volumetric soil water at saturation (porosity)
          hksat             =>    soilstate_vars%hksat_col           , & ! Input:  [real(r8) (:,:) ]  hydraulic conductivity at saturation (mm H2O /s)
          bsw               =>    soilstate_vars%bsw_col             , & ! Input:  [real(r8) (:,:) ]  Clapp and Hornberger "b"
          sucsat            =>    soilstate_vars%sucsat_col          , & ! Input:  [real(r8) (:,:) ]  minimum soil suction (mm)
@@ -387,16 +388,19 @@ contains
       do fc = 1, num_hydrologyc
         c = filter_hydrologyc(fc)
         nlevbed = nlev2bed(c)
+        watsat(c,:) = watsat0(c,:)
         do j = 1, nlevbed
             zmm(c,j) = z(c,j)*1.e3_r8
             dzmm(c,j) = dz(c,j)*1.e3_r8
             zimm(c,j) = zi(c,j)*1.e3_r8
 
             ! calculate icefrac up here
-            vol_ice(c,j) = min(watsat(c,j), h2osoi_ice(c,j)/(dz(c,j)*denice))
-            icefrac(c,j) = min(1._r8,vol_ice(c,j)/watsat(c,j))
+            vol_ice(c,j) = min(watsat0(c,j), h2osoi_ice(c,j)/(dz(c,j)*denice))
+            icefrac(c,j) = min(1._r8,vol_ice(c,j)/watsat0(c,j))
             vwc_liq(c,j) = max(h2osoi_liq(c,j),1.0e-6_r8)/(dz(c,j)*denh2o)
+            watsat(c,j) = max(0.01_r8,watsat0(c,j)-vol_ice(c,j)) ! eff_porosity, but for convenience to avoid a lot of edits of code
          end do
+
       end do
 
       do fc = 1, num_hydrologyc
