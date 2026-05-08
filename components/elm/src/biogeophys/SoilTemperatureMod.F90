@@ -979,7 +979,7 @@ contains
                            else
                               dke = satw
                            endif
-                           dksat = (tkmg(c,j)**(1-watsat))*(tkwat**watsat)
+                           dksat = (tkmg(c,j)**(1-watsat(c,j)))*(tkwat**watsat(c,j))
                         else
                            if (om_frac .lt. 1_r8) then
                               dke = satw**2
@@ -988,11 +988,11 @@ contains
                            endif
                            fl = (h2osoi_liq(c,j)/(denh2o*dz(c,j))) / (h2osoi_liq(c,j)/(denh2o*dz(c,j)) + &
                               h2osoi_ice(c,j)/(denice*dz(c,j)))
-                           dksat = (tkmg(c,j)**(1-watsat))*(tkice**((1._r8-fl)*watsat))*(tkwat**(fl*watsat))
+                           dksat = (tkmg(c,j)**(1-watsat(c,j)))*(tkice**((1._r8-fl)*watsat(c,j)))*(tkwat**(fl*watsat(c,j)))
                         endif  
-                        thk = (dksat - tkdry(c,j))*dke + tkdry(c,j) 
+                        thk(c,j) = (dksat - tkdry(c,j))*dke + tkdry(c,j) 
                      else
-                        thk = tkdry(c,j)
+                        thk(c,j) = tkdry(c,j)
                      endif
                   endif
 
