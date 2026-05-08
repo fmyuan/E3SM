@@ -941,19 +941,7 @@ contains
                   satw = (h2osoi_liq(c,j)/denh2o + h2osoi_ice(c,j)/denice)/(dz(c,j)*watsat(c,j))
                   satw = min(1._r8, satw)
 
-                  ! Extract soil texture for current column and layer
-                  if (j <= nlevsoi) then
-                     sand = cellsand(c,j) / 100.0_r8    ! Convert from % to fraction
-                     clay = cellclay(c,j) / 100.0_r8    ! Convert from % to fraction
-                     gravel = cellgrvl(c,j) / 100.0_r8  ! Convert from % to fraction
-                     om_frac = cellorg(c,j) / organic_max
-                  else
-                     ! Below nlevsoi, use values from bottom soil layer
-                     sand = cellsand(c,nlevsoi) / 100.0_r8
-                     clay = cellclay(c,nlevsoi) / 100.0_r8
-                     gravel = cellgrvl(c,nlevsoi) / 100.0_r8
-                     om_frac = 0.0_r8
-                  end if
+
 
                   if (.not. use_balland_and_arp) then
                      if (satw > .1e-6_r8) then
@@ -970,7 +958,20 @@ contains
                         thk(c,j) = tkdry(c,j)
                      endif
                   else
-                     if (satw > .1_e6_r8) then
+                     ! Extract soil texture for current column and layer
+                     if (j <= nlevsoi) then
+                        sand = cellsand(c,j) / 100.0_r8    ! Convert from % to fraction
+                        clay = cellclay(c,j) / 100.0_r8    ! Convert from % to fraction
+                        gravel = cellgrvl(c,j) / 100.0_r8  ! Convert from % to fraction
+                        om_frac = cellorg(c,j) / organic_max
+                     else
+                        ! Below nlevsoi, use values from bottom soil layer
+                        sand = cellsand(c,nlevsoi) / 100.0_r8
+                        clay = cellclay(c,nlevsoi) / 100.0_r8
+                        gravel = cellgrvl(c,nlevsoi) / 100.0_r8
+                        om_frac = 0.0_r8
+                     end if
+                     if (satw > .1e-6_r8) then
                         if (t_soisno(c,j) > tfrz) then
                            if (om_frac .lt. 1_r8) then
                               dke = satw**(0.5_r8*(1_r8+om_frac-0.24_r8*sand-gravel)) * &
