@@ -1118,7 +1118,7 @@ contains
     real(r8) :: hm(bounds%begc:bounds%endc) !energy residual [W/m2                         ]
     real(r8) :: xm(bounds%begc:bounds%endc) !melting or freezing within a time step [kg/m2 ]
     real(r8) :: tinc                        !t(n+1)-t(n) (K)
-    real(r8) :: smp                         !frozen water potential (mm)
+    !real(r8) :: smp                         !frozen water potential (mm)
     real(r8) :: rho_avg
     real(r8) :: z_avg
     real(r8) :: c1
@@ -1477,8 +1477,8 @@ contains
                supercool(c,j) = 0.0_r8
                if (col_pp%is_soil(c) .or. col_pp%is_crop(c) .or. col_pp%itype(c) == icol_road_perv) then
                   if(t_soisno(c,j) < tfrz) then
-                     smp_i = hfus*(tfrz-t_soisno(c,j))/(grav*t_soisno(c,j)) * 1000._r8  !(mm)
-                     supercool(c,j) = watsat(c,j)*(smp_i/sucsat(c,j))**(-1._r8/bsw(c,j))
+                     smp_i(c,j) = hfus*(tfrz-t_soisno(c,j))/(grav*t_soisno(c,j)) * 1000._r8  !(mm)
+                     supercool(c,j) = watsat(c,j)*(smp_i(c,j)/sucsat(c,j))**(-1._r8/bsw(c,j))
                      supercool(c,j) = supercool(c,j)*dz(c,j)*1000._r8       ! (mm)
                   endif
                endif
