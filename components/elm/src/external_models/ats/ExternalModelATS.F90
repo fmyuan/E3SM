@@ -173,7 +173,7 @@ contains
     !
     ! note we initially copy over total porosity, not effective
     ! porosity, because it is uninitialized at the first step.
-    call EM_ATS_SetField_CopySubsurface(this, "effective porosity", ats_var_id%EFFECTIVE_POROSITY, &
+    call EM_ATS_SetField_CopySubsurface(this, "base porosity", ats_var_id%BASE_POROSITY, &
          soilstate_vars%watsat_col)
     ! call ats_set_field(this%ats, ats_var_id%HYDRAULIC_CONDUCTIVITY, ...)
     ! call ats_set_field(this%ats, ats_var_id%CLAPP_HORN_B, ...)
@@ -188,8 +188,8 @@ contains
     ! ats init
     call ats_initialize(this%ats)
 
-    ! copy back initial water contents, using full porosity (not effective)
-    call EM_ATS_GetField_WaterContent(this, col_pp, soilstate_vars, col_ws, soilhydrology_vars, soilstate_vars%watsat_col)
+    ! copy back initial water contents
+    call EM_ATS_GetField_WaterContent(this, col_pp, soilstate_vars, col_ws, soilhydrology_vars)
 
     ! additionally re-save old water
     do i = 1, this%ncolumns
@@ -284,7 +284,7 @@ contains
     ! pass state back to ELM
     ! TODO: ETC -- Step 4
     ! note we use the same porosity as set above
-    call EM_ATS_GetField_WaterContent(this, col_pp, soilstate_vars, col_ws, soilhydrology_vars, soilstate_vars%eff_porosity_col)
+    call EM_ATS_GetField_WaterContent(this, col_pp, soilstate_vars, col_ws, soilhydrology_vars)
     
     ! get actual fluxes back and apply the downregulation where needed
     call EM_ATS_GetField_ActualEvaporation(this, col_wf)
@@ -663,13 +663,12 @@ contains
   ! -----------------------------------------------------------------------
   ! Special purpose -- get the water content fields
   !
-  subroutine EM_ATS_GetField_WaterContent(this, col_pp, soilstate_vars, col_ws, soilhydrology_vars, porosity)
+  subroutine EM_ATS_GetField_WaterContent(this, col_pp, soilstate_vars, col_ws, soilhydrology_vars)
     use elm_varcon                 , only : denh2o
 
     implicit none
     class(em_ats_type)                   :: this
     type(column_physical_properties)     , intent(in)    :: col_pp
-    real(r8), intent(in)                     :: porosity(:,:)
     type(soilstate_type)     , intent(inout)    :: soilstate_vars
     type(column_water_state) , intent(inout)    :: col_ws
     type(soilhydrology_type) , intent(inout) :: soilhydrology_vars
@@ -678,6 +677,7 @@ contains
     ! locals
     integer :: i, ii, j
     real(r8) :: h2osoi_liq_total
+    integer :: lverbosity = 2
     
     ! Pressure -- note, we don't set soilp here, just soilpsi.  Is
     ! soilp used?  GDB suggests not...
@@ -703,24 +703,28 @@ contains
     end do
 
     ! Water content
-    call EM_ATS_GetField_CopySubsurface(this, "saturation", ats_var_id%SATURATION_LIQUID, &
+    call EM_ATS_GetField_CopySubsurface(this, "water_content", ats_var_id%WATER_CONTENT, &
          col_ws%h2osoi_liq(:,1:this%nlevgrnd))
-    ! convert from saturation to kg / m^2
+    ! convert from volumetric water content to kg / m^2
     do i=1,this%ncolumns
        ii = this%col_filter(i)
        h2osoi_liq_total = 0._r8
+
        do j=1,this%nlevgrnd
-          col_ws%h2osoi_liq(ii,j) = col_ws%h2osoi_liq(ii,j) * porosity(i,j) * col_pp%dz(ii,j) * denh2o
+          if (this%verbosity >= (lverbosity+1)) then
+             write(iulog,*) "GET: volumetric_water_content [-] : column ", i, " cell ", j, " = ", col_ws%h2osoi_liq(ii,j)
+          endif
+
+          col_ws%h2osoi_liq(ii,j) = col_ws%h2osoi_liq(ii,j) * denh2o * col_pp%dz(ii,j)
           h2osoi_liq_total = h2osoi_liq_total + col_ws%h2osoi_liq(ii,j)
-          if (this%verbosity >= 2) then
-             write(iulog,*) "GET: saturation : column ", i, " cell ", j, " = ", col_ws%h2osoi_liq(ii,j)
-             write(iulog,*) "ELM: porosity : column ", i, " cell ", j, " = ", porosity(i,j)
+
+          if (this%verbosity >= (lverbosity+1)) then
              write(iulog,*) "ELM: dz : column ", i, " cell ", j, " = ", col_pp%dz(ii,j)
              write(iulog,*) "ELM: density = ", denh2o
-             write(iulog,*) "GET: h2osoi_liq : column ", i, " cell ", j, " = ", col_ws%h2osoi_liq(ii,j)
+             write(iulog,*) "GET: h2osoi_liq [kg m^-2] : column ", i, " cell ", j, " = ", col_ws%h2osoi_liq(ii,j)
           end if
        end do
-       if (this%verbosity >= 1) then
+       if (this%verbosity >= lverbosity) then
           write(iulog,*) "GET: h2osoi_liq total : column ", i, " total = ", h2osoi_liq_total
        end if
     end do
@@ -734,7 +738,7 @@ contains
     do i=1,this%ncolumns
        ii = this%col_filter(i)
        col_ws%h2osfc(ii) = col_ws%h2osfc(ii) * denh2o
-       if (this%verbosity >= 1) then
+       if (this%verbosity >= lverbosity) then
           write(iulog,*) "GET: h2osfc total : column ", i, " total = ", col_ws%h2osfc(ii)
        end if
     end do
@@ -758,10 +762,10 @@ contains
     real(r8) :: h2osoi_liq_tot
     real(c_double), pointer :: ats_surf_wc(:)
     real(c_double), pointer :: ats_wc(:)
-    
+    integer :: lverbosity = 2    
 
-    ! set porosity to be the liquid porosity (e.g. ice = soil)
-    call EM_ATS_SetField_CopySubsurface(this, "effective porosity", ats_var_id%EFFECTIVE_POROSITY, &
+    ! set base porosity to be the liquid porosity (e.g. ice = soil)
+    call EM_ATS_SetField_CopySubsurface(this, "base porosity", ats_var_id%BASE_POROSITY, &
          soilstate_vars%eff_porosity_col)
 
     ! set surface water content
@@ -770,7 +774,7 @@ contains
        ii = this%col_filter(i)
        ! h2osfc in mm --> m
        ats_surf_wc(i) = col_ws%h2osfc(ii) / denh2o
-       if (this%verbosity >= 1) then
+       if (this%verbosity >= lverbosity) then
           write(iulog,*) "SET: h2osfc total : column ", i, " total = ", col_ws%h2osfc(ii)
        end if
     end do
@@ -787,7 +791,7 @@ contains
           h2osoi_liq_tot = h2osoi_liq_tot + col_ws%h2osoi_liq(ii,j)
        end do
 
-       if (this%verbosity >= 1) then
+       if (this%verbosity >= lverbosity) then
           write(iulog,*) "SET: h2osoi_liq total : column ", i, " total = ", h2osoi_liq_tot
        end if
     end do
@@ -808,6 +812,7 @@ contains
     integer :: i,ii, pp
     real(r8) :: downreg, downreg_eps, tot_trans, diff
     real(c_double), pointer :: ats_tot_trans(:)
+    integer :: lverbosity = 2
     
     ! get the total transpiration from ATS
     call EM_ATS_GetFieldPtr(this, ats_var_id%COLUMN_TRANSPIRATION, this%ncolumns, ats_tot_trans)
@@ -816,6 +821,11 @@ contains
        ii = this%col_filter(i)
        pp = this%pft_filter(i)
 
+       if (this%verbosity >= lverbosity) then
+          write(iulog,*) "     pot T : column ", i, " total = ", col_wf%qflx_tran_veg(ii)
+       end if
+
+       
        downreg = 1._r8
        if (col_wf%qflx_tran_veg(ii) > 0.) then
           tot_trans = ats_tot_trans(i) * 1.e3_r8 ! m/s -> mm/s
@@ -856,9 +866,12 @@ contains
 
           ! correct pft_tran_veg
           col_wf%qflx_tran_veg(ii) = tot_trans
+       else
+          tot_trans = 0.0_r8
        end if
 
-       if (this%verbosity >= 1) then
+       if (this%verbosity >= lverbosity) then
+          write(iulog,*) "     T actual : column ", i, " total = ", tot_trans
           write(iulog,*) "     T downreg : column ", i, " total = ", downreg
           write(iulog,*) "GET: actual transpiration : column ", i, " total = ", col_wf%qflx_tran_veg(ii)
        end if
@@ -879,6 +892,7 @@ contains
     integer :: i,ii
     real(r8) :: downreg, evap, pot_evap, diff
     real(c_double), pointer :: ats_pot_evap(:), ats_evap(:)
+    integer :: lverbosity = 2
     
     ! get the total evaporation from ATS
     call EM_ATS_GetFieldPtr(this, ats_var_id%EVAPORATION, this%ncolumns, ats_evap)
@@ -893,9 +907,9 @@ contains
        diff = pot_evap - evap
        downreg = 1.0
 
-       if (this%verbosity >= 1) then
+       if (this%verbosity >= lverbosity) then
           write(iulog,*) "     pot evaporation : column ", i, " = ", pot_evap
-          write(iulog,*) "     qflx_evap_tot : column ", i, " = ", col_wf%qflx_evap_tot
+          write(iulog,*) "     qflx_evap_tot : column ", i, " = ", col_wf%qflx_evap_tot(i)
        end if
 
        if (pot_evap > 0. .and. diff > 0.) then
@@ -915,11 +929,11 @@ contains
           col_wf%qflx_evap_tot(ii) = col_wf%qflx_evap_tot(ii) - diff
        end if
 
-       if (this%verbosity >= 1) then
+       if (this%verbosity >= lverbosity) then
           write(iulog,*) "     pot evaporation : column ", i, " = ", pot_evap
+          write(iulog,*) "GET: actual evaporation : column ", i, " = ", evap
           write(iulog,*) "     E downreg : column ", i, " total = ", downreg
           write(iulog,*) "     E difference : column ", i, " = ", diff
-          write(iulog,*) "GET: actual evaporation : column ", i, " = ", evap
        end if
     end do
   end subroutine EM_ATS_GetField_ActualEvaporation
