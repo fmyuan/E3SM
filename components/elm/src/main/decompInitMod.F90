@@ -452,6 +452,11 @@ contains
        end if
     end do
 
+    write(iulog,*) 'decompInit_ats(): rank ', iam, &
+         ' begg=', procinfo%begg, ' endg=', procinfo%endg, &
+         ' ncells=', procinfo%endg - procinfo%begg + 1, &
+         ' (n_ats_cells=', n_ats_cells, ')'
+
     lns = lni * lnj
     if (lns /= begg) then
        write(iulog,*) 'decompInit_ats(): ELM num grid cells = ', lns, ' but ATS has ', begg

@@ -150,7 +150,7 @@ contains
     use elm_varcon, only : spval, re
     use domainMod , only : domain_type, domain_init, domain_clean, lon1d, lat1d
     use fileutils , only : getfil
-    use elm_varctl, only : use_pflotran
+    use elm_varctl, only : use_pflotran, use_ats
     !
     ! !ARGUMENTS:
     integer          ,intent(in)    :: begg, endg 
@@ -221,11 +221,21 @@ contains
     ! Read in area, lon, lat
 
     if (istype_domain) then
-       call ncd_io(ncid=ncid, varname= 'area', flag='read', data=ldomain%area, &
-            dim1name=grlnd, readvar=readvar)
-       ! convert from radians**2 to km**2
-       ldomain%area = ldomain%area * (re**2)
-       if (.not. readvar) call endrun( msg=' ERROR: area NOT on file'//errMsg(__FILE__, __LINE__))
+       if (use_ats) call check_var(ncid=ncid, varname='area_km2', vardesc=vardesc, readvar=readvar)
+       if (use_ats .and. readvar) then
+          call ncd_io(ncid=ncid, varname='area_km2', flag='read', data=ldomain%area, &
+               dim1name=grlnd, readvar=readvar)
+          if (.not. readvar) call endrun( msg=' ERROR: area_km2 NOT on file'//errMsg(__FILE__, __LINE__))
+          write(iulog,*) 'surfrd_get_grid: rank ', iam, &
+               ' read area_km2 for cells ', begg, '..', endg, &
+               '; first 3 values:', ldomain%area(begg), ldomain%area(min(begg+1,endg)), ldomain%area(min(begg+2,endg))
+       else
+          call ncd_io(ncid=ncid, varname= 'area', flag='read', data=ldomain%area, &
+               dim1name=grlnd, readvar=readvar)
+          ! convert from radians**2 to km**2
+          ldomain%area = ldomain%area * (re**2)
+          if (.not. readvar) call endrun( msg=' ERROR: area NOT on file'//errMsg(__FILE__, __LINE__))
+       end if
        
        call ncd_io(ncid=ncid, varname= 'xc', flag='read', data=ldomain%lonc, &
             dim1name=grlnd, readvar=readvar)

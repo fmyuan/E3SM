@@ -9,7 +9,7 @@ module ExternalModelATS
   ! ELM modules
   use iso_c_binding
   use shr_kind_mod                 , only : r8 => shr_kind_r8
-  use spmdMod                      , only : mpicom
+  use spmdMod                      , only : mpicom,iam
   use abortutils                   , only : endrun
   use histFileMod                  , only : hist_nhtfrq
   use elm_varpar                   , only : nlevgrnd
@@ -576,6 +576,7 @@ contains
     call ats_get_mesh_info2(this%ats, ats_ncols_local, ats_ncols_global, ats_nlevgrnd, ats_dzs, ats_areas, ats_lats, ats_lons)
 
     ! assertions on shapes
+    write(iulog,*) "Partitioning: on rank ", iam, " ATS has ", ats_ncols_local
     if (ats_ncols_local /= this%ncolumns) then
        call endrun("ATS local ncolumns does not match requested ncolumns")
     end if
@@ -597,11 +598,19 @@ contains
     ! check column areas
     do i=1,this%ncolumns
        ii = this%col_filter(i)
-       if (abs(ats_areas(i) - grc_pp%area(col_pp%gridcell(ii))) > 1.e-10_r8) then
+       ! note ats_areas in m^2, grc_pp%area in km^2
+       ! use relative tolerance: areas computed via two independent paths (shapely->NetCDF->ELM
+       ! vs MSTK getCellVolume) can differ by ~1e-7 relative due to floating-point rounding
+       if (abs(1.e-6_r8 * ats_areas(i) - grc_pp%area(col_pp%gridcell(ii))) &
+            > 1.e-6_r8 * grc_pp%area(col_pp%gridcell(ii))) then
           write(iulog,*) "WARNING: ATS column areas do not match ELM grid cell areas -- perhaps incorrect ordering."
-          ! call endrun("ATS column areas do not match ELM grid cell areas -- perhaps incorrect ordering.")
+          write(iulog,*) "  on rank ", iam, " and column ", i
+          write(iulog,*) "  ATS area [km^2] = ", 1.e-6_r8 * ats_areas(i)
+          write(iulog,*) "  ELM area [km^2] = ", grc_pp%area(col_pp%gridcell(ii))
+          call endrun("ATS column areas do not match ELM grid cell areas -- perhaps incorrect ordering.")
        end if
     end do
+    write(iulog,*) "On rank ", iam, " areas match!"
 
     ! check lat lon
     if (ats_lons(1) >= 0.) then
