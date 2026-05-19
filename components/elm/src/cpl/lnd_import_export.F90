@@ -117,7 +117,10 @@ contains
     integer :: sdate_addco2, sy_addco2, sm_addco2, sd_addco2
     character(len=200) metsource_str, thisline
     character(len=*), parameter :: sub = 'lnd_import_mct'
-    integer :: av, v, n, nummetdims, g3, gtoget, ztoget, line, mystart, tod_start, thistimelen  
+    integer :: av, v, n, nummetdims, g3, gtoget, ztoget, line, mystart, tod_start, thistimelen
+    integer, allocatable :: gtoget_all(:), ztoget_all(:)
+    integer :: met_ngrid
+    integer*2, allocatable :: met_buf(:,:)
     character(len=20) aerovars(14), metvars(14)
     character(len=3) zst
     integer :: stream_year_first_lightng, stream_year_last_lightng, model_year_align_lightng
@@ -226,14 +229,343 @@ contains
       end if
     end if
 
+#ifdef CPL_BYPASS
+    !-----------------------------------Meteorological forcing  -----------------------------------
+    !On first timestep, read all met data for all gridcells and store in memory.
+    !Files are opened once per variable (not once per cell) to avoid stack overflow in
+    !NetCDF's NC_infermodel when the cell count is large (e.g. 2701 cells x 7 vars = 18907 opens).
+
+    call get_curr_date( yr, mon, day, tod )
+    thiscalday = get_curr_calday()
+    nstep = get_nstep()
+
+    met_nvars=7
+    if (metdata_type(1:3) == 'cpl') met_nvars=14
+
+    if (atm2lnd_vars%loaded_bypassdata == 0) then
+      if (index(metdata_type, 'qian') .gt. 0) then
+        atm2lnd_vars%metsource = 0
+      else if (index(metdata_type,'cru') .gt. 0) then
+        atm2lnd_vars%metsource = 1
+      else if (index(metdata_type,'site') .gt. 0) then
+        atm2lnd_vars%metsource = 2
+      else if (index(metdata_type,'princeton') .gt. 0) then
+        atm2lnd_vars%metsource = 3
+      else if (index(metdata_type,'gswp3') .gt. 0) then
+        atm2lnd_vars%metsource = 4
+      else if (index(metdata_type,'cpl') .gt. 0) then
+        atm2lnd_vars%metsource = 5
+      else if (index(metdata_type,'era5') .gt. 0) then
+        atm2lnd_vars%metsource = 6
+      else if (index(metdata_type,'atssubdaily') .gt. 0) then
+        atm2lnd_vars%metsource = 8
+      else
+        call endrun( sub//' ERROR: Invalid met data source for cpl_bypass' )
+      end if
+
+      use_livneh = .false.
+      use_daymet = .false.
+      if (index(metdata_type, 'livneh') .gt. 0) then
+        use_livneh = .true.
+      else if (index(metdata_type, 'daymet') .gt. 0) then
+        use_daymet = .true.
+      end if
+
+      metvars(1) = 'TBOT'
+      metvars(2) = 'PSRF'
+      metvars(3) = 'QBOT'
+      if (atm2lnd_vars%metsource .eq. 2) metvars(3) = 'RH'
+      metvars(4) = 'FSDS'
+      metvars(5) = 'PRECTmms'
+      metvars(6) = 'WIND'
+      metvars(7) = 'FLDS'
+      if (atm2lnd_vars%metsource .eq. 5) then
+        metvars(6) = 'U'
+        metvars(8) = 'SWNDR'
+        metvars(9) = 'SWVDF'
+        metvars(10) = 'SWVDR'
+        metvars(11) = 'RAINL'
+        metvars(12) = 'SNOWC'
+        metvars(13) = 'SNOWL'
+        metvars(14) = 'V'
+      end if
+
+      !set defaults
+      atm2lnd_vars%startyear_met       = 1901
+      atm2lnd_vars%endyear_met_spinup  = 1920
+      if (atm2lnd_vars%metsource == 0) then
+        metsource_str = 'qian'
+        atm2lnd_vars%startyear_met       = 1948
+        atm2lnd_vars%endyear_met_spinup  = 1972
+        atm2lnd_vars%endyear_met_trans   = 2004
+      else if (atm2lnd_vars%metsource == 1) then
+        metsource_str = 'cruncep'
+        atm2lnd_vars%endyear_met_trans  = 2016
+      else if (atm2lnd_vars%metsource == 2) then
+        metsource_str = 'site'
+        ierr = nf90_open(trim(metdata_bypass) // '/all_hourly.nc', nf90_nowrite, ncid)
+        ierr = nf90_inq_varid(ncid, 'start_year', varid)
+        ierr = nf90_get_var(ncid, varid, atm2lnd_vars%startyear_met)
+        ierr = nf90_inq_varid(ncid, 'end_year', varid)
+        ierr = nf90_get_var(ncid, varid, atm2lnd_vars%endyear_met_spinup)
+        ierr = nf90_close(ncid)
+        atm2lnd_vars%endyear_met_trans = atm2lnd_vars%endyear_met_spinup
+      else if (atm2lnd_vars%metsource == 3) then
+        metsource_str = 'princeton'
+        atm2lnd_vars%endyear_met_trans = 2012
+      else if (atm2lnd_vars%metsource == 4) then
+        atm2lnd_vars%endyear_met_trans  = 2014
+      else if (atm2lnd_vars%metsource == 5) then
+        atm2lnd_vars%startyear_met      = 566
+        atm2lnd_vars%endyear_met_spinup = 590
+        atm2lnd_vars%endyear_met_trans  = 590
+      else if (atm2lnd_vars%metsource == 6) then
+        atm2lnd_vars%startyear_met      = 1950
+        atm2lnd_vars%endyear_met_spinup = 1970
+        atm2lnd_vars%endyear_met_trans  = 2025
+      else if (atm2lnd_vars%metsource == 8) then
+        ierr = nf90_open(trim(metdata_bypass) // '/ATS-subdaily_TBOT_z01.nc', nf90_nowrite, ncid)
+        ierr = nf90_inq_varid(ncid, 'start_year', varid)
+        ierr = nf90_get_var(ncid, varid, atm2lnd_vars%startyear_met)
+        ierr = nf90_inq_varid(ncid, 'end_year', varid)
+        ierr = nf90_get_var(ncid, varid, atm2lnd_vars%endyear_met_spinup)
+        ierr = nf90_close(ncid)
+        atm2lnd_vars%endyear_met_trans = atm2lnd_vars%endyear_met_spinup
+      end if
+
+      if (use_livneh) then
+        atm2lnd_vars%startyear_met      = 1950
+        atm2lnd_vars%endyear_met_spinup = 1969
+      else if (use_daymet) then
+        atm2lnd_vars%startyear_met      = 1980
+        atm2lnd_vars%endyear_met_spinup = atm2lnd_vars%endyear_met_trans
+      end if
+
+      nyears_spinup = atm2lnd_vars%endyear_met_spinup - atm2lnd_vars%startyear_met + 1
+      nyears_trans  = atm2lnd_vars%endyear_met_trans  - atm2lnd_vars%startyear_met + 1
+
+      inquire(file=trim(metdata_biases), exist=use_sitedata)
+
+      !Read zone_mappings.txt once for all cells
+      inquire(file=trim(metdata_bypass) // '/zone_mappings.txt', exist=has_zonefile)
+      if (has_zonefile) then
+        open(unit=13, file=trim(metdata_bypass) // '/zone_mappings.txt')
+      else if (atm2lnd_vars%metsource .ne. 2) then
+        call endrun( sub//' ERROR: Zone mapping file does not exist for cpl_bypass' )
+      end if
+
+      if (atm2lnd_vars%metsource .ne. 2) then
+        ng = 0
+        do v=1,500000
+          read(13,*, end=10), longxy(v), latixy(v), zone_map(v), grid_map(v)
+          ng = ng + 1
+        end do
+10      continue
+        close(unit=13)
+      end if
+
+      !Pre-compute gtoget and ztoget for every local gridcell
+      allocate(gtoget_all(bounds%begg:bounds%endg))
+      allocate(ztoget_all(bounds%begg:bounds%endg))
+      do g = bounds%begg, bounds%endg
+        if (atm2lnd_vars%metsource .ne. 2) then
+          mindist = 99999
+          do g3 = 1,ng
+            thisdist = 100*((latixy(g3) - ldomain%latc(g))**2 + &
+                            (longxy(g3) - ldomain%lonc(g))**2)**0.5
+            if (thisdist .lt. mindist) then
+              mindist = thisdist
+              ztoget_all(g) = zone_map(g3)
+              gtoget_all(g) = grid_map(g3)
+            end if
+          end do
+        else
+          gtoget_all(g) = 1
+          ztoget_all(g) = 0
+        end if
+      end do
+
+      !Open each met file once per variable, read all local gridcells, then close.
+      !This avoids the NetCDF NC_infermodel stack overflow that occurs when nf90_open
+      !is called thousands of times (once per cell) for large grids.
+      do v=1,met_nvars
+        ztoget = ztoget_all(bounds%begg)
+        write(zst, '(I3)') 100+ztoget
+        if (atm2lnd_vars%metsource == 0) then
+          metdata_fname = trim(metsource_str) // '_' // trim(metvars(v)) // '_z' // zst(2:3) // '.nc'
+        else if (atm2lnd_vars%metsource == 1) then
+          metdata_fname = 'CRUNCEP.v5_' // trim(metvars(v)) // '_1901-2013_z' // zst(2:3) // '.nc'
+          if (use_livneh .and. ztoget .ge. 16 .and. ztoget .le. 20) then
+            metdata_fname = 'CRUNCEP5_Livneh_' // trim(metvars(v)) // '_1950-2013_z' // zst(2:3) // '.nc'
+          else if (use_daymet .and. ztoget .ge. 16 .and. ztoget .le. 20) then
+            metdata_fname = 'CRUNCEP5_Daymet3_' // trim(metvars(v)) // '_1980-2013_z' // zst(2:3) // '.nc'
+          end if
+        else if (atm2lnd_vars%metsource == 2) then
+          metdata_fname = 'all_hourly.nc'
+        else if (atm2lnd_vars%metsource == 3) then
+          metdata_fname = 'Princeton_' // trim(metvars(v)) // '_1901-2012_z' // zst(2:3) // '.nc'
+          if (use_livneh .and. ztoget .ge. 16 .and. ztoget .le. 20) then
+            metdata_fname = 'Princeton_Livneh_' // trim(metvars(v)) // '_1950-2012_z' // zst(2:3) // '.nc'
+          else if (use_daymet .and. ztoget .ge. 16 .and. ztoget .le. 20) then
+            metdata_fname = 'Princeton_Daymet3_' // trim(metvars(v)) // '_1980-2013_z' // zst(2:3) // '.nc'
+          end if
+        else if (atm2lnd_vars%metsource == 4) then
+          metdata_fname = 'GSWP3_' // trim(metvars(v)) // '_1901-2014_z' // zst(2:3) // '.nc'
+          if (use_livneh .and. ztoget .ge. 16 .and. ztoget .le. 20) then
+            metdata_fname = 'GSWP3_Livneh_' // trim(metvars(v)) // '_1950-2010_z' // zst(2:3) // '.nc'
+          else if (use_daymet .and. ztoget .ge. 16 .and. ztoget .le. 20) then
+            metdata_fname = 'GSWP3_Daymet3_' // trim(metvars(v)) // '_1980-2010_z' // zst(2:3) // '.nc'
+          end if
+        else if (atm2lnd_vars%metsource == 5) then
+          metdata_fname = 'CBGC1850S.ne30_' // trim(metvars(v)) // '_0566-0590_z' // zst(2:3) // '.nc'
+        else if (atm2lnd_vars%metsource == 6) then
+          metdata_fname = 'ERA5_' // trim(metvars(v)) // '_1950-2025_z' // zst(2:3) // '.nc'
+        else if (atm2lnd_vars%metsource == 8) then
+          metdata_fname = 'ATS-subdaily_' // trim(metvars(v)) // '_z' // zst(2:3) // '.nc'
+        end if
+
+        ierr = nf90_open(trim(metdata_bypass) // '/' // trim(metdata_fname), NF90_NOWRITE, met_ncids(v))
+        if (ierr .ne. 0) call endrun(msg=' ERROR: Failed to open cpl_bypass input meteorology file' )
+
+        ierr = nf90_inq_dimid(met_ncids(v), 'DTIME', dimid)
+        ierr = nf90_Inquire_Dimension(met_ncids(v), dimid, len = atm2lnd_vars%timelen(v))
+        starti(1) = 1
+        counti(1) = 2
+        ierr = nf90_inq_varid(met_ncids(v), 'DTIME', varid)
+        ierr = nf90_get_var(met_ncids(v), varid, timetemp, starti(1:1), counti(1:1))
+        atm2lnd_vars%timeres(v)        = (timetemp(2)-timetemp(1))*24._r8
+        atm2lnd_vars%npf(v)            = 86400d0*(timetemp(2)-timetemp(1))/get_step_size()
+        atm2lnd_vars%timelen_spinup(v) = nyears_spinup*(365*nint(24./atm2lnd_vars%timeres(v)))
+
+        ierr = nf90_inq_varid(met_ncids(v), trim(metvars(v)), varid)
+        atm2lnd_vars%scale_factors(v) = 1.0_r8
+        atm2lnd_vars%add_offsets(v)   = 0.0_r8
+        ierr = nf90_get_att(met_ncids(v), varid, 'scale_factor', atm2lnd_vars%scale_factors(v))
+        ierr = nf90_get_att(met_ncids(v), varid, 'add_offset', atm2lnd_vars%add_offsets(v))
+
+        counti(1) = atm2lnd_vars%timelen_spinup(v)
+        counti(2) = 1
+        if (.not. const_climate_hist .and. (yr .ge. 1850 .or. use_sitedata)) counti(1) = atm2lnd_vars%timelen(v)
+
+        if (v == 1) then
+          allocate(atm2lnd_vars%atm_input(met_nvars,bounds%begg:bounds%endg,1,1:counti(1)))
+        end if
+
+        !Read each unique gtoget value once and fill all cells sharing it.
+        !Uses a pointer alias so the single-zone case (all cells share gtoget=1)
+        !collapses to one NetCDF read and one array assignment.
+        allocate(met_buf(counti(1), 1))
+        starti(1) = 1
+        counti(2) = 1
+        gtoget = -1
+        do g = bounds%begg, bounds%endg
+          if (gtoget_all(g) /= gtoget) then
+            !new zone: read it, then fill this cell and all subsequent same-zone cells
+            gtoget = gtoget_all(g)
+            starti(2) = gtoget
+            ierr = nf90_get_var(met_ncids(v), varid, met_buf, starti(1:2), counti(1:2))
+            atm2lnd_vars%atm_input(v,g,1,:) = met_buf(:,1)
+          else
+            !same zone as previous cell: copy from already-filled cell g-1
+            atm2lnd_vars%atm_input(v,g,1,:) = atm2lnd_vars%atm_input(v,g-1,1,:)
+          end if
+        end do
+        deallocate(met_buf)
+
+        ierr = nf90_close(met_ncids(v))
+      end do   !end variable loop
+
+      !Compute site bias corrections and initialise tindex for each local cell
+      mystart = atm2lnd_vars%startyear_met  ! kept for clarity; equals startyear_met
+
+      do g = bounds%begg, bounds%endg
+        atm2lnd_vars%var_offset(:,g,:) = 0._r8
+        atm2lnd_vars%var_mult(:,g,:)   = 1._r8
+
+        if (use_sitedata) then
+          open(unit=9, file=trim(metdata_biases),status='old')
+          read(9,*) thisline
+          site_metdata(:,:)=-999._r8
+          do while ((site_metdata(1,1) .lt. ldomain%lonc(g) - 0.01 .or. &
+                  site_metdata(1,1) .gt. ldomain%lonc(g) + 0.01) .and. &
+                    (site_metdata(2,1) .lt. ldomain%latc(g) - 0.01 .or. &
+                     site_metdata(2,1) .gt. ldomain%latc(g) + 0.01))
+            read(9,*) site_metdata(1:7,1)
+            if (site_metdata(1,1) .lt. 0) site_metdata(1,1) = site_metdata(1,1)+360._r8
+          end do
+          do line=2,12
+            read(9,*) site_metdata(1:7,line)
+          end do
+          close(unit=9)
+
+          do v=1,met_nvars
+            if (v == 1) then
+              starti_site = max((nint(site_metdata(4,1))-atm2lnd_vars%startyear_met) * &
+                                   365*nint(24./atm2lnd_vars%timeres(v))+1,1)
+              endi_site   = (min(atm2lnd_vars%endyear_met_trans,nint(site_metdata(5,1))) - &
+                                   atm2lnd_vars%startyear_met+1)*(365*nint(24./atm2lnd_vars%timeres(v)))
+            end if
+            var_month_mean(:)  = 0._r8
+            var_month_count(:) = 0
+            do i=starti_site, endi_site
+              thisdoy = mod(i,365*nint(24./atm2lnd_vars%timeres(v)))/(nint(24./atm2lnd_vars%timeres(v)))+1
+              do m=1,12
+                if (thisdoy .ge. caldaym(m) .and. thisdoy .lt. caldaym(m+1)) thism = m
+              enddo
+              var_month_mean(thism) = var_month_mean(thism) + (atm2lnd_vars%atm_input(v,g,1,i)* &
+                                        atm2lnd_vars%scale_factors(v) + atm2lnd_vars%add_offsets(v))
+              var_month_count(thism) = var_month_count(thism)+1
+            end do
+            do m = 1,12
+              var_month_mean(m) = var_month_mean(m)/var_month_count(m)
+              if (v .eq. 1) atm2lnd_vars%var_offset(v,g,m) = (site_metdata(6,m)+SHR_CONST_TKFRZ) - var_month_mean(m)
+              if (v .eq. 5 .and. var_month_mean(m) .gt. 0) &
+                    atm2lnd_vars%var_mult(v,g,m) = (site_metdata(7,m))/(caldaym(m+1)-caldaym(m))/24._r8/ &
+                                                    3600._r8 / var_month_mean(m)
+            end do
+          end do
+        end if
+
+        do v=1,met_nvars
+          if (const_climate_hist) then
+            ! Spinup: cycle within the spinup record regardless of calendar year
+            atm2lnd_vars%tindex(g,v,1) = mod(max(yr - mystart, 0), nyears_spinup) * 365 * nint(24./atm2lnd_vars%timeres(v))
+          else
+            ! Transient: start date must lie within the met record
+            if (yr .lt. mystart) then
+              call endrun(msg=' ERROR: lnd_import_mct: RUN_STARTDATE is before the start of' // &
+                              ' the met forcing record. If running a spinup, set const_climate_hist=.true.' // &
+                              ' in user_nl_elm to cycle the met record.')
+            end if
+            if (yr .gt. atm2lnd_vars%endyear_met_trans) then
+              call endrun(msg=' ERROR: lnd_import_mct: RUN_STARTDATE is after the end of' // &
+                              ' the met forcing record -- check metdata_bypass and RUN_STARTDATE')
+            end if
+            atm2lnd_vars%tindex(g,v,1) = (yr - mystart) * 365 * nint(24./atm2lnd_vars%timeres(v))
+          end if
+          atm2lnd_vars%tindex(g,v,1) = atm2lnd_vars%tindex(g,v,1) + (caldaym(mon)+day-2)* &
+                                       nint(24./atm2lnd_vars%timeres(v))
+          atm2lnd_vars%tindex(g,v,2) = atm2lnd_vars%tindex(g,v,1) + 1
+          if (atm2lnd_vars%tindex(g,v,1) == 0) then
+            atm2lnd_vars%tindex(g,v,1) = atm2lnd_vars%timelen_spinup(v)
+          end if
+        end do
+      end do
+
+      deallocate(gtoget_all)
+      deallocate(ztoget_all)
+
+    end if   !end loaded_bypassdata == 0
+#endif
+
     do g = bounds%begg,bounds%endg
        i = 1 + (g - bounds%begg)
-       
+
        ! Determine flooding input, sign convention is positive downward and
        ! hierarchy is atm/glc/lnd/rof/ice/ocn.  so water sent from rof to land is negative,
        ! change the sign to indicate addition of water to system.
 
-       atm2lnd_vars%forc_flood_grc(g)   = -x2l(index_x2l_Flrr_flood,i)  
+       atm2lnd_vars%forc_flood_grc(g)   = -x2l(index_x2l_Flrr_flood,i)
 
        atm2lnd_vars%volr_grc(g)   = x2l(index_x2l_Flrr_volr,i) * (ldomain%area(g) * 1.e6_r8)
        atm2lnd_vars%volrmch_grc(g)= x2l(index_x2l_Flrr_volrmch,i) * (ldomain%area(g) * 1.e6_r8)
@@ -258,310 +590,17 @@ contains
 #ifdef CPL_BYPASS
         !read forcing data directly, bypass coupler
         atm2lnd_vars%forc_flood_grc(g)   = 0._r8
-        atm2lnd_vars%volr_grc(g)   = 0._r8 
-
-        !Get meteorological data, concatenated to include whole record
-        !Note we only do this at the first timestep and keep the whole forcing dataset in the memory
-       
-  !-----------------------------------Meteorological forcing  -----------------------------------
+        atm2lnd_vars%volr_grc(g)   = 0._r8
 
         call get_curr_date( yr, mon, day, tod )
         thiscalday = get_curr_calday()
         nstep = get_nstep()
 
-        !on first timestep, read all the met data for relevant gridcell(s) and store in array.
-        !   Met data are held in short integer format to save memory.
-        !   Each node must have enough memory to hold these data.
         met_nvars=7
         if (metdata_type(1:3) == 'cpl') met_nvars=14
 
-        if (atm2lnd_vars%loaded_bypassdata == 0) then
-          !meteorological forcing
-          if (index(metdata_type, 'qian') .gt. 0) then 
-            atm2lnd_vars%metsource = 0   
-          else if (index(metdata_type,'cru') .gt. 0) then
-            atm2lnd_vars%metsource = 1  
-          else if (index(metdata_type,'site') .gt. 0) then 
-            atm2lnd_vars%metsource = 2
-          else if (index(metdata_type,'princeton') .gt. 0) then 
-            atm2lnd_vars%metsource = 3
-          else if (index(metdata_type,'gswp3') .gt. 0) then
-            atm2lnd_vars%metsource = 4
-          else if (index(metdata_type,'cpl') .gt. 0) then 
-            atm2lnd_vars%metsource = 5
-          else if (index(metdata_type,'era5') .gt. 0) then
-            atm2lnd_vars%metsource = 6
-          else
-            call endrun( sub//' ERROR: Invalid met data source for cpl_bypass' )
-          end if
-
-          use_livneh = .false.
-          use_daymet = .false.
-          if(index(metdata_type, 'livneh') .gt. 0) then 
-              use_livneh = .true.
-          else if (index(metdata_type, 'daymet') .gt. 0) then 
-              use_daymet = .true.
-          end if
- 
-          metvars(1) = 'TBOT'
-          metvars(2) = 'PSRF'
-          metvars(3) = 'QBOT'
-          if (atm2lnd_vars%metsource .eq. 2) metvars(3) = 'RH'
-          if (atm2lnd_vars%metsource .ne. 5) metvars(4) = 'FSDS'
-          if (atm2lnd_vars%metsource .ne. 5) metvars(5) = 'PRECTmms'
-          if (atm2lnd_vars%metsource .ne. 5) metvars(6) = 'WIND'
-          metvars(4) = 'FSDS'
-          metvars(5) = 'PRECTmms'
-          metvars(6) = 'WIND'
-          metvars(7) = 'FLDS'
-          if (atm2lnd_vars%metsource .eq. 5) then 
-              metvars(4) = 'SWNDF'
-              metvars(5) = 'RAINC'
-              metvars(6) = 'U'
-              metvars(8) = 'SWNDR'
-              metvars(9) = 'SWVDF'
-              metvars(10) = 'SWVDR'
-              metvars(11) = 'RAINL'
-              metvars(12) = 'SNOWC'
-              metvars(13) = 'SNOWL'
-              metvars(14) = 'V'
-          else
-              metvars(4) = 'FSDS'
-              metvars(5) = 'PRECTmms'
-              metvars(6) = 'WIND'
-          end if
-
-          !set defaults
-          atm2lnd_vars%startyear_met       = 1901
-          atm2lnd_vars%endyear_met_spinup  = 1920
-          if (atm2lnd_vars%metsource == 0) then 
-            metsource_str = 'qian'
-            atm2lnd_vars%startyear_met       = 1948
-            atm2lnd_vars%endyear_met_spinup  = 1972
-            atm2lnd_vars%endyear_met_trans   = 2004
-          else if (atm2lnd_vars%metsource == 1) then 
-            metsource_str = 'cruncep'
-            atm2lnd_vars%endyear_met_trans  = 2016
-          else if (atm2lnd_vars%metsource == 2) then
-            metsource_str = 'site'
-            !get year information from file
-            ierr = nf90_open(trim(metdata_bypass) // '/all_hourly.nc', nf90_nowrite, ncid)
-            ierr = nf90_inq_varid(ncid, 'start_year', varid) 
-            ierr = nf90_get_var(ncid, varid, atm2lnd_vars%startyear_met)
-            ierr = nf90_inq_varid(ncid, 'end_year', varid)
-            ierr = nf90_get_var(ncid, varid, atm2lnd_vars%endyear_met_spinup)
-            ierr = nf90_close(ncid)
-            atm2lnd_vars%endyear_met_trans = atm2lnd_vars%endyear_met_spinup
-          else if (atm2lnd_vars%metsource == 3) then 
-            metsource_str = 'princeton'
-            atm2lnd_vars%endyear_met_trans = 2012 
-          else if (atm2lnd_vars%metsource == 4) then 
-            atm2lnd_vars%endyear_met_trans  = 2014
-          else if (atm2lnd_vars%metsource == 5) then
-            atm2lnd_vars%startyear_met      = 566 !76
-            atm2lnd_vars%endyear_met_spinup = 590 !100
-            atm2lnd_vars%endyear_met_trans  = 590 !100
-          else if (atm2lnd_vars%metsource == 6) then
-            atm2lnd_vars%startyear_met      = 1950
-            atm2lnd_vars%endyear_met_spinup = 1970
-            atm2lnd_vars%endyear_met_trans  = 2025
-          end if
-
-          if (use_livneh) then 
-              atm2lnd_vars%startyear_met      = 1950
-              atm2lnd_vars%endyear_met_spinup = 1969
-          else if (use_daymet) then 
-              atm2lnd_vars%startyear_met      = 1980
-              atm2lnd_vars%endyear_met_spinup = atm2lnd_vars%endyear_met_trans
-          end if
-
-          nyears_spinup = atm2lnd_vars%endyear_met_spinup - &
-                             atm2lnd_vars%startyear_met + 1
-          nyears_trans  = atm2lnd_vars%endyear_met_trans - &
-                             atm2lnd_vars%startyear_met  + 1
-
-          !check for site data in run directory (monthly mean T, precip)
-          inquire(file=trim(metdata_biases), exist=use_sitedata)
-
-          !get grid lat/lon information, zone mappings
-          inquire(file=trim(metdata_bypass) // '/zone_mappings.txt', exist=has_zonefile)
-          if (has_zonefile) then
-            open(unit=13, file=trim(metdata_bypass) // '/zone_mappings.txt')
-          else if (atm2lnd_vars%metsource .ne. 2) then
-            call endrun( sub//' ERROR: Zone mapping file does not exist for cpl_bypass' )
-          end if
-
-          if (atm2lnd_vars%metsource .ne. 2) then 
-            ng = 0     !number of points
-            do v=1,500000
-              read(13,*, end=10), longxy(v), latixy(v), zone_map(v), grid_map(v)
-              ng = ng + 1
-            end do
-10          continue
-            close(unit=13)
-
-            !Figure out the closest point and which zone file to open
-            mindist=99999
-            do g3 = 1,ng
-              thisdist = 100*((latixy(g3) - ldomain%latc(g))**2 + &
-                              (longxy(g3) - ldomain%lonc(g))**2)**0.5
-              if (thisdist .lt. mindist) then 
-                mindist = thisdist
-                ztoget = zone_map(g3)
-                gtoget = grid_map(g3)
-              end if
-            end do
-          else
-            gtoget = 1
-          end if
-
-          !get the site metdata for bias correction if they exist (lat/lons must match domain file)
-          if (use_sitedata) then 
-            open(unit=9, file=trim(metdata_biases),status='old')
-            read(9,*) thisline
-            site_metdata(:,:)=-999._r8
-            do while ((site_metdata(1,1) .lt. ldomain%lonc(g) - 0.01 .or. &
-                    site_metdata(1,1) .gt. ldomain%lonc(g) + 0.01) .and. &
-                      (site_metdata(2,1) .lt. ldomain%latc(g) - 0.01 .or. &
-                       site_metdata(2,1) .gt. ldomain%latc(g) + 0.01))
-              read(9,*) site_metdata(1:7,1)
-              if (site_metdata(1,1) .lt. 0) site_metdata(1,1) = site_metdata(1,1)+360._r8
-            end do
-            do line=2,12
-              read(9,*) site_metdata(1:7,line)
-            end do
-            close(unit=9)
-          end if
-
-          do v=1,met_nvars
-            write(zst, '(I3)') 100+ztoget
-            if (atm2lnd_vars%metsource == 0) then 
-                metdata_fname =  trim(metsource_str) // '_' // trim(metvars(v)) // '_z' // zst(2:3) // '.nc'
-            else if (atm2lnd_vars%metsource == 1) then 
-                metdata_fname = 'CRUNCEP.v5_' // trim(metvars(v)) // '_1901-2013_z' // zst(2:3) // '.nc'
-                if (use_livneh .and. ztoget .ge. 16 .and. ztoget .le. 20) then 
-                    metdata_fname = 'CRUNCEP5_Livneh_' // trim(metvars(v)) // '_1950-2013_z' // zst(2:3) // '.nc'
-                else if (use_daymet .and. ztoget .ge. 16 .and. ztoget .le. 20) then 
-                    metdata_fname = 'CRUNCEP5_Daymet3_' // trim(metvars(v)) // '_1980-2013_z' // zst(2:3) // '.nc'
-                end if
-            else if (atm2lnd_vars%metsource == 2) then
-                metdata_fname = 'all_hourly.nc'
-            else if (atm2lnd_vars%metsource == 3) then 
-               metdata_fname = 'Princeton_' // trim(metvars(v)) // '_1901-2012_z' // zst(2:3) // '.nc'
-                if (use_livneh .and. ztoget .ge. 16 .and. ztoget .le. 20) then
-                    metdata_fname = 'Princeton_Livneh_' // trim(metvars(v)) // '_1950-2012_z' // zst(2:3) // '.nc'
-                else if (use_daymet .and. ztoget .ge. 16 .and. ztoget .le. 20) then
-                    metdata_fname = 'Princeton_Daymet3_' // trim(metvars(v)) // '_1980-2012_z' // zst(2:3) // '.nc'
-                end if
-            else if (atm2lnd_vars%metsource == 4) then 
-                metdata_fname = 'GSWP3_' // trim(metvars(v)) // '_1901-2014_z' // zst(2:3) // '.nc'
-                if (use_livneh .and. ztoget .ge. 16 .and. ztoget .le. 20) then 
-                    metdata_fname = 'GSWP3_Livneh_' // trim(metvars(v)) // '_1950-2010_z' // zst(2:3) // '.nc'                
-                else if (use_daymet .and. ztoget .ge. 16 .and. ztoget .le. 20) then 
-                    metdata_fname = 'GSWP3_Daymet3_' // trim(metvars(v)) // '_1980-2010_z' // zst(2:3) // '.nc' 
-                end if
-            else if (atm2lnd_vars%metsource == 5) then 
-                    !metdata_fname = 'WCYCL1850S.ne30_' // trim(metvars(v)) // '_0076-0100_z' // zst(2:3) // '.nc'
-                    metdata_fname = 'CBGC1850S.ne30_' // trim(metvars(v)) // '_0566-0590_z' // zst(2:3) // '.nc'
-            else if (atm2lnd_vars%metsource == 6) then
-                metdata_fname = 'ERA5_' // trim(metvars(v)) // '_1950-2025_z' // zst(2:3) // '.nc'
-            end if
-  
-            ierr = nf90_open(trim(metdata_bypass) // '/' // trim(metdata_fname), NF90_NOWRITE, met_ncids(v))
-            if (ierr .ne. 0) call endrun(msg=' ERROR: Failed to open cpl_bypass input meteorology file' )
-       
-            !get timestep information
-            ierr = nf90_inq_dimid(met_ncids(v), 'DTIME', dimid)
-            ierr = nf90_Inquire_Dimension(met_ncids(v), dimid, len = atm2lnd_vars%timelen(v))
-
-            starti(1) = 1
-            counti(1) = 2
-            ierr = nf90_inq_varid(met_ncids(v), 'DTIME', varid)
-            ierr = nf90_get_var(met_ncids(v), varid, timetemp, starti(1:1), counti(1:1))   
-            atm2lnd_vars%timeres(v)        = (timetemp(2)-timetemp(1))*24._r8
-            atm2lnd_vars%npf(v)            = 86400d0*(timetemp(2)-timetemp(1))/get_step_size()  
-            atm2lnd_vars%timelen_spinup(v) = nyears_spinup*(365*nint(24./atm2lnd_vars%timeres(v)))
-    
-            ierr = nf90_inq_varid(met_ncids(v), trim(metvars(v)), varid)
-            !get the conversion factors; default to identity (scale=1, offset=0) if attributes absent
-            atm2lnd_vars%scale_factors(v) = 1.0_R8
-            atm2lnd_vars%add_offsets(v)   = 0.0_R8
-            ierr = nf90_get_att(met_ncids(v), varid, 'scale_factor', atm2lnd_vars%scale_factors(v))
-            ierr = nf90_get_att(met_ncids(v), varid, 'add_offset', atm2lnd_vars%add_offsets(v))
-            !get the met data         
-            starti(1) = 1
-            starti(2) = gtoget
-            counti(1) = atm2lnd_vars%timelen_spinup(v)
-            counti(2) = 1
-            if (.not. const_climate_hist .and. (yr .ge. 1850 .or. use_sitedata)) counti(1) = atm2lnd_vars%timelen(v)
-
-            if (i == 1 .and. v == 1)  then 
-              allocate(atm2lnd_vars%atm_input       (met_nvars,bounds%begg:bounds%endg,1,1:counti(1)))
-            end if 
-
-            ierr = nf90_get_var(met_ncids(v), varid, atm2lnd_vars%atm_input(v,g:g,1,1:counti(1)), starti(1:2), counti(1:2))
-            ierr = nf90_close(met_ncids(v))
-    
-            if (use_sitedata .and. v == 1) then 
-                starti_site = max((nint(site_metdata(4,1))-atm2lnd_vars%startyear_met) * &
-                                     365*nint(24./atm2lnd_vars%timeres(v))+1,1)
-                endi_site   = (min(atm2lnd_vars%endyear_met_trans,nint(site_metdata(5,1))) - &
-                                     atm2lnd_vars%startyear_met+1)*(365*nint(24./atm2lnd_vars%timeres(v)))
-            end if
-             
-            atm2lnd_vars%var_offset(v,g,:) = 0._r8
-            atm2lnd_vars%var_mult(v,g,:)   = 1._r8
-
-            if (use_sitedata) then 
-              !Compute monthly biases for site vs. reanalysis
-              var_month_mean(:)  = 0._r8
-              var_month_count(:) = 0
-              do i=starti_site, endi_site
-                thisdoy = mod(i,365*nint(24./atm2lnd_vars%timeres(v)))/(nint(24./atm2lnd_vars%timeres(v)))+1
-                do m=1,12
-                  if (thisdoy .ge. caldaym(m) .and. thisdoy .lt. caldaym(m+1)) thism = m
-                enddo
-                var_month_mean(thism) = var_month_mean(thism) + (atm2lnd_vars%atm_input(v,g,1,i)* &
-                                          atm2lnd_vars%scale_factors(v) + atm2lnd_vars%add_offsets(v))
-                var_month_count(thism) = var_month_count(thism)+1
-              end do
-     
-              do m = 1,12
-                var_month_mean(m) = var_month_mean(m)/var_month_count(m)
-                !calculate offset and linear bias factors for temperature and precipitation
-                if (v .eq. 1) atm2lnd_vars%var_offset(v,g,m) = (site_metdata(6,m)+SHR_CONST_TKFRZ) - var_month_mean(m)
-                if (v .eq. 5 .and. var_month_mean(m) .gt. 0) &     
-                      atm2lnd_vars%var_mult(v,g,m) = (site_metdata(7,m))/(caldaym(m+1)-caldaym(m))/24._r8/ &
-                                                      3600._r8 / var_month_mean(m)
-              end do
-            end if
-        
-            !Align spinups and transient simulations
-            !figure out which year to start with (assuming spinups always use integer multiple of met cycles)
-            mystart = atm2lnd_vars%startyear_met
-            do while (mystart > 1850)
-              mystart = mystart - nyears_spinup
-            end do
-            if (atm2lnd_vars%metsource == 5) mystart=1850
-
-            if (yr .lt. 1850) then 
-              atm2lnd_vars%tindex(g,v,1) = (mod(yr-1,nyears_spinup) + (1850-mystart)) * 365 * nint(24./atm2lnd_vars%timeres(v))
-            else if (yr .le. atm2lnd_vars%endyear_met_spinup) then
-              atm2lnd_vars%tindex(g,v,1) = (mod(yr-1850,nyears_spinup) + (1850-mystart)) * 365 * nint(24./atm2lnd_vars%timeres(v))
-            else
-              atm2lnd_vars%tindex(g,v,1) = (yr - atm2lnd_vars%startyear_met) * 365 * nint(24./atm2lnd_vars%timeres(v))
-            end if
-            !adjust for starts not at beginning of year (but currently MUST begin at hour 0)
-            atm2lnd_vars%tindex(g,v,1) = atm2lnd_vars%tindex(g,v,1) + (caldaym(mon)+day-2)* &
-                                         nint(24./atm2lnd_vars%timeres(v))
-            
-            atm2lnd_vars%tindex(g,v,2) = atm2lnd_vars%tindex(g,v,1) + 1
-            if (atm2lnd_vars%tindex(g,v,1) == 0) then 
-              atm2lnd_vars%tindex(g,v,1) = atm2lnd_vars%timelen(v)
-              if (yr .le. atm2lnd_vars%endyear_met_spinup) atm2lnd_vars%tindex(g,v,1) = atm2lnd_vars%timelen_spinup(v)
-             end if
-          end do    !end variable loop        
-        else
+        ! On subsequent timesteps advance tindex; first-timestep loading is above
+        if (atm2lnd_vars%loaded_bypassdata .ne. 0) then
           do v=1,met_nvars
             if (atm2lnd_vars%npf(v) - 1._r8 .gt. 1e-3) then
               if (v .eq. 4 .or. v .eq. 5 .or. (v .ge. 8 .and. v .le. 13)) then    !rad/Precipitation
@@ -588,25 +627,19 @@ contains
               atm2lnd_vars%tindex(g,v,2) = atm2lnd_vars%tindex(g,v,2)+nint(1/atm2lnd_vars%npf(v))
             end if
 
-            if (const_climate_hist .or. yr .le. atm2lnd_vars%startyear_met) then
+            if (const_climate_hist) then
+              ! Spinup: cycle within the spinup record
               if (atm2lnd_vars%tindex(g,v,1) .gt. atm2lnd_vars%timelen_spinup(v)) atm2lnd_vars%tindex(g,v,1) = 1
               if (atm2lnd_vars%tindex(g,v,2) .gt. atm2lnd_vars%timelen_spinup(v)) atm2lnd_vars%tindex(g,v,2) = 1
-            else if (yr .gt. atm2lnd_vars%endyear_met_trans) then
-              if (atm2lnd_vars%tindex(g,v,1) .gt. atm2lnd_vars%timelen(v)) then
-                 atm2lnd_vars%tindex(g,v,1) = atm2lnd_vars%timelen(v)-atm2lnd_vars%timelen_spinup(v)+1
-              end if
-              if (atm2lnd_vars%tindex(g,v,2) .gt. atm2lnd_vars%timelen(v)) then
-                 atm2lnd_vars%tindex(g,v,2) = atm2lnd_vars%timelen(v)-atm2lnd_vars%timelen_spinup(v)+1
+            else
+              ! Transient: error if run has advanced past the end of the met record
+              if (atm2lnd_vars%tindex(g,v,1) .gt. atm2lnd_vars%timelen(v) .or. &
+                  atm2lnd_vars%tindex(g,v,2) .gt. atm2lnd_vars%timelen(v)) then
+                call endrun(msg=' ERROR: lnd_import_mct: run has advanced past the end of' // &
+                                ' the met forcing record. If running a spinup, set' // &
+                                ' const_climate_hist=.true. in user_nl_elm to cycle the met record.')
               end if
             end if
-
-            !if (yr .gt. atm2lnd_vars%startyear_met) then 
-            !  if (atm2lnd_vars%tindex(g,v,1) .gt. atm2lnd_vars%timelen(v)) atm2lnd_vars%tindex(g,v,1) = 1
-            !  if (atm2lnd_vars%tindex(g,v,2) .gt. atm2lnd_vars%timelen(v)) atm2lnd_vars%tindex(g,v,2) = 1
-            !else
-            !  if (atm2lnd_vars%tindex(g,v,1) .gt. atm2lnd_vars%timelen_spinup(v)) atm2lnd_vars%tindex(g,v,1) = 1
-            !  if (atm2lnd_vars%tindex(g,v,2) .gt. atm2lnd_vars%timelen_spinup(v)) atm2lnd_vars%tindex(g,v,2) = 1
-            !end if
           end do
         end if
 

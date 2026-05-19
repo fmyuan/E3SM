@@ -263,11 +263,11 @@ contains
 
     ! pass fluxes to ATS -- unit change from [mm H2O / s] to [m H2O / s]
     call EM_ATS_SetField_ScalarMultiply(this, "gross surface water source", ats_var_id%GROSS_SURFACE_WATER_SOURCE, &
-         col_wf%qflx_gross_infl_soil, 1.e-3_r8, 1)
+         col_wf%qflx_gross_infl_soil, 1.e-3_r8, 2)
     call EM_ATS_SetField_ScalarMultiply(this, "potential transpiration", ats_var_id%POTENTIAL_TRANSPIRATION, &
-         col_wf%qflx_tran_veg, 1.e-3_r8, 1)
+         col_wf%qflx_tran_veg, 1.e-3_r8, 2)
     call EM_ATS_SetField_ScalarMultiply(this, "potential evaporation", ats_var_id%POTENTIAL_EVAPORATION, &
-         col_wf%qflx_gross_evap_soil, 1.e-3_r8, 1)
+         col_wf%qflx_gross_evap_soil, 1.e-3_r8, 2)
     
     ! call advance
     ! -- get whether to vis and checkpoint
@@ -291,8 +291,8 @@ contains
     call EM_ATS_GetField_ActualTranspiration(this, col_wf, photosyns_vars)
 
     ! get runoff and baseflow back
-    call EM_ATS_GetField_ScalarMultiply(this, "baseflow", ats_var_id%BASEFLOW, col_wf%qflx_drain, 1.e3_r8, 1)
-    call EM_ATS_GetField_ScalarMultiply(this, "runoff", ats_var_id%RUNOFF, col_wf%qflx_surf, 1.e3_r8, 1)
+    call EM_ATS_GetField_ScalarMultiply(this, "baseflow", ats_var_id%BASEFLOW, col_wf%qflx_drain, 1.e3_r8, 2)
+    call EM_ATS_GetField_ScalarMultiply(this, "runoff", ats_var_id%RUNOFF, col_wf%qflx_surf, 1.e3_r8, 2)
     
     ! diagnostics?
     ! ...
