@@ -442,6 +442,8 @@ module ColumnDataType
     real(r8), pointer :: xmf                     (:)   => null() ! total latent heat of phase change of ground water
     real(r8), pointer :: xmf_h2osfc              (:)   => null() ! latent heat of phase change of surface water
     integer , pointer :: imelt                   (:,:) => null() ! flag for melting (=1), freezing (=2), Not=0 (-nlevsno+1:nlevgrnd)
+    real(r8), pointer :: imelt_hist              (:,:) => null()
+    real(r8), pointer :: tinc                    (:,:) => null() ! phase-change temperature increment tfrz - t_soisno (K) (-nlevsno+1:nlevgrnd)
     ! for couplig with pflotran
     real(r8), pointer :: eflx_soil_grnd          (:)   => null() ! integrated soil ground heat flux (W/m2)  [+ = into ground]
     real(r8), pointer :: eflx_rnet_soil          (:)   => null() ! soil net (sw+lw) radiation flux (W/m2) [+ = into soil]
@@ -5699,6 +5701,9 @@ contains
     allocate(this%xmf                  (begc:endc))              ; this%xmf                  (:)   = spval
     allocate(this%xmf_h2osfc           (begc:endc))              ; this%xmf_h2osfc           (:)   = spval
     allocate(this%imelt                (begc:endc,-nlevsno+1:nlevgrnd))  ; this%imelt        (:,:) = huge(1)
+    allocate(this%imelt_hist(begc:endc,-nlevsno+1:nlevgrnd))     ; this%imelt_hist           (:,:) = spval
+    allocate(this%tinc                 (begc:endc,-nlevsno+1:nlevgrnd))  ; this%tinc         (:,:) = spval
+  
     allocate(this%eflx_soil_grnd       (begc:endc))              ; this%eflx_soil_grnd       (:)   = spval
     allocate(this%eflx_rnet_soil       (begc:endc))              ; this%eflx_rnet_soil       (:)   = spval
     allocate(this%eflx_fgr0_soil       (begc:endc))              ; this%eflx_fgr0_soil       (:)   = spval
@@ -5752,6 +5757,36 @@ contains
           avgflag='A', long_name='Rural downward heat flux at interface below each soil layer', &
            ptr_col=this%eflx_fgr, set_spec=spval, default='inactive')
 
+    this%eflx_fgr12(begc:endc) = spval
+     call hist_addfld1d (fname='FGR0_SOIL',  units='W/m^2',  &
+          avgflag='A', long_name='soil-air heat flux (W/m2) [+ = into soil]', &
+           ptr_col=this%eflx_fgr0_soil, set_lake=spval, default='inactive')
+
+    this%eflx_fgr12(begc:endc) = spval
+     call hist_addfld1d (fname='FGR0_SNOW',  units='W/m^2',  &
+          avgflag='A', long_name='soil-snow heat flux (W/m2) [+ = into soil]', &
+           ptr_col=this%eflx_fgr0_snow, set_lake=spval, default='inactive')
+
+    this%eflx_fgr12(begc:endc) = spval
+     call hist_addfld1d (fname='FGR0_H2OSFC',  units='W/m^2',  &
+          avgflag='A', long_name='soil-surfacewater heat flux (W/m2) [+ = into soil]', &
+           ptr_col=this%eflx_fgr0_h2osfc, set_lake=spval, default='inactive')
+
+    this%xmf(begc:endc) = spval
+     call hist_addfld1d (fname='XMF', units='W/m^2',  &
+          avgflag='A', long_name='total latent heat flux from soil/snow phase change', &
+          ptr_col=this%xmf, default='inactive')
+
+    this%tinc(begc:endc,:) = spval
+     call hist_addfld2d (fname='TINC', units='K', type2d='levgrnd', &
+          avgflag='A', long_name='phase-change temperature increment before resetting layer to freezing point', &
+          ptr_col=this%tinc, default='inactive')
+
+    this%imelt(begc:endc,:) = 0
+     call hist_addfld2d (fname='IMELT', units='flag', type2d='levgrnd', &
+          avgflag='A', long_name='phase-change flag: 0 none, 1 melt, 2 freeze', &
+          ptr_col=this%imelt_hist, default='inactive')
+
     this%errsoi(begc:endc) = spval
      call hist_addfld1d (fname='ERRSOI',  units='W/m^2',  &
           avgflag='A', long_name='soil/lake energy conservation error', &
@@ -5772,6 +5807,9 @@ contains
           this%eflx_urban_heat(c)    = 0._r8
        end if
     end do
+
+    this%imelt_hist(begc:endc,:) = 0._r8
+    this%tinc(begc:endc,:)  = 0._r8
 
   end subroutine col_ef_init
 
