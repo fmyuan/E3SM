@@ -1,4 +1,4 @@
-   module ColumnDataType
+module ColumnDataType
 
   !-----------------------------------------------------------------------
   ! !DESCRIPTION:
@@ -36,8 +36,7 @@
   use soilorder_varcon, only : smax, ks_sorption
   use elm_time_manager, only : is_restart, get_nstep
   use elm_time_manager, only : is_first_step, get_step_size, is_first_restart_step
-  use landunit_varcon , only : istice, istwet, istsoil, istdlak, istcrop, istice_mec
-  use landunit_varcon , only : ilowcenpoly, iflatcenpoly, ihighcenpoly
+  use landunit_varcon , only : istice, istwet, istsoil, istdlak, istcrop, istice_mec, istlowcenpoly, isthighcenpoly
   use column_varcon   , only : icol_road_perv, icol_road_imperv, icol_roof, icol_sunwall, icol_shadewall
   use histFileMod     , only : hist_addfld1d, hist_addfld2d, no_snow_normal
   use histFileMod     , only : hist_addfld_decomp
@@ -152,7 +151,7 @@
     real(r8), pointer :: frac_sno_eff       (:)   => null() ! fraction of ground covered by snow (0 to 1)
     real(r8), pointer :: frac_iceold        (:,:) => null() ! fraction of ice relative to the tot water (-nlevsno+1:nlevgrnd)
     real(r8), pointer :: frac_h2osfc        (:)   => null() ! fractional area with surface water greater than zero
-    real(r8), pointer :: frac_h2osfc_act    (:)   => null() ! actual fractional area with surface water greater than zero
+    real(r8), pointer :: frac_h2osfc_act    (:)   => null() ! actural fractional area with surface water greater than zero
     real(r8), pointer :: wf                 (:)   => null() ! soil water as frac. of whc for top 0.05 m (0-1)
     real(r8), pointer :: wf2                (:)   => null() ! soil water as frac. of whc for top 0.17 m (0-1)
     real(r8), pointer :: finundated         (:)   => null() ! fraction of column inundated, for bgc caclulation (0-1)
@@ -181,7 +180,7 @@
     real(r8), pointer :: frac_melted    (:,:) => null() ! fraction of layer that has ever thawed (for tracking excess ice removal) (0 to 1)
     real(r8), pointer :: h2osfc_p         (:) => null() ! h2osfc from previous timestep (inundataion fraction is calculated based on this var)
     real(r8), pointer :: supercool      (:,:) => null() ! supercooled liquid water in soil (kg/m2)
-    real(r8), pointer :: smp_i          (:,:) => null() ! frozen water potential - RPF maybe should use a differenct variable name?
+    real(r8), pointer :: smp_i          (:,:) => null() ! frozen water potential
   contains
     procedure, public :: Init    => col_ws_init
     procedure, public :: Restart => col_ws_restart
@@ -1412,10 +1411,6 @@ contains
     allocate(this%h2osoi_ice         (begc:endc,-nlevsno+1:nlevgrnd)) ; this%h2osoi_ice         (:,:) = spval
     allocate(this%h2osoi_vol         (begc:endc, 1:nlevgrnd))         ; this%h2osoi_vol         (:,:) = spval
     allocate(this%h2osfc             (begc:endc))                     ; this%h2osfc             (:)   = spval
-    allocate(this%h2osfc_p           (begc:endc))                     ; this%h2osfc_p           (:)   = spval
-    allocate(this%supercool          (begc:endc, 1:nlevgrnd))         ; this%supercool          (:,:) = spval
-    ! RPF NOTE: i think this means that supercooling is only tracked in soil layers, not snow layers
-    allocate(this%smp_i              (begc:endc, 1:nlevgrnd))         ; this%smp_i              (:,:) = spval 
     allocate(this%h2ocan             (begc:endc))                     ; this%h2ocan             (:)   = spval
     allocate(this%wslake_col         (begc:endc))                     ; this%wslake_col         (:)   = spval
     allocate(this%total_plant_stored_h2o(begc:endc))                  ; this%total_plant_stored_h2o(:)= spval  
@@ -1554,12 +1549,12 @@ contains
            ptr_col=this%h2osfc_p)
 
     this%supercool(begc:endc, 1:nlevgrnd) = spval
-      call hist_addfld2d (fname='SUPERCOOL', units='mm', &
+      call hist_addfld2d (fname='SUPERCOOL', units='mm', type2d='levgrnd', &
           avgflag='A', long_name='supercooled soil water', &
           ptr_col=this%supercool, default='inactive')
    
     this%smp_i(begc:endc, 1:nlevgrnd) = spval
-      call hist_addfld2d (fname='SMP_I', units='mm?', &
+      call hist_addfld2d (fname='SMP_I', units='mm?', type2d='levgrnd', &
           avgflag='A', long_name='frozen water potential', &
           ptr_col=this%smp_i, default='inactive')
 
@@ -1669,9 +1664,6 @@ contains
          ptr_col=this%frac_h2osfc)
     
     this%frac_h2osfc_act(begc:endc) = spval
-    call hist_addfld1d (fname='FH2OSFC_ACT', units='1', &
-         avgflag='A', long_name='fraction of ground covered by surface water, ignoring snow cover', &
-         ptr_col=this%frac_h2osfc_act)
          
     if (use_cn) then
        this%wf(begc:endc) = spval
@@ -1715,7 +1707,6 @@ contains
        this%wf2(c)                    = spval
        this%total_plant_stored_h2o(c) = 0._r8
        this%h2osfc(c)                 = 0._r8
-       this%h2osfc_p(c)               = 0._r8
        this%h2ocan(c)                 = 0._r8
        this%frac_h2osfc(c)            = 0._r8
        this%frac_h2osfc_act(c)        = 0._r8
@@ -1884,31 +1875,14 @@ contains
              this%h2osoi_ice(c,j) = 0._r8
              this%h2osoi_liq(c,j) = col_pp%dz(c,j)*denh2o*this%h2osoi_vol(c,j)
           endif
-          this%supercool(c,j) = 0._r8
-          this%smp_i(c,j) = 0._r8
-         
        end do
 
        this%h2osoi_liq_old(c,:) = this%h2osoi_liq(c,:)
        this%h2osoi_ice_old(c,:) = this%h2osoi_ice(c,:)
-       if (use_polygonal_tundra .and. lun_pp%ispolygon(l)) then
+       if (use_polygonal_tundra) then
          this%excess_ice(c,:) = 0.36_r8
          this%iwp_subsidence(c) = 0._r8
          this%frac_melted(c,:)  = 0._r8
-         ! set initial microtopographic parameters
-         if (lun_pp%polygontype(l) .eq. ilowcenpoly) then
-            this%iwp_microrel(c) = 0.4_r8
-            this%iwp_exclvol(c) = 0.2_r8
-            this%iwp_ddep(c) = 0.15_r8
-         else if (lun_pp%polygontype(l) .eq. iflatcenpoly) then
-            this%iwp_microrel(c) = 0.1_r8
-            this%iwp_exclvol(c) = 0.05_r8
-            this%iwp_ddep(c) = 0.01_r8
-         else if (lun_pp%polygontype(l) .eq. ihighcenpoly) then
-            this%iwp_microrel(c) = 0.4_r8
-            this%iwp_exclvol(c) = 0.2_r8
-            this%iwp_ddep(c) = 0.05_r8
-         endif
        end if
     end do
 
@@ -1944,14 +1918,6 @@ contains
          interpinic_flag='interp', readvar=readvar, data=this%h2osfc)
     if (flag=='read' .and. .not. readvar) then
        this%h2osfc(bounds%begc:bounds%endc) = 0.0_r8
-    end if
-
-    call restartvar(ncid=ncid, flag=flag, varname='H2OSFC_P', xtype=ncd_double,  &
-         dim1name='column', &
-         long_name='surface water', units='kg/m2', &
-         interpinic_flag='interp', readvar=readvar, data=this%h2osfc_p)
-    if (flag=='read' .and. .not. readvar) then
-       this%h2osfc_p(bounds%begc:bounds%endc) = 0.0_r8
     end if
 
     if(do_budgets) then 
@@ -2091,7 +2057,7 @@ contains
     end if
 
     call restartvar(ncid=ncid, flag=flag, varname='SUPERCOOL', xtype=ncd_double, &
-         dim1name='column', dim2name='levtot', switchdim=.true., &
+         dim1name='column', dim2name='levgrnd', switchdim=.true., &
          long_name='supercooled soil water', units='mm', &
          interpinic_flag='interp', readvar=readvar, data=this%supercool)
     if (flag == 'read' .and. .not. readvar) then
@@ -2099,7 +2065,7 @@ contains
     end if
 
     call restartvar(ncid=ncid, flag=flag, varname='SMP_I', xtype=ncd_double,&
-         dim1name='column', dim2name='levtot', switchdim=.true., &
+         dim1name='column', dim2name='levgrnd', switchdim=.true., &
          long_name='frozen water potential', units='mm', &
          interpinic_flag='interp', readvar=readvar, data=this%smp_i)
      if (flag == 'read' .and. .not. readvar) then
