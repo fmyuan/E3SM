@@ -178,7 +178,7 @@ module ColumnDataType
     real(r8), pointer :: iwp_subsidence   (:) => null() ! ice wedge polygon ground subsidence (m)
     real(r8), pointer :: excess_ice     (:,:) => null() ! excess ground ice in column (1:nlevgrnd) (0 to 1)
     real(r8), pointer :: frac_melted    (:,:) => null() ! fraction of layer that has ever thawed (for tracking excess ice removal) (0 to 1)
-    real(r8), pointer :: h2osfc_p         (:) => null() ! h2osfc from previous timestep (inundataion fraction is calculated based on this var)
+    real(r8), pointer :: h2osfc_p         (:) => null() ! h2osfc from previous timestep (inundation fraction is calculated based on this var)
     real(r8), pointer :: supercool      (:,:) => null() ! supercooled liquid water in soil (kg/m2)
     real(r8), pointer :: smp_i          (:,:) => null() ! frozen water potential
   contains
@@ -1411,6 +1411,7 @@ contains
     allocate(this%h2osoi_ice         (begc:endc,-nlevsno+1:nlevgrnd)) ; this%h2osoi_ice         (:,:) = spval
     allocate(this%h2osoi_vol         (begc:endc, 1:nlevgrnd))         ; this%h2osoi_vol         (:,:) = spval
     allocate(this%h2osfc             (begc:endc))                     ; this%h2osfc             (:)   = spval
+    allocate(this%h2osfc_p           (begc:endc))                     ; this%h2osfc_p           (:)   = spval
     allocate(this%h2ocan             (begc:endc))                     ; this%h2ocan             (:)   = spval
     allocate(this%wslake_col         (begc:endc))                     ; this%wslake_col         (:)   = spval
     allocate(this%total_plant_stored_h2o(begc:endc))                  ; this%total_plant_stored_h2o(:)= spval  
@@ -1468,6 +1469,8 @@ contains
     allocate(this%h2orof             (begc:endc))                     ; this%h2orof             (:)   = spval
     allocate(this%frac_h2orof        (begc:endc))                     ; this%frac_h2orof        (:)   = spval
     allocate(this%frac_h2oocn        (begc:endc))                     ; this%frac_h2oocn        (:)   = nan
+    allocate(this%supercool          (begc:endc,1:nlevgrnd))          ; this%supercool        (:,:)   = spval
+    allocate(this%smp_i              (begc:endc,1:nlevgrnd))          ; this%smp_i            (:,:)   = spval
     if (use_polygonal_tundra) then
       ! polygonal tundra/ice wedge polygons:
       allocate(this%iwp_microrel       (begc:endc))                   ; this%iwp_microrel     (:) = spval
