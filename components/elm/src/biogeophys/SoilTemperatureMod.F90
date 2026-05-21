@@ -1348,7 +1348,7 @@ contains
     real(r8) :: wliq0 (bounds%begc:bounds%endc,-nlevsno+1:nlevgrnd)!initial mass of liquid (kg/m2)
     !real(r8) :: supercool(bounds%begc:bounds%endc,nlevgrnd)        !supercooled water in soil (kg/m2)
     real(r8) :: propor                             !proportionality constant (-)
-    real(r8) :: tinc(bounds%begc:bounds%endc,-nlevsno+1:nlevgrnd)  !t(n+1)-t(n) (K)
+   !  real(r8) :: tinc(bounds%begc:bounds%endc,-nlevsno+1:nlevgrnd)  !t(n+1)-t(n) (K)
     !real(r8) :: smp                                !frozen water potential (mm)
     
     character(len=64) :: event 
@@ -1392,6 +1392,7 @@ contains
          fact             =>    col_es%fact                         , &
 
          imelt            =>    col_ef%imelt          , & ! Output: [integer  (:,:) ] flag for melting (=1), freezing (=2), Not=0 (new)
+         tinc             =>    col_ef%tinc           , & ! Output: [real(r8) (:,:) ] phase-change temperature increment, t(n+1)-t(n) (K)
          t_soisno         =>    col_es%t_soisno         & ! Output: [real(r8) (:,:) ] soil temperature (Kelvin)
          )
 
@@ -1418,6 +1419,7 @@ contains
 
                ! Initialization
                imelt(c,j) = 0
+               tinc(c,j)     = 0._r8
                hm(c,j) = 0._r8
                xm(c,j) = 0._r8
                wice0(c,j) = h2osoi_ice(c,j)
