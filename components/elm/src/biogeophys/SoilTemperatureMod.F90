@@ -1388,6 +1388,7 @@ contains
          fact             =>    col_es%fact                         , &
 
          imelt            =>    col_ef%imelt          , & ! Output: [integer  (:,:) ] flag for melting (=1), freezing (=2), Not=0 (new)
+         tinc             =>    col_ef%tinc           , & ! Output: [real(r8) (:,:) ] phase-change temperature increment, t(n+1)-t(n) (K)
          t_soisno         =>    col_es%t_soisno         & ! Output: [real(r8) (:,:) ] soil temperature (Kelvin)
          )
 
