@@ -426,9 +426,7 @@ contains
           h2osfcflag           =>    soilhydrology_vars%h2osfcflag           , & ! Input:  logical
           pc_grid              =>    soilhydrology_vars%pc                   , & ! Input:  [real(r8) (:)   ]  threshold for outflow from surface water storage
           icefrac              =>    soilhydrology_vars%icefrac_col          , & ! Output: [real(r8) (:,:) ]  fraction of ice
-
-          ! RPF debug, would be helpful to also keep the h2osfc from the previous time step
-          h2osfc_p             =>   col_ws%h2osfc_p                           & ! Input? Really for debugging to see if time aliasing causes spread in IM1 issues
+          h2osfc_p             =>    col_ws%h2osfc_p                           & ! Input:  [real(r8) (:,:) ]  h2osfc from previous timestep
               )
 
 
@@ -582,7 +580,7 @@ contains
              if (lun_pp%ispolygon(col_pp%landunit(c))) then
                 vdep = (2_r8*iwp_exclvol(c) - iwp_microrel(c)) * (iwp_ddep(c)/iwp_microrel(c))**3_r8 &
                        + (2_r8*iwp_microrel(c) - 3_r8*iwp_exclvol(c)) * (iwp_ddep(c)/iwp_microrel(c))**2_r8
-                phi_eff = min(iwp_subsidence(c), 0.4_r8)  !possibly redundant w/ ActiveLayerMod
+                phi_eff = min(iwp_subsidence(c), 0.4_r8)
                 swc = h2osfc(c)/1000_r8 ! convert to m
                 
                 if (swc >= vdep) then
