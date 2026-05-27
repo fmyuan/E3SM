@@ -7,7 +7,7 @@ module ActiveLayerMod
   ! !USES:
   use shr_kind_mod    , only : r8 => shr_kind_r8
   use shr_const_mod   , only : SHR_CONST_TKFRZ
-  use elm_varctl      , only : iulog, spinup_state, use_polygonal_tundra
+  use elm_varctl      , only : iulog, spinup_state, use_polygonal_tundra, prohibit_subsidence
   use TemperatureType , only : temperature_type
   use CanopyStateType , only : canopystate_type
   use GridcellType    , only : grc_pp       
@@ -172,7 +172,7 @@ contains
             endif
          endif
 
-         if (use_polygonal_tundra) then
+         if (use_polygonal_tundra .and. .not. prohibit_subsidence) then
             ! special case for year = 1989. For now it is the assumed baseline year for 
             ! changes in polygonal ground
             if (year .eq. 1989) then

@@ -1029,7 +1029,13 @@ contains
               /(tkwat*z(c,1)+thk(c,1)*zh2osfc)
       enddo
 
-      ! Soil heat capacity, from de Vires (1963)
+      ! Save surface water thermal conductivity for history output
+      do fc = 1, num_nolakec
+         c = filter_nolakec(fc)
+         soilstate_vars%tk_h2osfc_col(c) = tk_h2osfc(c)
+      enddo
+
+      ! Soil heat capacity, from de Vries (1963)
       ! Urban values are from Masson et al. 2002, Evaluation of the Town Energy Balance (TEB)
       ! scheme with direct measurements from dry districts in two cities, J. Appl. Meteorol.,
       ! 41, 1011-1026.
@@ -1112,7 +1118,6 @@ contains
     real(r8) :: hm(bounds%begc:bounds%endc) !energy residual [W/m2                         ]
     real(r8) :: xm(bounds%begc:bounds%endc) !melting or freezing within a time step [kg/m2 ]
     real(r8) :: tinc                        !t(n+1)-t(n) (K)
-    real(r8) :: smp                         !frozen water potential (mm)
     real(r8) :: rho_avg
     real(r8) :: z_avg
     real(r8) :: c1
@@ -1340,10 +1345,7 @@ contains
     real(r8) :: wmass0(bounds%begc:bounds%endc,-nlevsno+1:nlevgrnd)!initial mass of ice and liquid (kg/m2)
     real(r8) :: wice0 (bounds%begc:bounds%endc,-nlevsno+1:nlevgrnd)!initial mass of ice (kg/m2)
     real(r8) :: wliq0 (bounds%begc:bounds%endc,-nlevsno+1:nlevgrnd)!initial mass of liquid (kg/m2)
-    real(r8) :: supercool(bounds%begc:bounds%endc,nlevgrnd)        !supercooled water in soil (kg/m2)
     real(r8) :: propor                             !proportionality constant (-)
-    real(r8) :: tinc(bounds%begc:bounds%endc,-nlevsno+1:nlevgrnd)  !t(n+1)-t(n) (K)
-    real(r8) :: smp                                !frozen water potential (mm)
     
     character(len=64) :: event 
     !-----------------------------------------------------------------------
@@ -1365,6 +1367,8 @@ contains
          h2osno           =>    col_ws%h2osno          , & ! Output: [real(r8) (:)   ] snow water (mm H2O)
          h2osoi_liq       =>    col_ws%h2osoi_liq      , & ! Output: [real(r8) (:,:) ] liquid water (kg/m2) (new)
          h2osoi_ice       =>    col_ws%h2osoi_ice      , & ! Output: [real(r8) (:,:) ] ice lens (kg/m2) (new)
+         smp_i            =>    col_ws%smp_i           , & ! Output: [real(r8) (:,:) ] frozen water potential (mm)
+         supercool        =>    col_ws%supercool       , & ! Output: [real(r8) (:,:) ] supercooled water (kg/m2)
 
          qflx_snow_melt   =>    col_wf%qflx_snow_melt   , & ! Output: [real(r8) (:)   ] net snow melt
          qflx_snofrz_lyr  =>    col_wf%qflx_snofrz_lyr  , & ! Output: [real(r8) (:,:) ] snow freezing rate (positive definite) (col,lyr) [kg m-2 s-1]
@@ -1384,6 +1388,7 @@ contains
          fact             =>    col_es%fact                         , &
 
          imelt            =>    col_ef%imelt          , & ! Output: [integer  (:,:) ] flag for melting (=1), freezing (=2), Not=0 (new)
+         tinc             =>    col_ef%tinc           , & ! Output: [real(r8) (:,:) ] phase-change temperature increment, t(n+1)-t(n) (K)
          t_soisno         =>    col_es%t_soisno         & ! Output: [real(r8) (:,:) ] soil temperature (Kelvin)
          )
 
@@ -1410,6 +1415,7 @@ contains
 
                ! Initialization
                imelt(c,j) = 0
+               tinc(c,j)     = 0._r8
                hm(c,j) = 0._r8
                xm(c,j) = 0._r8
                wice0(c,j) = h2osoi_ice(c,j)
@@ -1469,8 +1475,8 @@ contains
                supercool(c,j) = 0.0_r8
                if (col_pp%is_soil(c) .or. col_pp%is_crop(c) .or. col_pp%itype(c) == icol_road_perv) then
                   if(t_soisno(c,j) < tfrz) then
-                     smp = hfus*(tfrz-t_soisno(c,j))/(grav*t_soisno(c,j)) * 1000._r8  !(mm)
-                     supercool(c,j) = watsat(c,j)*(smp/sucsat(c,j))**(-1._r8/bsw(c,j))
+                     smp_i(c,j) = hfus*(tfrz-t_soisno(c,j))/(grav*t_soisno(c,j)) * 1000._r8  !(mm)
+                     supercool(c,j) = watsat(c,j)*(smp_i(c,j)/sucsat(c,j))**(-1._r8/bsw(c,j))
                      supercool(c,j) = supercool(c,j)*dz(c,j)*1000._r8       ! (mm)
                   endif
                endif

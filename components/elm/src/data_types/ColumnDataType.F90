@@ -178,7 +178,9 @@ module ColumnDataType
     real(r8), pointer :: iwp_subsidence   (:) => null() ! ice wedge polygon ground subsidence (m)
     real(r8), pointer :: excess_ice     (:,:) => null() ! excess ground ice in column (1:nlevgrnd) (0 to 1)
     real(r8), pointer :: frac_melted    (:,:) => null() ! fraction of layer that has ever thawed (for tracking excess ice removal) (0 to 1)
-
+    real(r8), pointer :: h2osfc_p         (:) => null() ! h2osfc from previous timestep (inundation fraction is calculated based on this var)
+    real(r8), pointer :: supercool      (:,:) => null() ! supercooled liquid water in soil (kg/m2)
+    real(r8), pointer :: smp_i          (:,:) => null() ! frozen water potential
   contains
     procedure, public :: Init    => col_ws_init
     procedure, public :: Restart => col_ws_restart
@@ -440,6 +442,7 @@ module ColumnDataType
     real(r8), pointer :: xmf                     (:)   => null() ! total latent heat of phase change of ground water
     real(r8), pointer :: xmf_h2osfc              (:)   => null() ! latent heat of phase change of surface water
     integer , pointer :: imelt                   (:,:) => null() ! flag for melting (=1), freezing (=2), Not=0 (-nlevsno+1:nlevgrnd)
+    real(r8), pointer :: tinc                    (:,:) => null() ! phase-change temperature increment tfrz - t_soisno (K) (-nlevsno+1:nlevgrnd)
     ! for couplig with pflotran
     real(r8), pointer :: eflx_soil_grnd          (:)   => null() ! integrated soil ground heat flux (W/m2)  [+ = into ground]
     real(r8), pointer :: eflx_rnet_soil          (:)   => null() ! soil net (sw+lw) radiation flux (W/m2) [+ = into soil]
@@ -1409,6 +1412,7 @@ contains
     allocate(this%h2osoi_ice         (begc:endc,-nlevsno+1:nlevgrnd)) ; this%h2osoi_ice         (:,:) = spval
     allocate(this%h2osoi_vol         (begc:endc, 1:nlevgrnd))         ; this%h2osoi_vol         (:,:) = spval
     allocate(this%h2osfc             (begc:endc))                     ; this%h2osfc             (:)   = spval
+    allocate(this%h2osfc_p           (begc:endc))                     ; this%h2osfc_p           (:)   = spval
     allocate(this%h2ocan             (begc:endc))                     ; this%h2ocan             (:)   = spval
     allocate(this%wslake_col         (begc:endc))                     ; this%wslake_col         (:)   = spval
     allocate(this%total_plant_stored_h2o(begc:endc))                  ; this%total_plant_stored_h2o(:)= spval  
@@ -1466,6 +1470,8 @@ contains
     allocate(this%h2orof             (begc:endc))                     ; this%h2orof             (:)   = spval
     allocate(this%frac_h2orof        (begc:endc))                     ; this%frac_h2orof        (:)   = spval
     allocate(this%frac_h2oocn        (begc:endc))                     ; this%frac_h2oocn        (:)   = nan
+    allocate(this%supercool          (begc:endc,1:nlevgrnd))          ; this%supercool        (:,:)   = spval
+    allocate(this%smp_i              (begc:endc,1:nlevgrnd))          ; this%smp_i            (:,:)   = spval
     if (use_polygonal_tundra) then
       ! polygonal tundra/ice wedge polygons:
       allocate(this%iwp_microrel       (begc:endc))                   ; this%iwp_microrel     (:) = spval
@@ -1540,6 +1546,21 @@ contains
      call hist_addfld1d (fname='H2OSFC',  units='mm',  &
           avgflag='A', long_name='surface water depth', &
            ptr_col=this%h2osfc)
+
+    this%h2osfc_p(begc:endc) = spval
+     call hist_addfld1d (fname='H2OSFC_P', units = 'mm',  &
+          avgflag='A', long_name='surface water depth previous time step', &
+           ptr_col=this%h2osfc_p)
+
+    this%supercool(begc:endc, 1:nlevgrnd) = spval
+      call hist_addfld2d (fname='SUPERCOOL', units='mm', type2d='levgrnd', &
+          avgflag='A', long_name='supercooled soil water', &
+          ptr_col=this%supercool, default='inactive')
+   
+    this%smp_i(begc:endc, 1:nlevgrnd) = spval
+      call hist_addfld2d (fname='SMP_I', units='mm?', type2d='levgrnd', &
+          avgflag='A', long_name='frozen water potential', &
+          ptr_col=this%smp_i, default='inactive')
 
     this%h2osoi_vol(begc:endc,:) = spval
      call hist_addfld2d (fname='H2OSOI',  units='mm3/mm3', type2d='levgrnd', &
@@ -2030,6 +2051,30 @@ contains
     if (flag == 'read' .and. .not. readvar) then
        this%frac_h2osfc(bounds%begc:bounds%endc) = 0.0_r8
     end if
+
+    call restartvar(ncid=ncid, flag=flag, varname='FH2OSFC_ACT', xtype=ncd_double,  &
+         dim1name='column',&
+         long_name='fraction of ground covered by h2osfc (0 to 1), ignoring snow cover', units='', &
+         interpinic_flag='interp', readvar=readvar, data=this%frac_h2osfc_act)
+    if (flag == 'read' .and. .not. readvar) then
+       this%frac_h2osfc_act(bounds%begc:bounds%endc) = 0.0_r8
+    end if
+
+    call restartvar(ncid=ncid, flag=flag, varname='SUPERCOOL', xtype=ncd_double, &
+         dim1name='column', dim2name='levgrnd', switchdim=.true., &
+         long_name='supercooled soil water', units='mm', &
+         interpinic_flag='interp', readvar=readvar, data=this%supercool)
+    if (flag == 'read' .and. .not. readvar) then
+      this%supercool(bounds%begc:bounds%endc,:) = 0.0_r8
+    end if
+
+    call restartvar(ncid=ncid, flag=flag, varname='SMP_I', xtype=ncd_double,&
+         dim1name='column', dim2name='levgrnd', switchdim=.true., &
+         long_name='frozen water potential', units='mm', &
+         interpinic_flag='interp', readvar=readvar, data=this%smp_i)
+     if (flag == 'read' .and. .not. readvar) then
+       this%smp_i(bounds%begc:bounds%endc,:) = 0.0_r8
+     end if
 
     if (use_cn) then
        call restartvar(ncid=ncid, flag=flag, varname='wf', xtype=ncd_double,  &
@@ -5658,6 +5703,8 @@ contains
     allocate(this%xmf                  (begc:endc))              ; this%xmf                  (:)   = spval
     allocate(this%xmf_h2osfc           (begc:endc))              ; this%xmf_h2osfc           (:)   = spval
     allocate(this%imelt                (begc:endc,-nlevsno+1:nlevgrnd))  ; this%imelt        (:,:) = huge(1)
+    allocate(this%tinc                 (begc:endc,-nlevsno+1:nlevgrnd))  ; this%tinc         (:,:) = spval
+  
     allocate(this%eflx_soil_grnd       (begc:endc))              ; this%eflx_soil_grnd       (:)   = spval
     allocate(this%eflx_rnet_soil       (begc:endc))              ; this%eflx_rnet_soil       (:)   = spval
     allocate(this%eflx_fgr0_soil       (begc:endc))              ; this%eflx_fgr0_soil       (:)   = spval
@@ -5711,6 +5758,31 @@ contains
           avgflag='A', long_name='Rural downward heat flux at interface below each soil layer', &
            ptr_col=this%eflx_fgr, set_spec=spval, default='inactive')
 
+    this%eflx_fgr12(begc:endc) = spval
+     call hist_addfld1d (fname='FGR0_SOIL',  units='W/m^2',  &
+          avgflag='A', long_name='soil-air heat flux (W/m2) [+ = into soil]', &
+           ptr_col=this%eflx_fgr0_soil, set_lake=spval, default='inactive')
+
+    this%eflx_fgr12(begc:endc) = spval
+     call hist_addfld1d (fname='FGR0_SNOW',  units='W/m^2',  &
+          avgflag='A', long_name='soil-snow heat flux (W/m2) [+ = into soil]', &
+           ptr_col=this%eflx_fgr0_snow, set_lake=spval, default='inactive')
+
+    this%eflx_fgr12(begc:endc) = spval
+     call hist_addfld1d (fname='FGR0_H2OSFC',  units='W/m^2',  &
+          avgflag='A', long_name='soil-surfacewater heat flux (W/m2) [+ = into soil]', &
+           ptr_col=this%eflx_fgr0_h2osfc, set_lake=spval, default='inactive')
+
+    this%xmf(begc:endc) = spval
+     call hist_addfld1d (fname='XMF', units='W/m^2',  &
+          avgflag='A', long_name='total latent heat flux from soil/snow phase change', &
+          ptr_col=this%xmf, default='inactive')
+
+    this%tinc(begc:endc,:) = spval
+     call hist_addfld2d (fname='TINC', units='K', type2d='levgrnd', &
+          avgflag='A', long_name='phase-change temperature increment before resetting layer to freezing point', &
+          ptr_col=this%tinc, default='inactive')
+
     this%errsoi(begc:endc) = spval
      call hist_addfld1d (fname='ERRSOI',  units='W/m^2',  &
           avgflag='A', long_name='soil/lake energy conservation error', &
@@ -5731,6 +5803,8 @@ contains
           this%eflx_urban_heat(c)    = 0._r8
        end if
     end do
+
+    this%tinc(begc:endc,:)  = 0._r8
 
   end subroutine col_ef_init
 
