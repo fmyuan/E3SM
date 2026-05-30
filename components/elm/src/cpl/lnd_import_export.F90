@@ -339,6 +339,21 @@ contains
           else if (use_daymet) then 
               atm2lnd_vars%startyear_met      = 1980
               atm2lnd_vars%endyear_met_spinup = atm2lnd_vars%endyear_met_trans
+
+              !get year information from file, if any
+              ierr = nf90_open(trim(metdata_bypass) // '/Daymet_ERA5.1km_TBOT_z01.nc', nf90_nowrite, ncid)
+              if (ierr == 0 ) then
+                  ierr = nf90_inq_varid(ncid, 'start_year', varid)
+                  if (ierr == 0) ierr = nf90_get_var(ncid, varid, atm2lnd_vars%startyear_met)
+                  ierr = nf90_inq_varid(ncid, 'end_year', varid)
+                  if (ierr == 0) then
+                      ierr = nf90_get_var(ncid, varid, atm2lnd_vars%endyear_met_trans)
+                       atm2lnd_vars%endyear_met_spinup = min(atm2lnd_vars%endyear_met_trans, &
+                                                             atm2lnd_vars%startyear_met+20)
+                  end if
+                  ierr = nf90_close(ncid)
+              end if
+
           end if
 
           nyears_spinup = atm2lnd_vars%endyear_met_spinup - &
@@ -437,6 +452,10 @@ contains
                     metdata_fname = 'CBGC1850S.ne30_' // trim(metvars(v)) // '_0566-0590_z' // zst(2:3) // '.nc'
             else if (atm2lnd_vars%metsource == 6) then
                 metdata_fname = 'ERA5_' // trim(metvars(v)) // '_1950-2025_z' // zst(2:3) // '.nc'
+                if (use_daymet .and. (index(metdata_type, 'daymet4') .gt. 0) ) then
+                   !daymet v4 with ERA5 v2024 for NA with user-defined zone-mappings.txt
+                    metdata_fname = 'Daymet_ERA5.1km_' // trim(metvars(v)) // '_z' // zst(2:3) // '.nc'
+                end if
             else if (atm2lnd_vars%metsource == 7) then
                 ! CRUJRA v2.3
                 metdata_fname = 'CRUJRAV2.3.c2023.0.5x0.5_' // trim(metvars(v)) // '_1901-2021_z' // zst(2:3) // '.nc'
