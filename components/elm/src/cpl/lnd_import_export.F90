@@ -119,6 +119,8 @@ contains
     character(len=*), parameter :: sub = 'lnd_import_mct'
     integer :: av, v, n, nummetdims, g3, gtoget, ztoget, line, mystart, tod_start, thistimelen
     integer, allocatable :: gtoget_all(:), ztoget_all(:)
+    integer, allocatable :: unique_zones(:)
+    integer :: nzones, zi
     integer :: met_ngrid
     integer*2, allocatable :: met_buf(:,:)
     character(len=20) aerovars(14), metvars(14)
@@ -385,95 +387,114 @@ contains
         end if
       end do
 
-      !Open each met file once per variable, read all local gridcells, then close.
-      !This avoids the NetCDF NC_infermodel stack overflow that occurs when nf90_open
-      !is called thousands of times (once per cell) for large grids.
-      do v=1,met_nvars
-        ztoget = ztoget_all(bounds%begg)
-        write(zst, '(I3)') 100+ztoget
-        if (atm2lnd_vars%metsource == 0) then
-          metdata_fname = trim(metsource_str) // '_' // trim(metvars(v)) // '_z' // zst(2:3) // '.nc'
-        else if (atm2lnd_vars%metsource == 1) then
-          metdata_fname = 'CRUNCEP.v5_' // trim(metvars(v)) // '_1901-2013_z' // zst(2:3) // '.nc'
-          if (use_livneh .and. ztoget .ge. 16 .and. ztoget .le. 20) then
-            metdata_fname = 'CRUNCEP5_Livneh_' // trim(metvars(v)) // '_1950-2013_z' // zst(2:3) // '.nc'
-          else if (use_daymet .and. ztoget .ge. 16 .and. ztoget .le. 20) then
-            metdata_fname = 'CRUNCEP5_Daymet3_' // trim(metvars(v)) // '_1980-2013_z' // zst(2:3) // '.nc'
-          end if
-        else if (atm2lnd_vars%metsource == 2) then
-          metdata_fname = 'all_hourly.nc'
-        else if (atm2lnd_vars%metsource == 3) then
-          metdata_fname = 'Princeton_' // trim(metvars(v)) // '_1901-2012_z' // zst(2:3) // '.nc'
-          if (use_livneh .and. ztoget .ge. 16 .and. ztoget .le. 20) then
-            metdata_fname = 'Princeton_Livneh_' // trim(metvars(v)) // '_1950-2012_z' // zst(2:3) // '.nc'
-          else if (use_daymet .and. ztoget .ge. 16 .and. ztoget .le. 20) then
-            metdata_fname = 'Princeton_Daymet3_' // trim(metvars(v)) // '_1980-2013_z' // zst(2:3) // '.nc'
-          end if
-        else if (atm2lnd_vars%metsource == 4) then
-          metdata_fname = 'GSWP3_' // trim(metvars(v)) // '_1901-2014_z' // zst(2:3) // '.nc'
-          if (use_livneh .and. ztoget .ge. 16 .and. ztoget .le. 20) then
-            metdata_fname = 'GSWP3_Livneh_' // trim(metvars(v)) // '_1950-2010_z' // zst(2:3) // '.nc'
-          else if (use_daymet .and. ztoget .ge. 16 .and. ztoget .le. 20) then
-            metdata_fname = 'GSWP3_Daymet3_' // trim(metvars(v)) // '_1980-2010_z' // zst(2:3) // '.nc'
-          end if
-        else if (atm2lnd_vars%metsource == 5) then
-          metdata_fname = 'CBGC1850S.ne30_' // trim(metvars(v)) // '_0566-0590_z' // zst(2:3) // '.nc'
-        else if (atm2lnd_vars%metsource == 6) then
-          metdata_fname = 'ERA5_' // trim(metvars(v)) // '_1950-2025_z' // zst(2:3) // '.nc'
-        else if (atm2lnd_vars%metsource == 8) then
-          metdata_fname = 'ATS-subdaily_' // trim(metvars(v)) // '_z' // zst(2:3) // '.nc'
-        end if
-
-        ierr = nf90_open(trim(metdata_bypass) // '/' // trim(metdata_fname), NF90_NOWRITE, met_ncids(v))
-        if (ierr .ne. 0) call endrun(msg=' ERROR: Failed to open cpl_bypass input meteorology file' )
-
-        ierr = nf90_inq_dimid(met_ncids(v), 'DTIME', dimid)
-        ierr = nf90_Inquire_Dimension(met_ncids(v), dimid, len = atm2lnd_vars%timelen(v))
-        starti(1) = 1
-        counti(1) = 2
-        ierr = nf90_inq_varid(met_ncids(v), 'DTIME', varid)
-        ierr = nf90_get_var(met_ncids(v), varid, timetemp, starti(1:1), counti(1:1))
-        atm2lnd_vars%timeres(v)        = (timetemp(2)-timetemp(1))*24._r8
-        atm2lnd_vars%npf(v)            = 86400d0*(timetemp(2)-timetemp(1))/get_step_size()
-        atm2lnd_vars%timelen_spinup(v) = nyears_spinup*(365*nint(24./atm2lnd_vars%timeres(v)))
-
-        ierr = nf90_inq_varid(met_ncids(v), trim(metvars(v)), varid)
-        atm2lnd_vars%scale_factors(v) = 1.0_r8
-        atm2lnd_vars%add_offsets(v)   = 0.0_r8
-        ierr = nf90_get_att(met_ncids(v), varid, 'scale_factor', atm2lnd_vars%scale_factors(v))
-        ierr = nf90_get_att(met_ncids(v), varid, 'add_offset', atm2lnd_vars%add_offsets(v))
-
-        counti(1) = atm2lnd_vars%timelen_spinup(v)
-        counti(2) = 1
-        if (.not. const_climate_hist .and. (yr .ge. 1850 .or. use_sitedata)) counti(1) = atm2lnd_vars%timelen(v)
-
-        if (v == 1) then
-          allocate(atm2lnd_vars%atm_input(met_nvars,bounds%begg:bounds%endg,1,1:counti(1)))
-        end if
-
-        !Read each unique gtoget value once and fill all cells sharing it.
-        !Uses a pointer alias so the single-zone case (all cells share gtoget=1)
-        !collapses to one NetCDF read and one array assignment.
-        allocate(met_buf(counti(1), 1))
-        starti(1) = 1
-        counti(2) = 1
-        gtoget = -1
-        do g = bounds%begg, bounds%endg
-          if (gtoget_all(g) /= gtoget) then
-            !new zone: read it, then fill this cell and all subsequent same-zone cells
-            gtoget = gtoget_all(g)
-            starti(2) = gtoget
-            ierr = nf90_get_var(met_ncids(v), varid, met_buf, starti(1:2), counti(1:2))
-            atm2lnd_vars%atm_input(v,g,1,:) = met_buf(:,1)
-          else
-            !same zone as previous cell: copy from already-filled cell g-1
-            atm2lnd_vars%atm_input(v,g,1,:) = atm2lnd_vars%atm_input(v,g-1,1,:)
-          end if
+      !Collect unique zone values across all local gridcells.
+      allocate(unique_zones(bounds%endg - bounds%begg + 1))
+      nzones = 0
+      do g = bounds%begg, bounds%endg
+        ztoget = ztoget_all(g)
+        do zi = 1, nzones
+          if (unique_zones(zi) == ztoget) goto 20
         end do
-        deallocate(met_buf)
+        nzones = nzones + 1
+        unique_zones(nzones) = ztoget
+        20 continue
+      end do
 
-        ierr = nf90_close(met_ncids(v))
+      !Open each met file once per variable per zone, read all local gridcells in
+      !that zone, then close.  This avoids the NetCDF NC_infermodel stack overflow
+      !that occurs when nf90_open is called thousands of times (once per cell) for
+      !large grids, and correctly handles ranks that straddle zone boundaries.
+      do v=1,met_nvars
+        do zi=1,nzones
+          ztoget = unique_zones(zi)
+          write(zst, '(I3)') 100+ztoget
+          if (atm2lnd_vars%metsource == 0) then
+            metdata_fname = trim(metsource_str) // '_' // trim(metvars(v)) // '_z' // zst(2:3) // '.nc'
+          else if (atm2lnd_vars%metsource == 1) then
+            metdata_fname = 'CRUNCEP.v5_' // trim(metvars(v)) // '_1901-2013_z' // zst(2:3) // '.nc'
+            if (use_livneh .and. ztoget .ge. 16 .and. ztoget .le. 20) then
+              metdata_fname = 'CRUNCEP5_Livneh_' // trim(metvars(v)) // '_1950-2013_z' // zst(2:3) // '.nc'
+            else if (use_daymet .and. ztoget .ge. 16 .and. ztoget .le. 20) then
+              metdata_fname = 'CRUNCEP5_Daymet3_' // trim(metvars(v)) // '_1980-2013_z' // zst(2:3) // '.nc'
+            end if
+          else if (atm2lnd_vars%metsource == 2) then
+            metdata_fname = 'all_hourly.nc'
+          else if (atm2lnd_vars%metsource == 3) then
+            metdata_fname = 'Princeton_' // trim(metvars(v)) // '_1901-2012_z' // zst(2:3) // '.nc'
+            if (use_livneh .and. ztoget .ge. 16 .and. ztoget .le. 20) then
+              metdata_fname = 'Princeton_Livneh_' // trim(metvars(v)) // '_1950-2012_z' // zst(2:3) // '.nc'
+            else if (use_daymet .and. ztoget .ge. 16 .and. ztoget .le. 20) then
+              metdata_fname = 'Princeton_Daymet3_' // trim(metvars(v)) // '_1980-2013_z' // zst(2:3) // '.nc'
+            end if
+          else if (atm2lnd_vars%metsource == 4) then
+            metdata_fname = 'GSWP3_' // trim(metvars(v)) // '_1901-2014_z' // zst(2:3) // '.nc'
+            if (use_livneh .and. ztoget .ge. 16 .and. ztoget .le. 20) then
+              metdata_fname = 'GSWP3_Livneh_' // trim(metvars(v)) // '_1950-2010_z' // zst(2:3) // '.nc'
+            else if (use_daymet .and. ztoget .ge. 16 .and. ztoget .le. 20) then
+              metdata_fname = 'GSWP3_Daymet3_' // trim(metvars(v)) // '_1980-2010_z' // zst(2:3) // '.nc'
+            end if
+          else if (atm2lnd_vars%metsource == 5) then
+            metdata_fname = 'CBGC1850S.ne30_' // trim(metvars(v)) // '_0566-0590_z' // zst(2:3) // '.nc'
+          else if (atm2lnd_vars%metsource == 6) then
+            metdata_fname = 'ERA5_' // trim(metvars(v)) // '_1950-2025_z' // zst(2:3) // '.nc'
+          else if (atm2lnd_vars%metsource == 8) then
+            metdata_fname = 'ATS-subdaily_' // trim(metvars(v)) // '_z' // zst(2:3) // '.nc'
+          end if
+
+          ierr = nf90_open(trim(metdata_bypass) // '/' // trim(metdata_fname), NF90_NOWRITE, met_ncids(v))
+          if (ierr .ne. 0) call endrun(msg=' ERROR: Failed to open cpl_bypass input meteorology file' )
+
+          !Read time metadata from the first zone's file; assumed consistent across zones.
+          if (zi == 1) then
+            ierr = nf90_inq_dimid(met_ncids(v), 'DTIME', dimid)
+            ierr = nf90_Inquire_Dimension(met_ncids(v), dimid, len = atm2lnd_vars%timelen(v))
+            starti(1) = 1
+            counti(1) = 2
+            ierr = nf90_inq_varid(met_ncids(v), 'DTIME', varid)
+            ierr = nf90_get_var(met_ncids(v), varid, timetemp, starti(1:1), counti(1:1))
+            atm2lnd_vars%timeres(v)        = (timetemp(2)-timetemp(1))*24._r8
+            atm2lnd_vars%npf(v)            = 86400d0*(timetemp(2)-timetemp(1))/get_step_size()
+            atm2lnd_vars%timelen_spinup(v) = nyears_spinup*(365*nint(24./atm2lnd_vars%timeres(v)))
+
+            atm2lnd_vars%scale_factors(v) = 1.0_r8
+            atm2lnd_vars%add_offsets(v)   = 0.0_r8
+            ierr = nf90_inq_varid(met_ncids(v), trim(metvars(v)), varid)
+            ierr = nf90_get_att(met_ncids(v), varid, 'scale_factor', atm2lnd_vars%scale_factors(v))
+            ierr = nf90_get_att(met_ncids(v), varid, 'add_offset', atm2lnd_vars%add_offsets(v))
+
+            counti(1) = atm2lnd_vars%timelen_spinup(v)
+            counti(2) = 1
+            if (.not. const_climate_hist .and. (yr .ge. 1850 .or. use_sitedata)) counti(1) = atm2lnd_vars%timelen(v)
+
+            if (v == 1) then
+              allocate(atm2lnd_vars%atm_input(met_nvars,bounds%begg:bounds%endg,1,1:counti(1)))
+            end if
+            allocate(met_buf(counti(1), 1))
+          else
+            ierr = nf90_inq_varid(met_ncids(v), trim(metvars(v)), varid)
+          end if
+
+          !Read each unique gtoget value in this zone once and fill all cells sharing it.
+          starti(1) = 1
+          counti(2) = 1
+          gtoget = -1
+          do g = bounds%begg, bounds%endg
+            if (ztoget_all(g) /= ztoget) cycle
+            if (gtoget_all(g) /= gtoget) then
+              gtoget = gtoget_all(g)
+              starti(2) = gtoget
+              ierr = nf90_get_var(met_ncids(v), varid, met_buf, starti(1:2), counti(1:2))
+            end if
+            atm2lnd_vars%atm_input(v,g,1,:) = met_buf(:,1)
+          end do
+
+          ierr = nf90_close(met_ncids(v))
+        end do   !end zone loop
+
+        deallocate(met_buf)
       end do   !end variable loop
+
+      deallocate(unique_zones)
 
       !Compute site bias corrections and initialise tindex for each local cell
       mystart = atm2lnd_vars%startyear_met  ! kept for clarity; equals startyear_met
