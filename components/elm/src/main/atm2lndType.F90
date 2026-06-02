@@ -66,6 +66,10 @@ module atm2lndType
       real(r8), pointer ::  ndep1                      (:,:,:) => null()
       real(r8), pointer ::  ndep2                      (:,:,:) => null()
       real(r8), pointer ::  aerodata                 (:,:,:,:) => null()
+      integer,  pointer :: buffer_start_tidx               (:) => null()  !(1:14) abs file index of buffer slot 1, per variable
+      integer,  pointer :: read_ntimes                          => null()  !rolling buffer depth (-1 = read entire record)
+      integer,  pointer :: gtoget_saved                    (:) => null()  !(begg:endg) saved grid-to-file-cell mapping
+      integer,  pointer :: ztoget_saved                    (:) => null()  !(begg:endg) saved grid-to-zone mapping
 #endif
      ! atm->lnd not downscaled
      real(r8), pointer :: forc_u_grc                    (:)   => null() ! atm wind speed, east direction (m/s)
@@ -244,6 +248,10 @@ contains
     allocate(this%ndep1                          (144,96,1))        ; this%ndep1                     (:,:,:)   = ival
     allocate(this%ndep2                          (144,96,1))        ; this%ndep2                     (:,:,:)   = ival
     allocate(this%aerodata                   (14,144,96,14))        ; this%aerodata                (:,:,:,:)   = ival
+    allocate(this%buffer_start_tidx                  (1:14))        ; this%buffer_start_tidx             (:)   = 1
+    allocate(this%read_ntimes                              )        ; this%read_ntimes                         = -1
+    allocate(this%gtoget_saved               (begg:endg)   )        ; this%gtoget_saved                  (:)   = 0
+    allocate(this%ztoget_saved               (begg:endg)   )        ; this%ztoget_saved                  (:)   = 0
     !END DMR
 #endif
     allocate(this%forc_u_grc                    (begg:endg))        ; this%forc_u_grc                    (:)   = ival

@@ -694,6 +694,12 @@ Per tape series history write frequency.
        group="elm_inparm" valid_values="">
 </entry>
 
+<entry id="metdata_read_buffer_ntimes" type="integer" category="datasets"
+       group="elm_inparm" valid_values="">
+Rolling buffer depth for CPL_BYPASS met forcing. -1 (default) reads the entire record at once.
+<default>Default: -1</default>
+</entry>
+
 <entry id="nsegspc" type="integer" category="elm_performance"
        group="elm_inparm" valid_values="" >
 number of segments per clump for decomposition
