@@ -241,11 +241,7 @@ contains
           !meteorological forcing
           if (index(metdata_type, 'qian') .gt. 0) then 
             atm2lnd_vars%metsource = 0   
-          else if (index(metdata_type,'jra') .gt. 0 .and. index(metdata_type,'cru') .gt. 0) then
-            ! CRUJRA v2.3 or CRUJRA trendy
-            ! note: this 'else if' is ahead of next one, cru, to avoid type mis-matching
-            atm2lnd_vars%metsource = 7
-          else if (index(metdata_type,'cru') .gt. 0) then
+          else if (index(metdata_type,'cru') .gt. 0 .and. index(metdata_type,'jra') .le. 0) then
             atm2lnd_vars%metsource = 1  
           else if (index(metdata_type,'site') .gt. 0) then 
             atm2lnd_vars%metsource = 2
@@ -257,6 +253,9 @@ contains
             atm2lnd_vars%metsource = 5
           else if (index(metdata_type,'era5') .gt. 0) then
             atm2lnd_vars%metsource = 6
+          else if (index(metdata_type,'jra') .gt. 0 .and. index(metdata_type,'cru') .gt. 0) then
+            ! CRUJRA v2.3 or CRUJRA trendy
+            atm2lnd_vars%metsource = 7
           else
             call endrun( sub//' ERROR: Invalid met data source for cpl_bypass' )
           end if
@@ -385,10 +384,10 @@ contains
             mindist=99999
             do g3 = 1,ng
               ! in CPL_BYPASS met dataset, longitude is in format of 0-360, but 'ldomain%lonc(g)' may or may not.
-              if (ldomain%lonc(g) .lt. 0) then
-                if (longxy(g3) >= 180) longxy(g3) = longxy(g3)-360._r8
-              else if (ldomain%lonc(g) .ge. 180) then
-                if (longxy(g3) < 0) longxy(g3) = longxy(g3) + 360._r8
+              if (ldomain%lonc(g) .lt. 0._r8) then
+                if (longxy(g3) >= 180._r8) longxy(g3) = longxy(g3)-360._r8
+              else if (ldomain%lonc(g) .ge. 180._r8) then
+                if (longxy(g3) < 0._r8) longxy(g3) = longxy(g3) + 360._r8
               end if
               thisdist = 100*((latixy(g3) - ldomain%latc(g))**2 + &
                               (longxy(g3) - ldomain%lonc(g))**2)**0.5
@@ -1202,7 +1201,7 @@ contains
           read(startdate_add_co2,*) sdate_addco2
           sy_addco2     = sdate_addco2/10000
           sm_addco2     = (sdate_addco2-sy_addco2*10000)/100
-          sd_addco2     = sdate_addco2-sy_addco2*10000-sm_addt*100
+          sd_addco2     = sdate_addco2-sy_addco2*10000-sm_addco2*100
           if ((yr == sy_addco2 .and. mon == sm_addco2 .and. day >= sd_addco2) .or. &
               (yr == sy_addco2 .and. mon > sm_addco2) .or. (yr > sy_addco2)) then
             co2_ppmv_val=co2_ppmv_val + add_co2
