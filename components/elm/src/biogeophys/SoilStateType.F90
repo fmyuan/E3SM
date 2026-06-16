@@ -832,8 +832,6 @@ contains
 
                   this%tkdry_col(c,lev)  = ((0.053_r8*tkm-tkair)*this%bd_col(c,lev) + tkair*2.8_r8) / &
                      (2.7_r8 - (1_r8 - 0.053_r8)*this%bd_col(c,lev))
-
-                  ! for now, leave heat capacity alone - RPF
                end if
 
              end if

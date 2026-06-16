@@ -954,13 +954,8 @@ contains
                            h2osoi_ice(c,j)/(denice*dz(c,j)))
                         dksat = tkmg(c,j)*tkwat**(fl*watsat(c,j))*tkice**((1._r8-fl)*watsat(c,j))
                         thk(c,j) = dke*dksat + (1._r8-dke)*tkdry(c,j)
-                        !write(iulog,*) "Old THK(c,j), c, j are: ", thk(c,j), c,j
-                        !write(iulog,*) "Old components of fl:", fl, h2osoi_liq(c,j), h2osoi_ice(c,j)
-                        !write(iulog,*) "Old dksat components are: ", dksat, tkmg(c,j), watsat(c,j)
-                        !write(iulog,*) "Old components of thk are:", dke, dksat, tkdry(c,j)
                      else
                         thk(c,j) = tkdry(c,j)
-                        !write(iulog,*) "Old dry THK(c,j), c, j, are: ", thk(c,j), c, j
                      endif
                   !else
                      ! Extract soil texture for current column and layer
@@ -996,13 +991,8 @@ contains
                            dksat = (tkmg(c,j)**(1-watsat(c,j)))*(tkice**((1._r8-fl)*watsat(c,j)))*(tkwat**(fl*watsat(c,j)))
                         endif  
                         thk(c,j) = (dksat - tkdry(c,j))*dke + tkdry(c,j)
-                        !write(iulog,*) "New THK(c,j), c,j are:", thk(c,j), c,j 
-                        !write(iulog,*) "New components of fl:", fl, h2osoi_liq(c,j), h2osoi_ice(c,j)
-                        !write(iulog,*) "New dksat components are: ", dksat, tkmg(c,j), watsat(c,j), tkice, tkwat
-                        !write(iulog,*) "New components of thk are:", dke, dksat, tkdry(c,j)
                      else
                         thk(c,j) = tkdry(c,j)
-                        !write(iulog,*) "New dry THK(c,j), c,j are:", thk(c,j), c,j 
                      endif
                   !endif
 
