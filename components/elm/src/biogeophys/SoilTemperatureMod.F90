@@ -941,9 +941,7 @@ contains
                   satw = (h2osoi_liq(c,j)/denh2o + h2osoi_ice(c,j)/denice)/(dz(c,j)*watsat(c,j))
                   satw = min(1._r8, satw)
 
-
-
-                  !if (.not. use_balland_and_arp) then
+                  if (.not. use_balland_and_arp) then
                      if (satw > .1e-6_r8) then
                         if (t_soisno(c,j) >= tfrz) then       ! Unfrozen soil
                            dke = max(0._r8, log10(satw) + 1.0_r8)
@@ -957,7 +955,7 @@ contains
                      else
                         thk(c,j) = tkdry(c,j)
                      endif
-                  !else
+                  else
                      ! Extract soil texture for current column and layer
                      if (j <= nlevsoi) then
                         sand = cellsand(c,j) / 100.0_r8    ! Convert from % to fraction
@@ -994,7 +992,7 @@ contains
                      else
                         thk(c,j) = tkdry(c,j)
                      endif
-                  !endif
+                  endif
 
                   if (j > nlevbed) thk(c,j) = thk_bedrock
                else if (lun_pp%itype(l) == istice .OR. lun_pp%itype(l) == istice_mec) then
