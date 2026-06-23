@@ -377,7 +377,7 @@ contains
     real(r8)           :: bd                            ! bulk density of dry soil material [kg/m^3]
     real(r8)           :: tkm                           ! mineral conductivity
     real(r8)           :: xksat                         ! maximum hydraulic conductivity of soil [mm/s]
-    real(r8)           :: clay,sand,gravel              ! temporaries
+    real(r8)           :: clay,sand,gravel,sand_frac    ! temporaries
     real(r8)           :: organic_max                   ! organic matter (kg/m3) where soil is assumed to act like peat
     integer            :: dimid                         ! dimension id
     logical            :: readvar
@@ -825,7 +825,8 @@ contains
                if (use_balland_and_arp) then
                   ! rewrite all of the thermal conductivity parameters to be consistent
                   ! with Balland and Arp 2005 model
-                  tkm = (om_tkm**om_frac)*(8.0_r8**sand)*(2.5_r8**(1._r8-om_frac-sand))                
+                  sand_frac = sand / 100._r8
+                  tkm = (om_tkm**om_frac)*(8.0_r8**sand_frac)*(2.5_r8**(1._r8-om_frac-sand_frac))                
                   this%tkmg_col(c,lev)   = tkm ** (1._r8- this%watsat_col(c,lev))
 
                   this%tksatu_col(c,lev) = this%tkmg_col(c,lev)*0.57_r8**this%watsat_col(c,lev)
