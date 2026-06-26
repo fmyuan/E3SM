@@ -71,9 +71,10 @@ contains
     use column_varcon        , only : icol_shadewall
     use elm_varctl           , only : use_cn, use_betr, use_fates, use_pflotran, pf_hmode, use_fan, use_ats
 
-#ifdef USE_ATS_LIB    
+#ifdef USE_ATS_LIB
     use ExternalModelATS            , only : em_ats
-#endif   
+    use VegetationDataType          , only : veg_wf
+#endif
     
     use elm_varpar           , only : nlevgrnd, nlevsno, nlevsoi, nlevurb
     use SnowHydrologyMod     , only : SnowCompaction, CombineSnowLayers, DivideSnowLayers, DivideExtraSnowLayers, SnowCapping
@@ -483,7 +484,7 @@ contains
       ! NOTE: ETC -- this is the EARLIEST ATS can advance -- needs eff_porosity computed above
       ! ATS calculation of hydrology, both surface (runoff) and subsurface (baseflow)
       if (use_ats) then
-         call em_ats%Advance(dtime_mod, nstep_mod, col_pp, soilstate_vars, col_ws, col_wf, soilhydrology_vars, photosyns_vars)
+         call em_ats%Advance(dtime_mod, nstep_mod, col_pp, soilstate_vars, col_ws, col_wf, veg_wf, soilhydrology_vars, photosyns_vars)
       end if
 #endif
       

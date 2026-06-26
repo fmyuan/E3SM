@@ -22,6 +22,7 @@ module ExternalModelATS
   use SoilHydrologyType          , only : soilhydrology_type
   use SoilStateType              , only : soilstate_type
   use ColumnDataType             , only : column_water_state, column_water_flux
+  use VegetationDataType         , only : vegetation_water_flux
   use ExternalModelATS_interface
 
   ! fortran API for C++ ATS code
@@ -201,7 +202,7 @@ contains
 
 
   !------------------------------------------------------------------------
-  subroutine EM_ATS_Advance(this, dt, nstep, col_pp, soilstate_vars, col_ws, col_wf, soilhydrology_vars, photosyns_vars)
+  subroutine EM_ATS_Advance(this, dt, nstep, col_pp, soilstate_vars, col_ws, col_wf, veg_wf, soilhydrology_vars, photosyns_vars)
     implicit none
 
     class(em_ats_type)                       :: this
@@ -211,6 +212,7 @@ contains
     type(soilstate_type)     , intent(inout)    :: soilstate_vars
     type(column_water_state) , intent(inout)    :: col_ws
     type(column_water_flux)  , intent(inout)    :: col_wf
+    type(vegetation_water_flux), intent(inout)  :: veg_wf
     type(photosyns_type)     , intent(inout) :: photosyns_vars
     type(soilhydrology_type) , intent(inout) :: soilhydrology_vars
   
@@ -287,8 +289,8 @@ contains
     call EM_ATS_GetField_WaterContent(this, col_pp, soilstate_vars, col_ws, soilhydrology_vars)
     
     ! get actual fluxes back and apply the downregulation where needed
-    call EM_ATS_GetField_ActualEvaporation(this, col_wf)
-    call EM_ATS_GetField_ActualTranspiration(this, col_wf, photosyns_vars)
+    call EM_ATS_GetField_ActualEvaporation(this, col_wf, veg_wf)
+    call EM_ATS_GetField_ActualTranspiration(this, col_wf, veg_wf, photosyns_vars)
 
     ! get runoff and baseflow back
     call EM_ATS_GetField_ScalarMultiply(this, "baseflow", ats_var_id%BASEFLOW, col_wf%qflx_drain, 1.e3_r8, 2)
@@ -810,11 +812,12 @@ contains
   ! -----------------------------------------------------------------------
   ! Special purpose -- downregulate transpiration
   !
-  subroutine EM_ATS_GetField_ActualTranspiration(this, col_wf, photosyns_vars)
+  subroutine EM_ATS_GetField_ActualTranspiration(this, col_wf, veg_wf, photosyns_vars)
     implicit none
 
     class(em_ats_type)                                  :: this
     type(column_water_flux)             , intent(inout) :: col_wf
+    type(vegetation_water_flux)         , intent(inout) :: veg_wf
     type(photosyns_type), intent(inout) :: photosyns_vars
 
     ! locals
@@ -822,7 +825,7 @@ contains
     real(r8) :: downreg, downreg_eps, tot_trans, diff
     real(c_double), pointer :: ats_tot_trans(:)
     integer :: lverbosity = 2
-    
+
     ! get the total transpiration from ATS
     call EM_ATS_GetFieldPtr(this, ats_var_id%COLUMN_TRANSPIRATION, this%ncolumns, ats_tot_trans)
 
@@ -834,7 +837,7 @@ contains
           write(iulog,*) "     pot T : column ", i, " total = ", col_wf%qflx_tran_veg(ii)
        end if
 
-       
+
        downreg = 1._r8
        if (col_wf%qflx_tran_veg(ii) > 0.) then
           tot_trans = ats_tot_trans(i) * 1.e3_r8 ! m/s -> mm/s
@@ -850,7 +853,7 @@ contains
           ! debugging that adds an absolution portion, and one for
           ! downregulating carbon that is bounded below 1.
           downreg = min(tot_trans / col_wf%qflx_tran_veg(ii), 1.0_r8)
-          downreg_eps = tot_trans / max(col_wf%qflx_tran_veg(ii), 1.e-10)
+          downreg_eps = tot_trans / max(col_wf%qflx_tran_veg(ii), 1.e-8)
           diff = max(col_wf%qflx_tran_veg(ii) - tot_trans, 0._r8)
 
           if (downreg_eps > 1.01_r8 .OR. downreg < 0._r8) then
@@ -858,10 +861,12 @@ contains
              call endrun("ATS transpiration downregulation is out of expected bounds.")
           end if
 
-          ! evap_veg, evap_tot
+          ! evap_veg, evap_tot: update column-level and patch-level arrays
           col_wf%qflx_evap_veg(ii) = col_wf%qflx_evap_veg(ii) - diff
           col_wf%qflx_evap_tot(ii) = col_wf%qflx_evap_tot(ii) - diff
-          
+          veg_wf%qflx_evap_veg(pp) = veg_wf%qflx_evap_veg(pp) - diff
+          veg_wf%qflx_evap_tot(pp) = veg_wf%qflx_evap_tot(pp) - diff
+
           ! CO2 scales linearly with water? CHECK THIS! --ETC
           if (downreg < 1.0_r8) then
              photosyns_vars%fpsn_patch(pp) = photosyns_vars%fpsn_patch(pp) * downreg
@@ -873,8 +878,9 @@ contains
           ! reduce latent heat, increase sensible
           ! ... TODO: ETC
 
-          ! correct pft_tran_veg
+          ! correct pft_tran_veg: update column-level and patch-level arrays
           col_wf%qflx_tran_veg(ii) = tot_trans
+          veg_wf%qflx_tran_veg(pp) = tot_trans
        else
           tot_trans = 0.0_r8
        end if
@@ -891,24 +897,26 @@ contains
   ! -----------------------------------------------------------------------
   ! Special purpose -- downregulate evaporation
   !
-  subroutine EM_ATS_GetField_ActualEvaporation(this, col_wf)
+  subroutine EM_ATS_GetField_ActualEvaporation(this, col_wf, veg_wf)
     implicit none
 
     class(em_ats_type)                                  :: this
-    type(column_water_flux)             , intent(in)    :: col_wf
+    type(column_water_flux)             , intent(inout) :: col_wf
+    type(vegetation_water_flux)         , intent(inout) :: veg_wf
 
     ! locals
-    integer :: i,ii
+    integer :: i,ii, pp
     real(r8) :: downreg, evap, pot_evap, diff
     real(c_double), pointer :: ats_pot_evap(:), ats_evap(:)
     integer :: lverbosity = 2
-    
+
     ! get the total evaporation from ATS
     call EM_ATS_GetFieldPtr(this, ats_var_id%EVAPORATION, this%ncolumns, ats_evap)
     call EM_ATS_GetFieldPtr(this, ats_var_id%POTENTIAL_EVAPORATION, this%ncolumns, ats_pot_evap)
 
     do i=1,this%ncolumns
        ii = this%col_filter(i)
+       pp = this%pft_filter(i)
 
        ! units: m/s --> mm/s
        evap = ats_evap(i) * 1.e3_r8
@@ -918,7 +926,7 @@ contains
 
        if (this%verbosity >= lverbosity) then
           write(iulog,*) "     pot evaporation : column ", i, " = ", pot_evap
-          write(iulog,*) "     qflx_evap_tot : column ", i, " = ", col_wf%qflx_evap_tot(i)
+          write(iulog,*) "     qflx_evap_tot : column ", i, " = ", col_wf%qflx_evap_tot(ii)
        end if
 
        if (pot_evap > 0. .and. diff > 0.) then
@@ -929,13 +937,12 @@ contains
              call endrun("ATS evaporation downregulation is out of expected bounds.")
           end if
 
-
           ! no distinction between h2osfc and h2osoi evap
-          !
-          ! take it all from soil evap
-          ! note these are all per unit column area
+          ! take it all from soil evap; update column-level and patch-level arrays
           col_wf%qflx_evap_soi(ii) = col_wf%qflx_evap_soi(ii) - diff
           col_wf%qflx_evap_tot(ii) = col_wf%qflx_evap_tot(ii) - diff
+          veg_wf%qflx_evap_soi(pp) = veg_wf%qflx_evap_soi(pp) - diff
+          veg_wf%qflx_evap_tot(pp) = veg_wf%qflx_evap_tot(pp) - diff
        end if
 
        if (this%verbosity >= lverbosity) then

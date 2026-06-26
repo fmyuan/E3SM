@@ -1282,6 +1282,7 @@ contains
     real(r8) :: frc_oldsnow                 ! fraction of layer mass that is old snow [frc]
     real(r8) :: frc_refrz                   ! fraction of layer mass that is re-frozen snow [frc]
     real(r8) :: frc_liq                     ! fraction of layer mass that is liquid water[frc]
+    real(r8) :: frc_liq3                    ! frc_liq**3, temp var to avoid GCC/aarch64 pow overflow
     real(r8)  :: dtime                       ! land model time step [sec]
     real(r8) :: rhos                        ! snow density [kg m-3]
     real(r8) :: h2osno_lyr                  ! liquid + solid H2O in snow layer [kg m-2]
@@ -1414,7 +1415,9 @@ contains
 
             !dr_wet = 1E6_r8*(dtime*(C1_liq_Brun89 + C2_liq_Brun89*(frc_liq**(3))) / (4*SHR_CONST_PI*(snw_rds(c_idx,i)/1E6)**(2)))
             !simplified, units of microns:
-            dr_wet = 1E18_r8*(dtime*(C2_liq_Brun89*(frc_liq**(3))) / (4*SHR_CONST_PI*snw_rds(c_idx,i)**(2)))
+            ! workaround for GCC/aarch64 codegen overflow with inline pow expressions
+            frc_liq3 = frc_liq**3
+            dr_wet = 1E18_r8*(dtime*(C2_liq_Brun89*frc_liq3) / (4*SHR_CONST_PI*snw_rds(c_idx,i)**(2)))
 
             dr = dr + dr_wet
 

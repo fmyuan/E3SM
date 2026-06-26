@@ -534,6 +534,7 @@ module elm_varctl
    character(len=fname_len), public :: metdata_biases = ' '    ! met biases files for CPL_BYPASS mode
    character(len=fname_len), public :: co2_file       = ' '    ! co2 file for CPL_BYPASS mode
    character(len=fname_len), public :: aero_file      = ' '    ! aerosol deposition file for CPL_BYPASS mode
+   integer,                  public :: metdata_read_buffer_ntimes = -1  ! rolling buffer depth; -1 = read entire record at once
 
   !$acc declare create(use_fates)
 
