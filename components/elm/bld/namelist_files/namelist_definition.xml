@@ -339,8 +339,8 @@ Note that the landuse_timeseries option is not the same as the FATES fluh_timese
 This option is older than the luhdata options and may be depricated at some point in the future.
 </entry>
 
-<entry id="fates_parteh_mode" type="integer" category="physics"
-       group="elm_inparm" valid_values="1,2">
+<entry id="fates_parteh_mode" type="char*80" category="physics"
+       group="elm_inparm" valid_values="carbon_only,cnp">
 Switch deciding which nutrient model to use in FATES.
 </entry>
 
@@ -457,6 +457,13 @@ Toggle to turn on prescribed physiology (only relevant if FATES is being used).
 Toggle to turn on inventory initialization(only relevant if FATES is being used).
 </entry>
 
+<entry id="use_fates_dbh_init" type="logical" category="physics"
+        group="elm_inparm" valid_values="" value=".false.">
+Initialize cohorts at coldstart with diameter at breast height instead of density
+(Applies only if use_fates_nocomp=.true.)
+(Only relevant if FATES is on).
+</entry>
+
 <entry id="fates_inventory_ctrl_filename" type="char*256" category="datasets"
        input_pathname="abs" group="elm_inparm" valid_values="" >
 Full pathname to the inventory initialization control file.
@@ -517,6 +524,14 @@ is provided as a namelist option to engage all necessary options).  The file is 
 by the FATES land use data tool (https://github.com/NGEET/tools-fates-landusedata)
 which processes the raw land use data from the THEMIS tool data sets
 (https://doi.org/10.5065/29s7-7b41)
+</entry>
+
+<entry id="fates_lu_transition_logic" type="integer" category="physics"
+        group="elm_inparm" valid_values="1,2,3,4,5,6,7,8,9">
+Select the logic for land use class transitions.
+Allowed values are 1-9. See the Land Use subsection of the Namelist Options section
+of the FATES user guide for an explanation of the options.
+(Only relevant if FATES with land use is on)
 </entry>
 
 <entry id="use_hydrstress" type="logical" category="physics"
@@ -835,20 +850,27 @@ with config_use_snicar_ad in mpas-seaice namelist
 
 <entry id="use_extrasnowlayers" type="logical" category="physics"
        group="elm_inparm" valid_values="" value=".false.">
-Toggle to use 16 snow layers instead of 5.  This option enables more realistic
-snowpack conditions on glaciers and ice sheets, including a semi-empirical
-firn densification model.
+Toggle to use 16 snow layers instead of 5.  This option was implemented to
+enable more realistic snowpack conditions on glaciers and ice sheets.  In
+that context, it should generally be used with use_firn_percolation_and_compaction,
+but it can also be used on its own to enable more snow layers for other applications.
+It also increases the snow water cap (h2osno_max) and affects snow initialization
+and snow-layer history/output handling. Additionally, it controls which snow-layer
+combining and dividing algorithms are used (16-layer schemes vs. 5-layer schemes).
 </entry>
 
 <entry id="use_firn_percolation_and_compaction" type="logical" category="physics"
        group="elm_inparm" valid_values="" value=".false.">
 This option enables more realistic
 snowpack conditions on glaciers and ice sheets, including a semi-empirical
-firn densification model. uses the same physics as use_extrasnowlayers but
-uses the original 5 snow layer scheme
+firn densification model.  This option is typically used in conjunction with
+use_extrasnowlayers, but it can also be used on its own to enable the firn model
+with the standard 5 snow layers.
+This option also controls snow-capping and related snow-water flux handling paths.
+</entry>
 
 <entry id="use_T_rho_dependent_snowthk" type="logical" category="physics"
-	group="elm_inparm" valid_values="" value=".false.">
+       group="elm_inparm" valid_values="" value=".false.">
 Toggle to use new snow thermal conductivity that relies on snow temperature and density. 
 </entry>
 
@@ -1557,7 +1579,7 @@ CLM run type.
 <entry id="res" type="char*30" category="default_settings"
        group="default_settings"
        valid_values=
-"512x1024,360x720cru,128x256,64x128,48x96,32x64,8x16,94x192,0.23x0.31,0.9x1.25,1.9x2.5,2.5x3.33,4x5,10x15,5x5_amazon,1x1_tropicAtl,1x1_camdenNJ,1x1_vancouverCAN,1x1_mexicocityMEX,1x1_asphaltjungleNJ,1x1_brazil,1x1_icycape,1x1_urbanc_alpha,1x1_numaIA,1x1_smallvilleIA,0.1x0.1,0.5x0.5,3x3min,5x5min,10x10min,0.33x0.33,ne4np4,ne4np4.pg2,ne11np4,ne16np4,ne30np4,ne30np4.pg2,ne60np4,ne120np4,ne120np4.pg2,ne240np4,ne256np4,ne256np4.pg2,ne512np4.pg2,ne1024np4,ne1024np4.pg2,1km-merge-10min,ne0np4_CAx32v1.pg2,ne0np4_arm_x8v3_lowcon,ne0np4_conus_x4v1_lowcon,ne0np4_enax4v1,ne0np4_twpx4v1,r2,r05,r0125,NLDAS,ne0np4_northamericax4v1.pg2,ne0np4_arcticx4v1.pg2,r025,0.01x0.01">
+"512x1024,360x720cru,128x256,64x128,48x96,32x64,8x16,94x192,0.23x0.31,0.9x1.25,1.9x2.5,2.5x3.33,4x5,10x15,5x5_amazon,1x1_tropicAtl,1x1_camdenNJ,1x1_vancouverCAN,1x1_mexicocityMEX,1x1_asphaltjungleNJ,1x1_brazil,1x1_icycape,1x1_urbanc_alpha,1x1_numaIA,1x1_smallvilleIA,0.1x0.1,0.5x0.5,3x3min,5x5min,10x10min,0.33x0.33,ne4np4,ne4np4.pg2,ne11np4,ne16np4,ne30np4,ne30np4.pg2,ne32np4.pg2,ne60np4,ne64np4.pg2,ne120np4,ne120np4.pg2,ne128np4.pg2,ne240np4,ne256np4,ne256np4.pg2,ne512np4.pg2,ne1024np4,ne1024np4.pg2,1km-merge-10min,ne0np4_CAx32v1.pg2,ne0np4_arm_x8v3_lowcon,ne0np4_conus_x4v1_lowcon,ne0np4_enax4v1,ne0np4_twpx4v1,r2,r05,r0125,NLDAS,ne0np4_northamericax4v1.pg2,ne0np4_arcticx4v1.pg2,r025,0.01x0.01">
 Horizontal resolutions
 Note: 0.1x0.1, 0.5x0.5, 5x5min, 10x10min, 3x3min and 0.33x0.33 are only used for CLM tools
 </entry>
@@ -2325,7 +2347,7 @@ not be called.
 <!-- ========================================================================================  -->
 
 <entry id="use_polygonal_tundra" type="logical" category="default_settings"
-	group="elm_inparm" value=".false.">
+       group="elm_inparm" value=".false.">
 Use polygonal tundra parameterizations for ice wedge polygon microtopography and inindation fraction
 <default>Default: .false.</default>
 </entry>
