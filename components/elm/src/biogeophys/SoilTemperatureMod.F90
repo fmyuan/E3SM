@@ -916,6 +916,7 @@ contains
          )
 
       ! Thermal conductivity of soil from Farouki (1981)
+      ! (or, Balland and Arp 2005 if use_balland_and_arp = .true.)
       ! Urban values are from Masson et al. 2002, Evaluation of the Town Energy Balance (TEB)
       ! scheme with direct measurements from dry districts in two cities, J. Appl. Meteorol.,
       ! 41, 1011-1026.
@@ -971,22 +972,22 @@ contains
                      end if
                      if (satw > .1e-6_r8) then
                         if (t_soisno(c,j) > tfrz) then
-                           if (om_frac .lt. 1_r8) then
-                              dke = satw**(0.5_r8*(1_r8+om_frac-0.24_r8*sand-gravel)) * &
-                                 ((1_r8/(1_r8+exp(-18.3_r8*satw)))**3 - ((1_r8-satw)/2_r8)**3)**(1_r8-om_frac)
+                           if (om_frac .lt. 1.0_r8) then
+                              dke = satw**(0.5_r8*(1.0_r8+om_frac-0.24_r8*sand-gravel)) * &
+                                 ((1.0_r8/(1.0_r8+exp(-18.3_r8*satw)))**3.0_r8 - ((1.0_r8-satw)/2.0_r8)**3.0_r8)**(1.0_r8-om_frac)
                            else
                               dke = satw
                            endif
-                           dksat = (tkmg(c,j)**(1-watsat(c,j)))*(tkwat**watsat(c,j))
+                           dksat = (tkmg(c,j)**(1.0_r8-watsat(c,j)))*(tkwat**watsat(c,j))
                         else
-                           if (om_frac .lt. 1_r8) then
-                              dke = satw**2
+                           if (om_frac .lt. 1.0_r8) then
+                              dke = satw**2.0_r8
                            else
-                              dke = satw**(1_r8+om_frac)
+                              dke = satw**(1.0_r8+om_frac)
                            endif
                            fl = (h2osoi_liq(c,j)/(denh2o*dz(c,j))) / (h2osoi_liq(c,j)/(denh2o*dz(c,j)) + &
                               h2osoi_ice(c,j)/(denice*dz(c,j)))
-                           dksat = (tkmg(c,j)**(1-watsat(c,j)))*(tkice**((1._r8-fl)*watsat(c,j)))*(tkwat**(fl*watsat(c,j)))
+                           dksat = (tkmg(c,j)**(1.0_r8-watsat(c,j)))*(tkice**((1.0_r8-fl)*watsat(c,j)))*(tkwat**(fl*watsat(c,j)))
                         endif  
                         thk(c,j) = (dksat - tkdry(c,j))*dke + tkdry(c,j)
                      else

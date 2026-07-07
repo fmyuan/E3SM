@@ -831,8 +831,8 @@ contains
 
                   this%tksatu_col(c,lev) = this%tkmg_col(c,lev)*0.57_r8**this%watsat_col(c,lev)
 
-                  this%tkdry_col(c,lev)  = ((0.053_r8*tkm-tkair)*this%bd_col(c,lev) + tkair*2.8_r8) / &
-                     (2.7_r8 - (1_r8 - 0.053_r8)*this%bd_col(c,lev))
+                  this%tkdry_col(c,lev)  = ((0.053_r8*tkm-tkair)*this%bd_col(c,lev) + tkair*2.7_r8) / &
+                     (2.7_r8 - (1.0_r8 - 0.053_r8)*this%bd_col(c,lev))
                end if
 
              end if
