@@ -1792,6 +1792,9 @@
     <environment_variables mpilib="!mpi-serial">
       <env name="NETCDF_PATH">/usr/local/packages</env>
       <env name="PNETCDF_PATH">/usr/local/packages</env>
+      <env name="NETCDF_C_PATH">/usr/local/packages</env>
+      <env name="NETCDF_FORTRAN_PATH">/usr/local/packages</env>
+      <env name="PNETCDF_PATH">/usr/local/packages</env>
       <env name="HDF5_ROOT">/usr/local/packages</env>
       <env name="PATH">/usr/local/packages/bin:$ENV{PATH}</env>
       <env name="LD_LIBRARY_PATH">/usr/local/packages/lib</env>
