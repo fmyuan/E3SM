@@ -68,18 +68,23 @@ contains
 
   !------------------------------------------------------------------------
   function EM_ATS_Create2(input_dir, input_file, mpi_comm)
+    use elm_varctl, only : inst_suffix
     implicit none
     type(em_ats_type) :: EM_ATS_Create2
 
     character(len=*), intent(in) :: input_dir
     character(len=*), intent(in) :: input_file
     integer, intent(in) :: mpi_comm
-
     ! local variables
     character(kind=C_CHAR) :: c_input_file(len_trim(input_dir)+len_trim(input_file)+2)
-    character(kind=C_CHAR) :: c_log_file(1)
-    integer :: i, n1, n2
-    integer :: ierr
+    character(len=512) :: log_file
+    character(kind=C_CHAR), allocatable :: c_log_file(:)
+    integer :: i, n1, n2, nlog
+    ! for reading lnd_modelio.nml
+    integer :: unit, rcode
+    logical :: exists
+    character(len=512) :: diri, diro, logfile
+    namelist / modelio / diri, diro, logfile
 
     write(iulog,*) ''
     write(iulog,*) '============================================================='
@@ -88,7 +93,7 @@ contains
     write(iulog,*) ''
     write(iulog,*) 'EM_ATS_Init: ats inputs - ', trim(input_dir), ' ', trim(input_file)
     write(iulog,*) 'communicator id: ', mpi_comm
-    
+
     EM_ATS_Create2%p_atm = 101325._r8
 
     ! ----------------------------------------------------------
@@ -104,7 +109,36 @@ contains
     end do
     c_input_file(n1+n2+2) = C_NULL_CHAR
 
-    c_log_file(1) = C_NULL_CHAR
+    ! ----------------------------------------------------------
+    ! Derive the ATS log filename from lnd_modelio.nml, which CIME has
+    ! already written with diro and logfile = "lnd.log.YYMMDD-HHMMSS".
+    ! Replace "lnd.log" with "ats.log" to get a matching timestamped name.
+    diri = '.'
+    diro = '.'
+    logfile = ''
+    inquire(file='lnd_modelio.nml'//trim(inst_suffix), exist=exists)
+    if (exists) then
+       open(newunit=unit, file='lnd_modelio.nml'//trim(inst_suffix), action='READ')
+       read(unit, nml=modelio, iostat=rcode)
+       close(unit)
+       if (rcode == 0 .and. len_trim(logfile) > 0) then
+          ! logfile is e.g. "lnd.log.YYMMDD-HHMMSS"; take the suffix after "lnd.log"
+          log_file = trim(diro) // '/ats.log' // &
+               trim(logfile(index(logfile, 'lnd.log')+7:))
+       else
+          log_file = ''
+       end if
+    else
+       log_file = ''
+    end if
+    write(iulog,*) 'EM_ATS_Create2: ats log file - ', trim(log_file)
+
+    nlog = len_trim(log_file)
+    allocate(c_log_file(nlog+1))
+    do i = 1, nlog
+       c_log_file(i) = log_file(i:i)
+    end do
+    c_log_file(nlog+1) = C_NULL_CHAR
 
     EM_ATS_Create2%ats = ats_create(mpi_comm, c_input_file, c_log_file)
     call ats_parse_parameter_list(EM_ATS_Create2%ats)
