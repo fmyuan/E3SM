@@ -823,14 +823,15 @@ contains
                      this%watsat_col(c,lev)*(-min_liquid_pressure/this%sucsat_col(c,lev))**(-1._r8/this%bsw_col(c,lev))
 
                if (trim(soil_thermal_conductivity_model) == 'balland_and_arp') then
-                  ! rewrite all of the thermal conductivity parameters to be consistent
-                  ! with Balland and Arp 2005 model
+                  ! RPF - currently overwrites values from L. 790-820 only if this is
+                  ! on - could be more efficient to run only once (but pretty small benefit)
                   sand_frac = sand / 100._r8
+                  ! Equation 15, Balland and Arp 2005
                   tkm = (om_tkm**om_frac)*(8.0_r8**sand_frac)*(2.5_r8**(1._r8-om_frac-sand_frac))
+                  ! Equation 12, Balland and Arp 2005 (tkmg and tksatu)
                   this%tkmg_col(c,lev)   = tkm ** (1._r8- this%watsat_col(c,lev))
-
                   this%tksatu_col(c,lev) = this%tkmg_col(c,lev)*0.57_r8**this%watsat_col(c,lev)
-
+                  ! Equation 16, Balland and Arp 2005
                   this%tkdry_col(c,lev)  = ((0.053_r8*tkm-tkair)*this%bd_col(c,lev)/1000._r8 + tkair*2.7_r8) / &
                      (2.7_r8 - (1.0_r8 - 0.053_r8)*this%bd_col(c,lev)/1000._r8)
                end if

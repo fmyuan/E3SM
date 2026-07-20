@@ -971,24 +971,27 @@ contains
                         om_frac = 0.0_r8
                      end if
                      if (satw > .1e-6_r8) then
+                        ! RPF - how to define frozen soil here? T < tfrz? or ice is present?
                         if (t_soisno(c,j) > tfrz) then
                            if (om_frac .lt. 1.0_r8) then
+                              ! Equation 17, Balland and Arp 2005
                               dke = satw**(0.5_r8*(1.0_r8+om_frac-0.24_r8*sand-gravel)) * &
                                  ((1.0_r8/(1.0_r8+exp(-18.3_r8*satw)))**3.0_r8 - ((1.0_r8-satw)/2.0_r8)**3.0_r8)**(1.0_r8-om_frac)
                            else
+                              ! Equation 18, Balland and Arp 2005
                               dke = satw
                            endif
+                           ! Equation 12, Balland and Arp 2005
                            dksat = (tkmg(c,j)**(1.0_r8-watsat(c,j)))*(tkwat**watsat(c,j))
                         else
-                           if (om_frac .lt. 1.0_r8) then
-                              dke = satw**2.0_r8
-                           else
-                              dke = satw**(1.0_r8+om_frac)
-                           endif
+                           ! Equation 18, Balland and Arp 2005
+                           dke = satw**(1.0_r8+om_frac)
                            fl = (h2osoi_liq(c,j)/(denh2o*dz(c,j))) / (h2osoi_liq(c,j)/(denh2o*dz(c,j)) + &
                               h2osoi_ice(c,j)/(denice*dz(c,j)))
+                           ! Equation 13, Balland and Arp 2005
                            dksat = (tkmg(c,j)**(1.0_r8-watsat(c,j)))*(tkice**((1.0_r8-fl)*watsat(c,j)))*(tkwat**(fl*watsat(c,j)))
-                        endif  
+                        endif
+                        ! Equation 5, Balland and Arp 2005
                         thk(c,j) = (dksat - tkdry(c,j))*dke + tkdry(c,j)
                      else
                         thk(c,j) = tkdry(c,j)
