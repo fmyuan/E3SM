@@ -392,6 +392,7 @@ _TESTS = {
             "ERS_Vmct_Ld3.ne30pg2_r05_IcoswISC30E3r5.WCYCL1850.allactive-nlmaps",
             "SMS_D_Ld1.ne30pg2_r05_IcoswISC30E3r5.CRYO1850-DISMF",
             "ERS.hcru_hcru.I20TRGSWCNPRDCTCBC.elm-erosion",
+            "ERS.hcru_hcru.I20TRGSWCNPRDCTCBC.elm-balland_and_arp_gravel",
             "ERS.ne30pg2_r05_IcoswISC30E3r5.GPMPAS-JRA.mosart-rof_ocn_2way",
             )
         },
