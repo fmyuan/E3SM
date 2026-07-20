@@ -971,7 +971,6 @@ contains
                         om_frac = 0.0_r8
                      end if
                      if (satw > .1e-6_r8) then
-                        ! RPF - how to define frozen soil here? T < tfrz? or ice is present?
                         if (t_soisno(c,j) > tfrz) then
                            if (om_frac .lt. 1.0_r8) then
                               ! Equation 17, Balland and Arp 2005
