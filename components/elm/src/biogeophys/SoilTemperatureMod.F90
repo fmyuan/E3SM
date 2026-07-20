@@ -12,7 +12,7 @@ module SoilTemperatureMod
   use shr_infnan_mod    , only : nan => shr_infnan_nan
   use decompMod         , only : bounds_type
   use abortutils        , only : endrun
-  use elm_varctl        , only : iulog, use_finetop_rad, use_balland_and_arp
+  use elm_varctl        , only : iulog, use_finetop_rad, soil_thermal_conductivity_model
   use elm_varcon        , only : spval
   use UrbanParamsType   , only : urbanparams_type
   use atm2lndType       , only : atm2lnd_type
@@ -915,8 +915,8 @@ contains
          thk          =>    soilstate_vars%thk_col             & ! Output: [real(r8) (:,:) ]  thermal conductivity of each layer  [W/m-K]
          )
 
-      ! Thermal conductivity of soil from Farouki (1981)
-      ! (or, Balland and Arp 2005 if use_balland_and_arp = .true.)
+      ! Thermal conductivity of soil from Farouki (1981) by default
+      ! (or, Balland and Arp 2005 if soil_thermal_conductivity_model = 'balland_and_arp')
       ! Urban values are from Masson et al. 2002, Evaluation of the Town Energy Balance (TEB)
       ! scheme with direct measurements from dry districts in two cities, J. Appl. Meteorol.,
       ! 41, 1011-1026.
@@ -942,7 +942,7 @@ contains
                   satw = (h2osoi_liq(c,j)/denh2o + h2osoi_ice(c,j)/denice)/(dz(c,j)*watsat(c,j))
                   satw = min(1._r8, satw)
 
-                  if (.not. use_balland_and_arp) then
+                  if (trim(soil_thermal_conductivity_model) == 'farouki') then
                      if (satw > .1e-6_r8) then
                         if (t_soisno(c,j) >= tfrz) then       ! Unfrozen soil
                            dke = max(0._r8, log10(satw) + 1.0_r8)
