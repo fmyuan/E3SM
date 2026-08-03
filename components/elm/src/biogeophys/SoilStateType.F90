@@ -378,7 +378,7 @@ contains
     real(r8)           :: tkm                           ! mineral conductivity
     real(r8)           :: xksat                         ! maximum hydraulic conductivity of soil [mm/s]
     real(r8)           :: clay,sand,gravel,sand_frac    ! temporaries
-    real(r8)           :: sand_adj,clay_adj,gravel_adj  ! temporaries
+    real(r8)           :: sand_adj,gravel_frac          ! temporaries
     real(r8)           :: organic_max                   ! organic matter (kg/m3) where soil is assumed to act like peat
     integer            :: dimid                         ! dimension id
     logical            :: readvar
