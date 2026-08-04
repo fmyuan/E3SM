@@ -379,48 +379,52 @@ contains
              found = .true.
              indexc = c
           endif
+          ! Per-column water balance dump -- disabled by default (unconditional
+          ! prints for every soil column every timestep were dominating runtime
+          ! at 2701 columns x 35040+ steps). Uncomment to re-enable for debugging;
+          ! the real error/abort path below (found/indexc, abs(errh2o)>1.e-4)
+          ! is unaffected by this being off.
           !if ((use_ats .or. use_ats_ic) .and. col_pp%itype(c) .eq. istsoil) then
-          if (col_pp%itype(c) .eq. istsoil) then
-             indexc = c
-             write(iulog,*)''
-             write(iulog,*)'ELM+ATS Water Balance Summary (column', c, ')'
-             write(iulog,*)'use_ats = ', use_ats, '; use_ats_ic = ', use_ats_ic
-             write(iulog,*)'============================================================'
-             write(iulog,*)'colum number               = ',col_pp%gridcell(indexc)
-             write(iulog,*)'nstep                      = ',nstep
-             write(iulog,*)'errh2o                     = ',errh2o(indexc)
-             write(iulog,*)'forc_rain                  = ',forc_rain_col(indexc)
-             write(iulog,*)'forc_snow                  = ',forc_snow_col(indexc)
-             write(iulog,*)'endwb                      = ',endwb(indexc)
-             write(iulog,*)'   h2ocan                  = ',col_ws%h2ocan(indexc)
-             write(iulog,*)'   h2osfc                  = ',col_ws%h2osfc(indexc)
-             write(iulog,*)'   h2osno                  = ',col_ws%h2osno(indexc)
-             write(iulog,*)'      snl                  = ',col_pp%snl(indexc)
-             write(iulog,*)'      frac_sno_eff         = ',col_ws%frac_sno_eff(indexc)
-             write(iulog,*)'   h2osoi_liq              = ',col_ws%h2osoi_liq_depth_intg(indexc)
-             write(iulog,*)'   h2osoi_ice              = ',col_ws%h2osoi_ice_depth_intg(indexc)
-             write(iulog,*)'   wa                      = ',soilhydrology_vars%wa_col(indexc)
-             write(iulog,*)'begwb                      = ',begwb(indexc)
-             write(iulog,*)'qflx_evap_tot              = ',qflx_evap_tot(indexc)
-             write(iulog,*)'qflx_irrig                 = ',qflx_irrig(indexc)
-             write(iulog,*)'qflx_surf_irrig_col        = ',qflx_surf_irrig_col(indexc)
-             write(iulog,*)'qflx_over_supply_col       = ',qflx_over_supply_col(indexc)
-             write(iulog,*)'qflx_supply                = ',atm2lnd_vars%supply_grc(g)
-             write(iulog,*)'qflx_surf                  = ',qflx_surf(indexc)
-             write(iulog,*)'qflx_h2osfc_surf           = ',qflx_h2osfc_surf(indexc)
-             write(iulog,*)'qflx_qrgwl                 = ',qflx_qrgwl(indexc)
-             write(iulog,*)'qflx_drain                 = ',qflx_drain(indexc)
-             write(iulog,*)'qflx_drain_perched         = ',qflx_drain_perched(indexc)
-             write(iulog,*)'qflx_flood                 = ',qflx_floodc(indexc)
-             write(iulog,*)'qflx_snwcp_ice             = ',qflx_snwcp_ice(indexc)
-             write(iulog,*)'qflx_glcice_melt           = ',qflx_glcice_melt(indexc)
-             write(iulog,*)'qflx_glcice_frz            = ',qflx_glcice_frz(indexc)
-             write(iulog,*)'qflx_lateral               = ',qflx_lateral(indexc)
-             write(iulog,*)'total_plant_stored_h2o_col = ',total_plant_stored_h2o_col(indexc)
-             write(iulog,*)'qflx_h2orof_drain          = ',qflx_h2orof_drain(indexc)
-             write(iulog,*)'qflx_ice_runoff_xs          = ',qflx_ice_runoff_xs(indexc)
-             write(iulog,*)'============================================================'
-          end if
+          !   indexc = c
+          !   write(iulog,*)''
+          !   write(iulog,*)'ELM+ATS Water Balance Summary (column', c, ')'
+          !   write(iulog,*)'use_ats = ', use_ats, '; use_ats_ic = ', use_ats_ic
+          !   write(iulog,*)'============================================================'
+          !   write(iulog,*)'colum number               = ',col_pp%gridcell(indexc)
+          !   write(iulog,*)'nstep                      = ',nstep
+          !   write(iulog,*)'errh2o                     = ',errh2o(indexc)
+          !   write(iulog,*)'forc_rain                  = ',forc_rain_col(indexc)
+          !   write(iulog,*)'forc_snow                  = ',forc_snow_col(indexc)
+          !   write(iulog,*)'endwb                      = ',endwb(indexc)
+          !   write(iulog,*)'   h2ocan                  = ',col_ws%h2ocan(indexc)
+          !   write(iulog,*)'   h2osfc                  = ',col_ws%h2osfc(indexc)
+          !   write(iulog,*)'   h2osno                  = ',col_ws%h2osno(indexc)
+          !   write(iulog,*)'      snl                  = ',col_pp%snl(indexc)
+          !   write(iulog,*)'      frac_sno_eff         = ',col_ws%frac_sno_eff(indexc)
+          !   write(iulog,*)'   h2osoi_liq              = ',col_ws%h2osoi_liq_depth_intg(indexc)
+          !   write(iulog,*)'   h2osoi_ice              = ',col_ws%h2osoi_ice_depth_intg(indexc)
+          !   write(iulog,*)'   wa                      = ',soilhydrology_vars%wa_col(indexc)
+          !   write(iulog,*)'begwb                      = ',begwb(indexc)
+          !   write(iulog,*)'qflx_evap_tot              = ',qflx_evap_tot(indexc)
+          !   write(iulog,*)'qflx_irrig                 = ',qflx_irrig(indexc)
+          !   write(iulog,*)'qflx_surf_irrig_col        = ',qflx_surf_irrig_col(indexc)
+          !   write(iulog,*)'qflx_over_supply_col       = ',qflx_over_supply_col(indexc)
+          !   write(iulog,*)'qflx_supply                = ',atm2lnd_vars%supply_grc(g)
+          !   write(iulog,*)'qflx_surf                  = ',qflx_surf(indexc)
+          !   write(iulog,*)'qflx_h2osfc_surf           = ',qflx_h2osfc_surf(indexc)
+          !   write(iulog,*)'qflx_qrgwl                 = ',qflx_qrgwl(indexc)
+          !   write(iulog,*)'qflx_drain                 = ',qflx_drain(indexc)
+          !   write(iulog,*)'qflx_drain_perched         = ',qflx_drain_perched(indexc)
+          !   write(iulog,*)'qflx_flood                 = ',qflx_floodc(indexc)
+          !   write(iulog,*)'qflx_snwcp_ice             = ',qflx_snwcp_ice(indexc)
+          !   write(iulog,*)'qflx_glcice_melt           = ',qflx_glcice_melt(indexc)
+          !   write(iulog,*)'qflx_glcice_frz            = ',qflx_glcice_frz(indexc)
+          !   write(iulog,*)'qflx_lateral               = ',qflx_lateral(indexc)
+          !   write(iulog,*)'total_plant_stored_h2o_col = ',total_plant_stored_h2o_col(indexc)
+          !   write(iulog,*)'qflx_h2orof_drain          = ',qflx_h2orof_drain(indexc)
+          !   write(iulog,*)'qflx_ice_runoff_xs          = ',qflx_ice_runoff_xs(indexc)
+          !   write(iulog,*)'============================================================'
+          !end if
        end do
 
        if ( found ) then

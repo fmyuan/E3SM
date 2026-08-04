@@ -63,7 +63,7 @@ contains
     type(em_ats_type) :: this
 
     this = EM_ATS_Create2(ats_inputdir, ats_inputfile, mpicom)
-    this%verbosity = 1
+    this%verbosity = 0
   end subroutine EM_ATS_Create
 
   !------------------------------------------------------------------------
