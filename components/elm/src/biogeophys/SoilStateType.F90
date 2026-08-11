@@ -382,7 +382,8 @@ contains
     real(r8)           :: sand_adj                      ! temporary, sand fraction for current layer relative to total solid volume (not just fine mineral volume)
     real(r8)           :: gravel_adj                    ! temporary, gravel fraction for current layer relative to total solid volume
     real(r8)           :: om_adj                        ! temporary, organic matter fraction for current layer relative to total solid volume
-    real(r8)           :: quartz_adj                    ! temporary, organic matter fraction for current layer relative to total solid volume
+    real(r8)           :: quartz_adj                    ! temporary, gravel fraction for current layer relative to total solid volume
+    real(r8)           :: rho_p, rho_b                  ! temporaries, particle and bulk densities adjusted by organic matter
     real(r8)           :: organic_max                   ! organic matter (kg/m3) where soil is assumed to act like peat
     integer            :: dimid                         ! dimension id
     logical            :: readvar
@@ -835,7 +836,7 @@ contains
                   ! Adjust fractions to be relative to total solid volume (gravel_adj + om_adj + sand_adj + siltandclay_adj(implicit) = 1)
                   ! Assuming gravel is measured relative to total solid volume (remove coarse first, them adjust OM, then adjust fine minerals)
                   gravel_adj = max(0._r8, min(1._r8, gravel_frac))
-                  om_adj     = max(0._r8, min(1._r8, (1-gravel_frac)*om_frac))
+                  om_adj     = max(0._r8, min(1._r8, (1._r8-gravel_frac)*om_frac))
                   sand_adj   = max(0._r8, min(1._r8, (1._r8-gravel_frac)*(1._r8-om_frac)*sand_frac))
                   ! Assume gravel has same mineralogy as fine mineral fractions
                   ! Assume sand fraction is proxy for quartz fraction, see text below Balland Equation 14
@@ -855,8 +856,11 @@ contains
                   this%tkmg_col(c,lev)   = tkm ** (1._r8- this%watsat_col(c,lev))
                   this%tksatu_col(c,lev) = this%tkmg_col(c,lev)*0.57_r8**this%watsat_col(c,lev)
                   ! Equation 16, Balland and Arp 2005
-                  this%tkdry_col(c,lev)  = ((0.053_r8*tkm-tkair)*this%bd_col(c,lev)/1000._r8 + tkair*2.7_r8) / &
-                     (2.7_r8 - (1.0_r8 - 0.053_r8)*this%bd_col(c,lev)/1000._r8)
+                  ! Update bulk and particle densities to include organic matter
+                  rho_p = om_adj*1.3_r8 + (1._r8-om_adj)*2.7_r8   ! particle density of soils and organics combined, g/cm3
+                  rho_b = rho_p * (1._r8-this%watsat_col(c,lev))  ! bulk density updated, g/cm3
+                  this%tkdry_col(c,lev) = ((0.053_r8*tkm-tkair)*rho_b + tkair*rho_p) / &
+                     (rho_p - (1._r8 - 0.053_r8)*rho_b)
                end if
 
              end if
