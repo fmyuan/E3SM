@@ -970,11 +970,14 @@ contains
                         gravel = cellgrvl(c,nlevsoi) / 100.0_r8
                         om_frac = 0.0_r8
                      end if
-                     ! Adjust fractions to be relative to total solid volume (gravel_adj + om_adj + sand_adj + siltandclay_adj(implicit) = 1)
-                     ! Assuming gravel is measured relative to total solid volume (remove coarse first, them adjust OM, then adjust fine minerals)
+                     ! Adjust fractions to be relative to total solid volume 
+                     ! (gravel_adj + om_adj + sand_adj + siltandclay_adj(implicit) = 1)
+                     ! Assuming gravel is measured relative to total solid volume 
+                     ! (remove coarse first, them adjust OM, then adjust fine minerals)
                      gravel_adj = max(0._r8, min(1._r8, gravel))
-                     om_adj     = max(0._r8, min(1._r8, (1._r8-gravel)*om_frac))
-                     sand_adj   = max(0._r8, min(1._r8, (1._r8-gravel)*(1._r8-om_frac)*sand))
+                     om_adj     = max(0._r8, min(1._r8, (1._r8-gravel_adj)*om_frac))
+                     sand_adj   = max(0._r8, min(1._r8, (1._r8-gravel_adj-om_adj)*sand))
+                     
                      if (satw > .1e-6_r8) then
                         ! RPF - how to define frozen soil here? T < tfrz? or ice is present?
                         !if (t_soisno(c,j) > tfrz) then

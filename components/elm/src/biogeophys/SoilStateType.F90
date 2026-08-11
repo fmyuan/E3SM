@@ -378,7 +378,6 @@ contains
     real(r8)           :: tkm                           ! mineral conductivity
     real(r8)           :: xksat                         ! maximum hydraulic conductivity of soil [mm/s]
     real(r8)           :: clay,sand,gravel              ! temporaries for percents (%)
-    real(r8)           :: sand_frac,gravel_frac         ! temporaries for fractions of 1
     real(r8)           :: sand_adj                      ! temporary, sand fraction for current layer relative to total solid volume (not just fine mineral volume)
     real(r8)           :: gravel_adj                    ! temporary, gravel fraction for current layer relative to total solid volume
     real(r8)           :: om_adj                        ! temporary, organic matter fraction for current layer relative to total solid volume
@@ -829,32 +828,25 @@ contains
                      this%watsat_col(c,lev)*(-min_liquid_pressure/this%sucsat_col(c,lev))**(-1._r8/this%bsw_col(c,lev))
 
                if (trim(soil_thermal_conductivity_model) == 'balland_and_arp') then
-                  ! RPF - currently overwrites values from L. 790-820 only if this is
-                  ! on - could be more efficient to run only once (but pretty small benefit)
-                  sand_frac = sand / 100._r8
-                  gravel_frac = gravel / 100._r8
-                  ! Adjust fractions to be relative to total solid volume (gravel_adj + om_adj + sand_adj + siltandclay_adj(implicit) = 1)
-                  ! Assuming gravel is measured relative to total solid volume (remove coarse first, them adjust OM, then adjust fine minerals)
-                  gravel_adj = max(0._r8, min(1._r8, gravel_frac))
-                  om_adj     = max(0._r8, min(1._r8, (1._r8-gravel_frac)*om_frac))
-                  sand_adj   = max(0._r8, min(1._r8, (1._r8-gravel_frac)*(1._r8-om_frac)*sand_frac))
+                  ! Adjust fractions to be relative to total solid volume 
+                  ! (gravel_adj + om_adj + sand_adj + siltandclay_adj(implicit) = 1)
+                  ! Assuming gravel is measured relative to total solid volume 
+                  ! (remove coarse first, them adjust OM, then adjust fine minerals)
+                  gravel_adj = max(0._r8, min(1._r8, gravel/100.0_r8)) ! pct to frac
+                  om_adj     = max(0._r8, min(1._r8, (1._r8-gravel_adj)*om_frac))
+                  sand_adj   = max(0._r8, min(1._r8, (1._r8-gravel_adj-om_adj)*sand/100.0_r8)) ! pct to frac
+
                   ! Assume gravel has same mineralogy as fine mineral fractions
                   ! Assume sand fraction is proxy for quartz fraction, see text below Balland Equation 14
-                  quartz_adj = sand_adj + gravel_adj*sand_frac
-                  write(iulog,*) "gravel_frac:", gravel_frac
-                  write(iulog,*) "gravel_adj:", gravel_adj
-                  write(iulog,*) "om_frac:", om_frac
-                  write(iulog,*) "om_adj:", om_adj
-                  write(iulog,*) "sand_frac:", sand_frac
-                  write(iulog,*) "sand_adj:", sand_adj
-                  write(iulog,*) "quartz_adj:", quartz_adj
-                  write(iulog,*) "quartz_adj=sand_frac*(1-om_adj):", sand_frac*(1-om_adj)
-                  write(iulog,*) "----------------"
+                  quartz_adj = sand_adj * (1.0_r8 + gravel_adj)
+
                   ! Equation 15, Balland and Arp 2005
                   tkm = (om_tkm**om_adj)*(8.0_r8**quartz_adj)*(2.5_r8**(1._r8-om_adj-quartz_adj))
+
                   ! Equation 12, Balland and Arp 2005 (tkmg and tksatu)
                   this%tkmg_col(c,lev)   = tkm ** (1._r8- this%watsat_col(c,lev))
                   this%tksatu_col(c,lev) = this%tkmg_col(c,lev)*0.57_r8**this%watsat_col(c,lev)
+
                   ! Equation 16, Balland and Arp 2005
                   ! Update bulk and particle densities to include organic matter
                   rho_p = om_adj*1.3_r8 + (1._r8-om_adj)*2.7_r8   ! particle density of soils and organics combined, g/cm3
