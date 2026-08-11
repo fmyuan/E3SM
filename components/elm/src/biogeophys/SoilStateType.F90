@@ -377,8 +377,12 @@ contains
     real(r8)           :: bd                            ! bulk density of dry soil material [kg/m^3]
     real(r8)           :: tkm                           ! mineral conductivity
     real(r8)           :: xksat                         ! maximum hydraulic conductivity of soil [mm/s]
-    real(r8)           :: clay,sand,gravel,sand_frac    ! temporaries
-    real(r8)           :: sand_adj,gravel_frac          ! temporaries
+    real(r8)           :: clay,sand,gravel              ! temporaries for percents (%)
+    real(r8)           :: sand_frac,gravel_frac         ! temporaries for fractions of 1
+    real(r8)           :: sand_adj                      ! temporary, sand fraction for current layer relative to total solid volume (not just fine mineral volume)
+    real(r8)           :: gravel_adj                    ! temporary, gravel fraction for current layer relative to total solid volume
+    real(r8)           :: om_adj                        ! temporary, organic matter fraction for current layer relative to total solid volume
+    real(r8)           :: quartz_adj                    ! temporary, organic matter fraction for current layer relative to total solid volume
     real(r8)           :: organic_max                   ! organic matter (kg/m3) where soil is assumed to act like peat
     integer            :: dimid                         ! dimension id
     logical            :: readvar
@@ -828,14 +832,25 @@ contains
                   ! on - could be more efficient to run only once (but pretty small benefit)
                   sand_frac = sand / 100._r8
                   gravel_frac = gravel / 100._r8
-                  ! partition gravel assuming mineralogy matches quartz + other minerals.
-                  sand_adj = sand_frac * (1._r8 + gravel_frac)
-                  ! enforce that om_frac + sand_adj + clay_adj + gravel_adj + silt_adj (implicit) = 1
-                  sand_adj = sand_adj*(1._r8 - om_frac)
-                  ! check!
-                  write(iulog,*) "Soil text fracts here are:", sand_adj, om_frac, (1._r8 - sand_frac - gravel_frac) * (1._r8 - om_frac)
+                  ! Adjust fractions to be relative to total solid volume (gravel_adj + om_adj + sand_adj + siltandclay_adj(implicit) = 1)
+                  ! Assuming gravel is measured relative to total solid volume (remove coarse first, them adjust OM, then adjust fine minerals)
+                  gravel_adj = max(0._r8, min(1._r8, gravel_frac))
+                  om_adj     = max(0._r8, min(1._r8, (1-gravel_frac)*om_frac))
+                  sand_adj   = max(0._r8, min(1._r8, (1._r8-gravel_frac)*(1._r8-om_frac)*sand_frac))
+                  ! Assume gravel has same mineralogy as fine mineral fractions
+                  ! Assume sand fraction is proxy for quartz fraction, see text below Balland Equation 14
+                  quartz_adj = sand_adj + gravel_adj*sand_frac
+                  write(iulog,*) "gravel_frac:", gravel_frac
+                  write(iulog,*) "gravel_adj:", gravel_adj
+                  write(iulog,*) "om_frac:", om_frac
+                  write(iulog,*) "om_adj:", om_adj
+                  write(iulog,*) "sand_frac:", sand_frac
+                  write(iulog,*) "sand_adj:", sand_adj
+                  write(iulog,*) "quartz_adj:", quartz_adj
+                  write(iulog,*) "quartz_adj=sand_frac*(1-om_adj):", sand_frac*(1-om_adj)
+                  write(iulog,*) "----------------"
                   ! Equation 15, Balland and Arp 2005
-                  tkm = (om_tkm**om_frac)*(8.0_r8**sand_adj)*(2.5_r8**(1._r8-om_frac-sand_adj))
+                  tkm = (om_tkm**om_frac)*(8.0_r8**quartz_adj)*(2.5_r8**(1._r8-om_frac-quartz_adj))
                   ! Equation 12, Balland and Arp 2005 (tkmg and tksatu)
                   this%tkmg_col(c,lev)   = tkm ** (1._r8- this%watsat_col(c,lev))
                   this%tksatu_col(c,lev) = this%tkmg_col(c,lev)*0.57_r8**this%watsat_col(c,lev)

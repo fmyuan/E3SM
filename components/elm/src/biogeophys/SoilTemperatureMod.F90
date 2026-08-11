@@ -857,9 +857,12 @@ contains
     real(r8) :: satw                      ! relative total water content of soil.
     real(r8) :: zh2osfc
     real(r8) :: sand                      ! sand fraction for current layer
+    real(r8) :: sand_adj                  ! sand fraction for current layer relative to total solid volume (not just fine mineral volume)
     real(r8) :: clay                      ! clay fraction for current layer
     real(r8) :: gravel                    ! gravel fraction for current layer
+    real(r8) :: gravel_adj                ! gravel fraction for current layer relative to total solid volume
     real(r8) :: om_frac                   ! organic matter fraction for current layer
+    real(r8) :: om_adj                    ! organic matter fraction for current layer relative to total solid volume
     real(r8) :: organic_max               ! organic matter (kg/m3) threshold
     character(len=64) :: event
     
@@ -957,12 +960,13 @@ contains
                         thk(c,j) = tkdry(c,j)
                      endif
                   else
+                  ! Balland and Arp (2005)
                      ! Extract soil texture for current column and layer
                      if (j <= nlevsoi) then
                         sand = cellsand(c,j) / 100.0_r8    ! Convert from % to fraction
                         clay = cellclay(c,j) / 100.0_r8    ! Convert from % to fraction
                         gravel = cellgrvl(c,j) / 100.0_r8  ! Convert from % to fraction
-                        om_frac = cellorg(c,j) / organic_max
+                        om_frac = max(0._r8, min(1._r8, cellorg(c,j) / organic_max))
                      else
                         ! Below nlevsoi, use values from bottom soil layer
                         sand = cellsand(c,nlevsoi) / 100.0_r8
@@ -970,12 +974,17 @@ contains
                         gravel = cellgrvl(c,nlevsoi) / 100.0_r8
                         om_frac = 0.0_r8
                      end if
+                     ! Adjust fractions to be relative to total solid volume (gravel_adj + om_adj + sand_adj + siltandclay_adj(implicit) = 1)
+                     ! Assuming gravel is measured relative to total solid volume (remove coarse first, them adjust OM, then adjust fine minerals)
+                     gravel_adj = max(0._r8, min(1._r8, gravel))
+                     om_adj     = max(0._r8, min(1._r8, (1-gravel)*om_frac))
+                     sand_adj   = max(0._r8, min(1._r8, (1._r8-gravel)*(1._r8-om_frac)*sand))
                      if (satw > .1e-6_r8) then
                         ! RPF - how to define frozen soil here? T < tfrz? or ice is present?
                         if (t_soisno(c,j) > tfrz) then
                            if (om_frac .lt. 1.0_r8) then
                               ! Equation 17, Balland and Arp 2005
-                              dke = satw**(0.5_r8*(1.0_r8+om_frac-0.24_r8*sand-gravel)) * &
+                              dke = satw**(0.5_r8*(1.0_r8+om_frac-0.24_r8*sand_adj-gravel_adj)) * &
                                  ((1.0_r8/(1.0_r8+exp(-18.3_r8*satw)))**3.0_r8 - ((1.0_r8-satw)/2.0_r8)**3.0_r8)**(1.0_r8-om_frac)
                            else
                               ! Equation 18, Balland and Arp 2005
