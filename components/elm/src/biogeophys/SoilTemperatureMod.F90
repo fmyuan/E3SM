@@ -982,14 +982,14 @@ contains
                               dke = satw
                            endif
                            ! Equation 12, Balland and Arp 2005
-                           dksat = (tkmg(c,j)**(1.0_r8-watsat(c,j)))*(tkwat**watsat(c,j))
+                           dksat = tkmg(c,j)*(tkwat**watsat(c,j))
                         else
                            ! Equation 18, Balland and Arp 2005
                            dke = satw**(1.0_r8+om_frac)
                            fl = (h2osoi_liq(c,j)/(denh2o*dz(c,j))) / (h2osoi_liq(c,j)/(denh2o*dz(c,j)) + &
                               h2osoi_ice(c,j)/(denice*dz(c,j)))
                            ! Equation 13, Balland and Arp 2005
-                           dksat = (tkmg(c,j)**(1.0_r8-watsat(c,j)))*(tkice**((1.0_r8-fl)*watsat(c,j)))*(tkwat**(fl*watsat(c,j)))
+                           dksat = tkmg(c,j)*(tkice**((1.0_r8-fl)*watsat(c,j)))*(tkwat**(fl*watsat(c,j)))
                         endif
                         ! Equation 5, Balland and Arp 2005
                         thk(c,j) = (dksat - tkdry(c,j))*dke + tkdry(c,j)
