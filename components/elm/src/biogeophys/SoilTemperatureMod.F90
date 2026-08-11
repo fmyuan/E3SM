@@ -957,8 +957,7 @@ contains
                      else
                         thk(c,j) = tkdry(c,j)
                      endif
-                  else
-                  ! Balland and Arp (2005)
+                  else if (trim(soil_thermal_conductivity_model) == 'balland_and_arp') then
                      ! Extract soil texture for current column and layer
                      if (j <= nlevsoi) then
                         sand = cellsand(c,j) / 100.0_r8    ! Convert from % to fraction
@@ -978,36 +977,28 @@ contains
                      om_adj     = max(0._r8, min(1._r8, (1._r8-gravel_adj)*om_frac))
                      sand_adj   = max(0._r8, min(1._r8, (1._r8-gravel_adj-om_adj)*sand))
                      
-                     if (satw > .1e-6_r8) then
-                        ! RPF - how to define frozen soil here? T < tfrz? or ice is present?
-                        !if (t_soisno(c,j) > tfrz) then
-                        ! GAM use ice presence for "frozen or partially frozen" cases in Balland (text above Equation 18)
-                        if (h2osoi_ice(c,j) <= 1.e-12_r8) then !if unfrozen
-                           if (om_adj .lt. 1.0_r8) then
-                              ! Equation 17, Balland and Arp 2005
-                              dke = satw**(0.5_r8*(1.0_r8+om_adj-0.24_r8*sand_adj-gravel_adj)) * &
-                                 ((1.0_r8/(1.0_r8+exp(-18.3_r8*satw)))**3.0_r8 - ((1.0_r8-satw)/2.0_r8)**3.0_r8)**(1.0_r8-om_adj)
-                           else
-                              ! Equation 17, Balland and Arp 2005 for peat limit
-                              dke = satw
-                           endif
-                           ! Equation 12, Balland and Arp 2005
-                           dksat = tkmg(c,j)*(tkwat**watsat(c,j)) !tkmg is already defined in SoilStateType with exponent 
-                        else ! if frozen or partially frozen
-                           ! Equation 18, Balland and Arp 2005
-                           dke = satw**(1.0_r8+om_adj)
-                           fl = (h2osoi_liq(c,j)/(denh2o*dz(c,j))) / (h2osoi_liq(c,j)/(denh2o*dz(c,j)) + &
-                              h2osoi_ice(c,j)/(denice*dz(c,j)))
-                           ! Equation 13, Balland and Arp 2005
-                           dksat = tkmg(c,j)*(tkice**((1.0_r8-fl)*watsat(c,j)))*(tkwat**(fl*watsat(c,j))) !tkmg is already defined in SoilStateType with exponent
-                        endif
-                        ! Equation 5, Balland and Arp 2005
-                        thk(c,j) = (dksat - tkdry(c,j))*dke + tkdry(c,j)
-                     else
-                        thk(c,j) = tkdry(c,j)
-                     endif
-                  endif
+                     if (h2osoi_ice(c,j) <= 1.e-12_r8) then !if unfrozen
+                        ! Equation 17, Balland and Arp 2005
+                        dke = satw**(0.5_r8*(1.0_r8+om_adj-0.24_r8*sand_adj-gravel_adj)) * &
+                           ((1.0_r8/(1.0_r8+exp(-18.3_r8*satw)))**3.0_r8 - ((1.0_r8-satw)/2.0_r8)**3.0_r8)**(1.0_r8-om_adj)
 
+                        ! Equation 12, Balland and Arp 2005
+                        ! tkmg is already defined in SoilStateType with exponent 
+                        dksat = tkmg(c,j)*(tkwat**watsat(c,j)) 
+                     else ! if frozen or partially frozen
+                        ! Equation 18, Balland and Arp 2005
+                        dke = satw**(1.0_r8+om_adj)
+                        fl = (h2osoi_liq(c,j)/(denh2o*dz(c,j))) / (h2osoi_liq(c,j)/(denh2o*dz(c,j)) + &
+                           h2osoi_ice(c,j)/(denice*dz(c,j)))
+
+                        ! Equation 13, Balland and Arp 2005
+                        !tkmg is already defined in SoilStateType with exponent
+                        dksat = tkmg(c,j)*(tkice**((1.0_r8-fl)*watsat(c,j)))*(tkwat**(fl*watsat(c,j))) 
+                     endif
+                     ! Equation 5, Balland and Arp 2005
+                     thk(c,j) = (dksat - tkdry(c,j))*dke + tkdry(c,j)   
+                  endif
+                  
                   if (j > nlevbed) thk(c,j) = thk_bedrock
                else if (lun_pp%itype(l) == istice .OR. lun_pp%itype(l) == istice_mec) then
                   thk(c,j) = tkwat
