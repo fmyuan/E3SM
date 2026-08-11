@@ -850,7 +850,7 @@ contains
                   write(iulog,*) "quartz_adj=sand_frac*(1-om_adj):", sand_frac*(1-om_adj)
                   write(iulog,*) "----------------"
                   ! Equation 15, Balland and Arp 2005
-                  tkm = (om_tkm**om_frac)*(8.0_r8**quartz_adj)*(2.5_r8**(1._r8-om_frac-quartz_adj))
+                  tkm = (om_tkm**om_adj)*(8.0_r8**quartz_adj)*(2.5_r8**(1._r8-om_adj-quartz_adj))
                   ! Equation 12, Balland and Arp 2005 (tkmg and tksatu)
                   this%tkmg_col(c,lev)   = tkm ** (1._r8- this%watsat_col(c,lev))
                   this%tksatu_col(c,lev) = this%tkmg_col(c,lev)*0.57_r8**this%watsat_col(c,lev)
