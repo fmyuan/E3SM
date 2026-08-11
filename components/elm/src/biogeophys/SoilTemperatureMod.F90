@@ -858,7 +858,6 @@ contains
     real(r8) :: zh2osfc
     real(r8) :: sand                      ! sand fraction for current layer
     real(r8) :: sand_adj                  ! sand fraction for current layer relative to total solid volume (not just fine mineral volume)
-    real(r8) :: clay                      ! clay fraction for current layer
     real(r8) :: gravel                    ! gravel fraction for current layer
     real(r8) :: gravel_adj                ! gravel fraction for current layer relative to total solid volume
     real(r8) :: om_frac                   ! organic matter fraction for current layer
@@ -910,7 +909,6 @@ contains
          tkdry        =>    soilstate_vars%tkdry_col         , & ! Input:  [real(r8) (:,:) ]  thermal conductivity, dry soil (W/m/Kelvin)
          csol         =>    soilstate_vars%csol_col          , & ! Input:  [real(r8) (:,:) ]  heat capacity, soil solids (J/m**3/Kelvin)
          watsat       =>    soilstate_vars%watsat_col        , & ! Input:  [real(r8) (:,:) ]  volumetric soil water at saturation (porosity)
-         tksatu       =>    soilstate_vars%tksatu_col        , & ! Input:  [real(r8) (:,:) ]  thermal conductivity, saturated soil [W/m-K]
          cellsand     =>    soilstate_vars%cellsand_col      , & ! Input:  [real(r8) (:,:) ]  sand fraction [%]
          cellclay     =>    soilstate_vars%cellclay_col      , & ! Input:  [real(r8) (:,:) ]  clay fraction [%]
          cellgrvl     =>    soilstate_vars%cellgrvl_col      , & ! Input:  [real(r8) (:,:) ]  gravel fraction [%]
@@ -964,13 +962,11 @@ contains
                      ! Extract soil texture for current column and layer
                      if (j <= nlevsoi) then
                         sand = cellsand(c,j) / 100.0_r8    ! Convert from % to fraction
-                        clay = cellclay(c,j) / 100.0_r8    ! Convert from % to fraction
                         gravel = cellgrvl(c,j) / 100.0_r8  ! Convert from % to fraction
                         om_frac = max(0._r8, min(1._r8, cellorg(c,j) / organic_max))
                      else
                         ! Below nlevsoi, use values from bottom soil layer
                         sand = cellsand(c,nlevsoi) / 100.0_r8
-                        clay = cellclay(c,nlevsoi) / 100.0_r8
                         gravel = cellgrvl(c,nlevsoi) / 100.0_r8
                         om_frac = 0.0_r8
                      end if
@@ -989,7 +985,7 @@ contains
                               dke = satw**(0.5_r8*(1.0_r8+om_frac-0.24_r8*sand_adj-gravel_adj)) * &
                                  ((1.0_r8/(1.0_r8+exp(-18.3_r8*satw)))**3.0_r8 - ((1.0_r8-satw)/2.0_r8)**3.0_r8)**(1.0_r8-om_frac)
                            else
-                              ! Equation 18, Balland and Arp 2005
+                              ! Equation 17, Balland and Arp 2005 for peat limit
                               dke = satw
                            endif
                            ! Equation 12, Balland and Arp 2005
