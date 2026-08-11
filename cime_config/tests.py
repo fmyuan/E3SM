@@ -55,8 +55,7 @@ _TESTS = {
             "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_codetest_I1850CNPRDCTCBC",
             "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_arctic_codetest_I1850CNPRDCTCBC",
             "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_arctic_onsetgdd_I1850CNPRDCTCBC",
-            "ERS_Ly5_Vmct.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_arctic_maxpft12_I1850CNPRDCTCBC",
-            "ERS_Vmct.1x1_icycape.I1850GSWCNPRDCTCBC.elm-polygonal_tundra",
+            "ERS.1x1_icycape.I1850GSWCNPRDCTCBC.elm-polygonal_tundra",
             "SMS_Ly1.ELM_USRDAT.I1850CNPRDCTCBC.elm-kilocraft",
             )
         },
@@ -70,6 +69,7 @@ _TESTS = {
             "ERS.f09_g16.IELMBC.elm-simple_decomp",
             "ERS_Vmct.hcru_hcru.IELM.elm-multi_inst",
             "SMS_Vmct.ELM_USRDAT.GTSM2ELM.elm-lnd_docn_1way",
+            "ERS_Ly5_Vmct.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_arctic_maxpft12_I1850CNPRDCTCBC"
             )
         },
 
