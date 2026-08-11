@@ -980,10 +980,10 @@ contains
                         !if (t_soisno(c,j) > tfrz) then
                         ! GAM use ice presence for "frozen or partially frozen" cases in Balland (text above Equation 18)
                         if (h2osoi_ice(c,j) <= 1.e-12_r8) then !if unfrozen
-                           if (om_frac .lt. 1.0_r8) then
+                           if (om_adj .lt. 1.0_r8) then
                               ! Equation 17, Balland and Arp 2005
-                              dke = satw**(0.5_r8*(1.0_r8+om_frac-0.24_r8*sand_adj-gravel_adj)) * &
-                                 ((1.0_r8/(1.0_r8+exp(-18.3_r8*satw)))**3.0_r8 - ((1.0_r8-satw)/2.0_r8)**3.0_r8)**(1.0_r8-om_frac)
+                              dke = satw**(0.5_r8*(1.0_r8+om_adj-0.24_r8*sand_adj-gravel_adj)) * &
+                                 ((1.0_r8/(1.0_r8+exp(-18.3_r8*satw)))**3.0_r8 - ((1.0_r8-satw)/2.0_r8)**3.0_r8)**(1.0_r8-om_adj)
                            else
                               ! Equation 17, Balland and Arp 2005 for peat limit
                               dke = satw
@@ -992,7 +992,7 @@ contains
                            dksat = tkmg(c,j)*(tkwat**watsat(c,j)) !tkmg is already defined in SoilStateType with exponent 
                         else ! if frozen or partially frozen
                            ! Equation 18, Balland and Arp 2005
-                           dke = satw**(1.0_r8+om_frac)
+                           dke = satw**(1.0_r8+om_adj)
                            fl = (h2osoi_liq(c,j)/(denh2o*dz(c,j))) / (h2osoi_liq(c,j)/(denh2o*dz(c,j)) + &
                               h2osoi_ice(c,j)/(denice*dz(c,j)))
                            ! Equation 13, Balland and Arp 2005
