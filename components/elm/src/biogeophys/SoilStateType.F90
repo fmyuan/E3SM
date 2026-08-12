@@ -837,8 +837,7 @@ contains
                   sand_adj   = max(0._r8, min(1._r8, (1._r8-gravel_adj-om_adj)*sand/100.0_r8)) ! pct to frac
 
                   ! Assume gravel has same mineralogy as fine mineral fractions
-                  ! Assume sand fraction is proxy for quartz fraction, see text below Balland Equation 14
-                  quartz_adj = sand_adj * (1.0_r8 + gravel_adj)
+                  quartz_adj = sand_adj + gravel_adj*(sand/100._r8)
 
                   ! Equation 15, Balland and Arp 2005
                   tkm = (om_tkm**om_adj)*(8.0_r8**quartz_adj)*(2.5_r8**(1._r8-om_adj-quartz_adj))
