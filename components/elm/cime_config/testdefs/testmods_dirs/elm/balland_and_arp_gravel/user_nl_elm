@@ -2,7 +2,4 @@
  flanduse_timeseries = ''
  finidat = ''
  paramfile = '$DIN_LOC_ROOT/lnd/clm2/paramdata/clm_params_c251006.nc'
- use_crop = .true.
- irrigate = .true.
  soil_thermal_conductivity_model = 'balland_and_arp'
- hist_empty_htapes = .true.
