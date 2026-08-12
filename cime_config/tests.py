@@ -51,6 +51,7 @@ _TESTS = {
             "SMS_Ly2_P1x1.1x1_smallvilleIA.I20TRGSWCNPCROP.elm-lulcc_sville",
             "ERS.r05_r05.ICNPRDCTCBC.elm-cbudget",
             "ERS_Ld150.ELM_USRDAT.I1850CNPRDCTCBC.elm-snowveg_arctic",
+            "ERS.hcru_hcru.I20TRGSWCNPRDCTCBC.elm-balland_and_arp_gravel",
             "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_default_I1850CNPRDCTCBC",
             "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_codetest_I1850CNPRDCTCBC",
             "ERS.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_arctic_codetest_I1850CNPRDCTCBC",
@@ -392,7 +393,6 @@ _TESTS = {
             "ERS_Vmct_Ld3.ne30pg2_r05_IcoswISC30E3r5.WCYCL1850.allactive-nlmaps",
             "SMS_D_Ld1.ne30pg2_r05_IcoswISC30E3r5.CRYO1850-DISMF",
             "ERS.hcru_hcru.I20TRGSWCNPRDCTCBC.elm-erosion",
-            "ERS.hcru_hcru.I20TRGSWCNPRDCTCBC.elm-balland_and_arp_gravel",
             "ERS.ne30pg2_r05_IcoswISC30E3r5.GPMPAS-JRA.mosart-rof_ocn_2way",
             )
         },
