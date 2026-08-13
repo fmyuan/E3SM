@@ -857,9 +857,11 @@ contains
     real(r8) :: satw                      ! relative total water content of soil.
     real(r8) :: zh2osfc
     real(r8) :: sand                      ! sand fraction for current layer
-    real(r8) :: clay                      ! clay fraction for current layer
+    real(r8) :: sand_adj                  ! sand fraction for current layer relative to total solid volume (not just fine mineral volume)
     real(r8) :: gravel                    ! gravel fraction for current layer
+    real(r8) :: gravel_adj                ! gravel fraction for current layer relative to total solid volume
     real(r8) :: om_frac                   ! organic matter fraction for current layer
+    real(r8) :: om_adj                    ! organic matter fraction for current layer relative to total solid volume
     real(r8) :: organic_max               ! organic matter (kg/m3) threshold
     character(len=64) :: event
     
@@ -907,7 +909,6 @@ contains
          tkdry        =>    soilstate_vars%tkdry_col         , & ! Input:  [real(r8) (:,:) ]  thermal conductivity, dry soil (W/m/Kelvin)
          csol         =>    soilstate_vars%csol_col          , & ! Input:  [real(r8) (:,:) ]  heat capacity, soil solids (J/m**3/Kelvin)
          watsat       =>    soilstate_vars%watsat_col        , & ! Input:  [real(r8) (:,:) ]  volumetric soil water at saturation (porosity)
-         tksatu       =>    soilstate_vars%tksatu_col        , & ! Input:  [real(r8) (:,:) ]  thermal conductivity, saturated soil [W/m-K]
          cellsand     =>    soilstate_vars%cellsand_col      , & ! Input:  [real(r8) (:,:) ]  sand fraction [%]
          cellclay     =>    soilstate_vars%cellclay_col      , & ! Input:  [real(r8) (:,:) ]  clay fraction [%]
          cellgrvl     =>    soilstate_vars%cellgrvl_col      , & ! Input:  [real(r8) (:,:) ]  gravel fraction [%]
@@ -956,47 +957,48 @@ contains
                      else
                         thk(c,j) = tkdry(c,j)
                      endif
-                  else
+                  else if (trim(soil_thermal_conductivity_model) == 'balland_and_arp') then
                      ! Extract soil texture for current column and layer
                      if (j <= nlevsoi) then
                         sand = cellsand(c,j) / 100.0_r8    ! Convert from % to fraction
-                        clay = cellclay(c,j) / 100.0_r8    ! Convert from % to fraction
                         gravel = cellgrvl(c,j) / 100.0_r8  ! Convert from % to fraction
-                        om_frac = cellorg(c,j) / organic_max
+                        om_frac = max(0._r8, min(1._r8, cellorg(c,j) / organic_max))
                      else
                         ! Below nlevsoi, use values from bottom soil layer
                         sand = cellsand(c,nlevsoi) / 100.0_r8
-                        clay = cellclay(c,nlevsoi) / 100.0_r8
                         gravel = cellgrvl(c,nlevsoi) / 100.0_r8
                         om_frac = 0.0_r8
                      end if
-                     if (satw > .1e-6_r8) then
-                        if (t_soisno(c,j) > tfrz) then
-                           if (om_frac .lt. 1.0_r8) then
-                              ! Equation 17, Balland and Arp 2005
-                              dke = satw**(0.5_r8*(1.0_r8+om_frac-0.24_r8*sand-gravel)) * &
-                                 ((1.0_r8/(1.0_r8+exp(-18.3_r8*satw)))**3.0_r8 - ((1.0_r8-satw)/2.0_r8)**3.0_r8)**(1.0_r8-om_frac)
-                           else
-                              ! Equation 18, Balland and Arp 2005
-                              dke = satw
-                           endif
-                           ! Equation 12, Balland and Arp 2005
-                           dksat = (tkmg(c,j)**(1.0_r8-watsat(c,j)))*(tkwat**watsat(c,j))
-                        else
-                           ! Equation 18, Balland and Arp 2005
-                           dke = satw**(1.0_r8+om_frac)
-                           fl = (h2osoi_liq(c,j)/(denh2o*dz(c,j))) / (h2osoi_liq(c,j)/(denh2o*dz(c,j)) + &
-                              h2osoi_ice(c,j)/(denice*dz(c,j)))
-                           ! Equation 13, Balland and Arp 2005
-                           dksat = (tkmg(c,j)**(1.0_r8-watsat(c,j)))*(tkice**((1.0_r8-fl)*watsat(c,j)))*(tkwat**(fl*watsat(c,j)))
-                        endif
-                        ! Equation 5, Balland and Arp 2005
-                        thk(c,j) = (dksat - tkdry(c,j))*dke + tkdry(c,j)
-                     else
-                        thk(c,j) = tkdry(c,j)
-                     endif
-                  endif
+                     ! Adjust fractions to be relative to total solid volume 
+                     ! (gravel_adj + om_adj + sand_adj + siltandclay_adj(implicit) = 1)
+                     ! Assuming gravel is measured relative to total solid volume 
+                     ! (remove coarse first, them adjust OM, then adjust fine minerals)
+                     gravel_adj = max(0._r8, min(1._r8, gravel))
+                     om_adj     = max(0._r8, min(1._r8, (1._r8-gravel_adj)*om_frac))
+                     sand_adj   = max(0._r8, min(1._r8, (1._r8-gravel_adj-om_adj)*sand))
+                     
+                     if (h2osoi_ice(c,j) <= 1.e-12_r8) then !if unfrozen
+                        ! Equation 17, Balland and Arp 2005
+                        dke = satw**(0.5_r8*(1.0_r8+om_adj-0.24_r8*sand_adj-gravel_adj)) * &
+                           ((1.0_r8/(1.0_r8+exp(-18.3_r8*satw)))**3.0_r8 - ((1.0_r8-satw)/2.0_r8)**3.0_r8)**(1.0_r8-om_adj)
 
+                        ! Equation 12, Balland and Arp 2005
+                        ! tkmg is already defined in SoilStateType with exponent 
+                        dksat = tkmg(c,j)*(tkwat**watsat(c,j)) 
+                     else ! if frozen or partially frozen
+                        ! Equation 18, Balland and Arp 2005
+                        dke = satw**(1.0_r8+om_adj)
+                        fl = (h2osoi_liq(c,j)/(denh2o*dz(c,j))) / (h2osoi_liq(c,j)/(denh2o*dz(c,j)) + &
+                           h2osoi_ice(c,j)/(denice*dz(c,j)))
+
+                        ! Equation 13, Balland and Arp 2005
+                        !tkmg is already defined in SoilStateType with exponent
+                        dksat = tkmg(c,j)*(tkice**((1.0_r8-fl)*watsat(c,j)))*(tkwat**(fl*watsat(c,j))) 
+                     endif
+                     ! Equation 5, Balland and Arp 2005
+                     thk(c,j) = (dksat - tkdry(c,j))*dke + tkdry(c,j)   
+                  endif
+                  
                   if (j > nlevbed) thk(c,j) = thk_bedrock
                else if (lun_pp%itype(l) == istice .OR. lun_pp%itype(l) == istice_mec) then
                   thk(c,j) = tkwat
