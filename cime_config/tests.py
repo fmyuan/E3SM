@@ -97,6 +97,7 @@ _TESTS = {
             "ERS.f19_g16.I1850ELM.elm-betr",
             "ERS.f19_g16.I1850ELM.elm-vst",
             "ERS.f19_g16.I1850ELM.elm-balland_and_arp",
+            "SMS.r05_r05.I1850ELM.elm-balland_and_arp_gravel",
             "ERS.f09_g16.I1850ELMCN.elm-bgcinterface",
             "SMS.r05_r05.I1850ELMCN.elm-qian_1948",
             "SMS_Ly5_P1x1.1x1_smallvilleIA.IELMCNCROP.elm-per_crop",

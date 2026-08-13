@@ -537,6 +537,12 @@ contains
        if (.not. readvar) then
           call endrun(msg=' ERROR: PCT_GRVL NOT on surfdata file'//errMsg(__FILE__, __LINE__))
        end if
+    elseif (trim(soil_thermal_conductivity_model) == 'balland_and_arp') then
+       call ncd_io(ncid=ncid, varname='PCT_GRVL', flag='read', data=grvl3d, dim1name=grlnd, readvar=readvar)
+       if (.not. readvar) then
+          write(iulog,*) "Using Balland and Arp thermal conductivity, but without gravel!"
+          grvl3d(:,:,:) = 0._r8
+       end if
     else
        grvl3d(:,:,:) = 0._r8
     end if
