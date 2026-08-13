@@ -860,9 +860,9 @@ contains
                   ! Equation 16, Balland and Arp 2005
                   ! Update bulk and particle densities to include organic matter
                   rho_p = om_adj*1.3_r8 + (1._r8-om_adj)*2.7_r8   ! particle density of soils and organics combined, g/cm3
-                  rho_b = rho_p * (1._r8-this%watsat_col(c,lev))  ! bulk density updated, g/cm3
-                  this%tkdry_col(c,lev) = ((0.053_r8*tkm-tkair)*rho_b + tkair*rho_p) / &
-                     (rho_p - (1._r8 - 0.053_r8)*rho_b)
+                  this%bd_col(c,lev) = rho_p * (1._r8-this%watsat_col(c,lev))  ! bulk density updated, g/cm3
+                  this%tkdry_col(c,lev) = ((0.053_r8*tkm-tkair)*this%bd_col(c,lev) + tkair*rho_p) / &
+                     (rho_p - 0.947_r8*this%bd_col(c,lev))
                end if
 
              end if
