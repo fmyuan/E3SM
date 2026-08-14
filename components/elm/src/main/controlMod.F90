@@ -110,7 +110,8 @@ module controlMod
                         use_vichydro, use_century_decomp, use_cn, use_crop, &
                         use_snicar_frc, use_snicar_ad, use_firn_percolation_and_compaction, &
                         use_extrasnowlayers, use_T_rho_dependent_snowthk, &
-                        use_vancouver, use_mexicocity, use_noio, use_finetop_rad
+                        use_vancouver, use_mexicocity, use_noio, use_finetop_rad, &
+                        soil_thermal_conductivity_model
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -419,7 +420,7 @@ contains
 
    ! NGEE Arctic options
    namelist /elm_inparm/ &
-         use_polygonal_tundra, use_arctic_init
+         use_polygonal_tundra, use_arctic_init, soil_thermal_conductivity_model
     ! ----------------------------------------------------------------------
     ! Default values
     ! ----------------------------------------------------------------------
@@ -1106,6 +1107,7 @@ contains
     !NGEE Arctic options
     call mpi_bcast (use_polygonal_tundra, 1, MPI_LOGICAL, 0, mpicom, ier)
     call mpi_bcast (use_arctic_init, 1, MPI_LOGICAL, 0, mpicom, ier)
+    call mpi_bcast (soil_thermal_conductivity_model, len(soil_thermal_conductivity_model), MPI_CHARACTER, 0, mpicom, ier)
 
   end subroutine control_spmd
 
@@ -1421,8 +1423,8 @@ contains
 
     ! NGEE Arctic options
     if (use_polygonal_tundra) write(iulog, *) '    use_polygonal_tundra    =', use_polygonal_tundra
-    write(iulog, *) '    use_polygonal_tundra    =', use_polygonal_tundra
-    if (use_arctic_init) write(iulog, *)      '    use_arctic_init    ='     , use_arctic_init
+    if (use_arctic_init) write(iulog, *)      '    use_arctic_init         =', use_arctic_init
+    write(iulog, *) '    soil_thermal_conductivity_model =', trim(soil_thermal_conductivity_model)
 
   end subroutine control_print
 

@@ -18,7 +18,7 @@ module SoilStateType
   use elm_varcon      , only : secspday, mu, denh2o, denice, grlnd
   use landunit_varcon , only : istice, istdlak, istwet, istsoil, istcrop, istice_mec
   use column_varcon   , only : icol_roof, icol_sunwall, icol_shadewall, icol_road_perv, icol_road_imperv
-  use elm_varctl      , only : use_cn, use_lch4,use_dynroot, use_fates
+  use elm_varctl      , only : use_cn, use_lch4,use_dynroot, use_fates, soil_thermal_conductivity_model
   use elm_varctl      , only : use_erosion
   use elm_varctl      , only : use_var_soil_thick
   use elm_varctl      , only : squareomfrac
@@ -346,6 +346,7 @@ contains
     use FuncPedotransferMod , only : pedotransf, get_ipedof
     use RootBiophysMod      , only : init_vegrootfr
     use, intrinsic :: ieee_exceptions
+    use elm_varcon          , only : tkair
     !
     ! !ARGUMENTS:
     class(soilstate_type) :: this
@@ -377,7 +378,12 @@ contains
     real(r8)           :: bd                            ! bulk density of dry soil material [kg/m^3]
     real(r8)           :: tkm                           ! mineral conductivity
     real(r8)           :: xksat                         ! maximum hydraulic conductivity of soil [mm/s]
-    real(r8)           :: clay,sand,gravel              ! temporaries
+    real(r8)           :: clay,sand,gravel              ! temporaries for percents (%)
+    real(r8)           :: sand_adj                      ! temporary, sand fraction for current layer relative to total solid volume (not just fine mineral volume)
+    real(r8)           :: gravel_adj                    ! temporary, gravel fraction for current layer relative to total solid volume
+    real(r8)           :: om_adj                        ! temporary, organic matter fraction for current layer relative to total solid volume
+    real(r8)           :: quartz_adj                    ! temporary, gravel fraction for current layer relative to total solid volume
+    real(r8)           :: rho_p, rho_b                  ! temporaries, particle and bulk densities adjusted by organic matter
     real(r8)           :: organic_max                   ! organic matter (kg/m3) where soil is assumed to act like peat
     integer            :: dimid                         ! dimension id
     logical            :: readvar
@@ -531,6 +537,12 @@ contains
        call ncd_io(ncid=ncid, varname='PCT_GRVL', flag='read', data=grvl3d, dim1name=grlnd, readvar=readvar)
        if (.not. readvar) then
           call endrun(msg=' ERROR: PCT_GRVL NOT on surfdata file'//errMsg(__FILE__, __LINE__))
+       end if
+    elseif (trim(soil_thermal_conductivity_model) == 'balland_and_arp') then
+       call ncd_io(ncid=ncid, varname='PCT_GRVL', flag='read', data=grvl3d, dim1name=grlnd, readvar=readvar)
+       if (.not. readvar) then
+          write(iulog,*) "Using Balland and Arp thermal conductivity, but without gravel!"
+          grvl3d(:,:,:) = 0._r8
        end if
     else
        grvl3d(:,:,:) = 0._r8
@@ -825,6 +837,34 @@ contains
 
                 this%watmin_col(c,lev) = &
                      this%watsat_col(c,lev)*(-min_liquid_pressure/this%sucsat_col(c,lev))**(-1._r8/this%bsw_col(c,lev))
+
+               if (trim(soil_thermal_conductivity_model) == 'balland_and_arp') then
+                  ! Adjust fractions to be relative to total solid volume 
+                  ! (gravel_adj + om_adj + sand_adj + siltandclay_adj(implicit) = 1)
+                  ! Assuming gravel is measured relative to total solid volume 
+                  ! (remove coarse first, them adjust OM, then adjust fine minerals)
+                  gravel_adj = max(0._r8, min(1._r8, gravel/100.0_r8)) ! pct to frac
+                  om_adj     = max(0._r8, min(1._r8, (1._r8-gravel_adj)*om_frac))
+                  sand_adj   = max(0._r8, min(1._r8, (1._r8-gravel_adj-om_adj)*sand/100.0_r8)) ! pct to frac
+
+                  ! Assume gravel has same mineralogy as fine mineral fractions
+                  quartz_adj = sand_adj + gravel_adj*(sand/100._r8)
+
+                  ! Equation 15, Balland and Arp 2005
+                  tkm = (om_tkm**om_adj)*(8.0_r8**quartz_adj)*(2.5_r8**(1._r8-om_adj-quartz_adj))
+
+                  ! Equation 12, Balland and Arp 2005 (tkmg and tksatu)
+                  this%tkmg_col(c,lev)   = tkm ** (1._r8- this%watsat_col(c,lev))
+                  this%tksatu_col(c,lev) = this%tkmg_col(c,lev)*0.57_r8**this%watsat_col(c,lev)
+
+                  ! Equation 16, Balland and Arp 2005
+                  ! Update bulk and particle densities to include organic matter
+                  rho_p = om_adj*1.3_r8 + (1._r8-om_adj)*2.7_r8   ! particle density of soils and organics combined, g/cm3
+                  rho_b = rho_p * (1._r8-this%watsat_col(c,lev))  ! bulk density updated, g/cm3
+                  this%tkdry_col(c,lev) = ((0.053_r8*tkm-tkair)*rho_b + tkair*rho_p) / &
+                     (rho_p - 0.947_r8*rho_b)
+                  this%bd_col(c,lev) = rho_b*1000._r8 ! g/cm3 -> kg/m3
+               end if
 
              end if
           end do

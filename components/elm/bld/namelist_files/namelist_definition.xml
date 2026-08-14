@@ -2373,4 +2373,13 @@ Cold-start initialization conditions in tundra start saturated and frozen.
 <default>Default: .false.</default>
 </entry>
 
+<entry id="soil_thermal_conductivity_model" type="char*32" category="default_settings"
+       group="elm_inparm" valid_values="farouki,balland_and_arp" value="farouki">
+Select the soil thermal conductivity model. Options are 'farouki' for the Farouki (1981)
+implementation of the Johansen scheme (default), or 'balland_and_arp' for the Balland and Arp (2005)
+model. The Balland and Arp model provides an alternative formulation for calculating soil thermal
+conductivity based on soil texture and moisture content.
+<default>Default: farouki</default>
+</entry>
+
 </namelist_definition>

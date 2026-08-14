@@ -420,6 +420,7 @@ module elm_varctl
   logical, public :: use_polygonal_tundra = .false.
   logical, public :: prohibit_subsidence  = .false.
   logical, public :: use_arctic_init      = .false.
+  character(len=32), public :: soil_thermal_conductivity_model = 'farouki'  ! Soil thermal conductivity model: 'farouki' (default) or 'balland_and_arp'
 
   !----------------------------------------------------------
   ! VSFM switches
