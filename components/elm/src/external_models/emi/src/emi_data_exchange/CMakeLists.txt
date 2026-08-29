@@ -2,16 +2,19 @@ set(EMI_EMI_DATA_EXCHANGE_SOURCES
   EMI_Atm2LndType_ExchangeMod.F90
   EMI_CanopyStateType_ExchangeMod.F90
   EMI_ChemStateType_ExchangeMod.F90
-  EMI_CNCarbonStateType_ExchangeMod.F90
+  EMI_ColumnCarbonStateType_ExchangeMod.F90
+  EMI_ColumnNitrogenStateType_ExchangeMod.F90
+  EMI_ColumnCarbonFluxType_ExchangeMod.F90
   EMI_ColumnType_ExchangeMod.F90
-  EMI_EnergyFluxType_ExchangeMod.F90
+  EMI_ColumnEnergyStateType_ExchangeMod.F90
+  EMI_ColumnEnergyFluxType_ExchangeMod.F90
   EMI_Filter_ExchangeMod.F90
   EMI_Landunit_ExchangeMod.F90
   EMI_SoilHydrologyType_ExchangeMod.F90
   EMI_SoilStateType_ExchangeMod.F90
-  EMI_TemperatureType_ExchangeMod.F90
-  EMI_WaterFluxType_ExchangeMod.F90
-  EMI_WaterStateType_ExchangeMod.F90
+  #EMI_TemperatureType_ExchangeMod.F90
+  #EMI_WaterFluxType_ExchangeMod.F90
+  #EMI_WaterStateType_ExchangeMod.F90
 )
 
 include_directories(${CMAKE_BINARY_DIR}/elm_stub/shr)

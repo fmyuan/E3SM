@@ -4831,7 +4831,7 @@ module VegetationDataType
     ! Spinup state
     !--------------------------------
     ! Do nothing for write
-    ! Note that the call to write spinup_state out was done in CNCarbonStateType and
+    ! Note that the call to write spinup_state out was done in ColumnCarbonStateType and
     ! cannot be called again because it will try to define the variable twice
     ! when the flag below is set to define
     if (flag == 'read') then

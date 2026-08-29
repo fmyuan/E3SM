@@ -14,7 +14,7 @@ module ExternalModelStubMod
   use ExternalModelConstants
   use EMI_Atm2LndType_Constants
   use EMI_CanopyStateType_Constants
-  use EMI_CNCarbonStateType_Constants
+  use EMI_ColumnCarbonStateType_Constants
   use EMI_ColumnType_Constants
   use EMI_EnergyFluxType_Constants
   use EMI_Filter_Constants

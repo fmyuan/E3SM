@@ -16,6 +16,7 @@ module restFileMod
   use histFileMod          , only : hist_restart_ncd
   use elm_varpar           , only : crop_prog
   use elm_varctl           , only : use_cn, use_c13, use_c14, use_lch4, use_fates
+  use elm_varctl           , only : use_alquimia
   use elm_varctl           , only : use_erosion
   use elm_varctl           , only : create_glacier_mec_landunit, iulog 
   use elm_varcon           , only : c13ratio, c14ratio
@@ -59,6 +60,7 @@ module restFileMod
   use VegetationDataType   , only : veg_ns, veg_nf
   use VegetationDataType   , only : veg_ps, veg_pf
   use GridcellDataType     , only : grc_cs, grc_ws 
+  use ColumnDataType       , only : col_chem
   
   !
   ! !PUBLIC TYPES:
@@ -278,6 +280,10 @@ contains
     end if
 
 
+    if (use_alquimia) then
+      call col_chem%Restart(bounds, ncid, flag='define')
+    endif
+
     if (present(rdate)) then 
        call hist_restart_ncd (bounds, ncid, flag='define', rdate=rdate )
     end if
@@ -415,6 +421,10 @@ contains
 
     end if
 
+
+    if (use_alquimia) then
+      call col_chem%Restart(bounds, ncid, flag='write')
+    endif
 
     call hist_restart_ncd (bounds, ncid, flag='write' )
 
@@ -638,6 +648,9 @@ contains
     end if
 
 
+    if (use_alquimia) then
+      call col_chem%Restart(bounds, ncid, flag='read')
+    endif
         
     call hist_restart_ncd (bounds, ncid, flag='read')
 
