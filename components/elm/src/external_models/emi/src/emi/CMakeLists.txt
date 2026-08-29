@@ -12,6 +12,7 @@ include_directories(${CMAKE_BINARY_DIR}/emi_data_definition)
 include_directories(${CMAKE_BINARY_DIR}/emi_data_exchange)
 include_directories(${CMAKE_BINARY_DIR}/em/fates)
 include_directories(${CMAKE_BINARY_DIR}/em/stub)
+include_directories(${CMAKE_BINARY_DIR}/em/alquimia)
 
 include(add_emi_library)
 add_emi_library(emi_emi ${EMI_EMI_SOURCES})

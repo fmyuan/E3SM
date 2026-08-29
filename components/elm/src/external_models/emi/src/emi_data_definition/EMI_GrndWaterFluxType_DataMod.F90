@@ -1,15 +1,15 @@
-module EMI_WaterFluxType_DataMod
+module EMI_GrndWaterFluxType_DataMod
   !
-  use EMI_WaterFluxType_Constants
+  use EMI_GrndWaterFluxType_Constants
   !
   implicit none
   !
-  public :: EMI_WaterFluxType_DataInfoByID
+  public :: EMI_GrndWaterFluxType_DataInfoByID
 
 contains
   
 !-----------------------------------------------------------------------
-  subroutine EMI_WaterFluxType_DataInfoByID(data_id, id_val, name_val, long_name_val,&
+  subroutine EMI_GrndWaterFluxType_DataInfoByID(data_id, id_val, name_val, long_name_val,&
         units_val, is_int_type, is_real_type, ndim, &
         dim1_beg_name, dim1_end_name, dim2_beg_name, dim2_end_name, &
         dim3_beg_name, dim3_end_name, dim4_beg_name, dim4_end_name, &
@@ -25,21 +25,21 @@ contains
     ! !ARGUMENTS:
     integer            , intent(in)  :: data_id
     integer            , intent(out) :: id_val
-    character (len=*)  , intent(out) :: name_val
+    character (len=32) , intent(out) :: name_val
     character (len=128), intent(out) :: long_name_val
-    character (len=24) , intent(out) :: units_val
+    character (len=32) , intent(out) :: units_val
     logical            , intent(out) :: is_int_type
     logical            , intent(out) :: is_real_type
     integer            , intent(out) :: ndim
-    character (len=24) , intent(out) :: dim1_beg_name
-    character (len=24) , intent(out) :: dim1_end_name
-    character (len=24) , intent(out) :: dim2_beg_name
-    character (len=24) , intent(out) :: dim2_end_name
-    character (len=24) , intent(out) :: dim3_beg_name
-    character (len=24) , intent(out) :: dim3_end_name
-    character (len=24) , intent(out) :: dim4_beg_name
-    character (len=24) , intent(out) :: dim4_end_name
-    logical            , intent(out) :: data_found
+    character (len=32) , intent(out) :: dim1_beg_name
+    character (len=32) , intent(out) :: dim1_end_name
+    character (len=32) , intent(out) :: dim2_beg_name
+    character (len=32) , intent(out) :: dim2_end_name
+    character (len=32) , intent(out) :: dim3_beg_name
+    character (len=32) , intent(out) :: dim3_end_name
+    character (len=32) , intent(out) :: dim4_beg_name
+    character (len=32) , intent(out) :: dim4_end_name
+    logical            , intent(inout) :: data_found
 
     is_int_type    = .false.
     is_real_type   = .false.
@@ -65,17 +65,15 @@ contains
        dim1_end_name  =  dimname_endc
        data_found   =  .true.
 
-    case(L2E_FLUX_VERTICAL_ET_MASS_FLUX)
-       id_val         =  L2E_FLUX_VERTICAL_ET_MASS_FLUX
-       name_val       =  'Evapotranspiration sink'
-       long_name_val  =  'Evapotranspiration sink: ELM to EM'
+    case(L2E_FLUX_TOTAL_ET_MASS_FLUX)
+       id_val         =  L2E_FLUX_TOTAL_ET_MASS_FLUX
+       name_val       =  'total Evapotranspiration sink'
+       long_name_val  =  'total Evapotranspiration sink: ELM to EM'
        units_val      =  '[kg/s]'
        is_real_type   =  .true.
-       ndim           =  2
+       ndim           =  1
        dim1_beg_name  =  dimname_begc
        dim1_end_name  =  dimname_endc
-       dim2_beg_name  =  dimname_one
-       dim2_end_name  =  dimname_nlevgrnd
        data_found   =  .true.
 
     case(L2E_FLUX_DEW_MASS_FLUX)
@@ -120,19 +118,6 @@ contains
        ndim           =  1
        dim1_beg_name  =  dimname_begc
        dim1_end_name  =  dimname_endc
-       data_found   =  .true.
-
-    case(L2E_FLUX_DRAINAGE_MASS_FLUX)
-       id_val         =  L2E_FLUX_DRAINAGE_MASS_FLUX
-       name_val       =  'Drainage sink'
-       long_name_val  =  'Drainage sink: ELM to EM'
-       units_val      =  '[kg/s]'
-       is_real_type   =  .true.
-       ndim           =  2
-       dim1_beg_name  =  dimname_begc
-       dim1_end_name  =  dimname_endc
-       dim2_beg_name  =  dimname_one
-       dim2_end_name  =  dimname_nlevgrnd
        data_found   =  .true.
 
     case(L2E_FLUX_INFL)
@@ -269,32 +254,6 @@ contains
        dim2_end_name  =  dimname_nlevgrnd
        data_found   =  .true.
 
-    case(L2E_FLUX_ADV)
-       id_val         =  L2E_FLUX_ADV
-       name_val       =  'Advective flux across different soil layer interfaces'
-       long_name_val  =  'Advective flux across different soil layer interfaces: ELM to EM'
-       units_val      =  '[mm H2O/s]'
-       is_real_type   =  .true.
-       ndim           =  2
-       dim1_beg_name  =  dimname_begc
-       dim1_end_name  =  dimname_endc
-       dim2_beg_name  =  dimname_zero
-       dim2_end_name  =  dimname_nlevgrnd
-       data_found   =  .true.
-
-    case(L2E_FLUX_DRAIN_VR)
-       id_val         =  L2E_FLUX_DRAIN_VR
-       name_val       =  'liquid water losted as drainage'
-       long_name_val  =  'liquid water losted as drainage: ELM to EM'
-       units_val      =  '[mm H2O/s]'
-       is_real_type   =  .true.
-       ndim           =  2
-       dim1_beg_name  =  dimname_begc
-       dim1_end_name  =  dimname_endc
-       dim2_beg_name  =  dimname_one
-       dim2_end_name  =  dimname_nlevgrnd
-       data_found   =  .true.
-
     case(L2E_FLUX_TRAN_VEG)
        id_val         =  L2E_FLUX_TRAN_VEG
        name_val       =  'vegetation transpiration'
@@ -331,6 +290,6 @@ contains
        data_found   =  .true.
     end select
     
-  end subroutine EMI_WaterFluxType_DataInfoByID
+  end subroutine EMI_GrndWaterFluxType_DataInfoByID
     
-end module EMI_WaterFluxType_DataMod
+end module EMI_GrndWaterFluxType_DataMod

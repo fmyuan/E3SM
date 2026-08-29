@@ -14,16 +14,20 @@ module ExternalModelStubMod
   use ExternalModelConstants
   use EMI_Atm2LndType_Constants
   use EMI_CanopyStateType_Constants
-  use EMI_CNCarbonStateType_Constants
-  use EMI_ColumnType_Constants
-  use EMI_EnergyFluxType_Constants
-  use EMI_Filter_Constants
-  use EMI_Landunit_Constants
+
+  use EMI_ColumnCarbonStateType_Constants
+  use EMI_ColumnEnergyStateType_Constants
+  use EMI_ColumnWaterStateType_Constants
+
+  use EMI_GrndEnergyFluxType_Constants
+  use EMI_GrndEnergyStateType_Constants
+  use EMI_GrndWaterFluxType_Constants
+  use EMI_GrndWaterStateType_Constants
   use EMI_SoilHydrologyType_Constants
   use EMI_SoilStateType_Constants
-  use EMI_TemperatureType_Constants
-  use EMI_WaterFluxType_Constants
-  use EMI_WaterStateType_Constants
+  use EMI_Filter_Constants
+  use EMI_ColumnType_Constants
+  use EMI_Landunit_Constants
   !
   implicit none
   !
@@ -193,7 +197,7 @@ contains
     number_em_stages = 1
     allocate(em_stages(number_em_stages))
     em_stages(1) = EM_STUB_SOIL_HYDRO_STAGE
-    id                                   = L2E_FLUX_VERTICAL_ET_MASS_FLUX
+    id                                   = L2E_FLUX_TOTAL_ET_MASS_FLUX
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_l2e_flux_et               = index
 
@@ -252,7 +256,7 @@ contains
     ! Stub EM will send ELM soil temperature during only one EM solve stage
     number_em_stages = 1
     em_stages(1) = EM_STUB_SOIL_THERMAL_STAGE
-    id                                             = E2L_STATE_TSOIL_NLEVGRND
+    id                                             = E2L_STATE_TSOIL_NLEVGRND_COL
     call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_e2l_state_temperature_soil_nlevgrnd = index
 

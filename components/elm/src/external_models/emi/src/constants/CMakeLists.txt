@@ -2,16 +2,19 @@ set(EMI_CONSTANTS_SOURCES
   EMI_Atm2LndType_Constants.F90
   EMI_CanopyStateType_Constants.F90
   EMI_ChemStateType_Constants.F90
-  EMI_CNCarbonStateType_Constants.F90
+  EMI_ColumnCarbonStateType_Constants.F90
+  EMI_ColumnNitrogenStateType_Constants.F90
+  EMI_ColumnCarbonFluxType_Constants.F90
   EMI_ColumnType_Constants.F90
-  EMI_EnergyFluxType_Constants.F90
+  EMI_ColumnEnergyStateType_Constants.F90
+  EMI_ColumnEnergyFluxType_Constants.F90
   EMI_Filter_Constants.F90
   EMI_Landunit_Constants.F90
   EMI_SoilHydrologyType_Constants.F90
   EMI_SoilStateType_Constants.F90
-  EMI_TemperatureType_Constants.F90
-  EMI_WaterFluxType_Constants.F90
-  EMI_WaterStateType_Constants.F90
+  #EMI_TemperatureType_Constants.F90
+  #EMI_WaterFluxType_Constants.F90
+  #EMI_WaterStateType_Constants.F90
   ExternalModelConstants.F90 )
 
 include(add_emi_library)
