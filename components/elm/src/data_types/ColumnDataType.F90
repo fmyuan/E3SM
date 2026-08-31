@@ -6049,6 +6049,33 @@ contains
            ptr_col=this%qflx_lnd2ocn, c2l_scale_type='urbanf')
     endif
 
+#ifdef MARSH
+    this%qflx_drain_vr(begc:endc, :) = spval
+    call hist_addfld2d (fname='QDRAI_VR',  units='mm/s', type2d='levgrnd', &
+          avgflag='A', long_name='Sub-surface drainage by layer', &
+          ptr_col=this%qflx_drain_vr)
+
+    this%qflx_lat_aqu(begc:endc) = spval
+    call hist_addfld1d (fname='QFLX_LAT_AQU',  units='mm/s',  &
+         avgflag='A', long_name='Lateral flow between hummock and hollow', &
+         ptr_col=this%qflx_lat_aqu, c2l_scale_type='urbanf')
+
+    this%qflx_lat_aqu_layer(begc:endc, :) = spval
+    call hist_addfld2d (fname='QFLX_LAT_AQU_LAYER',  units='mm/s', type2d='levgrnd', &
+         avgflag='A', long_name='Lateral flow between hummock and hollow by layer', &
+         ptr_col=this%qflx_lat_aqu_layer)
+
+   this%qflx_tide(begc:endc) = spval
+    call hist_addfld1d (fname='QFLX_TIDE',  units='mm H2O/s',  &
+         avgflag='A', long_name='Tidal flux between marsh columns', &
+         ptr_col=this%qflx_tide)
+
+   this%qflx_adv(begc:endc,:) = spval
+   call hist_addfld2d (fname='QFLX_ADV',  units='mm/s', type2d='levgrnd', &
+      avgflag='A', long_name='Vertical flow across soil layers', &
+      ptr_col=this%qflx_adv, c2l_scale_type='urbanf')
+#endif
+
     this%qflx_irr_demand(begc:endc) = spval
     call hist_addfld1d (fname='QIRRIG_WM',  units='mm/s',  &
          avgflag='A', long_name='Surface water irrigation demand sent to MOSART/WM', &
