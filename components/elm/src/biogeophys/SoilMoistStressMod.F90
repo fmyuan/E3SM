@@ -323,6 +323,8 @@ contains
     use VegetationDataType   , only : veg_wf
     use elm_varctl           , only : use_hydrstress
     use SoilHydrologyType    , only : soilhydrology_type
+    use elm_varctl           , only : use_alquimia, alquimia_pf_coupled
+    use ColumnDataType       , only : col_chem
     !
     ! !ARGUMENTS:
     implicit none
@@ -397,11 +399,18 @@ contains
 
 #ifdef MARSH
                ! Using osm_inhib to change root uptake representing osmotic salinity stress
-               ! Otherwise, with tidal code salinity of the adjacent water body is used
-                  if (salinity(c) .ge. sal_threshold(veg_pp%itype(p))) then
+               ! If using alquimia, salinity is available for each soil layer. Otherwise, with tidal code salinity of the adjacent water body is used
+               if(use_alquimia) then
+                  if(col_chem%soil_salinity(c,j) .ge. sal_threshold(veg_pp%itype(p))) then
+                     osm_inhib(p) = exp(-0.5*((col_chem%soil_salinity(c,j)-sal_opt(veg_pp%itype(p)))/sal_tol(veg_pp%itype(p)))**2._r8)
+                     rresis(p,j) = rresis(p,j)*osm_inhib(p)
+                  endif
+               else
+                  if ((salinity(c) .ge. sal_threshold(veg_pp%itype(p))) .and. ((h2osoi_vol(c,j) .ge. watsat(c,j)))) then !(TAO 6/10/2026)
                      osm_inhib(p) = exp(-0.5*((salinity(c)-sal_opt(veg_pp%itype(p)))/sal_tol(veg_pp%itype(p)))**2._r8)
                      rresis(p,j) = rresis(p,j)*osm_inhib(p)
                   endif
+               endif
 
                !use floodf to change root water uptake as a function of water level
                !to represent saturation/inundation stress
