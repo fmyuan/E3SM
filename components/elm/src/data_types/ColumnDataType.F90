@@ -181,6 +181,11 @@ module ColumnDataType
     real(r8), pointer :: h2osfc_p         (:) => null() ! h2osfc from previous timestep (inundation fraction is calculated based on this var)
     real(r8), pointer :: supercool      (:,:) => null() ! supercooled liquid water in soil (kg/m2)
     real(r8), pointer :: smp_i          (:,:) => null() ! frozen water potential
+    ! TAI
+    real(r8), pointer :: salinity           (:)   => null() ! salinity from PFLOTRAN when using interface (TAO 5/19/2020)
+    real(r8), pointer :: h2osfc_tide        (:)   => null() ! tidal height above surface
+    real(r8), pointer :: nitrate_tide       (:)   => null() ! tide water nitrate concentration (mol/L)
+
   contains
     procedure, public :: Init    => col_ws_init
     procedure, public :: Restart => col_ws_restart
@@ -435,6 +440,7 @@ module ColumnDataType
     real(r8), pointer :: eflx_hs_top_snow        (:)   => null() ! heat flux on top snow layer (W/m2)
     real(r8), pointer :: eflx_hs_soil            (:)   => null() ! heat flux on soil [W/m2
     real(r8), pointer :: eflx_sabg_lyr           (:,:) => null() ! absorbed solar radiation (col,lyr) (W/m2)
+    real(r8), pointer :: eflx_sh_tide            (:)   => null() !sensible heat flux from tide
     ! Derivatives of energy fluxes
     real(r8), pointer :: eflx_dhsdT              (:)   => null() ! deriv. of energy flux into surface layer wrt temp (W/m2/K)
     ! Latent heat terms
@@ -491,6 +497,7 @@ module ColumnDataType
     real(r8), pointer :: qflx_gross_infl_soil (:)   => null() ! gross infiltration, before considering the evaporation
     real(r8), pointer :: qflx_adv             (:,:) => null() ! advective flux across different soil layer interfaces [mm H2O/s] [+ downward]
     real(r8), pointer :: qflx_rootsoi         (:,:) => null() ! root and soil water exchange [mm H2O/s] [+ into root]
+    real(r8), pointer :: qflx_tran_veg_sat    (:)   => null() ! Transpiration from saturated zone
     real(r8), pointer :: dwb                  (:)   => null() !  water mass change [+ increase] [mm H2O/s]
     real(r8), pointer :: qflx_infl            (:)   => null() ! infiltration (mm H2O /s)
     real(r8), pointer :: qflx_surf            (:)   => null() ! surface runoff (mm H2O /s)
@@ -537,6 +544,11 @@ module ColumnDataType
     real(r8), pointer :: qflx_h2oocn_drain    (:)   => null() ! drainage from coastal inundation volume (mm H2O/s)
     real(r8), pointer :: qflx_from_uphill     (:)   => null() ! input to top soil layer from uphill topounit(s) (mm H2O/s))
     real(r8), pointer :: qflx_to_downhill     (:)   => null() ! output from column to the downhill topounit (mm H2O/s))
+
+    real(r8), pointer :: qflx_lat_aqu         (:)   => null() ! Total lateral flux between hummock/hollow (mm H2O /s)
+    real(r8), pointer :: qflx_lat_aqu_layer   (:,:) => null() ! Lateral flux between hummock/hollow by layer (mm H2O/s)
+    real(r8), pointer :: qflx_surf_input      (:)   => null() ! Runoff input from Hummock (mm H2O/s)
+    real(r8), pointer :: qflx_tide            (:)   => null() ! tidal flux between consecutive timesteps TAO
 
     real(r8), pointer :: mflx_infl_1d         (:)   => null() ! infiltration source in top soil control volume (kg H2O /s)
     real(r8), pointer :: mflx_dew_1d          (:)   => null() ! liquid+snow dew source in top soil control volume (kg H2O /s)
@@ -1481,6 +1493,10 @@ contains
       allocate(this%frac_melted        (begc:endc,1:nlevgrnd))        ; this%frac_melted    (:,:) = spval
       allocate(this%excess_ice         (begc:endc,1:nlevgrnd))        ; this%excess_ice     (:,:) = spval
     end if
+    !TAI
+    allocate(this%salinity           (begc:endc))                     ; this%salinity           (:)   = spval
+    allocate(this%nitrate_tide       (begc:endc))                     ; this%nitrate_tide       (:)   = spval
+    allocate(this%h2osfc_tide        (begc:endc))                     ; this%h2osfc_tide        (:)   = spval
 
     !-----------------------------------------------------------------------
     ! initialize history fields for select members of col_ws
@@ -1694,6 +1710,22 @@ contains
          ptr_col=this%wslake_col)
     end if
 
+   this%salinity(begc:endc) = spval
+    call hist_addfld1d (fname='SALINITY',  units='ppt', &
+         avgflag='A', long_name='Salinity concentration', &
+         ptr_col=this%salinity)
+
+   this%nitrate_tide(begc:endc) = spval
+    call hist_addfld1d (fname='NITRATE_TIDE',  units='ppt', &
+         avgflag='A', long_name='Tide nitrate concentration', &
+         ptr_col=this%salinity)
+
+   this%h2osfc_tide(begc:endc) = spval
+   call hist_addfld1d (fname='H2OSFC_TIDE',  units='mm H2O',  &
+      avgflag='A', long_name='Tide height above soil surface', &
+      ptr_col=this%h2osfc_tide)
+
+
     !-----------------------------------------------------------------------
     ! set cold-start initial values for select members of col_ws
     !-----------------------------------------------------------------------
@@ -1717,6 +1749,10 @@ contains
        this%h2orof(c)                 = 0._r8
        this%frac_h2orof(c)            = 0._r8
        this%frac_h2oocn(c)            = 0._r8
+
+       this%salinity(c)               = 0._r8
+       this%h2osfc_tide(c)            = 0._r8
+       this%nitrate_tide(c)           = 0._r8
 
        if (lun_pp%urbpoi(l)) then
           ! From Bonan 1996 (LSM technical note)
@@ -5714,6 +5750,8 @@ contains
     allocate(this%errseb               (begc:endc))              ; this%errseb               (:)   = spval
     allocate(this%errsol               (begc:endc))              ; this%errsol               (:)   = spval
     allocate(this%errlon               (begc:endc))              ; this%errlon               (:)   = spval
+    ! TAI
+    allocate(this%eflx_sh_tide         (begc:endc))              ; this%eflx_sh_tide         (:)   = spval
 
     !-----------------------------------------------------------------------
     ! initialize history fields for select members of col_ef
@@ -5783,6 +5821,11 @@ contains
           avgflag='A', long_name='phase-change temperature increment before resetting layer to freezing point', &
           ptr_col=this%tinc, default='active')
 
+    this%eflx_sh_tide(begc:endc) = spval
+     call hist_addfld1d (fname='SH_TIDE', units='watt/m^2', &
+          avgflag='A', long_name='Heat flux at interface of TAI', &
+           ptr_col=this%eflx_sh_tide, default='inactive')
+
     this%errsoi(begc:endc) = spval
      call hist_addfld1d (fname='ERRSOI',  units='W/m^2',  &
           avgflag='A', long_name='soil/lake energy conservation error', &
@@ -5802,6 +5845,8 @@ contains
           this%eflx_urban_ac(c)      = 0._r8
           this%eflx_urban_heat(c)    = 0._r8
        end if
+       ! TAI
+       this%eflx_sh_tide(c)          = 0._r8
     end do
 
     this%tinc(begc:endc,:)  = 0._r8
@@ -5887,6 +5932,7 @@ contains
     allocate(this%qflx_gross_infl_soil   (begc:endc))             ; this%qflx_gross_infl_soil (:)   = spval
     allocate(this%qflx_adv               (begc:endc,0:nlevgrnd))  ; this%qflx_adv             (:,:) = spval
     allocate(this%qflx_rootsoi           (begc:endc,1:nlevgrnd))  ; this%qflx_rootsoi         (:,:) = spval
+    allocate(this%qflx_tran_veg_sat      (begc:endc))             ; this%qflx_tran_veg_sat    (:)   = spval
     allocate(this%dwb                    (begc:endc))             ; this%dwb                  (:)   = spval
     allocate(this%qflx_infl              (begc:endc))             ; this%qflx_infl            (:)   = spval
     allocate(this%qflx_surf              (begc:endc))             ; this%qflx_surf            (:)   = spval
@@ -5932,6 +5978,11 @@ contains
     allocate(this%qflx_h2oocn_drain      (begc:endc))             ; this%qflx_h2oocn_drain    (:)   = spval
     allocate(this%qflx_from_uphill       (begc:endc))             ; this%qflx_from_uphill     (:)   = spval
     allocate(this%qflx_to_downhill       (begc:endc))             ; this%qflx_to_downhill     (:)   = spval
+    !TAI
+    allocate(this%qflx_lat_aqu           (begc:endc))             ; this%qflx_lat_aqu         (:)   = spval
+    allocate(this%qflx_lat_aqu_layer     (begc:endc,1:nlevgrnd))  ; this%qflx_lat_aqu_layer   (:,:) = spval
+    allocate(this%qflx_surf_input        (begc:endc))             ; this%qflx_surf_input      (:)   = spval
+    allocate(this%qflx_tide              (begc:endc))             ; this%qflx_tide            (:)   = spval
 
     !VSFM variables
     ncells = endc - begc + 1
@@ -6146,6 +6197,13 @@ contains
           this%qflx_lnd2ocn(c) = 0._r8
        end if
     end do
+
+    ! TAI
+    this%qflx_drain_vr     (begc:endc,1:nlevgrnd) = 0._r8
+    this%qflx_lat_aqu      (begc:endc)            = 0._r8
+    this%qflx_lat_aqu_layer(begc:endc,1:nlevgrnd) = 0._r8
+    this%qflx_surf_input   (begc:endc)            = 0._r8
+    this%qflx_tide         (begc:endc)            = 0._r8
 
   end subroutine col_wf_init
 
