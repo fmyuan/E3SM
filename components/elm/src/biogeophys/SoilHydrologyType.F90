@@ -67,6 +67,9 @@ Module SoilHydrologyType
      real(r8), pointer :: ice_col           (:,:)   => null()! col VIC soil ice (kg/m2) for VIC soil layers
      real(r8), pointer :: fover             (:)     => null()! decay factor for surface runoff
      real(r8), pointer :: pc                (:)     => null()! surface water threshold probability
+     ! Tidal
+     real(r8), pointer :: ht_above_stream   (:)     => null()! Column height difference from stream
+     real(r8), pointer :: dist_from_stream  (:)     => null()! Column distance from stream
 
      real(r8), pointer :: ar_col            (:,:)   => null()! col anisotropic ratio
 
@@ -163,6 +166,10 @@ contains
     allocate(this%pc                (begg:endg))                 ; this%pc                (:)     = spval
 
     allocate(this%ar_col            (begc:endc,nlevgrnd))        ; this%ar_col            (:,:)   = 25.0_r8
+    ! TAI
+    allocate(this%ht_above_stream   (begc:endc))                 ; this%ht_above_stream   (:)   = spval
+    allocate(this%dist_from_stream  (begc:endc))                 ; this%dist_from_stream  (:)   = spval
+
 
   end subroutine InitAllocate
 
@@ -507,6 +514,7 @@ contains
                          om_frac = 0._r8
                       endif
                    end if
+                   om_frac = min(1.0_r8, max(0._r8, om_frac))
 
                    if (lun_pp%urbpoi(l)) om_frac = 0._r8
                    claycol(c,lev)    = clay
@@ -556,6 +564,25 @@ contains
     if (.not. readvar) then
        fdrain(:) = 2.5_r8
     end if
+
+#ifdef MARSH
+   if (masterproc) then
+      write(iulog,*) 'Attempting to read water boundary condition data .....'
+   end if
+
+   call ncd_io(ncid=ncid, varname='ht_above_stream', flag='read', data=this%ht_above_stream, dim1name=grlnd, readvar=readvar)
+   if (.not. readvar) then
+      if(masterproc) write(iulog,*),'Did not find ht_above_stream in surface data'
+      this%ht_above_stream(:)  = 0.15_r8  ! assumed and arbitrary
+   end if
+
+   call ncd_io(ncid=ncid, varname='dist_from_stream', flag='read', data=this%dist_from_stream, dim1name=grlnd, readvar=readvar)
+   if (.not. readvar) then
+      if(masterproc) write(iulog,*),'Did not find dist_from_stream in surface data'
+      this%dist_from_stream(:) = 1.0_r8   ! assumed and arbitrary
+   end if
+#endif
+
     call ncd_pio_closefile(ncid)
     
     call getfil (fsurdat, locfn, 0)
@@ -597,6 +624,10 @@ contains
             this%h2osfc_thresh_col(c) = 0._r8
          endif
 
+#ifdef MARSH
+            this%h2osfc_thresh_col(c) = 2.e3_r8    ! set to zero for no h2osfc (w/frac_infclust =large) changed from 0 to 1 TAO 29/8/2018
+#endif
+
          if (this%h2osfcflag == 0) then
             this%h2osfc_thresh_col(c) = 0._r8    ! set to zero for no h2osfc (w/frac_infclust =large)
          endif
@@ -604,6 +635,12 @@ contains
          ! set decay factor
          g = col_pp%gridcell(c)
          this%hkdepth_col(c) = 1._r8/fdrain(g)
+
+#ifdef MARSH
+      ! Is this supposed to be set with fdrain?
+      g = col_pp%gridcell(c)
+      this%hkdepth_col(c) = 1._r8/fdrain(g)
+#endif
 
       end do
     end associate
@@ -905,6 +942,9 @@ contains
 
      ! preset values
      origflag = 0
+#ifdef MARSH
+     origflag = 1    
+#endif
      h2osfcflag = 1
 
      if ( masterproc )then

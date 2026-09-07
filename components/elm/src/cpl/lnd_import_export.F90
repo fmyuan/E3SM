@@ -34,6 +34,7 @@ contains
                                  metdata_type, metdata_bypass, metdata_biases, co2_file, aero_file, use_atm_downscaling_to_topunit
     use elm_varctl       , only: const_climate_hist, add_temperature, add_co2, use_cn, use_fates
     use elm_varctl       , only: startdate_add_temperature, startdate_add_co2
+    use elm_varctl       , only: tide_file
     use elm_varcon       , only: rair, o2_molar_const, c13ratio
     use elm_time_manager , only: get_nstep, get_step_size, get_curr_calday, get_curr_date 
     use controlMod       , only: NLFilename
@@ -47,6 +48,7 @@ contains
     use lnd_disagg_forc
     use lnd_downscale_atm_forcing
     use netcdf
+    use ncdio_pio        , only: ncd_pio_openfile,ncd_pio_closefile,ncd_inqdid,ncd_inqdlen,ncd_inqvid,ncd_io,file_desc_t, var_desc_t
     !
     ! !ARGUMENTS:
     type(bounds_type)  , intent(in)    :: bounds   ! bounds
@@ -111,6 +113,7 @@ contains
     integer :: sdate_addco2, sy_addco2, sm_addco2, sd_addco2
     character(len=200) metsource_str, thisline
     character(len=*), parameter :: sub = 'lnd_import_mct'
+    integer :: ngrids_tide, ndims, dimids(2)
     integer :: av, v, n, nummetdims, g3, gtoget, ztoget, line, mystart, tod_start, thistimelen  
     character(len=20) aerovars(14), metvars(14)
     character(len=3) zst
@@ -125,6 +128,10 @@ contains
     character(len=CL)  :: stream_fldFileName_popdens ! poplulation density stream filename
     character(len=CL)  :: stream_fldFileName_ndep    ! nitrogen deposition stream filename
     logical :: use_sitedata, has_zonefile, use_daymet, use_livneh
+    type(file_desc_t)  :: ncid_pio
+    type(var_desc_t)   :: vardesc
+    logical            :: dimexist,varexist,readvar
+
     data caldaym / 1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335, 366 /    
 
     ! Constants to compute vapor pressure
@@ -322,6 +329,7 @@ contains
             atm2lnd_vars%endyear_met_trans = 2012 
           else if (atm2lnd_vars%metsource == 4) then 
             atm2lnd_vars%endyear_met_trans  = 2014
+            if(index(metdata_type, 'v1') .gt. 0) atm2lnd_vars%endyear_met_trans  = 2010
           else if (atm2lnd_vars%metsource == 5) then
             atm2lnd_vars%startyear_met      = 566 !76
             atm2lnd_vars%endyear_met_spinup = 590 !100
@@ -330,6 +338,11 @@ contains
             atm2lnd_vars%startyear_met      = 1950
             atm2lnd_vars%endyear_met_spinup = 1970
             atm2lnd_vars%endyear_met_trans  = 2025
+          else if (atm2lnd_vars%metsource == 7) then
+            ! CRU-JRA5
+            atm2lnd_vars%startyear_met      = 1950
+            atm2lnd_vars%endyear_met_spinup = 1970
+            atm2lnd_vars%endyear_met_trans  = 2024
           end if
 
           if (use_livneh) then 
@@ -441,10 +454,16 @@ contains
                 end if
             else if (atm2lnd_vars%metsource == 4) then 
                 metdata_fname = 'GSWP3_' // trim(metvars(v)) // '_1901-2014_z' // zst(2:3) // '.nc'
+                if(index(metdata_type, 'v1') .gt. 0) &
+                    metdata_fname = 'GSWP3_' // trim(metvars(v)) // '_1901-2010_z' // zst(2:3) // '.nc'
+
                 if (use_livneh .and. ztoget .ge. 16 .and. ztoget .le. 20) then 
                     metdata_fname = 'GSWP3_Livneh_' // trim(metvars(v)) // '_1950-2010_z' // zst(2:3) // '.nc'                
+                else if (use_daymet .and. (index(metdata_type, 'daymet4') .gt. 0) ) then
+                   !daymet v4 with GSWP3 v2 for NA with user-defined zone-mappings.txt
+                    metdata_fname = 'GSWP3_daymet4_' // trim(metvars(v)) // '_1980-2014_z' // zst(2:3) // '.nc'
                 else if (use_daymet .and. ztoget .ge. 16 .and. ztoget .le. 20) then 
-                    metdata_fname = 'GSWP3_Daymet3_' // trim(metvars(v)) // '_1980-2010_z' // zst(2:3) // '.nc' 
+                    metdata_fname = 'GSWP3v1_Daymet_' // trim(metvars(v)) // '_1980-2010_z' // zst(2:3) // '.nc'
                 end if
             else if (atm2lnd_vars%metsource == 5) then 
                     !metdata_fname = 'WCYCL1850S.ne30_' // trim(metvars(v)) // '_0076-0100_z' // zst(2:3) // '.nc'
@@ -589,7 +608,9 @@ contains
                   atm2lnd_vars%tindex(g,v,2) = atm2lnd_vars%tindex(g,v,2)+1
                 end if
               end if
+
             else
+
               atm2lnd_vars%tindex(g,v,1) = atm2lnd_vars%tindex(g,v,1)+nint(1/atm2lnd_vars%npf(v))
               atm2lnd_vars%tindex(g,v,2) = atm2lnd_vars%tindex(g,v,2)+nint(1/atm2lnd_vars%npf(v))
             end if
@@ -1157,6 +1178,42 @@ contains
        end if
 
        !set the topounit-level atmospheric variables that are not handled in downscaling code
+
+        !------------------------------------Tidal forcing--------------------------------------------------
+       if (atm2lnd_vars%loaded_bypassdata .eq. 0) then !.or. (mon .eq. 1 .and. day .eq. 1 .and. tod .eq. 0)) then ! Do on the first day of the year
+        if(tide_file .eq. ' ') then
+            atm2lnd_vars%tide_forcing_len = 1
+            ngrids_tide=ldomain%ns
+            allocate(atm2lnd_vars%tide_height(ldomain%ns,atm2lnd_vars%tide_forcing_len))
+            allocate(atm2lnd_vars%tide_salinity(ldomain%ns,atm2lnd_vars%tide_forcing_len))
+            allocate(atm2lnd_vars%tide_nitrate(ldomain%ns,atm2lnd_vars%tide_forcing_len))
+            atm2lnd_vars%tide_height(:,:) = 0.0_r8
+            atm2lnd_vars%tide_salinity(:,:) = 0.0_r8
+            atm2lnd_vars%tide_nitrate(:,:) = 0.0_r8
+        else
+          call ncd_pio_openfile (ncid_pio, trim(tide_file), 0)
+          call ncd_inqdid(ncid_pio,'time',dimid,dimexist)
+          if(.not. dimexist) call endrun('Error finding time variable')
+          call ncd_inqdlen(ncid_pio,dimid, len = thistimelen)
+          if(masterproc) write(iulog,*),'Reading tide forcing file. ',trim(tide_file),' Found time dimension of length',thistimelen
+          atm2lnd_vars%tide_forcing_len = thistimelen
+          
+          allocate(atm2lnd_vars%tide_height(ldomain%ns,atm2lnd_vars%tide_forcing_len))
+          allocate(atm2lnd_vars%tide_salinity(ldomain%ns,atm2lnd_vars%tide_forcing_len))
+          allocate(atm2lnd_vars%tide_nitrate(ldomain%ns,atm2lnd_vars%tide_forcing_len))
+          call ncd_io(ncid=ncid_pio,varname='tide_height',data=atm2lnd_vars%tide_height,flag='read',readvar=readvar)
+          if(.not. readvar) call endrun('Error reading tide_height variable')
+          call ncd_io(ncid=ncid_pio,varname='tide_nitrate',data=atm2lnd_vars%tide_nitrate,flag='read',readvar=readvar)
+          if(.not. readvar) call endrun('Error reading tide_nitrate variable')
+          call ncd_io(ncid=ncid_pio,varname='tide_salinity',data=atm2lnd_vars%tide_salinity,flag='read',readvar=readvar)
+          if(.not. readvar) call endrun('Error reading tide_salinity variable')
+
+          call ncd_pio_closefile(ncid_pio)
+
+        endif
+      end if
+
+       !set the topounit-level atmospheric state and flux forcings (bypass mode)
        do topo = grc_pp%topi(g), grc_pp%topf(g)
          ! first, all the state forcings
         if (implicit_stress) then

@@ -71,6 +71,7 @@ module VegetationDataType
     real(r8), pointer :: t_ref2m_max_inst_u (:) => null() ! instantaneous daily max of average 2 m height surface air temp - urban (K)
     real(r8), pointer :: t_veg24            (:) => null() ! 24hr average vegetation temperature (K)
     real(r8), pointer :: t_veg240           (:) => null() ! 240hr average vegetation temperature (K)
+    real(r8), pointer :: t_2m3650           (:) => null() ! 10-year average 2-m temperature (K)
     real(r8), pointer :: gdd0               (:) => null() ! growing degree-days base  0C from planting  (ddays)
     real(r8), pointer :: gdd8               (:) => null() ! growing degree-days base  8C from planting  (ddays)
     real(r8), pointer :: gdd10              (:) => null() ! growing degree-days base 10C from planting  (ddays)
@@ -385,6 +386,9 @@ module VegetationDataType
 
     real(r8), pointer :: qflx_over_supply_patch   (:)   => null()   ! over supplied irrigation
     integer , pointer :: n_irrig_steps_left (:)   => null() ! number of time steps for which we still need to irrigate today (if 0, ignore)
+
+    real(r8), pointer :: osm_inhib               (:)   => null() ! Osmotic inhibition of root water uptake, with value of 1.0 as no inhibition by salinity
+    real(r8), pointer :: floodf                  (:)   => null() ! Inundation inhibition of root water uptake, with value of 1.0 as no flooding impact
 
   contains
     procedure, public :: Init    => veg_wf_init
@@ -1099,6 +1103,7 @@ module VegetationDataType
     allocate(this%t_ref2m_max_inst_u (begp:endp))                   ; this%t_ref2m_max_inst_u (:)   = spval
     allocate(this%t_veg24            (begp:endp))                   ; this%t_veg24            (:)   = spval
     allocate(this%t_veg240           (begp:endp))                   ; this%t_veg240           (:)   = spval
+    allocate(this%t_2m3650           (begp:endp))                   ; this%t_2m3650           (:)   = spval
     allocate(this%gdd0               (begp:endp))                   ; this%gdd0               (:)   = spval
     allocate(this%gdd8               (begp:endp))                   ; this%gdd8               (:)   = spval
     allocate(this%gdd10              (begp:endp))                   ; this%gdd10              (:)   = spval
@@ -1189,6 +1194,11 @@ module VegetationDataType
     call hist_addfld1d (fname='TV240', units='K',  &
          avgflag='A', long_name='vegetation temperature (last 240hrs)', &
          ptr_patch=this%t_veg240, default='inactive')
+
+    this%t_2m3650(begp:endp)  = spval
+    call hist_addfld1d (fname='T2M3650', units='K',  &
+         avgflag='A', long_name='air temperature (last 10yrs)', &
+         ptr_patch=this%t_2m3650, default='inactive')
 
     if (crop_prog) then
        this%gdd0(begp:endp) = spval
@@ -1449,6 +1459,11 @@ module VegetationDataType
          desc='240hr average of vegetation temperature',  accum_type='runmean', accum_period=-10,  &
          subgrid_type='pft', numlev=1, init_value=0._r8)
 
+    this%t_2m3650(bounds%begp:bounds%endp) = spval
+    call init_accum_field (name='T_2M3650', units='K',                                              &
+         desc='10-year average of 2m temperature',  accum_type='runmean', accum_period=-3650,  &
+         subgrid_type='pft', numlev=1, init_value=0._r8)
+
     if ( crop_prog )then
        call init_accum_field (name='TDM10', units='K', &
             desc='10-day running mean of min 2-m temperature', accum_type='runmean', accum_period=-10, &
@@ -1520,6 +1535,9 @@ module VegetationDataType
 
     call extract_accum_field ('T_VEG240', rbufslp, nstep)
     this%t_veg240(begp:endp) = rbufslp(begp:endp)
+
+    call extract_accum_field ('T_2M3650', rbufslp, nstep)
+    this%t_2m3650(begp:endp) = rbufslp(begp:endp)
 
     if (crop_prog) then
        call extract_accum_field ('TDM10', rbufslp, nstep)
@@ -1621,6 +1639,12 @@ module VegetationDataType
     call update_accum_field  ('T_VEG240', rbufslp       , nstep)
     call extract_accum_field ('T_VEG240', this%t_veg240 , nstep)
 
+    ! fill the temporary variable
+    do p = begp,endp
+       rbufslp(p) = this%t_ref2m(p)
+    end do
+    call update_accum_field  ('T_2M3650', rbufslp       , nstep)
+    call extract_accum_field ('T_2M3650', this%t_2m3650, nstep)
 
     ! Accumulate and extract TREFAV - hourly average 2m air temperature
     ! Used to compute maximum and minimum of hourly averaged 2m reference
@@ -5462,6 +5486,9 @@ module VegetationDataType
     allocate(this%qflx_over_supply_patch   (begp:endp))              ; this%qflx_over_supply_patch   (:)   = spval
     allocate(this%n_irrig_steps_left       (begp:endp))              ; this%n_irrig_steps_left       (:)   = 0
 
+    allocate(this%osm_inhib                (begp:endp))              ; this%osm_inhib                (:)   = spval
+    allocate(this%floodf                   (begp:endp))              ; this%floodf                   (:)   = spval
+
     !-----------------------------------------------------------------------
     ! initialize history fields for select members of veg_wf
     !-----------------------------------------------------------------------
@@ -5582,6 +5609,16 @@ module VegetationDataType
             ptr_patch=this%qflx_dew_snow, default='inactive', c2l_scale_type='urbanf')
     end if
 
+    this%osm_inhib(begp:endp) = spval
+    call hist_addfld1d (fname='OSM_INHIB', units='-',  &
+         avgflag='A', long_name='Osmotic inhibition of root water uptake', &
+         ptr_patch=this%osm_inhib, set_lake=1._r8, c2l_scale_type='urbanf')
+
+     this%floodf(begp:endp) = spval
+     call hist_addfld1d (fname='FLOODF', units='-',  &
+         avgflag='A', long_name='Inundation inhibition of root water uptake', &
+         ptr_patch=this%floodf, set_lake=1._r8, c2l_scale_type='urbanf')
+
     !-----------------------------------------------------------------------
     ! set cold-start initial values for select members of veg_wf
     !-----------------------------------------------------------------------
@@ -5597,6 +5634,9 @@ module VegetationDataType
           this%irrig_rate(p)         = 0.0_r8
        end if
     end do
+    ! TAI
+    this%osm_inhib (begp:endp) = 1.0_r8 ! 1.0 implies NO salty water impact on root water uptake
+    this%floodf (begp:endp)    = 1.0_r8 ! 1.0 implies NO flood standing water impact on root water uptake
 
   end subroutine veg_wf_init
 
