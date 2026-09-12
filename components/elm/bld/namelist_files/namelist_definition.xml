@@ -2093,6 +2093,11 @@ topounit level. Based on the IM2 implementation from NGEE Arctic project.
     pflotran file prefix.
 </entry>
 
+
+<entry id="tide_file" type="char*400" category="datasets"
+       group="elm_inparm" valid_values="">
+</entry>
+
 <!-- ========================================================================================  -->
 <!-- Namelist options related to plant phenology                                               -->
 <!-- ========================================================================================  -->
