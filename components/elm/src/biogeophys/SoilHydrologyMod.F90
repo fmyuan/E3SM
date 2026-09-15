@@ -56,6 +56,10 @@ contains
     use elm_varpar      , only : nlayer, nlayert
     use elm_varctl      , only : use_var_soil_thick, use_IM2_hillslope_hydrology
     use SoilWaterMovementMod, only : zengdecker_2009_with_var_soil_thick
+#ifdef MARSH
+    use pftvarcon       , only : humhol_ht, humhol_dist, hum_frac
+#endif
+
     !
     ! !ARGUMENTS:
     type(bounds_type)        , intent(in)    :: bounds
@@ -98,6 +102,7 @@ contains
 
          h2osoi_ice       =>    col_ws%h2osoi_ice      , & ! Input:  [real(r8) (:,:) ]  ice lens (kg/m2)
          h2osoi_liq       =>    col_ws%h2osoi_liq      , & ! Output: [real(r8) (:,:) ]  liquid water (kg/m2)
+         h2osfc           =>    col_ws%h2osfc          , & !Output: [real(r8) (:)   ]  surface water (mm) 
 
          qflx_snow_h2osfc =>    col_wf%qflx_snow_h2osfc , & ! Input:  [real(r8) (:)   ]  snow falling on surface water (mm/s)
          qflx_floodc      =>    col_wf%qflx_floodc      , & ! Input:  [real(r8) (:)   ]  column flux of flood water from RTM
@@ -177,6 +182,11 @@ contains
             fsat(c) = wtfact(c) * exp(-0.5_r8*fff(c)*zwt(c))
          end if
 
+! Kind of a scale issue here since we're explicitly simulating surface runoff further down for marsh columns. Maybe fsat should be zero?
+#if (defined MARSH)
+          fsat(c) = 1.0 * exp(-3.0_r8/humhol_ht*(zwt(c)))   
+          if (c .eq. 2) fsat(c) = min(1.0 * exp(-3.0_r8/humhol_ht*(zwt(c)-h2osfc(c)/1000.+humhol_ht)), 1._r8)
+#endif
          ! use perched water table to determine fsat (if present)
          if ( frost_table(c) > zwt(c)) then
             if (use_vichydro) then
@@ -212,6 +222,15 @@ contains
             ! assume qinmax large relative to qflx_top_soil in control
             if (origflag == 1) then
                qflx_surf(c) =  fcov(c) * qflx_top_soil(c)
+
+#ifdef MARSH
+               if (c .eq. 1) then  !XS - only compute sfc runoff from hummock, send to hollow
+                 qflx_surf(c) = fcov(c) * qflx_top_soil(c) !TAO
+               else
+                 qflx_surf(c) = 0._r8   !turn off surface runoff for hollow
+               endif
+#endif
+
             else
                ! only send fast runoff directly to streams
                qflx_surf(c) =   fsat(c) * qflx_top_soil(c)
@@ -316,6 +335,7 @@ contains
       use pftvarcon       , only : num_tide_comps, tide_baseline,tide_coeff_period, tide_coeff_phase, tide_coeff_amp
       use pftvarcon       , only : sfcflow_ratescale, qflx_h2osfc_surfrate
       use elm_varctl      , only : tide_file
+      use pftvarcon       , only : humhol_ht, humhol_dist, hum_frac
 #endif
      use elm_time_manager , only : get_step_size
      use elm_varcon       , only : secspday
@@ -394,6 +414,7 @@ contains
 
      associate(                                                    &
           snl                  =>    col_pp%snl                  , & ! Input:  [integer  (:)   ]  minus number of snow layers
+          zi                   =>    col_pp%zi                   , & ! Input:  [real(r8) (:,:) ] interface level below a "z" level (m)
           dz                   =>    col_pp%dz                   , & ! Input:  [real(r8) (:,:) ]  layer depth (m)
           nlev2bed             =>    col_pp%nlevbed              , & ! Input:  [integer  (:)   ]  number of layers to bedrock
           cgridcell            =>    col_pp%gridcell             , & ! Input:  [integer  (:)   ]  column's gridcell    
@@ -738,23 +759,28 @@ contains
                   enddo
                endif
 
-                h2osfc_tide(c) = h2osfc_tide(c) + tide_baseline - ht_above_stream(c)*1000._r8
+                h2osfc_tide(c) = h2osfc_tide(c) + tide_baseline - humhol_ht *1000._r8
                 ! Limit h2osfc_tide to above bedrock level
                 h2osfc_tide(c) = max(h2osfc_tide(c),-zi(c,nlevbed-1)*1000_r8)
 
                !compute lateral subsurface flux
                if (jwt(c) .lt. nlevbed) then
                   do j=nlevbed,jwt(c)+1,-1
-                  s_node = max(h2osoi_vol(c,j)/watsat(c,j), 0.01_r8)
-                  s_node = min(1.0_r8, s_node)
-                  s1 = 0.5_r8*(1.0+s_node)
-                  s1 = min(1._r8, s1)
-                  ! for upland flow into tidal channel
-                  ka_up = ka_up+(hksat(c,j)*s1**(2._r8*bsw(c,j)+3._r8))* &
+                     h2osoi_vol = h2osoi_liq(c,j)/(dz(c,j)*denh2o) &
+                                + h2osoi_ice(c,j)/(dz(c,j)*denice)
+
+                     s_node = max(h2osoi_vol/watsat(c,j), 0.01_r8)
+                     s_node = min(1.0_r8, s_node)
+                     s1 = 0.5_r8*(1.0+s_node)
+                     s1 = min(1._r8, s1)
+                     ! for upland flow into tidal channel
+                     ka_up = ka_up+(hksat(c,j)*s1**(2._r8*bsw(c,j)+3._r8))* &
                            dzmm(c,j)/sum(dzmm(c,jwt(c)+1:nlevbed))
                   end do
                else
-                  s_node = max(h2osoi_vol(c,jwt(c))/watsat(c,jwt(c)), 0.01_r8)
+                  h2osoi_vol = h2osoi_liq(c,jwt(c))/(dz(c,jwt(c))*denh2o) &
+                                + h2osoi_ice(c,jwt(c))/(dz(c,jwt(c))*denice)
+                  s_node = max(h2osoi_vol/watsat(c,jwt(c)), 0.01_r8)
                   s_node = min(1.0_r8, s_node)
                   s1 = 0.5_r8*(1.0+s_node)
                   s1 = min(1._r8, s1)
@@ -1392,7 +1418,9 @@ contains
      use landunit_varcon  , only : istice_mec, istice
      use domainMod        , only : ldomain
      use ocn2lndType      , only : ocn2lnd_type 
-
+#ifdef MARSH
+     use pftvarcon        , only : humhol_ht, humhol_dist, hum_frac
+#endif
      !
      ! !ARGUMENTS:
      type(bounds_type)        , intent(in)    :: bounds
@@ -1459,7 +1487,8 @@ contains
      real(r8) :: T2                       ! transmissivity for the depth below the bottom-most layer(m^2/s)
      real(r8) :: f                        ! e-folding length representing the complexity of sediment-bedrock profile (Zeng et al., 2016) (m)
      integer  :: jtran                    ! from jth layer to count for transmissivity
-     real(r8) :: dz_jtran                 
+     real(r8) :: dz_jtran
+     real(r8) :: deep_seep
      !-----------------------------------------------------------------------
 
      associate(                                                            &
@@ -1772,6 +1801,7 @@ contains
                    rsub_top_max = min(10._r8 * sin((rpi/180.) * col_pp%topo_slope(c)), rsub_top_globalmax)
                 end if
              endif
+
              if (use_vichydro) then
                 ! ARNO model for the bottom soil layer (based on bottom soil layer
                 ! moisture from previous time step
@@ -1793,6 +1823,27 @@ contains
                 else
                    rsub_top(c)    = imped * rsub_top_max* exp(-fff(c)*zwt(c))
                 end if
+
+! bsulman: Does MARSH need this deep_seep stuff?
+#ifdef MARSH
+                deep_seep = 0._r8 !100.0_r8 / 365._r8 / 86400._r8  !rate per second
+                !changes for hummock hollow topography
+                if (c .eq. 1) then !hummock
+                   if (zwt(c) < (0.7_r8 + 3.0_r8 * humhol_ht/2.0_r8)) then
+                      rsub_top(c) = deep_seep + imped * rsub_top_max* exp(-fff(c)*zwt(c)) - &
+                                imped * rsub_top_max * exp(-fff(c)*(0.7_r8+3.0_r8*humhol_ht/2.0_r8))
+                   else
+                      rsub_top(c)    = deep_seep
+                   endif
+                else           !hollow
+                   if (zwt(c) < 0.7_r8 + humhol_ht/2.0_r8) then
+                      rsub_top(c) = deep_seep + imped * rsub_top_max*exp(-fff(c)*(zwt(c)+humhol_ht)) - &
+                                imped * rsub_top_max * exp(-fff(c)*(0.7_r8+3.0_r8*humhol_ht/2.0_r8))
+                   else
+                      rsub_top(c)    = deep_seep
+                   endif
+                endif
+#endif
 
              end if
 
