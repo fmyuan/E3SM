@@ -126,6 +126,7 @@ contains
     use elm_varpar           , only: max_patch_per_col
     use elm_varcon           , only: secspday, spval
     use elm_varctl           , only: use_nofire, spinup_state, spinup_mortality_factor
+    use elm_varctl           , only: use_deforestation_fire
     use dynSubgridControlMod , only: run_has_transient_landcover
     use pftvarcon            , only: noveg, woody, graminoid, iscft, crop
     use pftvarcon            , only: climatezone, needleleaf, evergreen
@@ -623,6 +624,7 @@ contains
            ! add it in the total of burned area fraction
            !
            if (transient_landcover) then    !true when landuse change data is used
+             if (use_deforestation_fire) then
               if( trotr1_col(c)+trotr2_col(c) > 0.6_r8 )then
                  if(( kmo == 1 .and. kda == 1 .and. mcsec == 0) .or. &
                       dtrotr_col(c) <=0._r8 )then
@@ -643,6 +645,11 @@ contains
               else
                  fbac(c) = farea_burned(c)
               end if
+
+             else
+                 fbac1(c) = 0._r8
+                 fbac(c)  = farea_burned(c)
+             end if
            end if
 
         else
