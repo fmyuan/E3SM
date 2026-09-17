@@ -35,7 +35,8 @@ contains
     use elm_varctl       , only: const_climate_hist, add_temperature, add_co2, use_cn, use_fates
     use elm_varctl       , only: startdate_add_temperature, startdate_add_co2, use_humhol,obs_zwt_forcing
     use elm_varcon       , only: rair, o2_molar_const, c13ratio
-    use elm_time_manager , only: get_nstep, get_step_size, get_curr_calday, get_curr_date 
+    use elm_time_manager , only: get_nstep, get_step_size, get_curr_calday, get_curr_date, get_calday
+    use elm_varorb       , only: eccen, mvelpp, lambm0, obliqr
     use controlMod       , only: NLFilename
     use shr_const_mod    , only: SHR_CONST_TKFRZ, SHR_CONST_STEBOL
     use domainMod        , only: ldomain
@@ -46,6 +47,7 @@ contains
     use FrictionVelocityMod, only: implicit_stress, atm_gustiness
     use lnd_disagg_forc
     use lnd_downscale_atm_forcing
+    use shr_orb_mod      , only: shr_orb_decl, shr_orb_cosz
     use netcdf
     !
     ! !ARGUMENTS:
@@ -82,8 +84,10 @@ contains
     integer  :: thisng, np, num, nu_nml, nml_error                 
     integer  :: ng_all(100000)
     real(r8) :: swndf, swndr, swvdf, swvdr, ratio_rvrf, frac, q
-    real(r8) :: thiscosz, avgcosz, szenith
-    integer  :: swrad_period_len, swrad_period_start, thishr, thismin
+    real(r8) :: thiscosz, avgcosz, sample_cosz
+    real(r8) :: swrad_calday, declin_swrad, eccf_swrad
+    integer  :: swrad_period_len, swrad_period_start, swrad_sample_tod
+    integer  :: mid_yr, mid_mon, mid_day, mid_tod, mid_ymd
     real(r8) :: timetemp(2)
     real(r8) :: latixy(500000), longxy(500000)
     integer ::  ierr, varid, dimid, yr, mon, day, tod, nindex(2), caldaym(13)
@@ -697,30 +701,28 @@ contains
         end if
 
         !Shortwave radiation (cosine zenith angle interpolation)
-        thishr = (tod-get_step_size()/2)/3600
-        if (thishr < 0) thishr=thishr+24
-        thismin = mod((tod-get_step_size()/2)/60, 60)
-        thiscosz = max(cos(szenith(ldomain%lonc(g),ldomain%latc(g),0,int(thiscalday),thishr,thismin,0)* &
-                        3.14159265358979/180.0d0), 0.001d0)
+        call get_curr_date(mid_yr, mid_mon, mid_day, mid_tod, offset=-get_step_size()/2)
+        mid_ymd = mid_yr*10000 + mid_mon*100 + mid_day
+        swrad_calday = get_calday(mid_ymd, mid_tod)
+        call shr_orb_decl(swrad_calday, eccen, mvelpp, lambm0, obliqr, declin_swrad, eccf_swrad)
+        thiscosz = max(shr_orb_cosz(swrad_calday, grc_pp%lat(g), grc_pp%lon(g), declin_swrad), 0.001_r8)
         avgcosz = 0d0
         if (atm2lnd_vars%npf(4) - 1._r8 .gt. 1e-3) then 
           swrad_period_len   = get_step_size()*nint(atm2lnd_vars%npf(4))
-          swrad_period_start = ((tod-get_step_size()/2)/swrad_period_len) * swrad_period_len
-          !set to last period if first model timestep of the day
-          if (tod-get_step_size()/2 < 0) swrad_period_start = ((86400-get_step_size()/2)/swrad_period_len) * swrad_period_len   
+          swrad_period_start = (mid_tod/swrad_period_len) * swrad_period_len
 
           do tm=1,nint(atm2lnd_vars%npf(4))  
             !Get the average cosine zenith angle over the time resolution of the input data
-            thishr  = (swrad_period_start+(tm-1)*get_step_size()+get_step_size()/2)/3600
-            if (thishr > 23) thishr=thishr-24  
-            thismin = mod((swrad_period_start+(tm-1)*get_step_size()+get_step_size()/2)/60, 60) 
-            avgcosz  = avgcosz + max(cos(szenith(ldomain%lonc(g),ldomain%latc(g),0,int(thiscalday),thishr, thismin, 0) &
-                       *3.14159265358979/180.0d0), 0.001d0)/atm2lnd_vars%npf(4)
+            swrad_sample_tod = swrad_period_start + (tm-1)*get_step_size() + get_step_size()/2
+            swrad_calday = get_calday(mid_ymd, swrad_sample_tod)
+            call shr_orb_decl(swrad_calday, eccen, mvelpp, lambm0, obliqr, declin_swrad, eccf_swrad)
+            sample_cosz = max(shr_orb_cosz(swrad_calday, grc_pp%lat(g), grc_pp%lon(g), declin_swrad), 0.001_r8)
+            avgcosz  = avgcosz + sample_cosz/atm2lnd_vars%npf(4)
           end do
         else
           avgcosz = thiscosz
         end if
-        if (thiscosz > 0.001d0) then 
+        if (thiscosz > 0.001_r8 .and. avgcosz > 0._r8) then
           wt2(4) = min(thiscosz/avgcosz, 10.0_r8)
         else
           wt2(4) = 0d0
