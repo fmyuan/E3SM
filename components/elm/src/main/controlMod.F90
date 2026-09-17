@@ -97,7 +97,7 @@ module controlMod
                         fates_regeneration_model, fates_hydro_solver, &
                         fates_radiation_model, fates_electron_transport_model, &
                         fates_history_dimlevel, elm_varctl_set, &
-                        use_nofire, use_lch4, use_vertsoilc, use_extralakelayers, &
+                        use_nofire, use_deforestation_fire, use_lch4, use_vertsoilc, use_extralakelayers, &
                         use_vichydro, use_century_decomp, use_cn, use_crop, &
                         use_snicar_frc, use_snicar_ad, use_firn_percolation_and_compaction, &
                         use_extrasnowlayers, use_T_rho_dependent_snowthk, &
@@ -355,7 +355,7 @@ contains
     namelist /elm_inparm/ maxpatch_pft
 
     namelist /elm_inparm/ &
-         use_nofire, use_lch4, use_vertsoilc, use_extralakelayers, &
+         use_nofire, use_deforestation_fire, use_lch4, use_vertsoilc, use_extralakelayers, &
          use_vichydro, use_century_decomp, use_cn, use_crop, use_snicar_frc, &
          use_snicar_ad, use_firn_percolation_and_compaction, use_extrasnowlayers,&
          use_T_rho_dependent_snowthk, use_vancouver, use_mexicocity, use_noio
@@ -822,6 +822,7 @@ contains
     call mpi_bcast (nsrest, 1, MPI_INTEGER, 0, mpicom, ier)
 
     call mpi_bcast (use_nofire, 1, MPI_LOGICAL, 0, mpicom, ier)
+    call mpi_bcast (use_deforestation_fire, 1, MPI_LOGICAL, 0, mpicom, ier)
     call mpi_bcast (use_lch4, 1, MPI_LOGICAL, 0, mpicom, ier)
     call mpi_bcast (use_vertsoilc, 1, MPI_LOGICAL, 0, mpicom, ier)
     call mpi_bcast (use_extralakelayers, 1, MPI_LOGICAL, 0, mpicom, ier)
@@ -1151,6 +1152,7 @@ contains
     write(iulog,*) '   hostname              = ',trim(hostname)
     write(iulog,*) 'process control parameters:'
     write(iulog,*) '    use_nofire = ', use_nofire
+    write(iulog,*) '    use_deforestation_fire = ', use_deforestation_fire
     write(iulog,*) '    use_lch4 = ', use_lch4
     write(iulog,*) '    use_vertsoilc = ', use_vertsoilc
     write(iulog,*) '    use_var_soil_thick = ', use_var_soil_thick

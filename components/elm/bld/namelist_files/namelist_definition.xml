@@ -785,6 +785,12 @@ patches is reduced according to a Beer-Lambert transmission using neighboring sh
 Toggle to make wild-fires inactive for biogeochemistry=CN mode
 </entry>
 
+<entry id="use_deforestation_fire" type="logical" category="bgc"
+       group="elm_inparm" valid_values="" value=".false.">
+Toggle to enable tropical tree deforestation fire from transient landcover change.
+If FALSE, regular wildfire, crop fire, and peat fire remain enabled.
+</entry>
+
 <entry id="use_lch4" type="logical" category="bgc"
        group="elm_inparm" valid_values="" value=".false.">
 Turn on methane model. Standard part of ELMBGC model.
