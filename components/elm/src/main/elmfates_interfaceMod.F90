@@ -693,6 +693,8 @@ contains
            pass_stomatal_model = 1
         else if (trim(fates_stomatal_model) == 'medlyn2011') then
            pass_stomatal_model = 2
+        else if (trim(fates_stomatal_model) == 'simple_gsmodel') then
+           pass_stomatal_model = 3
         end if
         call set_fates_ctrlparms('stomatal_model',ival=pass_stomatal_model)
 
