@@ -105,9 +105,9 @@ _TESTS = {
         "tests" : (
             "SMS_Ly2_P1x1.1x1_smallvilleIA.IELMCNCROP.elm-per_crop",
             "SMS_Ly2_P1x1_D.1x1_smallvilleIA.IELMCNCROP.elm-lulcc_sville",
+            "SMS_Ly10.ELM_USRDAT.ICB1850CNPRDCTCBC.elm-usrdat_ICB1850CNPRDCTCBCxcol",
             "ERS_Ly10.ELM_USRDAT.I1850CNPRDCTCBC.elm-alquimia_emitest_I1850CNPRDCTCBC",
             "ERS_Ly10.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrdat_I1850CNPRDCTCBC42sites",
-            "ERS_Ly10.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrdat_I1850CNPRDCTCBCxcol2",
             "ERS.1x1_icycape.I1850GSWCNPRDCTCBC.elm-polygonal_tundra",
             "ERS_Ly10.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_arctic_I1850CNPRDCTCBC",
             "ERS_Ly10.ELM_USRDAT.I1850CNPRDCTCBC.elm-usrpft_onsetgdd_I1850CNPRDCTCBC",
