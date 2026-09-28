@@ -385,7 +385,11 @@ contains
 
     ! Fill in infodata settings
 
+#ifdef CPL_BYPASS
+    call seq_infodata_PutData(infodata, lnd_prognostic=.false., lndocn_prognostic=use_ocn_lnd_one_way)
+#else
     call seq_infodata_PutData(infodata, lnd_prognostic=.true., lndocn_prognostic=use_ocn_lnd_one_way)
+#endif
     call seq_infodata_PutData(infodata, lnd_nx=ldomain%ni, lnd_ny=ldomain%nj, precip_downscaling_method = precip_downscaling_method)
 
 #ifdef HAVE_MOAB
