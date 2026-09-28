@@ -1,0 +1,10 @@
+./xmlchange LND_DOMAIN_FILE=domain.lnd.3x1pt_US-PIE_navy.nc
+./xmlchange ATM_DOMAIN_FILE=domain.lnd.3x1pt_US-PIE_navy.nc
+./xmlchange LND_DOMAIN_PATH="\$DIN_LOC_ROOT/share/domains/domain.clm"
+./xmlchange ATM_DOMAIN_PATH="\$DIN_LOC_ROOT/share/domains/domain.clm"
+
+# the following may be used to test HUM_HOL relevant codes
+# ./xmlchange ELM_CONFIG_OPTS="-phys elm -phys elm -cppdefs ' -DMODAL_AER -DHUM_HOL -DCPL_BYPASS'"
+./xmlchange ELM_CONFIG_OPTS="-phys elm -phys elm -cppdefs ' -DMODAL_AER -DMARSH -DCPL_BYPASS'"
+./xmlchange NTASKS=3
+./xmlchange NTHRDS=1
