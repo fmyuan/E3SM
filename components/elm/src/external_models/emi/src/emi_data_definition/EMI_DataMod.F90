@@ -1265,12 +1265,12 @@ contains
     use EMI_Atm2LndType_DataMod
     use EMI_CanopyStateType_DataMod
     use EMI_ChemStateType_DataMod
-    use EMI_ColumnEnergyFluxType_DataMod
     use EMI_SoilHydrologyType_DataMod
     use EMI_SoilStateType_DataMod
-    use EMI_WaterFluxType_DataMod
-    use EMI_WaterStateType_DataMod
-    use EMI_TemperatureType_DataMod
+    use EMI_GroundWaterFluxType_DataMod
+    use EMI_GroundWaterStateType_DataMod
+    use EMI_GroundEnergyStateType_DataMod
+    use EMI_GroundEnergyFluxType_DataMod
 
     use EMI_ColumnType_Constants
     use EMI_ColumnEnergyStateType_Constants

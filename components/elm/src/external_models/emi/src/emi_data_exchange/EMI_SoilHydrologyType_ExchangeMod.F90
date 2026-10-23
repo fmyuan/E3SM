@@ -7,25 +7,7 @@ module EMI_SoilHydrologyType_ExchangeMod
   use EMI_DataMod                           , only : emi_data_list, emi_data
   use EMI_DataDimensionMod                  , only : emi_data_dimension_list_type
   use SoilHydrologyType    , only : soilhydrology_type
-  use EMI_Atm2LndType_Constants
-  use EMI_CanopyStateType_Constants
-  use EMI_ChemStateType_Constants
-  use EMI_ColumnCarbonStateType_Constants
-  use EMI_ColumnNitrogenStateType_Constants
-  use EMI_ColumnNitrogenFluxType_Constants
-  use EMI_ColumnCarbonFluxType_Constants
-  use EMI_ColumnEnergyStateType_Constants
-  use EMI_ColumnWaterStateType_Constants
-  use EMI_ColumnWaterFluxType_Constants
-  use EMI_ColumnEnergyFluxType_Constants
   use EMI_SoilHydrologyType_Constants
-  use EMI_SoilStateType_Constants
-  !use EMI_TemperatureType_Constants
-  !use EMI_WaterFluxType_Constants
-  !use EMI_WaterStateType_Constants
-  use EMI_Filter_Constants
-  use EMI_ColumnType_Constants
-  use EMI_Landunit_Constants
   !
   implicit none
   !

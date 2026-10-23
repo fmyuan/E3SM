@@ -14,14 +14,14 @@ module ExternalModelFATESMod
   use EMI_Atm2LndType_Constants
   use EMI_CanopyStateType_Constants
   use EMI_ColumnType_Constants
-  use EMI_ColumnEnergyFluxType_Constants
+  use EMI_GroundEnergyFluxType_Constants
   use EMI_Filter_Constants
   use EMI_Landunit_Constants
   use EMI_SoilHydrologyType_Constants
   use EMI_SoilStateType_Constants
-  !use EMI_TemperatureType_Constants
-  !use EMI_WaterFluxType_Constants
-  !use EMI_WaterStateType_Constants
+  use EMI_GroundEnergyStateType_Constants
+  use EMI_GroundWaterFluxType_Constants
+  use EMI_GroundWaterStateType_Constants
   !
   implicit none
   !

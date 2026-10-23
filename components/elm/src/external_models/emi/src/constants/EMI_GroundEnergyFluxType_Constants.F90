@@ -1,4 +1,4 @@
-module EMI_ColumnEnergyFluxType_Constants
+module EMI_GroundEnergyFluxType_Constants
   !
   implicit none
   private
@@ -9,4 +9,4 @@ module EMI_ColumnEnergyFluxType_Constants
   integer, parameter, public :: L2E_FLUX_H2OSFC_HEAT_FLUX          = 1004
   integer, parameter, public :: L2E_FLUX_DERIVATIVE_OF_HEAT_FLUX   = 1005
 
-end module EMI_ColumnEnergyFluxType_Constants
+end module EMI_GroundEnergyFluxType_Constants

@@ -9,24 +9,25 @@ module ExternalModelAlquimiaMod
 
   use ExternalModelBaseType        , only : em_base_type
   use ExternalModelConstants
+
   use EMI_Atm2LndType_Constants
-  use EMI_CanopyStateType_Constants
+
   use EMI_ColumnType_Constants
-  use EMI_ColumnEnergyFluxType_Constants
   use EMI_Filter_Constants
   use EMI_Landunit_Constants
+
   use EMI_SoilHydrologyType_Constants
   use EMI_SoilStateType_Constants
-  !use EMI_WaterFluxType_Constants
-  !use EMI_WaterStateType_Constants
-  use EMI_ColumnCarbonStateType_Constants
-  use EMI_ColumnNitrogenStateType_Constants
-  use EMI_ColumnNitrogenFluxType_Constants
-  use EMI_ColumnCarbonFluxType_Constants
-  use EMI_ChemStateType_Constants
+
   use EMI_ColumnWaterStateType_Constants
   use EMI_ColumnWaterFluxType_Constants
   use EMI_ColumnEnergyStateType_Constants
+  use EMI_ColumnCarbonStateType_Constants
+  use EMI_ColumnCarbonFluxType_Constants
+  use EMI_ColumnNitrogenStateType_Constants
+  use EMI_ColumnNitrogenFluxType_Constants
+
+  use EMI_ChemStateType_Constants
 
 #ifdef USE_ALQUIMIA_LIB
    use AlquimiaContainers_module, only : AlquimiaSizes,AlquimiaProblemMetaData,AlquimiaProperties,&
@@ -296,7 +297,7 @@ contains
     this%index_l2e_state_decomp_npools              = index
 
     ! Soil temperature
-    id                                             = L2E_STATE_TSOIL_NLEVSOI_COL
+    id                                             = L2E_STATE_TSOIL_NLEVGRND_COL
     call l2e_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_l2e_state_temperature_soil              = index
     
