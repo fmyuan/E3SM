@@ -16,14 +16,14 @@ module ExternalModelStubMod
   use EMI_CanopyStateType_Constants
   use EMI_ColumnCarbonStateType_Constants
   use EMI_ColumnType_Constants
-  use EMI_EnergyFluxType_Constants
+  use EMI_ColumnEnergyFluxType_Constants
   use EMI_Filter_Constants
   use EMI_Landunit_Constants
   use EMI_SoilHydrologyType_Constants
   use EMI_SoilStateType_Constants
-  use EMI_TemperatureType_Constants
-  use EMI_WaterFluxType_Constants
-  use EMI_WaterStateType_Constants
+  !use EMI_TemperatureType_Constants
+  !use EMI_WaterFluxType_Constants
+  !use EMI_WaterStateType_Constants
   !
   implicit none
   !
@@ -252,7 +252,7 @@ contains
     ! Stub EM will send ELM soil temperature during only one EM solve stage
     number_em_stages = 1
     em_stages(1) = EM_STUB_SOIL_THERMAL_STAGE
-    id                                             = E2L_STATE_TSOIL_NLEVGRND
+    id                                             = E2L_STATE_TSOIL_NLEVGRND_COL
     call e2l_list%AddDataByID(id, number_em_stages, em_stages, index)
     this%index_e2l_state_temperature_soil_nlevgrnd = index
 

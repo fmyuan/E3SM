@@ -1,10 +1,10 @@
-module EMI_WaterFluxType_Constants
+module EMI_GroundWaterFluxType_Constants
   !
   implicit none
   private
   !
   integer, parameter, public :: L2E_FLUX_INFIL_MASS_FLUX                          = 0801
-  integer, parameter, public :: L2E_FLUX_VERTICAL_ET_MASS_FLUX                    = 0802
+  integer, parameter, public :: L2E_FLUX_TOTAL_ET_MASS_FLUX                       = 0802
   integer, parameter, public :: L2E_FLUX_DEW_MASS_FLUX                            = 0803
   integer, parameter, public :: L2E_FLUX_SNOW_SUBLIMATION_MASS_FLUX               = 0804
   integer, parameter, public :: L2E_FLUX_SNOW_LYR_DISAPPERANCE_MASS_FLUX          = 0805
@@ -22,11 +22,11 @@ module EMI_WaterFluxType_Constants
   integer, parameter, public :: L2E_FLUX_H2OSFC2TOPSOI                            = 0817
   integer, parameter, public :: L2E_FLUX_SNOW2TOPSOI                              = 0818
   integer, parameter, public :: L2E_FLUX_ROOTSOI                                  = 0819
-  integer, parameter, public :: L2E_FLUX_ADV                                      = 0820
-  integer, parameter, public :: L2E_FLUX_DRAIN_VR                                 = 0821
+  !integer, parameter, public :: L2E_FLUX_ADV                                      = 0820
+  !integer, parameter, public :: L2E_FLUX_DRAIN_VR                                 = 0821
   integer, parameter, public :: L2E_FLUX_TRAN_VEG                                 = 0822
   integer, parameter, public :: L2E_FLUX_ROOTSOI_FRAC                             = 0823
 
   integer, parameter, public :: E2L_FLUX_SNOW_LYR_DISAPPERANCE_MASS_FLUX          = 0824
 
-end module EMI_WaterFluxType_Constants
+end module EMI_GroundWaterFluxType_Constants

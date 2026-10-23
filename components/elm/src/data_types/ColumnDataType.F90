@@ -3385,9 +3385,9 @@ contains
 
     do fc = 1, num_soilc
       c = filter_soilc(fc)
-      this%totDOC(c) = dot_sum(this%DOC_vr(c,1:nlevdecomp),dzsoi_decomp(1:nlevdecomp)) 
-      this%totDIC(c) = dot_sum(this%DIC_vr(c,1:nlevdecomp),dzsoi_decomp(1:nlevdecomp)) 
-      this%totSIC(c) = dot_sum(this%SIC_vr(c,1:nlevdecomp),dzsoi_decomp(1:nlevdecomp)) 
+      this%totDOC(c) = dot_product(this%DOC_vr(c,1:nlevdecomp),dzsoi_decomp(1:nlevdecomp))
+      this%totDIC(c) = dot_product(this%DIC_vr(c,1:nlevdecomp),dzsoi_decomp(1:nlevdecomp))
+      this%totSIC(c) = dot_product(this%SIC_vr(c,1:nlevdecomp),dzsoi_decomp(1:nlevdecomp))
    enddo
 
     do fc = 1,num_soilc
@@ -4555,9 +4555,9 @@ contains
      if(use_alquimia) then
       do fc = 1, num_soilc
          c = filter_soilc(fc)
-         this%totDON(c) = dot_sum(this%DON_vr(c,1:nlevdecomp),dzsoi_decomp(1:nlevdecomp)) 
-         this%totN2O(c) = dot_sum(this%N2O_vr(c,1:nlevdecomp),dzsoi_decomp(1:nlevdecomp)) 
-         this%totN2(c) = dot_sum(this%N2_vr(c,1:nlevdecomp),dzsoi_decomp(1:nlevdecomp)) 
+         this%totDON(c) = dot_product(this%DON_vr(c,1:nlevdecomp),dzsoi_decomp(1:nlevdecomp))
+         this%totN2O(c) = dot_product(this%N2O_vr(c,1:nlevdecomp),dzsoi_decomp(1:nlevdecomp))
+         this%totN2(c) = dot_product(this%N2_vr(c,1:nlevdecomp),dzsoi_decomp(1:nlevdecomp))
       enddo
      endif
      

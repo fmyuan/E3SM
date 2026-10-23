@@ -1,15 +1,15 @@
-module EMI_EnergyFluxType_DataMod
+module EMI_ColumnEnergyFluxType_DataMod
   !
-  use EMI_EnergyFluxType_Constants
+  use EMI_ColumnEnergyFluxType_Constants
   !
   implicit none
   !
-  public :: EMI_EnergyFluxType_DataInfoByID
+  public :: EMI_ColumnEnergyFluxType_DataInfoByID
 
 contains
   
 !-----------------------------------------------------------------------
-  subroutine EMI_EnergyFluxType_DataInfoByID(data_id, id_val, name_val, long_name_val,&
+  subroutine EMI_ColumnEnergyFluxType_DataInfoByID(data_id, id_val, name_val, long_name_val,&
         units_val, is_int_type, is_real_type, ndim, &
         dim1_beg_name, dim1_end_name, dim2_beg_name, dim2_end_name, &
         dim3_beg_name, dim3_end_name, dim4_beg_name, dim4_end_name, &
@@ -112,6 +112,6 @@ contains
        data_found   =  .true.
     end select
     
-  end subroutine EMI_EnergyFluxType_DataInfoByID
+  end subroutine EMI_ColumnEnergyFluxType_DataInfoByID
     
-end module EMI_EnergyFluxType_DataMod
+end module EMI_ColumnEnergyFluxType_DataMod

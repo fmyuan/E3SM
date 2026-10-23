@@ -22,7 +22,7 @@ contains
         num_filter, filter)
     !
     ! !DESCRIPTION:
-    ! Pack data from ALM's column type for EM
+    ! Pack data from ELM's column type for EM
     !
     ! !USES:
     use ColumnType                , only : col_pp

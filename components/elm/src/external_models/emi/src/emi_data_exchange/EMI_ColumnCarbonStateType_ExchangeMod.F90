@@ -11,12 +11,12 @@ module EMI_ColumnCarbonStateType_ExchangeMod
   use EMI_CanopyStateType_Constants
   use EMI_ChemStateType_Constants
   use EMI_ColumnCarbonStateType_Constants
-  use EMI_EnergyFluxType_Constants
+  use EMI_ColumnEnergyFluxType_Constants
   use EMI_SoilHydrologyType_Constants
   use EMI_SoilStateType_Constants
-  use EMI_TemperatureType_Constants
-  use EMI_WaterFluxType_Constants
-  use EMI_WaterStateType_Constants
+  !use EMI_TemperatureType_Constants
+  !use EMI_WaterFluxType_Constants
+  !use EMI_WaterStateType_Constants
   use EMI_Filter_Constants
   use EMI_ColumnType_Constants
   use EMI_Landunit_Constants
@@ -192,7 +192,7 @@ contains
           case (E2L_STATE_SOIL_CARBONATE)
              do fc = 1, num_filter
                 c = filter(fc)
-                do j = 1, nlevsoi
+                do j = 1, nlevdecomp_full
                    SIC_vr(c,j) = cur_data%data_real_2d(c,j)
                 enddo
              enddo

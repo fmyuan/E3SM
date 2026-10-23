@@ -17,12 +17,12 @@ module EMI_ColumnEnergyStateType_ExchangeMod
   use EMI_ColumnEnergyStateType_Constants
   use EMI_ColumnWaterStateType_Constants
   use EMI_ColumnWaterFluxType_Constants
-  use EMI_EnergyFluxType_Constants
+  use EMI_ColumnEnergyFluxType_Constants
   use EMI_SoilHydrologyType_Constants
   use EMI_SoilStateType_Constants
-  use EMI_TemperatureType_Constants
-  use EMI_WaterFluxType_Constants
-  use EMI_WaterStateType_Constants
+  !use EMI_TemperatureType_Constants
+  !use EMI_WaterFluxType_Constants
+  !use EMI_WaterStateType_Constants
   use EMI_Filter_Constants
   use EMI_ColumnType_Constants
   use EMI_Landunit_Constants
@@ -144,7 +144,7 @@ contains
         num_filter, filter, col_es)
     !
     ! !DESCRIPTION:
-    ! Unpack data for ALM col_es from EM
+    ! Unpack data for ELM col_es from EM
     !
     ! !USES:
     use elm_varpar             , only : nlevgrnd

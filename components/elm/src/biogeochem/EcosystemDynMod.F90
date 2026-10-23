@@ -578,18 +578,19 @@ contains
           clump_rank        = bounds%clump_index        , &
           dt                = get_step_size_real()      , &
           soilstate_vars    = soilstate_vars            , &
+          waterstate_vars   = waterstate_vars           , &
+          soilhydrology_vars= soilhydrology_vars        , &
+          num_soilc         = num_soilc                 , &
+          filter_soilc      = filter_soilc              , &
           carbonstate_vars  = col_cs                    , &
           carbonflux_vars   = col_cf                    , &
           nitrogenstate_vars= col_ns                    , &
           nitrogenflux_vars = col_nf                    , &
-          waterstate_vars   = waterstate_vars           , &
-          soilhydrology_vars= soilhydrology_vars        , &
-          col_chem          = col_chem                  , &
-          num_soilc         = num_soilc                 , &
-          filter_soilc      = filter_soilc              , &
           col_es            = col_es                    , &
+          col_ef            = col_ef                    , &
           col_ws            = col_ws                    , &
-          col_wf            = col_wf                      )
+          col_wf            = col_wf                    , &
+          col_chem          = col_chem                  )
      
        call t_stopf('bgc via alquimia interface')
 

@@ -1,4 +1,4 @@
-module EMI_EnergyFluxType_ExchangeMod
+module EMI_ColumnEnergyFluxType_ExchangeMod
   !
   use shr_kind_mod                          , only : r8 => shr_kind_r8
   use shr_log_mod                           , only : errMsg => shr_log_errMsg
@@ -10,12 +10,12 @@ module EMI_EnergyFluxType_ExchangeMod
   use EMI_Atm2LndType_Constants
   use EMI_CanopyStateType_Constants
   use EMI_ChemStateType_Constants
-  use EMI_EnergyFluxType_Constants
+  use EMI_ColumnEnergyFluxType_Constants
   use EMI_SoilHydrologyType_Constants
   use EMI_SoilStateType_Constants
-  use EMI_TemperatureType_Constants
-  use EMI_WaterFluxType_Constants
-  use EMI_WaterStateType_Constants
+  !!use EMI_TemperatureType_Constants
+  !!use EMI_WaterFluxType_Constants
+  !!use EMI_WaterStateType_Constants
   use EMI_Filter_Constants
   use EMI_ColumnType_Constants
   use EMI_Landunit_Constants
@@ -28,11 +28,11 @@ module EMI_EnergyFluxType_ExchangeMod
 contains
   
 !-----------------------------------------------------------------------
-  subroutine EMI_Pack_EnergyFluxType_at_Column_Level_for_EM(data_list, em_stage, &
+  subroutine EMI_Pack_ColumnEnergyFluxType_at_Column_Level_for_EM(data_list, em_stage, &
         num_filter, filter)
     !
     ! !DESCRIPTION:
-    ! Pack data from ALM energyflux_vars for EM
+    ! Pack data from ELM energyflux_vars for EM
     !
     ! !USES:
     use elm_varpar             , only : nlevsoi, nlevgrnd, nlevsno
@@ -124,7 +124,7 @@ contains
 
     end associate
 
-  end subroutine EMI_Pack_EnergyFluxType_at_Column_Level_for_EM
+  end subroutine EMI_Pack_ColumnEnergyFluxType_at_Column_Level_for_EM
 
 
-end module EMI_EnergyFluxType_ExchangeMod
+end module EMI_ColumnEnergyFluxType_ExchangeMod

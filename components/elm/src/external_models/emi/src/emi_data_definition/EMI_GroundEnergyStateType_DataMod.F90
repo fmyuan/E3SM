@@ -1,15 +1,15 @@
-module EMI_TemperatureType_DataMod
+module EMI_GroundEnergyStateType_DataMod
   !
-  use EMI_TemperatureType_Constants
+  use EMI_GroundEnergyStateType_Constants
   !
   implicit none
   !
-  public :: EMI_TemperatureType_DataInfoByID
+  public :: EMI_GroundEnergyStateType_DataInfoByID
 
 contains
   
 !-----------------------------------------------------------------------
-  subroutine EMI_TemperatureType_DataInfoByID(data_id, id_val, name_val, long_name_val,&
+  subroutine EMI_GroundEnergyStateType_DataInfoByID(data_id, id_val, name_val, long_name_val,&
         units_val, is_int_type, is_real_type, ndim, &
         dim1_beg_name, dim1_end_name, dim2_beg_name, dim2_end_name, &
         dim3_beg_name, dim3_end_name, dim4_beg_name, dim4_end_name, &
@@ -54,17 +54,15 @@ contains
 
     select case(data_id)
 
-    case(L2E_STATE_TSOIL_NLEVGRND)
-       id_val         =  L2E_STATE_TSOIL_NLEVGRND
-       name_val       =  'Soil temperature'
-       long_name_val  =  'Soil temperature: ELM to EM'
+    case(L2E_STATE_TGRND)
+       id_val         =  L2E_STATE_TGRND
+       name_val       =  'ground temperature'
+       long_name_val  =  'ground temperature: ELM to EM'
        units_val      =  '[K]'
        is_real_type   =  .true.
-       ndim           =  2
+       ndim           =  1
        dim1_beg_name  =  dimname_begc
        dim1_end_name  =  dimname_endc
-       dim2_beg_name  =  dimname_one
-       dim2_end_name  =  dimname_nlevgrnd
        data_found   =  .true.
 
     case(L2E_STATE_TSNOW)
@@ -102,19 +100,6 @@ contains
        dim1_end_name  =  dimname_endc
        data_found   =  .true.
 
-    case(L2E_STATE_TSOIL_NLEVSOI)
-       id_val         =  L2E_STATE_TSOIL_NLEVSOI
-       name_val       =  'Soil temperature in nlevsoi'
-       long_name_val  =  'Soil temperature in nlevsoi: ELM to EM'
-       units_val      =  '[K]'
-       is_real_type   =  .true.
-       ndim           =  2
-       dim1_beg_name  =  dimname_begc
-       dim1_end_name  =  dimname_endc
-       dim2_beg_name  =  dimname_one
-       dim2_end_name  =  dimname_nlevsoi
-       data_found   =  .true.
-
     case(L2E_STATE_TVEG)
        id_val         =  L2E_STATE_TVEG
        name_val       =  'Vegetation temperature'
@@ -124,19 +109,6 @@ contains
        ndim           =  1
        dim1_beg_name  =  dimname_begp
        dim1_end_name  =  dimname_endp
-       data_found   =  .true.
-
-    case(E2L_STATE_TSOIL_NLEVGRND)
-       id_val         =  E2L_STATE_TSOIL_NLEVGRND
-       name_val       =  'Soil temperature'
-       long_name_val  =  'Soil temperature: EM to ELM'
-       units_val      =  '[K]'
-       is_real_type   =  .true.
-       ndim           =  2
-       dim1_beg_name  =  dimname_begc
-       dim1_end_name  =  dimname_endc
-       dim2_beg_name  =  dimname_one
-       dim2_end_name  =  dimname_nlevgrnd
        data_found   =  .true.
 
     case(E2L_STATE_TSNOW_NLEVSNOW)
@@ -164,6 +136,6 @@ contains
        data_found   =  .true.
     end select
     
-  end subroutine EMI_TemperatureType_DataInfoByID
+  end subroutine EMI_GroundEnergyStateType_DataInfoByID
     
-end module EMI_TemperatureType_DataMod
+end module EMI_GroundEnergyStateType_DataMod

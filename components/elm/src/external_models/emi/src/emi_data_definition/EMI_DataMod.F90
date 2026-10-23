@@ -1265,7 +1265,7 @@ contains
     use EMI_Atm2LndType_DataMod
     use EMI_CanopyStateType_DataMod
     use EMI_ChemStateType_DataMod
-    use EMI_EnergyFluxType_DataMod
+    use EMI_ColumnEnergyFluxType_DataMod
     use EMI_SoilHydrologyType_DataMod
     use EMI_SoilStateType_DataMod
     use EMI_WaterFluxType_DataMod
@@ -1368,7 +1368,7 @@ contains
     end if
 
     if (.not.data_found) then
-       call EMI_EnergyFluxType_DataInfoByID(data_id, id_val, &
+       call EMI_ColumnEnergyFluxType_DataInfoByID(data_id, id_val, &
             name_val, long_name_val, units_val, is_int_type, is_real_type, ndim, &
             dim1_beg_name, dim1_end_name, dim2_beg_name, dim2_end_name, &
             dim3_beg_name, dim3_end_name, dim4_beg_name, dim4_end_name, &
