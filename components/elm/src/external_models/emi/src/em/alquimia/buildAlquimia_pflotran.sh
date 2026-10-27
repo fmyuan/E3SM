@@ -13,8 +13,8 @@ if [ -d "${PETSC_DIR}" ]; then
     # make PETSC_DIR=${PETSC_DIR} libpflotranchem.a
  
   # pflotran installation directory, if NOT in the source directory
-    # PFLOTRAN_PATH=${PFLOTRAN_SRC_DIR}/src/pflotran
-  PFLOTRAN_PATH=/projects/hpcl-cli185/proj-shared/ccsi-apps/alquimia-pflotran/v2021/pflotran-elm-interface
+    # PFLOTRAN_DIR=${PFLOTRAN_SRC_DIR}/src/pflotran
+  PFLOTRAN_DIR=/projects/hpcl-cli185/proj-shared/ccsi-apps/alquimia-pflotran/v2021/pflotran-elm-interface
     # cp ${PFLOTRAN_SRC_DIR}/src/pflotran/*.mod ${PFLOTRAN_PATH}/
     # cp ${PFLOTRAN_SRC_DIR}/src/pflotran/libpflotranchem.a ${PFLOTRAN_PATH}/
     # cp ${PFLOTRAN_SRC_DIR}/src/pflotran/pflotran ${PFLOTRAN_PATH}/
@@ -23,18 +23,18 @@ if [ -d "${PETSC_DIR}" ]; then
   # alquimia-pflotran src: git clone -b pflotran_SOMdec_reactions https://github.com/bsulman/alquimia-dev alquimia-dev_v2021
   ALQUIMIA_SRC_DIR=/projects/hpcl-cli185/proj-shared/proj-shared/f9y/models/alquimia-dev_v2021
 
-  ALQUIMIA_PATH=/projects/hpcl-cli185/proj-shared/ccsi-apps/alquimia-pflotran/v2021/alquimia
-  PFLOTRAN_PATH=/projects/hpcl-cli185/proj-shared/ccsi-apps/alquimia-pflotran/v2021/pflotran-elm-interface
+  ALQUIMIA_DIR=/projects/hpcl-cli185/proj-shared/ccsi-apps/alquimia-pflotran/v2021/alquimia
+  PFLOTRAN_DIR=/projects/hpcl-cli185/proj-shared/ccsi-apps/alquimia-pflotran/v2021/pflotran-elm-interface
 
-  cd $ALQUIMIA_PATH
-  if [ -d "${ALQUIMIA_PATH}/build" ]; then
-    rm -rf "${ALQUIMIA_PATH}/build"
+  cd $ALQUIMIA_DIR
+  if [ -d "${ALQUIMIA_DIR}/build" ]; then
+    rm -rf "${ALQUIMIA_DIR}/build"
   fi
 
-  mkdir ${ALQUIMIA_PATH}/build ; cd ${ALQUIMIA_PATH}/build
+  mkdir ${ALQUIMIA_DIR}/build ; cd ${ALQUIMIA_DIR}/build
 
 cmake $ALQUIMIA_SRC_DIR/ \
-  -DCMAKE_INSTALL_PREFIX=$ALQUIMIA_PATH \
+  -DCMAKE_INSTALL_PREFIX=$ALQUIMIA_DIR \
   -DCMAKE_C_COMPILER=`which mpicc` \
   -DCMAKE_CXX_COMPILER=`which mpicxx` \
   -DCMAKE_Fortran_COMPILER=`which mpif90` \
@@ -54,8 +54,8 @@ make test
 make install
 
 # above 'make install' appeared NOT copy alquimia-pflotran's *.mod *.h to installation directory
-  cp -f ${ALQUIMIA_PATH}/build/alquimia/*.mod ${ALQUIMIA_PATH}/include/
-  cp -f ${ALQUIMIA_PATH}/build/alquimia/*.h ${ALQUIMIA_PATH}/include/
+  cp -f ${ALQUIMIA_DIR}/build/alquimia/*.mod ${ALQUIMIA_DIR}/include/
+  cp -f ${ALQUIMIA_DIR}/build/alquimia/*.h ${ALQUIMIA_DIR}/include/
 
   cd $ORIGIN_DIR
 
