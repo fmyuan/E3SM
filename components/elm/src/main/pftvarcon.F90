@@ -343,12 +343,9 @@ module pftvarcon
 
   ! Tidal cycle controls
   integer               :: num_tide_comps      ! Number of tidal cycle components
-  real(r8)              :: tide_baseline       ! Base tide level (mean of cycle) (mm)
   real(r8),allocatable  :: tide_coeff_amp(:)   ! Amplitude of tide component (mm)
   real(r8),allocatable  :: tide_coeff_period(:)! Period of tide component (s)
   real(r8),allocatable  :: tide_coeff_phase(:) ! Phase shift of tide component (s)
-  real(r8)              :: sfcflow_ratescale   ! Rate scale for surface water flow across columns (s-1)
-  real(r8)              :: qflx_h2osfc_surfrate
 
   !parameters for salinity response function
   real(r8), allocatable :: sal_threshold(:)    ! threshold for salinity effects (ppt)
@@ -358,11 +355,6 @@ module pftvarcon
   real(r8), allocatable :: waterlevel_threshold(:) !threshold for water level effects (mm above surface)
   real(r8), allocatable :: waterlevel_opt(:)   ! Water level at which optimal biomass occurs (mm)
   real(r8), allocatable :: waterlevel_tol(:)   ! Water level tolerance; width parameter for Gaussian distribution (mm -1)
-
-  real(r8)              :: humhol_ht
-  real(r8)              :: hum_frac
-  real(r8)              :: humhol_dist
-  real(r8)              :: bd_adj              !adjustment for bulk_density (used to change porosity in SoilStateType.F90 TAO 9/25/205)
 
   !
   ! !PUBLIC MEMBER FUNCTIONS:
@@ -711,8 +703,6 @@ contains
     tide_coeff_amp(:)    = 0.0
     tide_coeff_phase(:)  = 0.0
     tide_coeff_period(:) = 1.0       ! Making period 0 would cause divide by 0 error in sinusoid calculation
-    sfcflow_ratescale    = 7.0e-5_r8 ! Probably better to have default be zero for safety
-    qflx_h2osfc_surfrate = 1.0e-7_r8
     
     !parameters for salinity response function
     allocate( sal_threshold      (0:mxpft) )
@@ -1122,8 +1112,6 @@ contains
     ! Tidal cycle parameters
     ! Defaults from Teri's hard coded numbers
     ! Multiple parameters specified in params file like tide_coeff_amp_1, tide_coeff_amp_2, ...
-    call ncd_io('tide_baseline',tide_baseline, 'read', ncid, readvar=readv, posNOTonfile=.true.)
-    if (.not. readv) tide_baseline = 0.0_r8
     do i=1,max_tide_coeffs
       write(tempname,'(I0)') i
       call ncd_io('tide_coeff_amp_'//trim(tempname),tide_coeff_amp(i), 'read', ncid, readvar=readv, posNOTonfile=.true.)
@@ -1147,10 +1135,6 @@ contains
       tide_coeff_period(1) = 1.0_r8/0.00003_r8
       tide_coeff_phase(1) = 0.0_r8
    endif
-   call ncd_io('sfcflow_ratescale',sfcflow_ratescale, 'read', ncid, readvar=readv, posNOTonfile=.true.)
-   if (.not. readv) sfcflow_ratescale = 7.0e-5_r8 ! Probably better to have default be zero for safety
-   call ncd_io('qflx_h2osfc_surfrate', qflx_h2osfc_surfrate, 'read', ncid, readvar=readv, posNOTonfile=.true.)
-   if ( .not. readv) qflx_h2osfc_surfrate = 1.0e-7_r8
 
    ! salinity parameters
    call ncd_io('sal_threshold', sal_threshold(:), 'read', ncid, readvar=readv, posNOTonfile=.true.)
@@ -1166,15 +1150,6 @@ contains
    if ( .not. readv ) waterlevel_opt(:) = 0.0_r8 
    call ncd_io('waterlevel_tol', waterlevel_tol(:), 'read', ncid, readvar=readv, posNOTonfile=.true.)
    if ( .not. readv ) waterlevel_tol(:) = 50.0_r8 
-
-    call ncd_io('humhol_ht', humhol_ht, 'read', ncid, readvar=readv, posNOTonfile=.true.)
-    if ( .not. readv) humhol_ht = 0.15_r8
-    call ncd_io('humhol_dist', humhol_dist, 'read', ncid, readvar=readv, posNOTonfile=.true.)
-    if ( .not. readv) humhol_dist = 1.0_r8
-    call ncd_io('hum_frac', hum_frac, 'read', ncid, readvar=readv, posNOTonfile=.true.)
-    if ( .not. readv) hum_frac = 0.5_r8
-    call ncd_io('bd_adj', bd_adj, 'read', ncid, readvar=readv, posNOTonfile=.true.)
-    if ( .not. readv) bd_adj = 1.0_r8
 
 #endif
 

@@ -27,7 +27,6 @@ module SoilStateType
   use ColumnType      , only : col_pp                
   use VegetationType  , only : veg_pp      
   use topounit_varcon , only : max_topounits
-  use pftvarcon       , only : bd_adj
   use GridcellType    , only : grc_pp   
   !
   implicit none
@@ -47,7 +46,6 @@ module SoilStateType
      real(r8), pointer :: cellclay_col         (:,:) ! clay value for gridcell containing column (1:nlevsoi)
      real(r8), pointer :: cellgrvl_col         (:,:) ! gravel value for gridcell containing column (1:nlevsoi)
      real(r8), pointer :: bd_col               (:,:) ! col bulk density of dry soil material [kg/m^3] (CN)
-     real(r8), pointer :: bd_adj               (:,:) ! col bulk density of dry soil material [kg/m^3] (CN)
 
      ! hydraulic properties
      real(r8), pointer :: hksat_col            (:,:) ! col hydraulic conductivity at saturation (mm H2O /s)
@@ -94,6 +92,12 @@ module SoilStateType
      ! soil erosion
      real(r8), pointer :: tillage_col          (:)    ! col soil conserved tillage fraction 
      real(r8), pointer :: litho_col            (:)    ! col soil lithology erodiblity index
+
+     ! TAI
+     real(r8), pointer :: humhol_ht_col        (:)    ! col soil conserved tillage fraction
+     real(r8), pointer :: hum_frac_col         (:)    ! col soil conserved tillage fraction
+     real(r8), pointer :: humhol_dist_col      (:)    ! col soil conserved tillage fraction
+     real(r8), pointer :: bd_adj_col           (:,:)  ! col bulk density of dry soil material [kg/m^3]
 
    contains
 
@@ -152,7 +156,6 @@ contains
     allocate(this%cellclay_col         (begc:endc,nlevgrnd))            ; this%cellclay_col         (:,:) = spval
     allocate(this%cellgrvl_col         (begc:endc,nlevgrnd))            ; this%cellgrvl_col         (:,:) = spval
     allocate(this%bd_col               (begc:endc,nlevgrnd))            ; this%bd_col               (:,:) = spval
-    allocate(this%bd_adj               (begc:endc,nlevgrnd))            ; this%bd_adj               (:,:) = spval
     
     allocate(this%hksat_col            (begc_all:endc_all,nlevgrnd))    ; this%hksat_col            (:,:) = spval
     allocate(this%hksat_min_col        (begc:endc,nlevgrnd))            ; this%hksat_min_col        (:,:) = spval
@@ -196,6 +199,11 @@ contains
 
     allocate(this%tillage_col          (begc:endc))                     ; this%tillage_col          (:)   = spval
     allocate(this%litho_col            (begc:endc))                     ; this%litho_col            (:)   = spval
+
+    allocate(this%humhol_ht_col        (begc:endc))                     ; this%humhol_ht_col        (:)   = spval
+    allocate(this%humhol_dist_col      (begc:endc))                     ; this%humhol_dist_col      (:)   = spval
+    allocate(this%hum_frac_col         (begc:endc))                     ; this%hum_frac_col         (:)   = spval
+    allocate(this%bd_adj_col           (begc:endc,nlevgrnd))            ; this%bd_adj_col           (:,:) = spval
 
   end subroutine InitAllocate
 
@@ -329,7 +337,6 @@ contains
     !
     ! !USES:
     use pftvarcon           , only : noveg, roota_par, rootb_par
-    use pftvarcon           , only : bd_adj
     use fileutils           , only : getfil
     use organicFileMod      , only : organicrd
     use SharedParamsMod   , only : ParamsShareInst
@@ -382,6 +389,10 @@ contains
     real(r8) ,pointer  :: organic3d (:,:,:)             ! read in - organic matter: kg/m3 (needs to be a pointer for use in ncdio)
     real(r8) ,pointer  :: tillage_in (:,:)              ! read in - conserved tillage fraction
     real(r8) ,pointer  :: litho_in (:,:)                ! read in - lithology erodibility index
+    real(r8) ,pointer  :: humhol_ht_in (:,:)            ! read in - hum-hollow height (m)
+    real(r8) ,pointer  :: humhol_dist_in (:,:)          ! read in - hum-hollow distance (m)
+    real(r8) ,pointer  :: hum_frac_in (:,:)             ! read in - hum fraction with a 2-patch grid/topounit (m)
+    real(r8) ,pointer  :: bd_adj_in (:,:,:)             ! read in - factor to adjust soil bulk-density via SOM fraction (-)
     character(len=256) :: locfn                         ! local filename
     integer            :: nlevbed                       ! # of layers above bedrock
     integer            :: ipedof
@@ -526,6 +537,13 @@ contains
        grvl3d(:,:,:) = 0._r8
     end if
 
+    ! a factor for SOM to adjust bulk density of soils
+    allocate(bd_adj_in(begg:endg,max_topounits,nlevsoifl))
+    bd_adj_in(:,:,:) = 1.0_r8
+#ifdef MARSH
+    call ncd_io(ncid=ncid, varname='bd_adj', flag='read', data=bd_adj_in, dim1name=grlnd, readvar=readvar)
+#endif
+
     do p = bounds%begp,bounds%endp
        g = veg_pp%gridcell(p)
        t = veg_pp%topounit(p)
@@ -546,6 +564,7 @@ contains
        this%sandfrac_patch(p) = sand3d(g,ti,1)/100.0_r8
        this%clayfrac_patch(p) = clay3d(g,ti,1)/100.0_r8
        this%grvlfrac_patch(p) = grvl3d(g,ti,1)/100.0_r8
+
     end do
 
     ! Read fmax
@@ -592,6 +611,39 @@ contains
        deallocate(tillage_in, litho_in)
     end if
 
+#ifdef MARSH
+    ! Read hum-hollow topography, for MARSH system
+       allocate(humhol_ht_in(bounds%begg:bounds%endg,max_topounits))
+       allocate(humhol_dist_in(bounds%begg:bounds%endg,max_topounits))
+       allocate(hum_frac_in(bounds%begg:bounds%endg,max_topounits))
+
+       call ncd_io(ncid=ncid, varname='humhol_ht', flag='read', data=humhol_ht_in, dim1name=grlnd, readvar=readvar)
+       if (.not. readvar) then
+          humhol_ht_in(:,:) = 0.0_r8
+       end if
+
+       call ncd_io(ncid=ncid, varname='humhol_dist', flag='read', data=humhol_dist_in, dim1name=grlnd, readvar=readvar)
+       if (.not. readvar) then
+          humhol_dist_in(:,:) = 0.0_r8
+       end if
+
+       call ncd_io(ncid=ncid, varname='hum_frac', flag='read', data=hum_frac_in, dim1name=grlnd, readvar=readvar)
+       if (.not. readvar) then
+          hum_frac_in(:,:) = 0.0_r8
+       end if
+
+       do c = bounds%begc, bounds%endc
+          g = col_pp%gridcell(c)
+          t = col_pp%topounit(c)
+          topi = grc_pp%topi(g)
+          ti = t - topi + 1
+          this%humhol_ht_col(c)   = humhol_ht_in(g,ti)
+          this%humhol_dist_col(c) = humhol_dist_in(g,ti)
+          this%hum_frac_col(c) = hum_frac_in(g,ti)
+       end do
+       deallocate(humhol_ht_in, humhol_dist_in, hum_frac_in)
+#endif
+
     ! Close file
 
     call ncd_pio_closefile(ncid)
@@ -628,6 +680,7 @@ contains
              this%watdry_col(c,lev) = spval
              this%watopt_col(c,lev) = spval
              this%bd_col(c,lev)     = spval
+             this%bd_adj_col(c,lev) = spval
              if (lev <= nlevsoi) then
                 this%cellsand_col(c,lev) = spval
                 this%cellclay_col(c,lev) = spval
@@ -661,6 +714,7 @@ contains
              this%watdry_col(c,lev) = spval
              this%watopt_col(c,lev) = spval
              this%bd_col(c,lev) = spval
+             this%bd_adj_col(c,lev) = spval
              if (lev <= nlevsoi) then
                 this%cellsand_col(c,lev) = spval
                 this%cellclay_col(c,lev) = spval
@@ -687,16 +741,16 @@ contains
                    clay = clay3d(g,ti,1)
                    sand = sand3d(g,ti,1)
                    gravel = grvl3d(g,ti,1)
-                   !om_frac = organic3d(g,ti,1)/(organic_max * bd_adj) !TAO
                    om_frac = organic3d(g,ti,1)/(organic_max)
+                   if (bd_adj_in(g,ti,1) .ne. 1.0_r8) om_frac = om_frac * bd_adj_in(g,ti,1)           !TAO
                 else if (lev <= min(nlevbed,nlevsoi)) then
                    do j = 1,nlevsoifl-1
                       if (zisoi(lev) >= zisoifl(j) .AND. zisoi(lev) < zisoifl(j+1)) then
                          clay = clay3d(g,ti,j+1)
                          sand = sand3d(g,ti,j+1)
                          gravel = grvl3d(g,ti,j+1)
-                         !om_frac = organic3d(g,ti,j+1)/(organic_max * bd_adj) !TAO
                          om_frac = organic3d(g,ti,j+1)/(organic_max)   
+                         if (bd_adj_in(g,ti,j+1) .ne. 1.0_r8) om_frac = om_frac * bd_adj_in(g,ti,j+1) !TAO
                       endif
                    end do
                 else
@@ -710,8 +764,8 @@ contains
                    clay = clay3d(g,ti,lev)
                    sand = sand3d(g,ti,lev)
                    gravel = grvl3d(g,ti,lev)
-                   !om_frac = (organic3d(g,ti,lev)/(organic_max * bd_adj))**2._r8 !TAO
                    om_frac = (organic3d(g,ti,lev)/(organic_max))**2._r8
+                   if (bd_adj_in(g,ti,lev) .ne. 1.0_r8) om_frac = om_frac * bd_adj_in(g,ti,lev) !TAO
                 else
                    clay = clay3d(g,ti,nlevsoi)
                    sand = sand3d(g,ti,nlevsoi)
@@ -769,6 +823,13 @@ contains
                 this%bsw_col(c,lev)       = (1._r8-om_frac) * (2.91_r8 + 0.159_r8*clay) + om_frac*om_b
                 this%sucsat_col(c,lev)    = (1._r8-om_frac) * this%sucsat_col(c,lev) + om_sucsat*om_frac
                 this%hksat_min_col(c,lev) = xksat
+
+#ifdef MARSH
+                ! after 'watsat_col' updated above
+                if (bd_adj_in(g,ti,lev) .ne. 1.0_r8) then
+                   this%bd_adj_col(c,lev) = (1._r8 - this%watsat_col(c,lev))*2.7e3_r8
+                endif
+#endif
 
                 ! perc_frac is zero unless perf_frac greater than percolation threshold
                 if (om_frac > pcalpha) then
@@ -933,6 +994,7 @@ contains
 
     deallocate(sand3d, clay3d, grvl3d, organic3d)
     deallocate(zisoifl, zsoifl, dzsoifl)
+    deallocate(bd_adj_in)
 
   end subroutine InitCold
 

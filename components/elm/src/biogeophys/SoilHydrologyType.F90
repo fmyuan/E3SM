@@ -14,6 +14,7 @@ Module SoilHydrologyType
   use ColumnType            , only : col_pp      
   use GridcellType          , only : grc_pp   
   use topounit_varcon       , only : max_topounits
+  use elm_varpar            , only : max_tide_coeffs
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -70,6 +71,10 @@ Module SoilHydrologyType
      ! Tidal
      real(r8), pointer :: ht_above_stream   (:)     => null()! Column height difference from stream
      real(r8), pointer :: dist_from_stream  (:)     => null()! Column distance from stream
+     integer           :: num_tide_comps                     ! Number of tidal cycle components
+     real(r8), pointer :: tide_baseline     (:)     => null()! Base tide level (mean of cycle) (m)
+     real(r8), pointer :: sfcflow_ratescale (:)     => null()! Rate scale for surface water flow across columns (s-1)
+     real(r8), pointer :: qflx_h2osfc_surfrate(:)   => null()
 
      real(r8), pointer :: ar_col            (:,:)   => null()! col anisotropic ratio
 
@@ -167,9 +172,13 @@ contains
 
     allocate(this%ar_col            (begc:endc,nlevgrnd))        ; this%ar_col            (:,:)   = 25.0_r8
     ! TAI
+    ! coastal land grid-columns (stream could be river/stream/tide channel)
     allocate(this%ht_above_stream   (begc:endc))                 ; this%ht_above_stream   (:)   = spval
     allocate(this%dist_from_stream  (begc:endc))                 ; this%dist_from_stream  (:)   = spval
-
+    ! coastal tide height predication (NOAA)
+    allocate(this%tide_baseline     (begc:endc))                 ; this%tide_baseline     (:)   = spval
+    allocate(this%sfcflow_ratescale (begc:endc))                 ; this%sfcflow_ratescale (:)   = spval
+    allocate(this%qflx_h2osfc_surfrate(begc:endc))               ; this%qflx_h2osfc_surfrate(:) = spval
 
   end subroutine InitAllocate
 
@@ -287,6 +296,8 @@ contains
     real(r8) ,pointer  :: zsoifl     (:)   ! original soil midpoint 
     real(r8) ,pointer  :: dzsoifl    (:)   ! original soil thickness 
     real(r8) ,pointer  :: fdrain     (:)   ! top-model drainage parameter
+
+
     !-----------------------------------------------------------------------
 
     ! -----------------------------------------------------------------
@@ -566,6 +577,7 @@ contains
       write(iulog,*) 'Attempting to read water boundary condition data .....'
    end if
 
+   ! land grid height above river/tidal channel baseline
    call ncd_io(ncid=ncid, varname='ht_above_stream', flag='read', data=this%ht_above_stream, dim1name=grlnd, readvar=readvar)
    if (.not. readvar) then
       if(masterproc) write(iulog,*),'Did not find ht_above_stream in surface data'
@@ -577,6 +589,18 @@ contains
       if(masterproc) write(iulog,*),'Did not find dist_from_stream in surface data'
       this%dist_from_stream(:) = 1.0_r8   ! assumed and arbitrary
    end if
+
+   ! tide baseline (m)
+   call ncd_io(ncid=ncid, varname='tide_baseline', flag='read', data=this%tide_baseline, dim1name=grlnd, readvar=readvar)
+   if (.not. readvar) this%tide_baseline(:) = 0.0_r8
+
+   ! needs checking for the followings
+   call ncd_io(ncid=ncid, varname='sfcflow_ratescale', flag='read', data=this%sfcflow_ratescale, dim1name=grlnd, readvar=readvar)
+   if (.not. readvar) this%sfcflow_ratescale(:) = 7.0e-5_r8 ! Probably better to have default be zero for safety?
+
+   call ncd_io(ncid=ncid, varname='qflx_h2osfc_surfrate', flag='read', data=this%qflx_h2osfc_surfrate, dim1name=grlnd, readvar=readvar)
+   if ( .not. readvar) this%qflx_h2osfc_surfrate(:) = 0.0_r8
+
 #endif
 
     call ncd_pio_closefile(ncid)
