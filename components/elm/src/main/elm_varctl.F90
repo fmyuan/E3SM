@@ -433,12 +433,24 @@ module elm_varctl
   !----------------------------------------------------------
   ! ATS external model
   !----------------------------------------------------------
-  ! ATS explicit mesh hydrology
+  ! ATS is present (mesh/decomposition loaded). Implied by use_ats_ic,
+  ! use_ats_hydro, or domain_decomp_type='ats' -- see controlMod.F90.
   logical, public :: use_ats        = .false.
   ! ATS for initial water condition only
   logical, public :: use_ats_ic     = .false.
   ! ATS debug verbosity (0 = silent, 1 = summary diagnostics, 2 = per-field get/set traces)
   integer, public :: ats_verbosity  = 0
+  ! ATS provides per-timestep subsurface/surface hydrology coupling
+  logical, public :: use_ats_hydro  = .false.
+  ! ATS was actually taken through its Init() lifecycle (em_ats%Init() is
+  ! only called when use_ats_ic .or. use_ats_hydro -- see
+  ! elm_initializeMod.F90), so it is safe to call em_ats%Visualize()/
+  ! Checkpoint(). Unlike use_ats, NOT implied by domain_decomp_type='ats'
+  ! alone: that mode only loads ATS's mesh/decomposition for ELM's own
+  ! decomposition matching, without ever running ATS's setup/initialize --
+  ! calling Visualize()/Checkpoint() in that mode would hit an ATS State
+  ! that was never set up (no "cycle" RecordSet, etc.). See controlMod.F90.
+  logical, public :: use_ats_any    = .false.
 
   !----------------------------------------------------------
   ! Stub EM switches

@@ -2097,10 +2097,16 @@ topounit level. Based on the IM2 implementation from NGEE Arctic project.
     Runtime flag to turn on/off EMI-em/ats interface.
 </entry>
 <entry id="use_ats_ic" type="logical" category="default_settings"
-    group="elm_inparm" 
+    group="elm_inparm"
     valid_values=".true.,.false."
     value=".false.">
     Runtime flag to turn on/off EMI-em/ats interface only for the water initial condition.
+</entry>
+<entry id="use_ats_hydro" type="logical" category="default_settings"
+    group="elm_inparm"
+    valid_values=".true.,.false."
+    value=".false.">
+    Runtime flag to turn on/off EMI-em/ats interface for per-timestep subsurface/surface hydrology coupling.
 </entry>
 
 <entry id="ats_verbosity" type="integer" category="default_settings"

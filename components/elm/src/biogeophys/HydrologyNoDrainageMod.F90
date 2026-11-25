@@ -69,7 +69,7 @@ contains
     use landunit_varcon      , only : istice, istwet, istsoil, istice_mec, istcrop, istdlak
     use column_varcon        , only : icol_roof, icol_road_imperv, icol_road_perv, icol_sunwall
     use column_varcon        , only : icol_shadewall
-    use elm_varctl           , only : use_cn, use_fates, use_pflotran, pf_hmode, use_fan, use_ats
+    use elm_varctl           , only : use_cn, use_fates, use_pflotran, pf_hmode, use_fan, use_ats_hydro
 
 #ifdef USE_ATS_LIB
     use ExternalModelATS            , only : em_ats
@@ -242,7 +242,7 @@ contains
             num_urbanc, filter_urbanc, &
             soilhydrology_vars, soilstate_vars, dtime)
 
-      elseif (.not. use_ats) then
+      elseif (.not. use_ats_hydro) then
       !------------------------------------------------------------------------------------
 
         call SoilWater(bounds, num_hydrologyc, filter_hydrologyc, num_urbanc, filter_urbanc, &
@@ -459,7 +459,7 @@ contains
 #ifdef USE_ATS_LIB
       ! NOTE: ETC -- this is the EARLIEST ATS can advance -- needs eff_porosity computed above
       ! ATS calculation of hydrology, both surface (runoff) and subsurface (baseflow)
-      if (use_ats) then
+      if (use_ats_hydro) then
          call em_ats%Advance(dtime_mod, nstep_mod, col_pp, soilstate_vars, col_ws, col_wf, veg_wf, soilhydrology_vars, photosyns_vars)
       end if
 #endif
@@ -468,7 +468,7 @@ contains
       
       if ( (use_cn .or. use_fates) .and. &
            .not.(use_pflotran .and. pf_hmode) .and. &
-           .not. use_ats) then
+           .not. use_ats_hydro) then
          ! Update soilpsi.
          ! ZMS: Note this could be merged with the following loop updating smp_l in the future.
          do j = 1, nlevgrnd

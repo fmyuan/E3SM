@@ -101,7 +101,7 @@ module controlMod
                         use_snicar_frc, use_snicar_ad, use_firn_percolation_and_compaction, &
                         use_extrasnowlayers, use_T_rho_dependent_snowthk, &
                         use_vancouver, use_mexicocity, use_noio, use_finetop_rad, &
-                        use_ats, use_ats_ic, ats_verbosity, pf_hmode
+                        use_ats, use_ats_ic, use_ats_hydro, use_ats_any, ats_verbosity, pf_hmode
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -364,8 +364,7 @@ contains
     namelist /elm_inparm/ use_elm_interface, use_elm_bgc, use_pflotran
 
     ! ats
-    namelist /elm_inparm/ use_ats, use_ats_ic, ats_verbosity
-    
+    namelist /elm_inparm/ use_ats, use_ats_ic, use_ats_hydro, ats_verbosity
     namelist /elm_inparm/ use_dynroot
 
     namelist /elm_inparm/ use_var_soil_thick, use_lake_wat_storage
@@ -640,18 +639,32 @@ contains
           end if
        end if
 
+       ! enforce flag implications for the ATS external model: use_ats_ic,
+       ! use_ats_hydro, and domain_decomp_type='ats' all require the em_ats
+       ! object to exist (created only when use_ats is true), so any of them
+       ! being set implies use_ats. Must run before control_spmd() broadcasts
+       ! use_ats/use_ats_ic/use_ats_hydro below.
+       if (use_ats_ic .or. use_ats_hydro .or. trim(domain_decomp_type) == 'ats') then
+          use_ats = .true.
+       end if
+
+       ! use_ats_any: ATS was actually taken through its Init() lifecycle,
+       ! so it is safe to call em_ats%Visualize()/Checkpoint(). Mirrors
+       ! exactly the condition gating the em_ats%Init() call in
+       ! elm_initializeMod.F90 -- deliberately narrower than use_ats above,
+       ! since domain_decomp_type='ats' alone (mesh/decomposition only,
+       ! no coupling) never calls em_ats%Init().
+       if (use_ats_ic .or. use_ats_hydro) then
+          use_ats_any = .true.
+       end if
+
        ! checking if conflict when using ATS external model
-       if (use_ats .or. use_ats_ic) then
+       if (use_ats_hydro) then
 
           if (use_pflotran) then
-             call endrun(msg=' ERROR: use_pflotran and use_ats cannot both be set to true.'//&
+             call endrun(msg=' ERROR: use_pflotran and use_ats_hydro cannot both be set to true.'//&
                    errMsg(__FILE__, __LINE__))
           end if
-
-          ! ! force the use of ATS partitioning
-          ! if (use_ats .or. use_ats_ic) then
-          !    domain_decomp_type = 'ats'
-          ! endif
        end if
 
        if (use_lnd_rof_two_way) then
@@ -1064,6 +1077,8 @@ contains
     ! ats
     call mpi_bcast (use_ats, 1, MPI_LOGICAL, 0, mpicom, ier)
     call mpi_bcast (use_ats_ic, 1, MPI_LOGICAL, 0, mpicom, ier)
+    call mpi_bcast (use_ats_hydro, 1, MPI_LOGICAL, 0, mpicom, ier)
+    call mpi_bcast (use_ats_any, 1, MPI_LOGICAL, 0, mpicom, ier)
     call mpi_bcast (ats_verbosity, 1, MPI_INTEGER, 0, mpicom, ier)
 
     !cpl_bypass

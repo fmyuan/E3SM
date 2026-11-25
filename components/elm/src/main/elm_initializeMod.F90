@@ -1130,18 +1130,40 @@ contains
     ! CLM initialization - third phase
     !
     ! !USES:
-    use elm_varctl               , only : use_ats
+    use elm_varpar               , only : nlevgrnd
+    use elm_varctl               , only : use_ats, use_ats_ic, use_ats_hydro
+    use filterMod                , only : filter
 
 #ifdef USE_ATS_LIB
     use ExternalModelATS        , only : EM_ATS_Create, em_ats
-#endif    
+    use ExternalModelATS        , only : EM_ATS_CheckHierarchy, EM_ATS_CheckMesh
+#endif
     
     implicit none
 
+    type(bounds_type) :: bounds_proc
+
     call t_startf('elm_init3')
 
+    call get_proc_bounds(bounds_proc)
+
 #ifdef USE_ATS_LIB
-    if (use_ats .or. use_ats_ic) then
+    if (use_ats) then
+       ! mesh/decomposition consistency check -- must pass whenever ATS is
+       ! present, even for use_ats-only runs (e.g. ELM-native-hydrology
+       ! stages that still decompose onto ATS's mesh via
+       ! domain_decomp_type='ats') that never call em_ats%Init below.
+       call EM_ATS_CheckHierarchy(em_ats, filter, get_proc_clumps(), &
+            bounds_proc%endc - bounds_proc%begc + 1)
+
+       em_ats%ncolumns = filter(1)%num_hydrologyc
+       em_ats%col_filter => filter(1)%hydrologyc
+       em_ats%pft_filter => filter(1)%soilp
+       em_ats%nlevgrnd = nlevgrnd
+
+       call EM_ATS_CheckMesh(em_ats, grc_pp, col_pp)
+    endif
+    if (use_ats_ic .or. use_ats_hydro) then
        call em_ats%Init(0.0_r8, filter, get_proc_clumps(), bounds_proc%endc - bounds_proc%begc + 1, nlevgrnd, &
             grc_pp, col_pp, soilstate_vars, soilhydrology_vars, col_ws)
     endif

@@ -175,20 +175,13 @@ contains
     ! locals
     integer :: i, ii
 
-    !! begin setup portion of this call
-    ! check PFT assumption -- 1 PFT per column, 1 column per grid cell
-    ! TODO: ETC -- Step 0
-    call EM_ATS_CheckHierarchy(this, filter, nclumps, ncolumns)
-
-    ! keep the filter?  probably should be 1:1 now and not needed...
-    this%ncolumns = filter(1)%num_hydrologyc
-    this%col_filter => filter(1)%hydrologyc
-    this%pft_filter => filter(1)%soilp
-    this%nlevgrnd = nlevgrnd
-
-    ! check ATS -- ELM mesh consistency
-    ! TODO: ETC -- Step 0
-    call EM_ATS_CheckMesh(this, grc_pp, col_pp)
+    ! this%ncolumns/col_filter/pft_filter/nlevgrnd are set, and mesh
+    ! consistency (CheckHierarchy/CheckMesh) verified, by the caller before
+    ! Init is invoked -- see elm_initializeMod.F90's initialize3(), which
+    ! runs those checks under use_ats alone (they must also pass for
+    ! use_ats-only runs, e.g. ELM-native-hydrology stages that still need to
+    ! decompose onto ATS's mesh), separately from this Init call, which is
+    ! gated on use_ats_ic .or. use_ats_hydro.
 
     ! ATS setup
     call ats_setup(this%ats)

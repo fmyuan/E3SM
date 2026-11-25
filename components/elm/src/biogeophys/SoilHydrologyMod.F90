@@ -7,7 +7,7 @@ module SoilHydrologyMod
   use shr_kind_mod      , only : r8 => shr_kind_r8
   use shr_log_mod       , only : errMsg => shr_log_errMsg
   use decompMod         , only : bounds_type
-  use elm_varctl        , only : iulog, use_vichydro, use_ats
+  use elm_varctl        , only : iulog, use_vichydro, use_ats_hydro, use_ats_ic
   use elm_varctl        , only : use_lnd_rof_two_way, lnd_rof_coupling_nstep
   use elm_varctl        , only : use_modified_infil, use_ocn_lnd_one_way
   use elm_varcon        , only : e_ice, denh2o, denice, rpi
@@ -151,7 +151,7 @@ contains
       end do
 
       ! Saturated fraction
-      if (.not. use_ats) then ! no qflx_surf defined here for ATS
+      if (.not. use_ats_hydro) then ! no qflx_surf defined here for ATS
          do fc = 1, num_hydrologyc
             c = filter_hydrologyc(fc)
             g = col_pp%gridcell(c)
@@ -204,14 +204,14 @@ contains
                fcov(c) = fsat(c)
             endif
          end do
-      end if ! not use_ats
+      end if ! not use_ats_hydro
          
       do fc = 1, num_hydrologyc
          c = filter_hydrologyc(fc)
          l = col_pp%landunit(c)
          ! no qflx_surf in polygonal ground
          ! qflx_surf in ats will be set by ats later
-         if (lun_pp%ispolygon(l) .or. use_ats) then
+         if (lun_pp%ispolygon(l) .or. use_ats_hydro) then
             qflx_surf(c) = 0._r8
          else
             ! assume qinmax large relative to qflx_top_soil in control
@@ -469,7 +469,7 @@ contains
                 qflx_evap(c)=qflx_ev_soil(c)
              endif
 
-             if (use_ats) then
+             if (use_ats_hydro) then
                 ! set these to 0 -- ATS will set them after HydrologyNoDrainage
                 qflx_infl(c) = 0._r8
                 qflx_infl_excess(c) = 0._r8
@@ -494,7 +494,7 @@ contains
                    qflx_gross_evap_soil(c) = 0._r8
                 end if
                 
-             else ! use_ats
+             else ! use_ats_hydro
                 !0. partition grid-level floodplain inundation volume and fraction to each column
                 if (use_lnd_rof_two_way) then
                    if (mod(get_nstep(),lnd_rof_coupling_nstep) == 1 .or. get_nstep() <= 1 .or. lnd_rof_coupling_nstep == 1) then
@@ -733,7 +733,7 @@ contains
                else
                  qflx_gross_infl_soil(c) = qflx_gross_infl_soil(c) + qflx_h2osfc_drain(c)
                endif
-	    endif ! use_ats
+	    endif ! use_ats_hydro
           else
              ! non-vegetated landunits (i.e. urban) use original CLM4 code
              if (snl(c) >= 0) then
@@ -916,7 +916,7 @@ contains
           enddo
        end do
 
-       if (.not. use_ats) then
+       if (.not. use_ats_hydro) then
           !============================== QCHARGE =========================================
           ! Water table changes due to qcharge
           do fc = 1, num_hydrologyc
@@ -1064,7 +1064,7 @@ contains
                 endif !k_frz > k_perch
              endif
           end do
-       endif ! use_ats
+       endif ! use_ats_hydro
 
        
        do fc = 1, num_hydrologyc
@@ -1073,7 +1073,7 @@ contains
           ! Renew the ice and liquid mass due to condensation
           if (snl(c) >= 0) then
              ! make consistent with how evap_grnd removed in infiltration
-             if (use_ats) then
+             if (use_ats_hydro) then
                ! add water dew to the ground to qflx_gross_infl_soil so it gets picked up in ATS source
                qflx_gross_infl_soil(c) = qflx_gross_infl_soil(c) + (1._r8 - frac_h2osfc(c))*qflx_dew_grnd(c)
              else
@@ -1276,7 +1276,7 @@ contains
        ! Initial set
        do fc = 1, num_hydrologyc
           c = filter_hydrologyc(fc)
-          if (.not. use_ats) then
+          if (.not. use_ats_hydro) then
              qflx_drain(c)    = 0._r8
           end if
           qflx_lnd2ocn(c)  = 0._r8
@@ -1288,7 +1288,7 @@ contains
        end do
 
        ! ats does its own baseflow, perched water table, etc
-       if (.not. use_ats) then
+       if (.not. use_ats_hydro) then
        
        ! The layer index of the first unsaturated layer, i.e., the layer right above
        ! the water table
@@ -1525,6 +1525,13 @@ contains
 
              end if
 
+             ! use_ats_ic: subsurface state was initialized from ATS but
+             ! ELM's own Richards solver is otherwise active (use_ats_hydro
+             ! is false); disable ELM's TOPMODEL/VIC baseflow term itself
+             ! (not just its qflx_drain report) so it doesn't remove water
+             ! from h2osoi_liq/wa without an ATS-side counterpart.
+             if (use_ats_ic) rsub_top(c) = 0._r8
+
              ! use analytical expression for aquifer specific yield
              rous = watsat(c,nlevbed) &
                   * ( 1. - (1.+1.e3*zwt(c)/sucsat(c,nlevbed))**(-1./bsw(c,nlevbed)))
@@ -1537,6 +1544,7 @@ contains
                     zwt(c) = z(c,nlevbed) - (smp_l(c,nlevbed) / 1000._r8)
                  end if
                  rsub_top(c) = imped * rsub_top_max * exp(-fff(c) * zwt(c))
+                 if (use_ats_ic) rsub_top(c) = 0._r8
                  rsub_top_tot = - rsub_top(c) * dtime
                  s_y = watsat(c,nlevbed) &
                      * ( 1. - (1.+1.e3*zwt(c)/sucsat(c,nlevbed))**(-1./bsw(c,nlevbed)))
@@ -1792,11 +1800,11 @@ contains
           end if
        end do
 
-       ! ETC: use_ats may miss qflx_snwcp_liq (see above do loop
+       ! ETC: use_ats_hydro may miss qflx_snwcp_liq (see above do loop
        ! assigning qflx_drain, which we definitely want to be zero for
        ! ATS)?  If qflx_snwcp_liq is nonzero, it is never assigned to
        ! qflx_qrgwl which may go into mass balance?
-       end if ! use_ats
+       end if ! use_ats_hydro
        
      end associate
 

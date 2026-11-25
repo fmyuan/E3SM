@@ -26,7 +26,7 @@ module BalanceCheckMod
   use ColumnDataType     , only : col_ef, col_ws, col_wf
   use VegetationType     , only : veg_pp
   use VegetationDataType , only : veg_ef, veg_ws
-  use elm_varctl         , only : use_ats, use_ats_ic, ats_verbosity
+  use elm_varctl         , only : use_ats, use_ats_ic, use_ats_hydro, ats_verbosity
 
   use timeinfoMod
   !
@@ -383,7 +383,7 @@ contains
              found = .true.
              indexc = c
           endif
-          if ((use_ats .or. use_ats_ic) .and. ats_verbosity >= 1 .and. col_pp%itype(c) .eq. istsoil) then
+          if ((use_ats_hydro .or. use_ats_ic) .and. ats_verbosity >= 1 .and. col_pp%itype(c) .eq. istsoil) then
              indexc = c
              write(iulog,*)''
              write(iulog,*)'ELM+ATS Water Balance Summary (column', c, ')'

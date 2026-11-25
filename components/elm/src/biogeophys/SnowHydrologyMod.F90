@@ -18,7 +18,7 @@ module SnowHydrologyMod
   use decompMod       , only : bounds_type
   use abortutils      , only : endrun
   use elm_varpar      , only : nlevsno
-  use elm_varctl      , only : iulog, use_extrasnowlayers, use_firn_percolation_and_compaction, use_ats
+  use elm_varctl      , only : iulog, use_extrasnowlayers, use_firn_percolation_and_compaction
   use elm_varcon      , only : namec, h2osno_max
   use atm2lndType     , only : atm2lnd_type
   use AerosolType     , only : aerosol_type
