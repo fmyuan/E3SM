@@ -286,11 +286,31 @@ contains
     ! TODO: ETC -- Step 4
     ! call ats_set_field(this%ats, ats_var_id%ROOT_FRACTION, soilstate_vars%rootfr_patch)
 
+    if (this%verbosity >= 2) then
+       write(iulog,*) "DIAGNOSTIC pre-SetField_WaterContent"
+       call shr_sys_flush(iulog)
+    end if
+
     ! pass state to ATS -- this is required in hydro-only mode because
     ! freeze-thaw may change water to ice
     call EM_ATS_SetField_WaterContent(this, col_pp, col_ws, soilstate_vars)
 
+    if (this%verbosity >= 2) then
+       write(iulog,*) "DIAGNOSTIC post-SetField_WaterContent"
+       call shr_sys_flush(iulog)
+    end if
+
     ! pass fluxes to ATS -- unit change from [mm H2O / s] to [m H2O / s]
+    if (this%verbosity >= 2) then
+       do i=1,this%ncolumns
+          ii = this%col_filter(i)
+          write(iulog,*) "DIAGNOSTIC pre-ATS: column ", i, &
+               " qflx_gross_infl_soil = ", col_wf%qflx_gross_infl_soil(ii), &
+               " qflx_tran_veg = ", col_wf%qflx_tran_veg(ii), &
+               " qflx_gross_evap_soil = ", col_wf%qflx_gross_evap_soil(ii)
+       end do
+       call shr_sys_flush(iulog)
+    end if
     call EM_ATS_SetField_ScalarMultiply(this, "gross surface water source", ats_var_id%GROSS_SURFACE_WATER_SOURCE, &
          col_wf%qflx_gross_infl_soil, 1.e-3_r8, 2)
     call EM_ATS_SetField_ScalarMultiply(this, "potential transpiration", ats_var_id%POTENTIAL_TRANSPIRATION, &
@@ -314,8 +334,8 @@ contains
     call EM_ATS_GetField_WaterContent(this, col_pp, soilstate_vars, col_ws, soilhydrology_vars)
     
     ! get actual fluxes back and apply the downregulation where needed
-    call EM_ATS_GetField_ActualEvaporation(this, col_wf, veg_wf)
-    call EM_ATS_GetField_ActualTranspiration(this, col_wf, veg_wf, photosyns_vars)
+    call EM_ATS_GetField_ActualEvaporation(this, col_pp, col_wf, veg_wf)
+    call EM_ATS_GetField_ActualTranspiration(this, col_pp, col_wf, veg_wf, photosyns_vars)
 
     ! get runoff and baseflow back
     call EM_ATS_GetField_ScalarMultiply(this, "baseflow", ats_var_id%BASEFLOW, col_wf%qflx_drain, 1.e3_r8, 2)
@@ -865,10 +885,11 @@ contains
   ! -----------------------------------------------------------------------
   ! Special purpose -- downregulate transpiration
   !
-  subroutine EM_ATS_GetField_ActualTranspiration(this, col_wf, veg_wf, photosyns_vars)
+  subroutine EM_ATS_GetField_ActualTranspiration(this, col_pp, col_wf, veg_wf, photosyns_vars)
     implicit none
 
     class(em_ats_type)                                  :: this
+    type(column_physical_properties)    , intent(in)    :: col_pp
     type(column_water_flux)             , intent(inout) :: col_wf
     type(vegetation_water_flux)         , intent(inout) :: veg_wf
     type(photosyns_type), intent(inout) :: photosyns_vars
@@ -911,6 +932,19 @@ contains
 
           if (downreg_eps > 1.01_r8 .OR. downreg < 0._r8) then
              write(iulog,*) "WARNING: ATS transpiration downregulation is out of expected bounds."
+             write(iulog,*) "  column (local) = ", ii, " gridcell (local) = ", col_pp%gridcell(ii)
+             write(iulog,*) "  requested (potential) transpiration [mm/s] = ", col_wf%qflx_tran_veg(ii)
+             write(iulog,*) "  actual transpiration from ATS [mm/s]       = ", tot_trans
+             write(iulog,*) "  downreg (clamped to [0,1])                 = ", downreg
+             write(iulog,*) "  downreg_eps (unclamped, epsilon-regularized) = ", downreg_eps
+             if (downreg_eps > 1.01_r8) then
+                write(iulog,*) "  reason: actual transpiration exceeds requested by more than 1% " // &
+                     "(downreg_eps > 1.01) -- ATS returned more water than ELM asked for."
+             end if
+             if (downreg < 0._r8) then
+                write(iulog,*) "  reason: downreg < 0 -- actual transpiration and/or requested " // &
+                     "transpiration has an unexpected sign."
+             end if
              call endrun("ATS transpiration downregulation is out of expected bounds.")
           end if
 
@@ -950,10 +984,11 @@ contains
   ! -----------------------------------------------------------------------
   ! Special purpose -- downregulate evaporation
   !
-  subroutine EM_ATS_GetField_ActualEvaporation(this, col_wf, veg_wf)
+  subroutine EM_ATS_GetField_ActualEvaporation(this, col_pp, col_wf, veg_wf)
     implicit none
 
     class(em_ats_type)                                  :: this
+    type(column_physical_properties)    , intent(in)    :: col_pp
     type(column_water_flux)             , intent(inout) :: col_wf
     type(vegetation_water_flux)         , intent(inout) :: veg_wf
 
@@ -987,6 +1022,18 @@ contains
 
           if (downreg > 1.0 .OR. downreg < 0.0) then
              write(iulog,*) "WARNING: ATS evaporation downregulation is out of expected bounds."
+             write(iulog,*) "  column (local) = ", ii, " gridcell (local) = ", col_pp%gridcell(ii)
+             write(iulog,*) "  requested (potential) evaporation [mm/s] = ", pot_evap
+             write(iulog,*) "  actual evaporation from ATS [mm/s]       = ", evap
+             write(iulog,*) "  downreg (evap / pot_evap)                = ", downreg
+             if (downreg > 1.0_r8) then
+                write(iulog,*) "  reason: actual evaporation exceeds requested (downreg > 1) " // &
+                     "-- ATS returned more water than ELM asked for."
+             end if
+             if (downreg < 0.0_r8) then
+                write(iulog,*) "  reason: downreg < 0 -- actual and/or requested evaporation " // &
+                     "has an unexpected sign."
+             end if
              call endrun("ATS evaporation downregulation is out of expected bounds.")
           end if
 
