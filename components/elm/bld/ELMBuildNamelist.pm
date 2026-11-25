@@ -2475,6 +2475,7 @@ sub setup_logic_soilstate {
   if (defined($ls_predef) && ($nl_flags->{'more_vert'} eq ".true.")) {
     fatal_error("You have set soil_layerstruct_predefined together with more_vertlayers=.true.; these are mutually exclusive\n");
   }
+  add_default($test_files, $nl_flags->{'inputdata_rootdir'}, $definition, $defaults, $nl, 'watsat_type');
 }
 
 #-------------------------------------------------------------------------------

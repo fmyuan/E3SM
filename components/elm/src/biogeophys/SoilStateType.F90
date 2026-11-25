@@ -23,6 +23,7 @@ module SoilStateType
   use elm_varctl      , only : use_var_soil_thick
   use elm_varctl      , only : squareomfrac
   use elm_varctl      , only : iulog, fsurdat, hist_wrtch4diag
+  use elm_varctl      , only : watsat_type
   use CH4varcon       , only : allowlakeprod
   use LandunitType    , only : lun_pp                
   use ColumnType      , only : col_pp                
@@ -369,6 +370,7 @@ contains
     real(r8)           :: tkm                           ! mineral conductivity
     real(r8)           :: xksat                         ! maximum hydraulic conductivity of soil [mm/s]
     real(r8)           :: clay,sand,gravel              ! temporaries
+    real(r8)           :: watsat_from_file              ! temporary: porosity read from file (from_file mode only)
     real(r8)           :: organic_max                   ! organic matter (kg/m3) where soil is assumed to act like peat
     integer            :: dimid                         ! dimension id
     logical            :: readvar
@@ -380,6 +382,7 @@ contains
     real(r8) ,pointer  :: sand3d (:,:,:)                ! read in - soil texture: percent sand (needs to be a pointer for use in ncdio)
     real(r8) ,pointer  :: clay3d (:,:,:)                ! read in - soil texture: percent clay (needs to be a pointer for use in ncdio)
     real(r8) ,pointer  :: grvl3d (:,:,:)                ! read in - soil texture: percent gravel (needs to be a pointer for use in ncdio)
+    real(r8) ,pointer  :: watsat3d (:,:,:)              ! read in - porosity (from_file mode only, needs to be a pointer for use in ncdio)
     real(r8) ,pointer  :: organic3d (:,:,:)             ! read in - organic matter: kg/m3 (needs to be a pointer for use in ncdio)
     real(r8) ,pointer  :: tillage_in (:,:)              ! read in - conserved tillage fraction
     real(r8) ,pointer  :: litho_in (:,:)                ! read in - lithology erodibility index
@@ -436,6 +439,9 @@ contains
     allocate(sand3d(begg:endg,max_topounits,nlevsoifl))
     allocate(clay3d(begg:endg,max_topounits,nlevsoifl))
     allocate(grvl3d(begg:endg,max_topounits,nlevsoifl))
+    if (watsat_type == 'from_file') then
+       allocate(watsat3d(begg:endg,max_topounits,nlevsoifl))
+    end if
     ! --------------------------------------------------------------------
     ! Read surface dataset
     ! --------------------------------------------------------------------
@@ -525,6 +531,14 @@ contains
        end if
     else
        grvl3d(:,:,:) = 0._r8
+    end if
+
+    if (watsat_type == 'from_file') then
+       call ncd_io(ncid=ncid, varname='WATSAT', flag='read', data=watsat3d, dim1name=grlnd, readvar=readvar)
+       if (.not. readvar) then
+          call endrun(msg=' ERROR: WATSAT NOT on surfdata file (required when watsat_type=from_file)'&
+               //errMsg(__FILE__, __LINE__))
+       end if
     end if
 
     do p = bounds%begp,bounds%endp
@@ -689,6 +703,7 @@ contains
                    sand = sand3d(g,ti,1)
                    gravel = grvl3d(g,ti,1)
                    om_frac = max(0.0_r8, min(organic3d(g,ti,1)/organic_max, 1._r8))
+                   if (watsat_type == 'from_file') watsat_from_file = watsat3d(g,ti,1)
                 else if (lev <= min(nlevbed,nlevsoi)) then
                    do j = 1,nlevsoifl-1
                       if (zisoi(lev) >= zisoifl(j) .AND. zisoi(lev) < zisoifl(j+1)) then
@@ -696,6 +711,7 @@ contains
                          sand = sand3d(g,ti,j+1)
                          gravel = grvl3d(g,ti,j+1)
                          om_frac = max(0.0_r8, min(organic3d(g,ti,j+1)/organic_max, 1._r8))
+                         if (watsat_type == 'from_file') watsat_from_file = watsat3d(g,ti,j+1)
                       endif
                    end do
                 else ! target interface at/below source data bottom: use deepest source layer
@@ -703,6 +719,7 @@ contains
                    sand = sand3d(g,ti,nlevsoifl)
                    gravel = grvl3d(g,ti,nlevsoifl)
                    om_frac = 0._r8
+                   if (watsat_type == 'from_file') watsat_from_file = watsat3d(g,ti,nlevsoifl)
                 endif
              else
                 if (lev <= nlevsoi) then ! duplicate clay and sand values from 10th soil layer
@@ -714,11 +731,13 @@ contains
                    else
                       om_frac = max(0.0_r8, min((organic3d(g,ti,lev)/organic_max), 1._r8))
                    endif
+                   if (watsat_type == 'from_file') watsat_from_file = watsat3d(g,ti,lev)
                 else
                    clay = clay3d(g,ti,nlevsoi)
                    sand = sand3d(g,ti,nlevsoi)
                    gravel = grvl3d(g,ti,nlevsoi)
                    om_frac = 0._r8
+                   if (watsat_type == 'from_file') watsat_from_file = watsat3d(g,ti,nlevsoi)
                 endif
              end if
 
@@ -754,6 +773,10 @@ contains
                 ipedof=get_ipedof(0)
                 call pedotransf(ipedof, sand, clay, &
                      this%watsat_col(c,lev), this%bsw_col(c,lev), this%sucsat_col(c,lev), xksat)
+
+                if (watsat_type == 'from_file') then
+                   this%watsat_col(c,lev) = watsat_from_file
+                end if
 
                 om_watsat         = max(0.93_r8 - 0.1_r8   *(zsoi(lev)/zsapric), 0.83_r8)
                 om_b              = min(2.7_r8  + 9.3_r8   *(zsoi(lev)/zsapric), 12.0_r8)
@@ -933,6 +956,9 @@ contains
     ! --------------------------------------------------------------------
 
     deallocate(sand3d, clay3d, grvl3d, organic3d)
+    if (watsat_type == 'from_file') then
+       deallocate(watsat3d)
+    end if
     deallocate(zisoifl, zsoifl, dzsoifl)
 
   end subroutine InitCold

@@ -82,6 +82,13 @@ Type of CO2 feedback.
     diagnostic = use the diagnostic value sent from the atmosphere
 </entry>
 
+<entry id="watsat_type" type="char*16" category="elm_physics"
+       group="elm_inparm" valid_values="cosby_1984,from_file" >
+Method used to set soil porosity (volumetric water content at saturation, watsat).
+    cosby_1984 = compute watsat via Cosby et al. (1984) pedotransfer function from PCT_SAND/PCT_CLAY
+    from_file  = read watsat directly from the WATSAT variable on the surface dataset (fsurdat)
+</entry>
+
 
 <entry id="suplnitro" type="char*15" category="elm_physics"
        group="elm_inparm" valid_values="NONE,ALL" >

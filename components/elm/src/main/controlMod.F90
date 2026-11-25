@@ -58,6 +58,7 @@ module controlMod
                         flndtopo, paramfile, fsnowoptics, fsnowaging, &
                         fsoilordercon, hist_wrtch4diag, spinup_state, &
                         override_bgc_restart_mismatch_dump, co2_type, &
+                        watsat_type, &
                         nyears_ad_carbon_only, spinup_mortality_factor, &
                         glc_smb, glc_do_dynglacier, glc_grid, fglcmask, &
                         glcmec_downscale_rain_snow_convert, &
@@ -259,6 +260,9 @@ contains
 
     namelist /elm_inparm / &
          co2_type
+
+    namelist /elm_inparm / &
+         watsat_type
 
     namelist /elm_inparm / &
          perchroot, perchroot_alt
@@ -752,6 +756,12 @@ contains
             errMsg(__FILE__, __LINE__))
     end if
 
+    ! Consistency settings for watsat type
+    if (watsat_type /= 'cosby_1984' .and. watsat_type /= 'from_file') then
+       write(iulog,*)'watsat_type = ',watsat_type,' is not supported'
+       call endrun(msg=' ERROR: watsat_type must be cosby_1984 or from_file'//errMsg(__FILE__, __LINE__))
+    end if
+
     ! Check on run type
     if (nsrest == iundef) then
        call endrun(msg=' ERROR:: must set nsrest'//&
@@ -889,6 +899,8 @@ contains
 
     ! BGC
     call mpi_bcast (co2_type, len(co2_type), MPI_CHARACTER, 0, mpicom, ier)
+
+    call mpi_bcast (watsat_type, len(watsat_type), MPI_CHARACTER, 0, mpicom, ier)
 
     if (use_cn .or. use_fates) then
        call mpi_bcast (suplnitro, len(suplnitro), MPI_CHARACTER, 0, mpicom, ier)
@@ -1330,6 +1342,8 @@ contains
     else
        write(iulog,*) '   CO2 volume mixing ratio                = ', co2_type
     end if
+
+    write(iulog,*) '    watsat_type = ', watsat_type
 
     write(iulog,*) '   constant historical climate during transient simulation = ', const_climate_hist
 

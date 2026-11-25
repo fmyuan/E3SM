@@ -172,6 +172,9 @@ module elm_varctl
   ! values of 'prognostic','diagnostic','constant'
   character(len=16), public :: co2_type = 'constant'
 
+  ! values of 'cosby_1984','from_file'
+  character(len=16), public :: watsat_type = 'cosby_1984'
+
   ! State of the model for the accelerated decomposition (AD) spinup.
   ! 0 (default) = normal model; 1 = AD SPINUP
   integer, public  :: spinup_state            = 0
