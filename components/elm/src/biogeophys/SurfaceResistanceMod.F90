@@ -109,6 +109,7 @@ contains
      use column_varcon   , only : icol_road_imperv, icol_road_perv
      use ColumnType      , only : col_pp
      use LandunitType    , only : lun_pp
+     use elm_varctl      , only : use_ats_hydro
      !
      implicit none
      type(bounds_type)     , intent(in)    :: bounds    ! bounds
@@ -153,6 +154,10 @@ contains
                         *0.25_r8*(1._r8 - cos(SHR_CONST_PI*fac_fc))**2._r8 &
                         + frac_sno(c)+ frac_h2osfc(c)
                 else   !when water content of ths top layer is more than that at F.C.
+                   soilbeta(c) = 1._r8
+                end if
+                if ( use_ats_hydro ) then
+                   ! do not downregulate -- ATS will do that
                    soilbeta(c) = 1._r8
                 end if
              else if (col_pp%itype(c) == icol_road_perv) then
