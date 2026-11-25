@@ -38,38 +38,71 @@ module atm2lndType
   type, public :: atm2lnd_type
       !DMR additions for CPL_BYPASS option
 #ifdef CPL_BYPASS
-      integer*2, pointer :: atm_input                (:,:,:,:) => null()  !Single-site meteorological input
+      ! Meteorological input buffer: (variable, unique source column, page-relative time).
+      ! Column dimension is sized to the number of distinct (zone, file-row) pairs actually
+      ! referenced by this rank's gridcells (ncols_needed), not one slot per gridcell --
+      ! most gridcells share a source column with many others. See column_index below for
+      ! the per-gridcell -> column lookup used at the point of use, every timestep.
+      integer*2, pointer :: atm_input                  (:,:,:) => null()  !(1:14, 1:ncols_needed, 1:page_ntimes) -- page-relative time, see page_start/page_first_part
       integer, pointer  :: loaded_bypassdata                   => null()
-      real(r8), pointer :: add_offsets                     (:) => null()  !offsets for compressed met drivers
-      real(r8), pointer :: scale_factors                   (:) => null()  !scale factors for compressed met drivers      
+      real(r8), pointer :: add_offsets                     (:) => null()  !offsets for compressed met drivers, per variable
+      real(r8), pointer :: scale_factors                   (:) => null()  !scale factors for compressed met drivers, per variable
       integer(r8), pointer :: startyear_met                    => null()  !staring driver met year
       integer(r8), pointer :: endyear_met_spinup               => null()  !end driver met year for spinup cycle
       integer(r8), pointer :: endyear_met_trans                => null()  !end driver met year for transient simulation
-      real(r8), pointer :: timeres                         (:) => null()  !time resolution of driver met (hours)
       real(r8), pointer :: var_offset                  (:,:,:) => null()  !correction offset for grid->site driver met (monthly)
       real(r8), pointer :: var_mult                    (:,:,:) => null()  !correction factor for grid->site driver met (monthly)
-      integer,  pointer :: timelen                         (:) => null()  !length of input meteorology
-      integer,  pointer :: timelen_spinup                  (:) => null()  !length of spinup meteorology
-      integer,  pointer :: tindex                      (:,:,:) => null()  !current index for meteorolgoical data
+
+      ! Shared dataset time axis: every variable in a CPL_BYPASS dataset shares one DTIME
+      ! record axis (verified at setup -- see validateSharedTimeAxis in lnd_import_export.F90).
+      ! These are dataset-scoped scalars, not per-variable/per-gridcell arrays.
+      real(r8), pointer :: dtime_ref_day0                      => null()  !DTIME=0 expressed as fractional days since 0000-01-01 (noleap)
+      integer,  pointer :: dtime_ref_year                      => null()  !calendar year of DTIME's CF reference date
+      real(r8), pointer :: timeres                             => null()  !time resolution of driver met (hours), shared across variables
+      integer,  pointer :: timelen                             => null()  !length of the full met record (records), shared across variables
+      integer,  pointer :: timelen_spinup                      => null()  !length of the spinup-cycle window (records), shared across variables
+      real(r8), pointer :: npf                                 => null()  !number of model timesteps per forcing timestep, shared across variables
+      integer,  pointer :: tindex                          (:) => null()  !(1:2) current bracketing absolute record indices, shared across variables
+      real(r8), pointer :: interp_wt1                          => null()  !current interpolation weight on tindex(1), shared across variables
+      real(r8), pointer :: interp_wt2                          => null()  !current interpolation weight on tindex(2), shared across variables
+
+      ! Rolling page (buffer) bounds: absolute record indices [page_start, page_end]
+      ! currently held in atm_input. Pages overlap by one time slice so interpolation
+      ! never needs a second read. For const_climate_hist spinup, the page that straddles
+      ! the record boundary wraps modulo timelen_spinup, reading both tail (indices
+      ! page_start..timelen_spinup, buffer offsets 1..page_first_part) and head
+      ! (indices 1..page_end, buffer offsets page_first_part+1..page_ntimes) in one
+      ! load -- page_first_part == page_ntimes (no wrap) for a non-wrapped page.
+      integer,  pointer :: page_start                          => null()
+      integer,  pointer :: page_end                             => null()
+      integer,  pointer :: page_first_part                      => null()  !buffer offset count belonging to [page_start, record_len]
+      integer,  pointer :: page_ntimes                          => null()  !requested page depth (-1 = whole record, no paging)
+
       integer,  pointer :: metsource                           => null()  !Meteorogical source (0=Qian, 1=cruncep)
-      real(r8), pointer :: npf                            (:)  => null()  !number of model timesteps per forcing timestep
       real(r8), pointer :: co2_input                   (:,:,:) => null()  !annual CO2 input data
       real(r8), pointer :: c13o2_input                 (:,:,:) => null()  !annual C13O2 input data
       integer, pointer :: ndepind                        (:,:) => null()  !annual nitrogen deposition data
       integer, pointer :: hdmind                         (:,:) => null()  !popluation density
-      real(r8), pointer :: forc_hdm                      (:)   => null() 
+      real(r8), pointer :: forc_hdm                      (:)   => null()
       real(r8), pointer :: forc_lnfm                     (:)   => null()
-      real(r8), pointer ::  hdm1                       (:,:,:) => null() 
+      real(r8), pointer ::  hdm1                       (:,:,:) => null()
       real(r8), pointer ::  hdm2                       (:,:,:) => null()
       real(r8), pointer ::  lnfm_all                   (:,:,:) => null()
       real(r8), pointer ::  lnfm                         (:,:) => null()
       real(r8), pointer ::  ndep1                      (:,:,:) => null()
       real(r8), pointer ::  ndep2                      (:,:,:) => null()
       real(r8), pointer ::  aerodata                 (:,:,:,:) => null()
-      integer,  pointer :: buffer_start_tidx               (:) => null()  !(1:14) abs file index of buffer slot 1, per variable
-      integer,  pointer :: read_ntimes                          => null()  !rolling buffer depth (-1 = read entire record)
-      integer,  pointer :: gtoget_saved                    (:) => null()  !(begg:endg) saved grid-to-file-cell mapping
-      integer,  pointer :: ztoget_saved                    (:) => null()  !(begg:endg) saved grid-to-zone mapping
+
+      ! Per-gridcell spatial mapping into atm_input's unique-column dimension, replacing
+      ! the old gtoget_saved/ztoget_saved pair with one flat index computed once at setup
+      ! (nearest-neighbor lookup into zone_mappings.txt) and static for the run.
+      integer,  pointer :: column_index                    (:) => null()  !(begg:endg) index into atm_input's column dimension
+      integer :: ncols_needed = 0  ! number of distinct (zone, file-row) columns loaded into atm_input
+      ! Compact per-column (not per-gridcell) file-row/zone, one entry per unique
+      ! atm_input column -- companion to column_index, used by loadCplBypassPage on
+      ! every (re)load without needing to re-derive uniqueness from begg:endg gridcells.
+      integer,  pointer :: col_gtoget                      (:) => null()  !(1:ncols_needed)
+      integer,  pointer :: col_ztoget                      (:) => null()  !(1:ncols_needed)
 #endif
      ! atm->lnd not downscaled
      real(r8), pointer :: forc_u_grc                    (:)   => null() ! atm wind speed, east direction (m/s)
@@ -219,24 +252,36 @@ contains
 
     ! atm->lnd
 
-    !DMR - variables added for CPL_BYPASS option 
+    !DMR - variables added for CPL_BYPASS option
 #ifdef CPL_BYPASS
-    allocate(this%timelen                            (1:14))        ; this%timelen                       (:)   = ival_int
-    allocate(this%timelen_spinup                     (1:14))        ; this%timelen_spinup                (:)   = ival_int
-    allocate(this%tindex               (begg:endg,1:14,1:2))        ; this%tindex                    (:,:,:)   = ival_int
-    allocate(this%metsource                                )        ; this%metsource                           = ival_int   
-    allocate(this%npf                                (1:14))        ; this%npf                           (:)   = ival
-    !allocate(this%atm_input       (14,begg:endg,1,1:600000))        ; this%atm_input               (:,:,:,:)   = ival_short
+    ! atm_input is allocated later, once ncols_needed and the page depth are known
+    ! (see setupCplBypassDataset in lnd_import_export.F90) -- not here, since both
+    ! depend on the zone-mapping file and the dataset's own record length.
+    allocate(this%metsource                                )        ; this%metsource                           = ival_int
     allocate(this%loaded_bypassdata                        )        ; this%loaded_bypassdata                   = 0
     allocate(this%add_offsets                        (1:14))        ; this%add_offsets                   (:)   = 0.0_r8
     allocate(this%scale_factors                      (1:14))        ; this%scale_factors                 (:)   = 1.0_r8
     allocate(this%startyear_met                            )        ; this%startyear_met                       = ival_int
     allocate(this%endyear_met_spinup                       )        ; this%endyear_met_spinup                  = ival_int
     allocate(this%endyear_met_trans                        )        ; this%endyear_met_trans                   = ival_int
-    allocate(this%timeres                            (1:14))        ; this%timeres                       (:)   = ival
     allocate(this%var_offset              (14,begg:endg,12))        ; this%var_offset                (:,:,:)   = ival
     allocate(this%var_mult                (14,begg:endg,12))        ; this%var_mult                  (:,:,:)   = 1.0_r8
-    allocate(this%co2_input                      (1,1,3000))        ; this%co2_input                 (:,:,:)   = ival    
+
+    allocate(this%dtime_ref_day0                           )        ; this%dtime_ref_day0                      = ival
+    allocate(this%dtime_ref_year                           )        ; this%dtime_ref_year                      = ival_int
+    allocate(this%timeres                                  )        ; this%timeres                             = ival
+    allocate(this%timelen                                  )        ; this%timelen                             = ival_int
+    allocate(this%timelen_spinup                           )        ; this%timelen_spinup                      = ival_int
+    allocate(this%npf                                      )        ; this%npf                                 = ival
+    allocate(this%tindex                             (1:2) )        ; this%tindex                        (:)   = ival_int
+    allocate(this%interp_wt1                               )        ; this%interp_wt1                          = ival
+    allocate(this%interp_wt2                               )        ; this%interp_wt2                          = ival
+    allocate(this%page_start                               )        ; this%page_start                          = 1
+    allocate(this%page_end                                 )        ; this%page_end                            = 0
+    allocate(this%page_first_part                          )        ; this%page_first_part                     = 0
+    allocate(this%page_ntimes                              )        ; this%page_ntimes                         = -1
+
+    allocate(this%co2_input                      (1,1,3000))        ; this%co2_input                 (:,:,:)   = ival
     allocate(this%c13o2_input                    (1,1,3000))        ; this%c13o2_input               (:,:,:)   = ival
     allocate(this%ndepind                     (begg:endg,2))        ; this%ndepind                     (:,:)   = ival_int
     allocate(this%hdmind                      (begg:endg,2))        ; this%hdmind                      (:,:)   = ival_int
@@ -244,14 +289,16 @@ contains
     allocate(this%forc_lnfm                     (begg:endg))        ; this%forc_lnfm                     (:)   = ival
     allocate(this%hdm1                          (720,360,1))        ; this%hdm1                      (:,:,:)   = ival
     allocate(this%hdm2                          (720,360,1))        ; this%hdm2                      (:,:,:)   = ival
-    allocate(this%lnfm                     (begg:endg,2920))        ; this%lnfm                        (:,:)   = ival 
+    allocate(this%lnfm                     (begg:endg,2920))        ; this%lnfm                        (:,:)   = ival
     allocate(this%ndep1                          (144,96,1))        ; this%ndep1                     (:,:,:)   = ival
     allocate(this%ndep2                          (144,96,1))        ; this%ndep2                     (:,:,:)   = ival
     allocate(this%aerodata                   (14,144,96,14))        ; this%aerodata                (:,:,:,:)   = ival
-    allocate(this%buffer_start_tidx                  (1:14))        ; this%buffer_start_tidx             (:)   = 1
-    allocate(this%read_ntimes                              )        ; this%read_ntimes                         = -1
-    allocate(this%gtoget_saved               (begg:endg)   )        ; this%gtoget_saved                  (:)   = 0
-    allocate(this%ztoget_saved               (begg:endg)   )        ; this%ztoget_saved                  (:)   = 0
+
+    allocate(this%column_index               (begg:endg)   )        ; this%column_index                  (:)   = 0
+    ! col_gtoget/col_ztoget are sized to the gridcell count as a safe upper bound
+    ! (ncols_needed <= endg-begg+1); only indices 1:ncols_needed are ever populated.
+    allocate(this%col_gtoget                 (begg:endg)   )        ; this%col_gtoget                    (:)   = 0
+    allocate(this%col_ztoget                 (begg:endg)   )        ; this%col_ztoget                    (:)   = 0
     !END DMR
 #endif
     allocate(this%forc_u_grc                    (begg:endg))        ; this%forc_u_grc                    (:)   = ival

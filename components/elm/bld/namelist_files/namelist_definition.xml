@@ -745,6 +745,21 @@ Rolling buffer depth for CPL_BYPASS met forcing. -1 (default) reads the entire r
 <default>Default: -1</default>
 </entry>
 
+<entry id="metdata_fsds_interpolant" type="char*400" category="datasets"
+       group="elm_inparm" valid_values="zenith,linear">
+How CPL_BYPASS temporally disaggregates FSDS from the forcing record's
+cadence down to the model timestep. 'zenith' (default, for backward
+compatibility) reshapes each forcing period using a ratio of
+instantaneous to period-mean cosine solar zenith angle, which
+reconstructs a physically-shaped diurnal cycle well when the forcing
+already varies with the sun, but produces large non-physical spikes and
+measurable energy non-conservation when fed forcing with little/no
+diurnal contrast (e.g. flat idealized FSDS). 'linear' does plain linear
+interpolation between bracketing forcing records instead -- no diurnal
+reshaping, safe for flat/idealized forcing.
+<default>Default: zenith</default>
+</entry>
+
 <entry id="nsegspc" type="integer" category="elm_performance"
        group="elm_inparm" valid_values="" >
 number of segments per clump for decomposition

@@ -549,6 +549,21 @@ module elm_varctl
    character(len=fname_len), public :: co2_file       = ' '    ! co2 file for CPL_BYPASS mode
    character(len=fname_len), public :: aero_file      = ' '    ! aerosol deposition file for CPL_BYPASS mode
    integer,                  public :: metdata_read_buffer_ntimes = -1  ! rolling buffer depth; -1 = read entire record at once
+   ! How CPL_BYPASS temporally disaggregates FSDS from the forcing
+   ! record's cadence down to the model timestep. 'zenith' (default, for
+   ! backward compatibility) reshapes each forcing period using a
+   ! cos(solar zenith angle) ratio (thiscosz/avgcosz), which reconstructs
+   ! a physically-shaped diurnal cycle well when the forcing already
+   ! varies with the sun (e.g. real hourly/3-hourly reanalysis data,
+   ! where each period's average already differs day vs. night), but
+   ! produces large, non-physical spikes and measurable energy
+   ! non-conservation when fed forcing with little/no diurnal contrast
+   ! (e.g. a flat idealized FSDS, or short forcing periods relative to
+   ! how fast zenith angle changes near sunrise/sunset). 'linear' does
+   ! plain linear interpolation between bracketing forcing records
+   ! instead -- no diurnal reshaping, safe for flat/idealized forcing,
+   ! but does not reconstruct sub-period diurnal shape from coarse data.
+   character(len=fname_len), public :: metdata_fsds_interpolant = 'zenith'
 
   !$acc declare create(use_fates)
 
