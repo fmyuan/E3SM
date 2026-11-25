@@ -1,0 +1,24 @@
+&dynamic_subgrid
+ do_harvest = .false.
+ do_transient_pfts = .false.
+ flanduse_timeseries = ''
+
+&finidat_consistency_checks
+ check_finidat_fsurdat_consistency = .false.
+ check_finidat_year_consistency = .false.
+
+&clm_inparm
+ do_budgets = .true.
+ use_nofire = .true.
+ metdata_type = 'atssubdaily'
+ metdata_bypass = '$DIN_LOC_ROOT/atm/datm7/atm_forcing.datm7.AORC/cpl_bypass_full'
+
+ aero_file = '$DIN_LOC_ROOT/atm/cam/chem/trop_mozart_aero/aero/aerosoldep_monthly_1850_mean_1.9x2.5_c090421.nc'
+ CO2_file = '$DIN_LOC_ROOT/atm/datm7/CO2/fco2_datm_1765-2007_c100614.nc'
+
+ nyears_ad_carbon_only = 25
+ spinup_mortality_factor = 10
+
+ stream_fldfilename_popdens = '$DIN_LOC_ROOT/lnd/clm2/firedata/clmforc.Li_2012_hdm_0.5x0.5_AVHRR_simyr1850-2010_c130401.nc'
+ stream_fldfilename_ndep = '$DIN_LOC_ROOT/lnd/clm2/ndepdata/fndep_elm_cbgc_exp_simyr1849-2101_1.9x2.5_c190103.nc'
+
