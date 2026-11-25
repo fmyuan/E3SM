@@ -11,7 +11,7 @@ module ExternalModelATS
   use shr_kind_mod                 , only : r8 => shr_kind_r8
   use spmdMod                      , only : mpicom,iam
   use abortutils                   , only : endrun
-  use histFileMod                  , only : hist_nhtfrq
+  use shr_sys_mod                  , only : shr_sys_flush
   use elm_varpar                   , only : nlevgrnd
   use elm_varctl                   , only : iulog
   use elm_varctl                   , only : use_ats, use_ats_ic, ats_verbosity
@@ -48,8 +48,10 @@ module ExternalModelATS
    contains
      procedure, public :: Init                          => EM_ATS_Init
      procedure, public :: Advance                       => EM_ATS_Advance
-     procedure, public :: Finalize                      => EM_ATS_Finalize
-     
+     procedure, public :: Visualize                      => EM_ATS_Visualize
+     procedure, public :: Checkpoint                     => EM_ATS_Checkpoint
+     procedure, public :: Finalize                       => EM_ATS_Finalize
+
   end type em_ats_type
 
   type(em_ats_type), public :: em_ats
@@ -245,8 +247,6 @@ contains
   
     
     ! local variables
-    logical(C_BOOL) :: do_vis
-    logical(C_BOOL) :: do_checkpoint
     real(r8) :: h2osoi_liq_total
     integer :: i, ii, j
 
@@ -298,19 +298,15 @@ contains
     call EM_ATS_SetField_ScalarMultiply(this, "potential evaporation", ats_var_id%POTENTIAL_EVAPORATION, &
          col_wf%qflx_gross_evap_soil, 1.e-3_r8, 2)
     
-    ! call advance
-    ! -- get whether to vis and checkpoint
-    do_vis = .false.
-    do_checkpoint = .false.
-    if (hist_nhtfrq(1) > 0) then
-       if (mod(nstep, hist_nhtfrq(1)) == 0) do_vis = .true.
-    end if
-
-    ! -- call the advance method
+    ! call advance -- vis/checkpoint are no longer bundled into advance()
+    ! itself (they happen between, not during, timesteps); see
+    ! EM_ATS_Visualize()/EM_ATS_Checkpoint() below, called from elm_driver.F90
+    ! on ELM's own history/restart write cadence.
     if (this%verbosity >= 2) then
        write(iulog,*) "CALLING ats_advance"
+       call shr_sys_flush(iulog)
     end if
-    call ats_advance(this%ats, dt, do_checkpoint, do_vis)
+    call ats_advance(this%ats, dt)
 
     ! pass state back to ELM
     ! TODO: ETC -- Step 4
@@ -328,8 +324,36 @@ contains
     ! diagnostics?
     ! ...
   end subroutine EM_ATS_Advance
-  
-  
+
+
+  !------------------------------------------------------------------------
+  ! Write ATS visualization output for the current state.  Called from
+  ! elm_driver.F90 whenever ELM itself is about to write a history file,
+  ! so ATS's own vis output stays aligned with ELM's write cadence -- not
+  ! bundled into EM_ATS_Advance(), since vis logically happens between
+  ! (not during) timesteps.
+  subroutine EM_ATS_Visualize(this)
+    implicit none
+    class(em_ats_type) :: this
+
+    call ats_visualize(this%ats)
+  end subroutine EM_ATS_Visualize
+
+
+  !------------------------------------------------------------------------
+  ! Write an ATS checkpoint/restart file for the current state.  Called from
+  ! elm_driver.F90 whenever ELM itself is about to write a restart file, so
+  ! ATS's restart stays synchronized with ELM's own -- ELM controls
+  ! checkpointing (see the "no checkpoint sublist" comment in
+  ! ELM_ATSDriver::parseParameterList()), not ATS's own XML schedule.
+  subroutine EM_ATS_Checkpoint(this)
+    implicit none
+    class(em_ats_type) :: this
+
+    call ats_checkpoint(this%ats)
+  end subroutine EM_ATS_Checkpoint
+
+
   !------------------------------------------------------------------------
   subroutine EM_ATS_Finalize(this)
     implicit none

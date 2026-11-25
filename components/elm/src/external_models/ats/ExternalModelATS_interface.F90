@@ -58,18 +58,29 @@ module ExternalModelATS_interface
       type(c_ptr), value :: ats
     end subroutine ats_initialize
 
-    subroutine ats_advance(ats, dt, checkpoint, visualize) bind(C, name="ats_advance")
-      import :: c_ptr, c_double, c_bool
+    subroutine ats_advance(ats, dt) bind(C, name="ats_advance")
+      import :: c_ptr, c_double
       type(c_ptr), value :: ats
       real(c_double), value :: dt
-      logical(c_bool), value :: checkpoint
-      logical(c_bool), value :: visualize
     end subroutine ats_advance
 
     subroutine ats_advance_test(ats) bind(C, name="ats_advance_test")
       import :: c_ptr
       type(c_ptr), value :: ats
     end subroutine ats_advance_test
+
+    ! Write visualization/checkpoint output for the current state, between
+    ! (not during) ats_advance() calls -- called whenever ELM itself is
+    ! about to write a history file (visualize) or restart file (checkpoint).
+    subroutine ats_visualize(ats) bind(C, name="ats_visualize")
+      import :: c_ptr
+      type(c_ptr), value :: ats
+    end subroutine ats_visualize
+
+    subroutine ats_checkpoint(ats) bind(C, name="ats_checkpoint")
+      import :: c_ptr
+      type(c_ptr), value :: ats
+    end subroutine ats_checkpoint
 
     ! -------------------------------------------------------------------------
     ! Memory movement / data passing

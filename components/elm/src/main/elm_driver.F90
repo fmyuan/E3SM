@@ -19,13 +19,14 @@ module elm_driver
   use elm_varctl             , only : nsrest, nsrStartup
   use elm_varctl             , only : fates_radiation_model
   use elm_varctl             , only : finidat
+  use elm_varctl             , only : use_ats_any
   use elm_time_manager       , only : get_step_size, get_curr_date, get_ref_date, get_nstep, is_beg_curr_day, get_curr_time_string
   use elm_time_manager       , only : get_curr_calday, get_days_per_year
   use elm_varpar             , only : nlevsno, nlevgrnd, crop_prog
   use spmdMod                , only : masterproc, mpicom
   use decompMod              , only : get_proc_clumps, get_clump_bounds, get_proc_bounds, bounds_type
   use filterMod              , only : filter, filter_inactive_and_active
-  use histFileMod            , only : hist_update_hbuf, hist_htapes_wrapup
+  use histFileMod            , only : hist_update_hbuf, hist_htapes_wrapup, tape, ntapes
   use restFileMod            , only : restFile_write, restFile_filename
   use abortutils             , only : endrun
   !
@@ -214,7 +215,10 @@ contains
      use elm_varctl            , only : fates_seeddisp_cadence
      use FATESFireFactoryMod   , only : scalar_lightning
      use FatesInterfaceTypesMod, only : fates_dispersal_cadence_none
-     
+#ifdef USE_ATS_LIB
+     use ExternalModelATS      , only : em_ats
+#endif
+
     ! !ARGUMENTS:
     implicit none
     logical ,        intent(in) :: doalb       ! true if time for surface albedo calc
@@ -1476,6 +1480,22 @@ contains
             soilstate_vars%bsw_col(bounds_proc%begc:bounds_proc%endc, 1:),    &
             soilstate_vars%hksat_col(bounds_proc%begc:bounds_proc%endc, 1:))
 
+       ! Keep ATS's own visualization output aligned with ELM's h0 history
+       ! writes -- tape(1) is h0.  Finer-grained control (e.g. triggering on
+       ! whichever tape actually contains water-state fields, if any) is a
+       ! future improvement; for now the user can still restrict/expand
+       ! ATS's own dump schedule via the "visualization" list in its XML.
+       ! Gated on use_ats_any (not use_ats): use_ats alone (e.g.
+       ! domain_decomp_type='ats' for mesh/decomposition matching only,
+       ! without use_ats_ic/use_ats_hydro) never actually runs em_ats%Init(),
+       ! so ATS's State is never set up -- calling Visualize()/Checkpoint()
+       ! in that case would hit a State with no "cycle" RecordSet at all.
+#ifdef USE_ATS_LIB
+       if (use_ats_any .and. tape(1)%is_endhist) then
+          call em_ats%Visualize()
+       end if
+#endif
+
        call t_stopf('elm_drv_io_htapes')
        ! Write restart/initial files if appropriate
        if (rstwr) then
@@ -1496,6 +1516,14 @@ contains
          ! end if
          !----------------------------------------------
 
+#ifdef USE_ATS_LIB
+          ! ELM controls checkpointing (see the "no checkpoint sublist"
+          ! comment in ELM_ATSDriver::parseParameterList()) -- ATS's own
+          ! restart is written here, in lockstep with ELM's, rather than on
+          ! any independent schedule of its own. Gated on use_ats_any, not
+          ! use_ats -- see the Visualize() comment above.
+          if (use_ats_any) call em_ats%Checkpoint()
+#endif
 
           call t_stopf('elm_drv_io_wrest')
        end if
